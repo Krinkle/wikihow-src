@@ -442,6 +442,9 @@ class AppDataFormatter {
 
 	static function gatherImageCredits($parsed, &$credits) {
 		foreach ($parsed as $k => $v) {
+			if ($k == "type" && $v == "relatedwikihows") {
+				return;
+			}
 			if(!is_array($v) && ($k == "url" || $k == "html")) {
 				if (strpos(strtolower($v), 'jpg') === FALSE && strpos(strtolower($v), 'png') === FALSE) {
 					continue;

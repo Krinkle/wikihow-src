@@ -72,6 +72,7 @@ class RCPatrol extends SpecialPage {
 			$titleText = RCTestStub::getTitleText($result, $rcTest);
 			$wgOut->addHTML("<div id='articletitle' style='display:none;'>$titleText</div>");
 			$wgOut->addHTML("<div id='rc_header' class='tool_header'>");
+			$wgOut->addHtml('<p id="rc_helplink" class="tool_help"><a href="/Patrol-Recent-Changes-on-wikiHow" target="_blank">Learn how</a></p>');
 			$wgOut->addHTML('<a href="#" id="rcpatrol_keys">Get Shortcuts</a>');
 			// if this was a redirect, the title may have changed so update our context
 			$oldTitle = $this->getContext()->getTitle();
@@ -233,13 +234,9 @@ class RCPatrol extends SpecialPage {
 	}
 
 	private static function generateRollback($rev, $oldid = 0, &$rcTest) {
-		global $wgUser, $wgRequest, $wgTitle, $wgServer;
-		
 		if (!$rev) return '';
-		$title = $rev->getTitle();
 
 		//first rev?
-//		if ($oldid == 0) return '';
 		if ($oldid == 0 || $oldid == '0' || !$oldid) {
 			if ($rcTest && $rcTest->isTestTime()) {
 				// wait, this is a test? nevermind then...
@@ -249,46 +246,10 @@ class RCPatrol extends SpecialPage {
 			}
 		}
 
-		$extraRollback = $wgRequest->getBool( 'bot' ) ? '&bot=1' : '';
-		$extraRollback .= '&token=' . urlencode(
-		$wgUser->editToken( array( $title->getPrefixedText(), $rev->getUserText() ) ) );
-
-		$titleVal = $title->getLocalUrl();
-		$titleVal = substr($titleVal, 1, strlen($titleVal));
-		// Put urls in /index.php?title= form so we can bypass the varnish redirect rules for mobiel and tables
-		if ($oldid) {
-			$url = $wgServer . "/index.php?title={$titleVal}&action=rollback&old={$oldid}&from=" . urlencode( $rev->getUserText() ). $extraRollback . "&useajax=true";
-		} else {
-			$url = $wgServer . "/index.php?title={$titleVal}&action=rollback&from=" . urlencode( $rev->getUserText() ). $extraRollback . "&useajax=true";
-		}
-
-		// loop, check it 5 times because I think this changes
-		$o = $_SESSION['wsEditToken'];
-		for ($i = 0; $i < 5; $i++) {
-			$x = $_SESSION['wsEditToken'];
-			if ($x != $o) {
-				// well here's our problem
-				$url .= "&bad1={$o}&bad2={$x}";
-				break;
-			}
-		}
-
-		// debug all of this crap for bug 461
-		global $wgCookiePrefix;
-		$url .= "&timestamp=" . wfTimestampNow() . "&wsEditToken=" . $_SESSION['wsEditToken'] . "&sidx=" . session_id();
-		$url .= '&wsEditToken_set=' . $_SESSION['wsEditToken_set'];
-		$url .= '&hostname=' .  $_SESSION['wsEditToken_hostname'];
-		$cookiesid = $_COOKIE[$wgCookiePrefix.'_session'];
-		$url .= "&cookiesid=" . $cookiesid;
-		$url .= "&s_started=" . $_SESSION['started'];
-		$url .= '&wsUserName=' .  $_SESSION['wsUserName'];
-		$url .= '&cookiesUserName=' .  $_COOKIE[$wgCookiePrefix.'UserName'];
-		$url .= '&ip=' . wfGetIP();
-		$url .= "&wgUser=" . urlencode($wgUser->getName());
-
 		$class = "class='button secondary' style='float: right;'";
 
-		// Short circuit old rollback url and try the new one
+		// Genrate an RC Patrol rollback url. Different than the normal mediawiki rollback 
+		// to handle multiple intermediate revisions (if they exist)
 		$url =  self::generateRollbackUrl($rev, $oldid, &$rcTest);
 		
 		$s = HtmlSnips::makeUrlTags('js', array('rollback.js'), 'extensions/wikihow', false);

@@ -24,7 +24,7 @@ class MyTwitter extends SpecialPage {
 
 
 	function hasBadTemplate($text) {
-		$templates = split("\n", wfMsg('twitterfeed_templates_to_ignore'));
+		$templates = explode("\n", wfMsg('twitterfeed_templates_to_ignore'));
 		foreach ($templates as $t) {
 			$t = trim($t); 
 			if ($t == "") {
@@ -66,7 +66,7 @@ class MyTwitter extends SpecialPage {
 		$dbr = wfGetDB(DB_SLAVE);
 		$account = $dbr->selectRow('twitterfeedusers', array('*'), array('tfu_user'=>$user->getID())); 
 		if ($account) {
-			$options = split(",", $account->tfu_settings);
+			$options = explode(",", $account->tfu_settings);
 			if (in_array($option, $options)) {
 				return true;
 			}
@@ -132,7 +132,7 @@ class MyTwitter extends SpecialPage {
 		}
 	
 		$available = array("createpage", "nab", "upload", "editfinder", "quickedit"); 
-		$options = split(",", $account->tfu_settings); 
+		$options = explode(",", $account->tfu_settings);
 		if ($wgRequest->wasPosted()) {
 			$options = array(); 
 			// save new settings

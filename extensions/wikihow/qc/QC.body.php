@@ -693,7 +693,7 @@ class QCRuleVideoChange extends QCRuleTextChange {
 	function __construct($revision = null, $article = null) {
 		$this->mKey		= "changedvideo";
 		$this->mValidNamespaces = array(NS_MAIN, NS_VIDEO);
-		parent::__construct($template, $revision, $article);
+		parent::__construct(null, $revision, $article);
 	}
 
 	function getPart() {

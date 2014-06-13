@@ -139,6 +139,8 @@ $wgResourceModules['ext.guidedTour.tour.dashboard'] = array(
 		'guidedtour-tour-dashboard-tipspatrol-title',
 		'guidedtour-tour-dashboard-tipspatrol-description',
 		'guidedtour-tour-dashboard-rc-title',
+		'guidedtour-tour-dashboard-methodguardian-description',
+		'guidedtour-tour-dashboard-methodguardian-title',
 		'guidedtour-tour-dashboard-rc-description',
 		'guidedtour-tour-dashboard-spelling-title',
 		'guidedtour-tour-dashboard-spelling-description',

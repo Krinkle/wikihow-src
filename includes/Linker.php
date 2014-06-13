@@ -885,13 +885,12 @@ class Linker {
 					$hp['width'] = $srcWidth;
 				}
 				// WIKIHOW - ARG added for MW upgrade to 1.21 to set image class
-				if($sourceWidth >= 400 ) {
+				if ( $sourceWidth >= 400 ) {
 					//this is our low threshold, so show it as big as possible
 					$hp['width'] = min(700, $srcWidth);
 					$maxWidth = 1100;
 					$imageClass .= " largeimage ";
-				}
-				else {
+				} else {
 					$maxWidth = $hp['width'];
 				}
 
@@ -920,7 +919,7 @@ class Linker {
 		}
 
 		//XXCHANGED FOR ROUNDED CORNERS - added by ARG for mw upgrade to 1.21
-		//$s = "<div class=\"thumb t{$fp['align']}\"><div class=\"thumbinner\" style=\"width:{$outerWidth}px;\">";
+		$s = '';
 		$imageClass .= " t{$fp['align']} ";
 		$imageClass .= " mthumb ";
 
@@ -967,6 +966,8 @@ class Linker {
 		// WIKIHOW - ARG - add rpt link if necessary
 		if (class_exists('InaccurateImages')) {
 			$rptLink = InaccurateImages::getReportImageLink();
+		} else {
+			$rptLink = '';
 		}
 
 		// WIKIHOW - ARG - we create our own image class in our own way

@@ -18,7 +18,7 @@ class Sitemap extends SpecialPage {
 			$revision = Revision::newFromTitle( Title::newFromRedirect($revision->getText()));
 		}
 
-		$lines = split("\n", $revision->getText() );
+		$lines = explode("\n", $revision->getText() );
 		foreach ($lines as $line) {
 			if (preg_match ('/^\*[^\*]/', $line)) {
 				$line = trim(substr($line, 1)) ;

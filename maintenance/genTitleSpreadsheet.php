@@ -16,7 +16,7 @@ $dbr = wfGetDB(DB_SLAVE);
 $titles = array();
 $sql = 'SELECT page_title FROM page WHERE page_namespace=' . NS_MAIN . ' AND page_is_redirect=0';
 $res = $dbr->query($sql, __FILE__);
-while ($obj = $res->fetchObject()) {
+foreach ($res as $obj) {
 	$titles[] = Title::newFromDBkey($obj->page_title);
 }
 print "found " . count($titles) . " articles.\n";
@@ -24,14 +24,24 @@ print "found " . count($titles) . " articles.\n";
 $file = isset($argv[0]) ? $argv[0] : 'out.csv';
 print "writing output to $file...\n";
 $fp = fopen($file, 'w');
-fputs($fp, "url,full-title,length\n");
+if (!$fp) die("error: could not write to file $file\n");
+fputs($fp, "id,full-title,url\n");
 
+global $wgLanguageCode;
 foreach ($titles as $title) {
 	$tt = TitleTests::newFromTitle($title);
 	if (!$tt) continue;
-	$new = $tt->getTitle();
-	$url = 'http://www.wikihow.com/' . $title->getPartialURL();
-	$out = array($url, $new, strlen($new));
+	$id = $title->getArticleId();
+	if(!$argv[1] || $argv[1] != "1") {
+		$htmlTitle = $tt->getTitle();
+	}
+	else {
+		$howto = wfMessage('howto', $title)->text();
+		$htmlTitle = wfMessage('pagetitle', $howto)->text();
+	}
+	$url = Misc::getLangBaseURL($wgLanguageCode) . '/' . $title->getPartialURL();
+
+	$out = array($id, $htmlTitle, $url);
 	fputcsv($fp, $out);
 }
 

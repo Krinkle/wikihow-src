@@ -10,4 +10,6 @@ $messages['en'] = array (
 	'newuci-error-logentry' => "Error with [[$2]] from [[$1]]",
 	'newuci-upvote-logentry' => "Upvoted [[$2]] from [[$1]]",
 	'newuci-downvote-logentry' => "Downvoted [[$2]] from [[$1]]",
+	'newuci-anonupvote-logentry' => "Anon Upvoted [[$2]] from [[$1]]",
+	'newuci-anondownvote-logentry' => "Anon Downvoted [[$2]] from [[$1]]",
 );

@@ -1,5 +1,6 @@
 <div id="method" class="tool">
 	<div id="method_header" class="tool_header">
+		 <p id="method_help" class="tool_help"><a href="/Use-the-Method-Editor-App-on-wikiHow" target="_blank">Learn how</a></p>
 		<a href="#" id="method_keys">Get Shortcuts</a>
 		<?php if($showList): ?>
 			<a href="/Special:MethodEditor?allarticles=true" class="button secondary" target="_blank" id="method_list">Get all titles</a>

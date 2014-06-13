@@ -110,7 +110,6 @@ class Pagestats extends UnlistedSpecialPage {
 		return $result;
 	}
 
-
 	public static function getPagestatData($pageId) {
 		global $wgUser;
 
@@ -141,9 +140,15 @@ class Pagestats extends UnlistedSpecialPage {
 			// stu data
 			$html .= "<hr style='margin:5px 0; '/>";
 			$html .= "<p>" . wfMsg('ps-stu') . " {$titusData->ti_stu_10s_percentage_www}%&nbsp;&nbsp;{$titusData->ti_stu_3min_percentage_www}%&nbsp;&nbsp;{$titusData->ti_stu_10s_percentage_mobile}%</p>";
-			$html .= "<p>" . wfMsg('ps-stu-views') . " {$titusData->ti_stu_views_www}&nbsp;&nbsp;{$titusData->ti_stu_views_mobile}</p>";
+			$html .= "<p>" . wfMsg('ps-stu-views') . "{$titusData->ti_stu_views_www}&nbsp;&nbsp;{$titusData->ti_stu_views_mobile}</p>";
+			$html .= "<hr style='margin:5px 0; '/>";
+			$html .= "<p>" . wfMsg('ps-pm-desktop') . " {$titusData->ti_pm_desktop_10s}%&nbsp;&nbsp;{$titusData->ti_pm_desktop_3m}%&nbsp;&nbsp;" . number_format($titusData->ti_pm_desktop_scroll_px,0) . "px&nbsp;&nbsp;{$titusData->ti_pm_desktop_scroll_pct}%</p>";
+			$html .= "<p>" . wfMsg('ps-pm-tablet') . " {$titusData->ti_pm_tablet_10s}%&nbsp;&nbsp;{$titusData->ti_pm_tablet_3m}%&nbsp;&nbsp;" . number_format($titusData->ti_pm_tablet_scroll_px,0) . "px&nbsp;&nbsp;{$titusData->ti_pm_tablet_scroll_pct}%</p>";
+			$html .= "<p>" . wfMsg('ps-pm-mobile') . " {$titusData->ti_pm_mobile_10s}%&nbsp;&nbsp;{$titusData->ti_pm_mobile_3m}%&nbsp;&nbsp;" . number_format($titusData->ti_pm_mobile_scroll_px,0) . "px&nbsp;&nbsp;{$titusData->ti_pm_mobile_scroll_pct}%</p>";
+			$html .= "<p>" . wfMsg('ps-pm-views') . " {$titusData->ti_pm_desktop_30day_views}&nbsp;&nbsp;{$titusData->ti_pm_tablet_30day_views}&nbsp;&nbsp;{$titusData->ti_pm_mobile_30day_views}</p>";
+
 			if($t) {
-				$html .= "<p><a href='#' class='clearstu'>Clear Stu</a></p>";
+				$html .= "<p><a href='#' class='clearstu'>Clear Stu and Petametrics</a></p>";
 			}
 		}
 		

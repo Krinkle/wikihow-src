@@ -42,7 +42,7 @@ class TitleTests {
 	public static function newFromTitle($title) {
 		global $wgMemc, $wgLanguageCode;
 
-		if ($wgLanguageCode != 'en' || !$title || !$title->exists()) {
+		if (!$title || !$title->exists()) {
 			// cannot create class
 			return null;
 		}
@@ -118,72 +118,113 @@ class TitleTests {
 		return array($numSteps, $showWithPictures);
 	}
 
+	private static function makeTitleInner($howto, $numSteps, $withPictures) {
+		global $wgLanguageCode;
+		
+		if ($wgLanguageCode == "en") {
+			$ret = $howto 
+				. ($numSteps > 0 ? ($numSteps == 1 ? ": 1 Step" : ": " . $numSteps . " Steps") : "")
+				. ($withPictures ? " (with Pictures)" : "");
+		} else {
+			if (wfMessage('title_inner', $howto, $numSteps, $withPictures)->isBlank()) {
+				$inner = $howto;
+			} else {
+				$inner = wfMessage('title_inner', $howto, $numSteps, $withPictures)->text();
+			}
+			$ret = preg_replace("@ +$@", "", $inner);
+		}
+		return($ret);
+	}
+
+	private static function makeTitleWays($ways, $titleTxt) {
+		global $wgLanguageCode;
+		
+		if ($wgLanguageCode == "en") {
+			$ret = $ways . " Ways to " . $titleTxt;	
+		} else {
+			if (wfMessage('title_ways', $ways, $titleTxt)->isBlank()) {
+				$ret = $titleTxt;
+			} else {
+				$ret = wfMessage('title_ways', $ways, $titleTxt)->text();
+			}
+		}
+		return($ret);
+	}
+
 	private static function genTitle($title, $test, $custom) {
+		global $wgLanguageCode;
+		$maxTitleLength = intVal(wfMessage("max_title_length")->plain());
+		if (!$maxTitleLength) {
+			$maxTitleLength = self::MAX_TITLE_LENGTH;	
+		}
 		$titleTxt = $title->getText();
 		$howto = wfMessage('howto', $titleTxt)->text();
-
+		
 		list($wikitext, $stepsText) = self::getWikitext($title);
-
 		switch ($test) {
 		case self::TITLE_CUSTOM: // Custom
 			$title = $custom;
 			break;
 		case self::TITLE_SITE_PREVIOUS: // How to XXX: N Steps (with Pictures) - wikiHow
-			list($numSteps, $withPictures) = self::getTitleExtraInfo($wikitext, $stepsText, $test);
-			$inner = $numSteps > 0 ? "$howto: $numSteps Steps" : $howto;
-			$inner = $withPictures ? "$inner (with Pictures)" : $inner;
+			list($numSteps, $withPictures) = self::getTitleExtraInfo($wikitext, $stepsText);
+			$inner = self::makeTitleInner($howto, $numSteps, $withPictures);
 			$title = wfMessage('pagetitle', $inner)->text();
 			break;
 		default: // How to XXX: N Steps (with Pictures) - wikiHow
 		// From Chris's Mar 25 email
-		case 5: // default, but not "with Pictures"
-		case 6: // n Tips on How to ... "with Pictures"
-		case 7: // n Tips on How to ... but not "with Pictures"
-		case 8: // How to ...: Step-by-Step Instructions "with Pictures"
-		case 9: // How to ...: Step-by-Step Instructions but not "with Pictures"
-			
+//		case 5: // default, but not "with Pictures"
+//		case 6: // n Tips on How to ... "with Pictures"
+//		case 7: // n Tips on How to ... but not "with Pictures"
+//		case 8: // How to ...: Step-by-Step Instructions "with Pictures"
+//		case 9: // How to ...: Step-by-Step Instructions but not "with Pictures"
+ 
 			$methods = Wikitext::countAltMethods($stepsText);
 			
 			$mw = MagicWord::get( 'parts' );
 			$hasParts = ($mw->match($wikitext));
 			
-			if ($methods >= 3 && !$hasParts) {				
-				$inner = "$methods Ways to $titleTxt";
+			if ($methods >= 3 && !$hasParts) {
+				$inner = self::makeTitleWays($methods, $titleTxt);
 				$title = wfMessage('pagetitle', $inner)->text();
-				if (strlen($title) > self::MAX_TITLE_LENGTH) {
+				if (strlen($title) > $maxTitleLength) {
 					$title = $inner;
 				}
 			} else {
-				list($numSteps, $withPictures) = self::getTitleExtraInfo($wikitext, $stepsText, $test);
-				$forceNoWithPictures = in_array($test, array(5, 7, 9));
-				$withPictures = !$forceNoWithPictures ? $withPictures : false;
-				if ($test == 6 || $test == 7) {
-					$inner = $numSteps > 0 ? "$numSteps Tips on $howto" : $howto;
-				} elseif ($test == 8 || $test == 9) {
-					$inner = $numSteps > 0 ? "$howto: Step-by-Step Instructions" : $howto;
-				} else {
-					$inner = $numSteps > 0 ? "$howto: $numSteps Steps" : $howto;
-				}
-				$inner = $withPictures ? "$inner (with Pictures)" : $inner;
+				list($numSteps, $withPictures) = self::getTitleExtraInfo($wikitext, $stepsText);
+//				$forceNoWithPictures = in_array($test, array(5, 7, 9));
+//				$withPictures = !$forceNoWithPictures ? $withPictures : false;
+//				if ($test == 6 || $test == 7) {
+//					$inner = $numSteps > 1 ? "$numSteps Tips on $howto" : $howto;
+//				} elseif ($test == 8 || $test == 9) {
+//					$inner = $numSteps > 0 ? "$howto: Step-by-Step Instructions" : $howto;
+//				} else {
+//					if ($numSteps > 1) $inner = "$howto: $numSteps Steps";
+//					elseif ($numSteps == 1) $inner = "$howto: 1 Step";
+//					else $inner = $howto;
+//				}
+				$inner = self::makeTitleInner($howto, $numSteps, $withPictures);
 				$title = wfMessage('pagetitle', $inner)->text();
 				// first, try articlename + metadata + wikihow
-				if (strlen($title) > self::MAX_TITLE_LENGTH) {
+				if (strlen($title) > $maxTitleLength) {
 					// next, try articlename + metadata
 					$title = $inner;
-					if ($numSteps > 0 && strlen($title) > self::MAX_TITLE_LENGTH) {
+					if ($numSteps > 0 && strlen($title) > $maxTitleLength) {
+//						if ($test == 6 || $test == 7) {
+//							$title = "$numSteps Tips on $howto";
+//						} elseif ($test == 8 || $test == 9) {
+//							$title = "$howto: Step-by-Step Instructions";
+//						} else {
+//							if ($numSteps > 1) $title = "$howto: $numSteps Steps";
+//							elseif ($numSteps == 1) $title = "$howto: 1 Step";
+//						}
+
 						// next, try articlename + steps
-						if ($test == 6 || $test == 7) {
-							$inner = "$numSteps Tips on $howto";
-						} elseif ($test == 8 || $test == 9) {
-							$inner = "$howto: Step-by-Step Instructions";
-						} else {
-							$title = "$howto: $numSteps Steps";
-						}
+						$title = self::makeTitleInner($howto, $numSteps, 0);
 					}
-					if (strlen($title) > self::MAX_TITLE_LENGTH) {
+					if (strlen($title) > $maxTitleLength) {
 						// next, try articlename + wikihow
 						$title = wfMessage('pagetitle', $howto)->text();
-						if (strlen($title) > self::MAX_TITLE_LENGTH) {
+						if (strlen($title) > $maxTitleLength) {
 							// lastly, set title just as articlename
 							$title = $howto;
 						}

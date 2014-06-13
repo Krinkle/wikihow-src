@@ -584,7 +584,7 @@ class Leaderboard extends SpecialPage {
 
 			foreach ($res as $row) {
 				$u = User::newFromName( $row->user_name );
-				if (isset($u)) {
+				if ($u && $u->getId() > 0) {
 					$data[$u->getName()] = $row->C;
 				} else {
 					// uh oh maybe?

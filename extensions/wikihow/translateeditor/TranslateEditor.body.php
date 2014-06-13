@@ -39,6 +39,20 @@ class TranslateEditor extends UnlistedSpecialPage {
 		return("== " . $sectionName . " ==");	
 	}
 	/**
+	 * Get an array of values from messages, that are newline seperated
+	 */
+	static function getMsgArray($msg) {
+		$arr = preg_split("@[\r\n]+@", wfMessage($msg)->plain());
+		// Remove empty elements at end
+		$last = sizeof($arr) - 1;
+		while($last >= 0 && !$arr[$last]) {
+			unset($arr[$last]);	
+			$last--;
+		}
+
+		return($arr);
+	}
+	/**
 	 * Called when the user goes to an edit page
 	 * Override the functionality of the edit to require a URL to translate
 	 */
@@ -59,18 +73,20 @@ class TranslateEditor extends UnlistedSpecialPage {
 			&& $action=='edit') {
 		
 				EasyTemplate::set_path(dirname(__FILE__).'/');
-				// Templates to remove from tranlsation
-				$remove_templates = array("{{FA}}", "\\[\\[Category:[^\\]]+\\]\\]");
+
+				// Templates to remove from translation
+				$remove_templates = self::getMsgArray('remove_templates');
 				// Words or things to automatically translate 
 				$translations = array(array('from'=>self::getSectionRegex('Steps'), 'to' =>self::getSectionWikitext(wfMsg('Steps'))),
 															array('from'=>self::getSectionRegex('Tips'),'to'=>self::getSectionWikitext(wfMsg('Tips'))),
 															array('from'=>self::getSectionRegex('Warnings'),'to'=>self::getSectionWikitext(wfMsg('Warnings'))),
 															array('from'=>self::getSectionRegex('Ingredients'),'to'=>self::getSectionWikitext(wfMsg('Ingredients'))),
 															array('from'=>self::getSectionRegex("Things You'll need"),'to'=>self::getSectionWikitext(wfMsg('Thingsyoullneed'))),
-															array('from'=>self::getSectionRegex("Related wikiHows"),'to'=>self::getSectionWikitext(wfMsg('Related'))),
 															array('from'=>self::getSectionRegex("Sources and Citations"),'to'=>self::getSectionWikitext(wfMsg('Sources'))),
+															array('from'=>'\[\[Category:[^\]]+\]\]', 'to' => "")
 															);
-				$vars = array('title' => $target, 'checkForLL' => true, 'translateURL'=>true, 'translations' => json_encode($translations), 'remove_templates'=> array_map(preg_quote,$remove_templates));
+				$remove_sections = self::getMsgArray('remove_sections');
+				$vars = array('title' => $target, 'checkForLL' => true, 'translateURL'=>true, 'translations' => json_encode($translations), 'remove_templates'=> array_map(preg_quote,$remove_templates), 'remove_sections' => json_encode(array_map(preg_quote,$remove_sections)), 'source_name' => wfMsg('Sources'));
 				$html = EasyTemplate::html('TranslateEditor.tmpl.php', $vars);
 				$wgOut->addHTML($html);
 				QuickEdit::showEditForm($title);
@@ -111,7 +127,8 @@ class TranslateEditor extends UnlistedSpecialPage {
 			$this->startTranslation($target, $toTarget);		
 		}
 	}
-		/**
+
+	/**
 	 * Use API.php to get information about the article on English 
 	 * This is done so the code can run properly on international wikis
 	 */

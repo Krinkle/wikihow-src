@@ -154,6 +154,9 @@ class RenameuserSQL {
 		if ( $this->tablesJob ) {
 			wfSuppressWarnings();
 			set_time_limit( 120 );
+			//XXCHANGEDXX - upped the PHP memory limit because the tool
+			//was fatal erroring for power users (so much to change!) [sc]
+			ini_set('memory_limit','512M');
 			wfRestoreWarnings();
 		}
 

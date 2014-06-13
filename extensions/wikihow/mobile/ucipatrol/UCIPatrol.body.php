@@ -13,7 +13,7 @@ class UCIPatrol extends SpecialPage {
 	const PATROL_THUMB_WIDTH = 670;
 	const PATROL_THUMB_HEIGHT = 350;
 
-	const CACHE_TIME = 604800;
+	const CACHE_TIME = 1209600;
 
 	const UCI_THUMB_WIDTH = 152;
 	const UCI_THUMB_HEIGHT = 114;
@@ -125,7 +125,7 @@ class UCIPatrol extends SpecialPage {
 			EasyTemplate::set_path(dirname(__FILE__));
 			$anon = $this->getUser()->isAnon();
 
-			$out->addHTML(EasyTemplate::html('UCIPatrol.tmpl.php', $vars));
+			$out->addHTML(EasyTemplate::html('UCIPatrol.tmpl.php', array()));
 			$out->addScript("<script>$(document).ready(function(){WH.uciPatrol.init($anon)});</script>");
 
 			$bubbleText = "Help us pick the best user submitted photos to match the article.";
@@ -164,6 +164,13 @@ class UCIPatrol extends SpecialPage {
 	}
 
 	private function undo() {
+
+		if ($this->getUser()->isAnon()) {
+			// since anon cannot vote they cannot undo vote either..
+			$this->unSkip();
+		}
+
+
 		$pageId = $this->getRequest()->getVal('pageId');
 		$articleTitle = $this->getRequest()->getVal('articleTitle');
 
@@ -203,10 +210,16 @@ class UCIPatrol extends SpecialPage {
 			return;
 		}
 
+		if ($this->getUser()->isAnon()) {
+			$title = Title::newFromText($this->getRequest()->getVal('articleTitle'));
+			UCIPatrol::logUCIAnonUpVote($title, $pageId);
+			$this->skip();
+			return;
+		}
+
 		$table = "user_completed_images";
 		$conds = array("uci_article_id = $pageId");
 		$val = $this->getVoteMultiplier();
-		MWDebug::log("val: ".$val);
 		$values = array("uci_upvotes = uci_upvotes + $val");
 
 		$dbw = wfGetDB(DB_MASTER);
@@ -249,6 +262,14 @@ class UCIPatrol extends SpecialPage {
 
 	private static function logUCIAdded($title, $pageId) {
 		UCIPatrol::logUCI($title, $pageId, "approved");
+	}
+
+	private static function logUCIAnonUpVote($title, $pageId) {
+		UCIPatrol::logUCI($title, $pageId, "anonupvote");
+	}
+
+	private static function logUCIAnonDownVote($title, $pageId) {
+		UCIPatrol::logUCI($title, $pageId, "anondownvote");
 	}
 
 	private static function logUCIUpVote($title, $pageId) {
@@ -302,9 +323,6 @@ class UCIPatrol extends SpecialPage {
 	// adds a thumbnail image to the cache of images using default width and height
 	private function addImageToCache($pageId, $hostPageTitle, $image) {
 		global $wgMemc;
-		MWDebug::log("pageid: ".$pageId);
-		MWDebug::log("hostPageTitle: ".$hostPageTitle);
-		MWDebug::log("image: ".$image->getUrl());
 
 		if (!UCIPatrol::UCI_CACHE ) {
 			return;
@@ -348,7 +366,6 @@ class UCIPatrol extends SpecialPage {
 		if ($useMultiplier) {
 			$amount = $amount * $this->getVoteMultiplier();
 		}
-		MWDebug::log("amount: ".$amount);
 		$values = array("uci_downvotes = uci_downvotes + $amount");
 
 		$dbw = wfGetDB(DB_MASTER);
@@ -358,9 +375,17 @@ class UCIPatrol extends SpecialPage {
 	}
 
 	private function downVote() {
+
 		$pageId = $this->getRequest()->getVal('pageId');
 		if (!$pageId) {
 			MWDebug::warning("no pageId to downvote");
+			return;
+		}
+
+		if ($this->getUser()->isAnon()) {
+			$title = Title::newFromText($this->getRequest()->getVal('articleTitle'));
+			UCIPatrol::logUCIAnonDownVote($title, $pageId);
+			$this->skip();
 			return;
 		}
 
@@ -476,7 +501,11 @@ class UCIPatrol extends SpecialPage {
 	}
 
 	private function getSkipCacheKey() {
-		$name = $this->getUser()->getName();
+		if ($this->getUser()->isAnon()) {
+			$name = $this->getRequest()->getVal('guestId');
+		} else {
+			$name = $this->getUser()->getName();
+		}
 		return "UCIPatrol_".$name."_skipped";
 	}
 
@@ -506,6 +535,10 @@ class UCIPatrol extends SpecialPage {
 		$value = 1;
 		if (UCIPatrol::userInUCIAdminGroup($this->getUser())) {
 			$value = 2;
+		}
+
+		if ($this->getUser()->isAnon()) {
+			$value = 0;
 		}
 		return $value;
 	}
@@ -556,8 +589,8 @@ class UCIPatrol extends SpecialPage {
 		$titles = array();
 		foreach($res as $row) {
 			$title = $row->uci_article_name;
-			if ($titles[$title] > 0 || UCIPatrol::isUCIAllowed(Title::newFromText($title))) {
-				$titles[$title] = ($result[$title] ?: 0) + 1;
+			if (isset($titles[$title]) || UCIPatrol::isUCIAllowed(Title::newFromText($title))) {
+				$titles[$title] = (isset($titles[$title]) ?: 0) + 1;
 			}
 		}
 		$result['titles'] = $titles;
@@ -585,6 +618,7 @@ class UCIPatrol extends SpecialPage {
 		$where[] = "uci_upvotes < ".self::UCI_UPVOTES;
 		$where[] = "uci_copyright_violates = 0";
 		$where[] = "uci_copyright_checked = 1";
+		$where[] = "uci_article_id > 0";
 
 		if($skipped) {
 			$where[] = "uci_article_id NOT IN ('" . implode("','", $skipped) . "')";
@@ -607,7 +641,8 @@ class UCIPatrol extends SpecialPage {
 		$title = Title::newFromText($row->uci_article_name);
 
 		// check page id vs whitelist/blacklist
-		if (!UCIPatrol::isUCIAllowed($title)) {
+		global $wgDebugToolbar;
+		if (!UCIPatrol::isUCIAllowed($title) && !$wgDebugToolbar) {
 			MWDebug::log("not allowed title: ".$title);
 			$this->skipById($row->uci_article_id);
 			return $this->getNext();
@@ -682,6 +717,16 @@ class UCIPatrol extends SpecialPage {
 
 		$content['voters'] = $voters;
 
+		foreach($voters as $voter) {
+			$id = $this->getUser()->isAnon() ? -1 * intval($this->getRequest()->getVal('guestId')) : $this->getUser()->getID();
+
+			if ($voter['id'] == $id && $voter['vote'] != 0) {
+				MWDebug::log("duplicate voter".$id);
+				$content['error'] = "alreadyvoted";
+				return $content;
+			}
+		}
+
 		return $content;
 	}
 
@@ -727,7 +772,8 @@ class UCIPatrol extends SpecialPage {
 					"name"=>$avatar['name'],
 					"vote"=>$row->iv_vote,
 					"image"=>$avatar['image'],
-					"admin_vote"=>$admin
+					"admin_vote"=>$admin,
+					"id"=>$row->iv_userid
 					);
 		}
 		return $result;
@@ -757,6 +803,8 @@ class UCIPatrol extends SpecialPage {
 		if (!$pageTitle) {
 			return array();
 		}
+
+		$pageTitle = str_replace( ' ', '-', $pageTitle );
 
 		$dbr = wfGetDB(DB_SLAVE);
 
@@ -853,6 +901,7 @@ class UCIPatrol extends SpecialPage {
 		}
 
 		$i = 0;
+		$html = "";
 		foreach ($thumbs as $pageId => $thumb) {
 			// not very sophisticated but will prevent too many images from being shown
 			// TODO implement this show more link
@@ -892,7 +941,7 @@ class UCIPatrol extends SpecialPage {
 
 	}
 
-	function showUCI($title) {
+	function showUCI($title, $purge = false) {
 		global $wgDebugToolbar;
 		$result = false;
 
@@ -902,7 +951,7 @@ class UCIPatrol extends SpecialPage {
 
 		$width = UCIPatrol::UCI_THUMB_WIDTH;
 		$height = UCIPatrol::UCI_THUMB_HEIGHT;
-		$thumbs = UCIPatrol::getUCIThumbs($title, $width, $height);
+		$thumbs = UCIPatrol::getUCIThumbs($title, $width, $height, $purge);
 		if (!$thumbs || count($thumbs) == 0) {
 			$result = false;
 		} else {

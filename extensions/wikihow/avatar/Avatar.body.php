@@ -942,9 +942,23 @@ Event.observe(window, 'load', initNonModal);
 		$parts = preg_split('@(<p class="de_user".*</p>)@im', $discussionText, 0, PREG_SPLIT_DELIM_CAPTURE);
 		for ($i = 0; $i < sizeof($parts); $i++) {
 			if (preg_match('@(<p class="de_user".*</p>)@im', $parts[$i])) {
-				$pos = strpos($parts[$i], 'href="/User:');
-				$endpos = strpos($parts[$i], '"', $pos + 12);
-				$username = substr($parts[$i], $pos + 12, $endpos - $pos - 12);
+				$needle = 'href="/User:';
+				$pos = strpos($parts[$i], $needle);
+
+				// if the user has a redlink for their user link
+				// then the format we are searching for is a bit different
+				if (!$pos && strpos($parts[$i], 'redlink')) {
+					$needle = 'index.php?title=User:';
+					$pos = strpos($parts[$i], $needle);
+				}
+
+				$length = strlen($needle);
+				$endpos = strpos($parts[$i], '"', $pos + $length);
+
+				// to get the username, find the substring offset by the length of the '$needle' search value
+				$username = substr($parts[$i], $pos + $length, $endpos - $pos - $length);
+				$arr = explode("&", $username, 2);
+				$username = $arr[0];
 
 				$len = strlen('<p class="de_user">');
 				$text .= substr($parts[$i], 0, $len) . "<img src='" . wfGetPad(Avatar::getAvatarURL($username)) . "' />" . substr($parts[$i], $len);

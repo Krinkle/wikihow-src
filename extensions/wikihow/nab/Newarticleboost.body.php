@@ -139,6 +139,7 @@ class Newarticleboost extends SpecialPage {
 		global $wgOut, $wgLang, $wgRequest;
 
 		$wgOut->addHTML("<div class='minor_section'>");
+		$wgOut->addHtml('<p id="nap_help" class="tool_help"><a href="/Use-the-wikiHow-New-Article-Boost-App" target="_blank">Learn how</a></p>');
 		if ($this->can_newbie) {
 			$btn_class = "style='margin-bottom: 10px;' class='button secondary buttonright'";
 			if ($this->do_newbie) {
@@ -1109,7 +1110,7 @@ class Copyrightchecker extends UnlistedSpecialPage {
 			$queries = array();
 			foreach ($parts as $p) {
 				$p = trim($p);
-				$words = split(" ", $p);
+				$words = explode(" ", $p);
 				if (sizeof($words) > 5) {
 					if (sizeof($words) >  15) {
 						$words = array_slice($words, 0, 15);

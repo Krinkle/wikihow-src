@@ -46,14 +46,7 @@ class ArticleCreator extends SpecialPage {
 			} else if (!$t->userCan( 'create', $context->getUser(), false)) {
 				$response['error'] = wfMessage('ac-cannot-create', $t->getEditUrl());
 			} else {
-				$a = new Article($t);
-				$a->doEdit($request->getVal('wikitext'), wfMessage('ac-edit-summary'));
-				// Add an author email notification
-				$aen = new AuthorEmailNotification();
-				$aen->addNotification($t->getText()); 
-				
-				$response['success'] = wfMessage('ac-successful-publish');
-				$response['url'] = $t->getFullUrl();
+				$response = $this->saveArticle($t, $request, $response);
 			}
 			
 			$out->addHtml(json_encode($response));	
@@ -141,7 +134,60 @@ class ArticleCreator extends SpecialPage {
 		EasyTemplate::set_path(dirname(__FILE__).'/');
 		return EasyTemplate::html('ac-html-templates', $vars);
 	}
-	
+
+	/**
+	 * Check for spam content, blocked user status and return an error. Otherwise, save article
+	 * and return a success status
+	 * @param $t Title of article to save
+	 * @param $request Request object
+	 * @param $response Response to return
+	 * @return mixed
+	 */
+	private function saveArticle($t, $request, $response) {
+		$user = $this->getContext()->getUser();
+		$text = $request->getVal('wikitext');
+
+		$contentModel = $t->getContentModel();
+		$handler = ContentHandler::getForModelID( $contentModel );
+		$contentFormat = $handler->getDefaultFormat();
+		$content = ContentHandler::makeContent( $text, $t, $contentModel, $contentFormat );
+		$status = Status::newGood();
+		if (!wfRunHooks('EditFilterMergedContent', array($this->getContext(), $content, &$status, '', $user, false))) {
+			$response['error'] = wfMessage('ac-error-editfilter')->text();
+			return $response;
+		}
+		if (!$status->isGood()) {
+			$errors = $status->getErrorsArray(true);
+			foreach ($errors as $error) {
+				if (is_array($error)) {
+					$error = count($error) ? $error[0] : '';
+				}
+				if (preg_match('@^spamprotection@', $error)) {
+					$response['error'] =  wfMessage('ac-error-spam')->text();
+					return $response;
+				}
+			}
+
+			$response['error'] =  'EditFilterMergedContent returned an error. Cannot save the article';
+			return $response;
+		}
+
+		if ($user->isBlockedFrom($t)) {
+			$response['error'] =  wfMessage('ac-error-blocked')->text();
+			return $response;
+		}
+
+		$a = new Article($t);
+		$a->doEdit($request->getVal('wikitext'), wfMessage('ac-edit-summary'));
+		// Add an author email notification
+		$aen = new AuthorEmailNotification();
+		$aen->addNotification($t->getText());
+
+		$response['success'] = wfMessage('ac-successful-publish');
+		$response['url'] = $t->getFullUrl();
+		return $response;
+	}
+
 	private function getMethodSelectorHtml() {
 		EasyTemplate::set_path(dirname(__FILE__).'/');
 		return EasyTemplate::html('ac-method-selector');

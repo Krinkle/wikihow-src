@@ -58,7 +58,7 @@ WH.ArticleCreator = function() {
 	
 	// Configuration for the tinymce rich text editors
 	var tinymceConfig = {
-		skin_url: wfGetPad('/extensions/wikihow/common/tinymce_4.0.20_jquery/js/tinymce/skins/wikihow'),
+		skin_url: '/extensions/wikihow/common/tinymce_4.0.20_jquery/js/tinymce/skins/wikihow', // Don't use pad here to prevent cross-site font issue in Firefox - Bug #563
 		content_css : wfGetPad('/extensions/wikihow/articlecreator/tinymce_content.css?' + wgWikihowSiteRev),
 		skin: 'wikihow',
 	    plugins: ["lists"],

@@ -80,9 +80,7 @@
 }
 
 #altheader {
-	font-size: 47px;
-	background: url(/skins/owl/images/plus-button.png) no-repeat;
-	padding-left: 58px;
+	font-size: 31px;
 	line-height: normal;
 	margin-bottom: 10px;
 }
@@ -94,6 +92,6 @@
 #addalt {
 	float: right;
 	margin-right: 0px;
-	font-size: 20px;
-	padding: 8px 12px;
+	font-size: 15px;
+	padding: 5px 10px;
 }

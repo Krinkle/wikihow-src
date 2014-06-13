@@ -105,6 +105,7 @@ class AdminTitles extends UnlistedSpecialPage {
 		if ($wgRequest->wasPosted()) {
 			set_time_limit(0);
 			$wgOut->setArticleBodyOnly(true);
+			$error = "";
 			$action = $wgRequest->getVal('action');
 			if ($action == 'save-list') {
 				$filename = $wgRequest->getFileTempName('adminFile');

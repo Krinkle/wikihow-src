@@ -257,15 +257,28 @@ class FSFileBackend extends FileBackendStore {
 			$this->trapWarnings();
 			$ok = copy( $params['src'], $dest );
 			$this->untrapWarnings();
+			// Reuben, wikiHow 6/6/2014: Using s3fs, the stat information is sometimes
+			// cached incorrectly for a long time by the file system and filesize() 
+			// ends up reporting the wrong size if the file already existed. I changed
+			// these errors to be more lenient accordingly.
+			$srcSize = filesize( $params['src'] );
+			$destSize = filesize( $dest );
 			// In some cases (at least over NFS), copy() returns true when it fails
-			if ( !$ok || ( filesize( $params['src'] ) !== filesize( $dest ) ) ) {
-				if ( $ok ) { // PHP bug
-					unlink( $dest ); // remove broken file
-					trigger_error( __METHOD__ . ": copy() failed but returned true." );
+			if ( !$ok || ( $srcSize !== $destSize ) ) {
+				if ( $ok ) { // PHP / OS / filesystem bug
+					unlink( $dest ); // remove (maybe) broken file
+					$ok = copy( $params['src'], $dest ); // try it again
+					$destSize = filesize( $dest );
 				}
-				$status->fatal( 'backend-fail-store', $params['src'], $params['dst'] );
+				if ( !$ok || ( $srcSize !== $destSize && $destSize <= 0 ) ) {
+					if ( $ok ) { // PHP bug
+						unlink( $dest ); // remove broken file
+						trigger_error( __METHOD__ . ": copy() failed but returned true." );
+					}
+					$status->fatal( 'backend-fail-store', $params['src'], $params['dst'] );
 
-				return $status;
+					return $status;
+				}
 			}
 			$this->chmod( $dest );
 		}

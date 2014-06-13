@@ -157,8 +157,15 @@ class MemcachedBagOStuff extends BagOStuff {
 	 * case they are likely to really be absolute (1e9 = 2011-09-09)
 	 */
 	function fixExpiry( $expiry ) {
+		global $wgMemCachedDefaultExpiry;
 		if ( $expiry > 2592000 && $expiry < 1000000000 ) {
 			$expiry = 2592000;
+		}
+		// Reuben, 6/11/2014: Patch to use a different default memcache
+		// expiry that we can control, instead of the default provided
+		// by memcached/php (30 days).
+		if ($expiry === 0) {
+			$expiry = $wgMemCachedDefaultExpiry;
 		}
 		return $expiry;
 	}

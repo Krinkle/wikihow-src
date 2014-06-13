@@ -171,6 +171,7 @@ Allow: /index.php?*action=watch
 Allow: /index.php?*action=protect
 Allow: /index.php?*printable
 Allow: /index.php?title=Special:Booksources
+Allow: /index.php?title=*variant=
 Disallow: /w/
 Disallow: /forum/
 Disallow: /index.php
@@ -188,7 +189,6 @@ Disallow: /images/sampledocs*pdf
 Disallow: /images/sampledocs*doc
 Disallow: /images/sampledocs*txt
 Disallow: /*platform=
-Disallow: /*variant=
 Noindex: /w/
 Noindex: /forum/
 Noindex: /index.php
@@ -206,7 +206,6 @@ Noindex: /images/sampledocs*pdf
 Noindex: /images/sampledocs*doc
 Noindex: /images/sampledocs*txt
 Noindex: /*platform=
-Noindex: /*variant=
 
 User-agent: *
 Allow: /Special:Categorylisting

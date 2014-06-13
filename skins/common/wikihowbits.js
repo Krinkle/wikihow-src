@@ -1587,14 +1587,14 @@ function menu_hide(choice) {
 }
 
 //post-load taboola
- window._taboola = window._taboola || [];
-_taboola.push({article:'auto'});
-_taboolaScriptElem = document.createElement('script');
-_taboolaBeforeElem = document.getElementsByTagName('script')[0];
-$(window).load( function() {
-        !function (e, f, u) {
-           e.async = 1;
-           e.src = u;
-           f.parentNode.insertBefore(e, f);
-		}(_taboolaScriptElem, _taboolaBeforeElem, 'http://cdn.taboola.com/libtrc/wikihow/loader.js');
-});
+ // window._taboola = window._taboola || [];
+// _taboola.push({article:'auto'});
+// _taboolaScriptElem = document.createElement('script');
+// _taboolaBeforeElem = document.getElementsByTagName('script')[0];
+// $(window).load( function() {
+        // !function (e, f, u) {
+           // e.async = 1;
+           // e.src = u;
+           // f.parentNode.insertBefore(e, f);
+		// }(_taboolaScriptElem, _taboolaBeforeElem, 'http://cdn.taboola.com/libtrc/wikihow/loader.js');
+// });

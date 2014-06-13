@@ -5,8 +5,8 @@ function checkForLL() {
 	var txt = $("#wpTextbox1").val();
 	var re = /\[\[en:.+\]\]/;
 	var m = txt.match(re);
-	if(m == null) {
-		if(llText != undefined && llText!="") {
+	if (m == null) {
+		if (llText != undefined && llText!="") {
 			alert("You must have the following interwiki link in your translated wikitext before saving or previewing:\n " + llText); 
 		}
 		else {
@@ -14,13 +14,50 @@ function checkForLL() {
 		}
 		return(false);	
 	}
-	else if(llText!="" && m[0] != llText) {
+	else if (llText != "" && m[0] != llText) {
 		alert("You must have following and only the following English interwiki link in your translated wikitext before saving or previewing:\n " + llText);	
 		return(false);
 	}
 	else {
 		return(true);
 	}
+}
+function checkForCite() {
+	var sources = "<?= addslashes(wfMsg('Sources')) ?>";
+	var txt = $("#wpTextbox1").val();
+	if (txt.match(/<ref>/)) {
+		if (!txt.match(/{{reflist}}/) || !txt.match(new RegExp("== *" + sources + " *=="))) {
+			alert("ERROR: Article contains '<ref>', so there must be a '" + sources + "' section with template {{reflist}} before saving or previewing");	
+			return(false);
+		}
+        else if(!txt.match(/<\/ref>/)) {
+            alert("ERROR: Article must contain closing '</ref>' for ref tag"); 
+        }
+	}
+	return(true);
+}
+function checkForStepSpaces() {
+	var txt = $("#wpTextbox1").val();
+	var m = txt.match("#[^=]+\n[^=#]*\n#([^\n]+)");
+	if (m){ 
+		alert("ERROR: Extra newline before the following step:\n\n " + m[1] + "\n\nYou must correct this before saving or previewing.");
+		return(false);
+	}
+	var m = txt.match("[\n^] +#([^\n]+)");
+	if (m) {
+		alert("ERROR: Extra space before the following step:\n\n #" + m[1] + "\n\nYou must correct this before saving or previewing.");
+		return(false);
+	}
+	return(true);
+}
+function checkForSteps() {
+	var steps = "<?= addslashes(wfMsg("steps")) ?>";
+	var txt = $("#wpTextbox1").val();
+	if (!txt.match(new RegExp("== *" + steps + " *==[^=]"))) {
+		alert("ERROR: There must a be a '" + steps + "' section. You must add this section before saving or previewing.");
+		return(false);
+	}
+	return(true);
 }
 <?php } ?>
 jQuery(document).ready(function() {
@@ -33,16 +70,52 @@ jQuery(document).ready(function() {
     return this.nodeType === 3;
 		}).remove();
 	$("#wpSave").click(function(){
-		return(checkForLL());	
+		return(checkForLL() && checkForCite() && checkForStepSpaces() && checkForSteps());	
 	});
 	$("#wpPreview").click(function(){
-		return(checkForLL());	
+		return(checkForLL() && checkForCite() && checkForStepSpaces() && checkForSteps());	
 	});
 
 	<?php } ?>
 	jQuery(".mw-newarticletext").hide();
 <?php if($translateURL) { ?>
 	jQuery("#editform").hide();
+	function removeLinks(revision) {
+		links = revision.match(/\[\[[^\]]+\]\]/gi);
+		for(var n in links) {
+			var m;
+			if(m = links[n].match(/\[\[([^|]+)\|([^\]]+)\]\]/)) {
+				if(!m[1].match(/^ *image/i) && !m[1].match(/:/)) {
+					revision = revision.replace(links[n],m[2]);
+				}
+			}
+		}
+		return(revision);
+	}
+
+	function fixCite(revision) {
+		var sources = "<?= addslashes(wfMsg('Sources')) ?>";
+		if(revision.match(/<ref>/)) {
+			if(!revision.match(/{{reflist}}/)) {
+				if(revision.match("== "  + sources + " ==")) {
+					revision = revision.replace(new RegExp("== *" + sources + " *=="), "== " + sources + " ==\n{{reflist}}");
+				}
+				else {
+					revision += revision + "== " + sources + " ==\n{{reflist}}";
+				}
+			}
+		}
+		return(revision);
+	}
+	function fixSteps(revision) {
+		var rLen;
+		do {
+			rLen = revision.length;
+			revision = revision.replace("\n\n#","\n#");
+		} while(revision.length != rLen);
+
+		return(revision);
+	}
 	jQuery("#translate").click(function(){
 			var url=jQuery("#translate_url").val();
 			$("#translate_url").attr("disabled","disabled");
@@ -51,6 +124,7 @@ jQuery(document).ready(function() {
 			var m = url.match(re);
 			var translations = <?php print $translations ?>;
 			var remove_templates = <?php print json_encode($remove_templates) ?>;
+			var remove_sections = <?php print $remove_sections ?>;
 			if(m) {
 					var article=m[1];
 					$.ajax({'url':"/Special:TranslateEditor",'data':{'target':article,'action':"getarticle",'toTarget': wgTitle} ,'success':function(data) {
@@ -64,13 +138,43 @@ jQuery(document).ready(function() {
 						}
 						if(jData.success) {
 								var revision = jData.text;
+								revision = removeLinks(revision);
 								for(var n in translations) {
 									revision = revision.replace(new RegExp(translations[n].from,"gi"), translations[n].to);
 								}
 								for(var n in remove_templates) {
 									revision = revision.replace(new RegExp(remove_templates[n],"gi"),"");	
 								}
-
+								var sectionNames = revision.match(new RegExp("\n==[^=]+==","gi"));
+								sections = revision.split(new RegExp("\n==[^=]+=="));
+								revision = "";
+								var first = true;
+								for(var n in sections) {
+									var isGood = true;
+									for(var m in remove_sections) {
+										if(!first && sectionNames[n-1].match(new RegExp("\n== *" + remove_sections[m] + " *==","i"))) {
+											isGood = false;	
+										}
+									}
+									if(isGood) {
+										if(!first) {
+											revision += sectionNames[n - 1];
+										}
+										revision += sections[n];
+									}
+                                    else {
+                                      if(sections[n].match(/__PARTS__/)) {
+                                        revision += "\n__PARTS__"; 
+                                      }
+                                      match = sections[n].match(/\[\[[a-zA-Z][a-zA-Z]\:[^\[]+\]\]/g);
+                                      for(var m in match) {
+                                        revision += "\n" + match[m]; 
+                                      }
+                                    }
+									first = false;
+								}
+								revision = fixSteps(revision);
+								revision = fixCite(revision);
 								llText = "[[en:" + article.replace(/-/g," ") + "]]";
 								$("#wpTextbox1").val(revision + "\n" + llText);
 								$("#editform").show();

@@ -37,9 +37,11 @@ CREATE TABLE `abuse_filter` (
   `af_deleted` tinyint(1) NOT NULL default '0',
   `af_actions` varchar(255) NOT NULL default '',
   `af_global` tinyint(1) NOT NULL default '0',
+  `af_group` varchar(64) character set latin1 collate latin1_bin NOT NULL default 'default',
   PRIMARY KEY  (`af_id`),
-  KEY `af_user` (`af_user`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1;
+  KEY `af_user` (`af_user`),
+  KEY `af_group` (`af_group`,`af_enabled`,`af_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -78,12 +80,13 @@ CREATE TABLE `abuse_filter_history` (
   `afh_actions` blob,
   `afh_deleted` tinyint(1) NOT NULL default '0',
   `afh_changed_fields` varchar(255) NOT NULL default '',
+  `afh_group` varchar(64) character set latin1 collate latin1_bin default NULL,
   PRIMARY KEY  (`afh_id`),
   KEY `afh_filter` (`afh_filter`),
   KEY `afh_user` (`afh_user`),
   KEY `afh_user_text` (`afh_user_text`),
   KEY `afh_timestamp` (`afh_timestamp`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=95 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -106,15 +109,20 @@ CREATE TABLE `abuse_filter_log` (
   `afl_namespace` tinyint(4) NOT NULL,
   `afl_title` varchar(255) character set latin1 collate latin1_bin NOT NULL,
   `afl_wiki` varchar(64) character set latin1 collate latin1_bin default NULL,
-  `afl_deleted` tinyint(1) default NULL,
+  `afl_deleted` tinyint(1) NOT NULL default '0',
   `afl_patrolled_by` int(10) unsigned default NULL,
+  `afl_rev_id` int(10) unsigned default NULL,
+  `afl_log_id` int(10) unsigned default NULL,
   PRIMARY KEY  (`afl_id`),
-  KEY `afl_filter` (`afl_filter`),
-  KEY `afl_user` (`afl_user`),
+  KEY `filter_timestamp` (`afl_filter`,`afl_timestamp`),
+  KEY `user_timestamp` (`afl_user`,`afl_user_text`,`afl_timestamp`),
   KEY `afl_timestamp` (`afl_timestamp`),
-  KEY `afl_namespace` (`afl_namespace`,`afl_title`),
-  KEY `afl_ip` (`afl_ip`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+  KEY `page_timestamp` (`afl_namespace`,`afl_title`,`afl_timestamp`),
+  KEY `ip_timestamp` (`afl_ip`,`afl_timestamp`),
+  KEY `afl_rev_id` (`afl_rev_id`),
+  KEY `afl_log_id` (`afl_log_id`),
+  KEY `wiki_timestamp` (`afl_wiki`,`afl_timestamp`)
+) ENGINE=InnoDB AUTO_INCREMENT=2553 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -148,7 +156,7 @@ CREATE TABLE `altmethodadder` (
   `ama_timestamp` varchar(14) collate utf8_unicode_ci NOT NULL,
   `ama_patrolled` tinyint(3) NOT NULL default '0',
   PRIMARY KEY  (`ama_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=140188 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=149915 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -182,7 +190,7 @@ CREATE TABLE `archive` (
   KEY `name_title_timestamp` (`ar_namespace`,`ar_title`,`ar_timestamp`),
   KEY `usertext_timestamp` (`ar_user_text`,`ar_timestamp`),
   KEY `ar_revid` (`ar_rev_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=1430386 DEFAULT CHARSET=latin1 PACK_KEYS=1;
+) ENGINE=InnoDB AUTO_INCREMENT=1439071 DEFAULT CHARSET=latin1 PACK_KEYS=1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -336,7 +344,7 @@ CREATE TABLE `badge_views` (
   `bv_count` int(10) unsigned NOT NULL,
   PRIMARY KEY  (`bv_id`),
   UNIQUE KEY `bv_referrer` (`bv_referrer`(100))
-) ENGINE=InnoDB AUTO_INCREMENT=39400 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=39696 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -418,7 +426,7 @@ CREATE TABLE `category` (
   PRIMARY KEY  (`cat_id`),
   UNIQUE KEY `cat_title` (`cat_title`),
   KEY `cat_pages` (`cat_pages`)
-) ENGINE=InnoDB AUTO_INCREMENT=3371 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=3414 DEFAULT CHARSET=utf8;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -611,7 +619,7 @@ CREATE TABLE `concierge_tags` (
   `ct_tag` varchar(200) default NULL,
   `ct_raw_tag` varchar(200) default NULL,
   PRIMARY KEY  (`ct_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=521 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=522 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -675,7 +683,7 @@ CREATE TABLE `cu_changes` (
   KEY `cuc_user_ip_time` (`cuc_user`,`cuc_ip`,`cuc_timestamp`),
   KEY `cuc_xff_hex_time` (`cuc_xff_hex`,`cuc_timestamp`),
   KEY `cuc_timestamp` (`cuc_timestamp`)
-) ENGINE=InnoDB AUTO_INCREMENT=11871556 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=12111995 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -703,7 +711,7 @@ CREATE TABLE `cu_log` (
   KEY `cul_type_target` (`cul_type`,`cul_target_id`,`cul_timestamp`),
   KEY `cul_target_hex` (`cul_target_hex`,`cul_timestamp`),
   KEY `cul_range_start` (`cul_range_start`,`cul_timestamp`)
-) ENGINE=InnoDB AUTO_INCREMENT=4829 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=4863 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -777,7 +785,7 @@ CREATE TABLE `drafts` (
   KEY `draft_user_page_savetime` (`draft_user`,`draft_page`,`draft_namespace`,`draft_title`,`draft_savetime`),
   KEY `draft_savetime` (`draft_savetime`),
   KEY `draft_page` (`draft_page`)
-) ENGINE=InnoDB AUTO_INCREMENT=458437 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=466156 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -806,7 +814,7 @@ CREATE TABLE `dv_links` (
   `dvl_page` int(8) default NULL,
   `dvl_doc` varchar(255) default NULL,
   PRIMARY KEY  (`dvl_id`)
-) ENGINE=MyISAM AUTO_INCREMENT=11521 DEFAULT CHARSET=latin1;
+) ENGINE=MyISAM AUTO_INCREMENT=11749 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -881,7 +889,7 @@ CREATE TABLE `echo_event` (
   `event_page_id` int(10) unsigned default NULL,
   PRIMARY KEY  (`event_id`),
   KEY `echo_event_type` (`event_type`)
-) ENGINE=InnoDB AUTO_INCREMENT=47132 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=159343 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -1121,7 +1129,7 @@ CREATE TABLE `externallinks` (
   KEY `el_from` (`el_from`,`el_to`(40)),
   KEY `el_to` (`el_to`(60),`el_from`),
   KEY `el_index` (`el_index`(60))
-) ENGINE=InnoDB AUTO_INCREMENT=5012022 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=5113054 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -1196,7 +1204,7 @@ CREATE TABLE `filearchive` (
   KEY `fa_deleted_timestamp` (`fa_deleted_timestamp`),
   KEY `fa_sha1` (`fa_sha1`(10)),
   KEY `fa_user_timestamp` (`fa_user_text`,`fa_timestamp`)
-) ENGINE=InnoDB AUTO_INCREMENT=137075 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=143746 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -1433,7 +1441,7 @@ CREATE TABLE `homepage` (
   `hp_active` tinyint(3) NOT NULL default '0',
   `hp_order` int(10) NOT NULL,
   PRIMARY KEY  (`hp_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=99 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=102 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -1781,7 +1789,7 @@ CREATE TABLE `ipblocks` (
   KEY `ipb_timestamp` (`ipb_timestamp`),
   KEY `ipb_expiry` (`ipb_expiry`),
   KEY `ipb_parent_block_id` (`ipb_parent_block_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=148401 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=148712 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -1826,7 +1834,7 @@ CREATE TABLE `job` (
   KEY `job_sha1` (`job_sha1`),
   KEY `job_cmd_token` (`job_cmd`,`job_token`,`job_random`),
   KEY `job_cmd_token_id` (`job_cmd`,`job_token`,`job_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=1544191 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=2083693 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -1906,7 +1914,7 @@ CREATE TABLE `logging` (
   KEY `type_action` (`log_type`,`log_action`,`log_timestamp`),
   KEY `log_user_text_type_time` (`log_user_text`,`log_type`,`log_timestamp`),
   KEY `log_user_text_time` (`log_user_text`,`log_timestamp`)
-) ENGINE=InnoDB AUTO_INCREMENT=14851378 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=15131086 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -1973,7 +1981,7 @@ CREATE TABLE `methodeditorlog` (
   `mel_user` int(5) NOT NULL default '0',
   PRIMARY KEY  (`mel_id`),
   KEY `mel_time_user` (`mel_timestamp`,`mel_user`)
-) ENGINE=InnoDB AUTO_INCREMENT=21470 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=21864 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -2118,7 +2126,7 @@ CREATE TABLE `nfd` (
   `nfd_checkout_user` int(5) unsigned NOT NULL default '0',
   PRIMARY KEY  (`nfd_id`),
   KEY `nfd_page` (`nfd_page`)
-) ENGINE=InnoDB AUTO_INCREMENT=70518 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=72515 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -2236,7 +2244,7 @@ CREATE TABLE `page` (
   KEY `page_random` (`page_random`),
   KEY `page_len` (`page_len`),
   KEY `page_redirect_namespace_len` (`page_is_redirect`,`page_namespace`,`page_len`)
-) ENGINE=InnoDB AUTO_INCREMENT=4587355 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=4706067 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -2308,7 +2316,7 @@ CREATE TABLE `page_restrictions` (
   KEY `pr_typelevel` (`pr_type`,`pr_level`),
   KEY `pr_level` (`pr_level`),
   KEY `pr_cascade` (`pr_cascade`)
-) ENGINE=InnoDB AUTO_INCREMENT=8635 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=8683 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -2504,7 +2512,7 @@ CREATE TABLE `qc` (
   `qc_extra` varchar(32) default '',
   `qc_page_alt` varchar(255) character set latin1 collate latin1_bin NOT NULL default '',
   PRIMARY KEY  (`qc_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=1052569 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=1069569 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -2633,7 +2641,7 @@ CREATE TABLE `quiz_links` (
   `ql_page` int(8) default NULL,
   `ql_name` varchar(255) NOT NULL,
   PRIMARY KEY  (`ql_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=285 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=293 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -2675,7 +2683,7 @@ CREATE TABLE `ratesample` (
   UNIQUE KEY `rats_id` (`rats_id`),
   UNIQUE KEY `user_month_id` (`rats_page`,`rats_user_text`,`rats_month`),
   KEY `rat_timestamp` (`rats_timestamp`)
-) ENGINE=InnoDB AUTO_INCREMENT=942852 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=999080 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -2714,7 +2722,7 @@ CREATE TABLE `rating` (
   UNIQUE KEY `rat_id` (`rat_id`),
   UNIQUE KEY `user_month_id` (`rat_page`,`rat_user_text`,`rat_month`),
   KEY `rat_timestamp` (`rat_timestamp`)
-) ENGINE=InnoDB AUTO_INCREMENT=6912397 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=6995616 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -2748,7 +2756,7 @@ CREATE TABLE `rating_reason` (
   `ratr_type` varchar(10) NOT NULL,
   PRIMARY KEY  (`ratr_id`),
   KEY `ratr_timestamp` (`ratr_timestamp`)
-) ENGINE=InnoDB AUTO_INCREMENT=31115 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=32553 DEFAULT CHARSET=utf8;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -2869,7 +2877,7 @@ CREATE TABLE `recentchanges` (
   KEY `rc_user_text` (`rc_user_text`,`rc_timestamp`),
   KEY `rc_patrolled_user` (`rc_patrolled`,`rc_user`),
   KEY `rc_user` (`rc_user`)
-) ENGINE=InnoDB AUTO_INCREMENT=14401207 DEFAULT CHARSET=latin1 PACK_KEYS=1;
+) ENGINE=InnoDB AUTO_INCREMENT=14615434 DEFAULT CHARSET=latin1 PACK_KEYS=1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -2918,7 +2926,7 @@ CREATE TABLE `rejected_email_links` (
   `rel_timestamp` timestamp NOT NULL default CURRENT_TIMESTAMP,
   `rel_text` text,
   PRIMARY KEY  (`rel_id`)
-) ENGINE=MyISAM AUTO_INCREMENT=173985 DEFAULT CHARSET=latin1;
+) ENGINE=MyISAM AUTO_INCREMENT=174029 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -2950,7 +2958,7 @@ CREATE TABLE `revision` (
   KEY `user_timestamp` (`rev_user`,`rev_timestamp`),
   KEY `usertext_timestamp` (`rev_user_text`,`rev_timestamp`),
   KEY `page_user_timestamp` (`rev_page`,`rev_user`,`rev_timestamp`)
-) ENGINE=InnoDB AUTO_INCREMENT=13692504 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=13912178 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -3297,7 +3305,10 @@ CREATE TABLE `spellchecker` (
   `sc_checkout` varchar(14) collate utf8_unicode_ci NOT NULL,
   `sc_checkout_user` int(5) NOT NULL,
   `sc_exempt` tinyint(3) NOT NULL default '0',
-  UNIQUE KEY `sc_page` (`sc_page`)
+  UNIQUE KEY `sc_page` (`sc_page`),
+  KEY `sc_dirty` (`sc_dirty`),
+  KEY `sc_errors` (`sc_errors`),
+  KEY `sc_checkout` (`sc_checkout`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 SET character_set_client = @saved_cs_client;
 
@@ -3326,21 +3337,11 @@ CREATE TABLE `spellchecker_page` (
   `sp_id` int(10) unsigned NOT NULL auto_increment,
   `sp_page` int(10) unsigned NOT NULL,
   `sp_word` int(10) unsigned NOT NULL,
+  `sp_key` text collate utf8_unicode_ci NOT NULL,
+  `sp_key_count` int(11) NOT NULL default '0',
   PRIMARY KEY  (`sp_id`),
   UNIQUE KEY `sp_page` (`sp_page`,`sp_word`)
-) ENGINE=InnoDB AUTO_INCREMENT=20679725 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
-SET character_set_client = @saved_cs_client;
-
---
--- Table structure for table `spellchecker_temp`
---
-
-DROP TABLE IF EXISTS `spellchecker_temp`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
-CREATE TABLE `spellchecker_temp` (
-  `st_word` varchar(20) collate utf8_unicode_ci NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=432495 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -3355,9 +3356,11 @@ CREATE TABLE `spellchecker_whitelist` (
   `sw_active` tinyint(4) NOT NULL,
   `sw_user` mediumint(8) NOT NULL,
   `sw_id` int(10) unsigned NOT NULL auto_increment,
+  `sw_votes` int(10) unsigned default '0',
   PRIMARY KEY  (`sw_id`),
-  UNIQUE KEY `sw_word` (`sw_word`)
-) ENGINE=InnoDB AUTO_INCREMENT=47471 DEFAULT CHARSET=latin1;
+  UNIQUE KEY `sw_word` (`sw_word`),
+  KEY `sw_votes` (`sw_votes`)
+) ENGINE=InnoDB AUTO_INCREMENT=1738 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -3372,7 +3375,7 @@ CREATE TABLE `spellchecker_word` (
   `sw_word` varchar(255) character set latin1 collate latin1_general_cs NOT NULL,
   `sw_corrections` varchar(255) collate utf8_unicode_ci NOT NULL,
   PRIMARY KEY  (`sw_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=542101 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=157691 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -3520,7 +3523,7 @@ CREATE TABLE `suggested_titles` (
   KEY `st_used` (`st_used`,`st_patrolled`,`st_group`,`st_category`),
   KEY `st_random` (`st_random`),
   KEY `suggested_recommendations` (`st_category`,`st_used`,`st_traffic_volume`,`st_random`)
-) ENGINE=InnoDB AUTO_INCREMENT=600230 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=601071 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -3538,7 +3541,7 @@ CREATE TABLE `suppress_emails` (
   `status` varchar(255) NOT NULL default '',
   PRIMARY KEY  (`se_id`),
   UNIQUE KEY `seed_idx` (`email`)
-) ENGINE=InnoDB AUTO_INCREMENT=1813 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=4860 DEFAULT CHARSET=utf8;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -3602,7 +3605,7 @@ CREATE TABLE `text` (
   KEY `user_timestamp` (`old_user`,`inverse_timestamp`),
   KEY `usertext_timestamp` (`old_user_text`,`inverse_timestamp`),
   KEY `old_user_teimetsamp` (`old_user`,`old_timestamp`)
-) ENGINE=InnoDB AUTO_INCREMENT=13592342 DEFAULT CHARSET=latin1 MAX_ROWS=100000000 PACK_KEYS=1;
+) ENGINE=InnoDB AUTO_INCREMENT=13812760 DEFAULT CHARSET=latin1 MAX_ROWS=100000000 PACK_KEYS=1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -3720,7 +3723,7 @@ CREATE TABLE `tipsandwarnings` (
   `tw_checkout_user` int(5) NOT NULL,
   `tw_timestamp` varchar(14) collate utf8_unicode_ci NOT NULL default '',
   PRIMARY KEY  (`tw_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=728688 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=771984 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -3829,7 +3832,7 @@ CREATE TABLE `title_search_key` (
   UNIQUE KEY `skey_id` (`tsk_id`),
   UNIQUE KEY `name_title` (`tsk_namespace`,`tsk_title`),
   KEY `skey_title` (`tsk_title`(20))
-) ENGINE=InnoDB AUTO_INCREMENT=113610191 DEFAULT CHARSET=latin1 PACK_KEYS=1;
+) ENGINE=InnoDB AUTO_INCREMENT=113743446 DEFAULT CHARSET=latin1 PACK_KEYS=1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -3927,7 +3930,7 @@ CREATE TABLE `translation_link_log` (
   KEY `index_to` (`tll_to_lang`,`tll_to_aid`),
   KEY `index_user` (`tll_user`),
   KEY `index_timestamp` (`tll_timestamp`)
-) ENGINE=InnoDB AUTO_INCREMENT=539891 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=567651 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -4158,7 +4161,7 @@ CREATE TABLE `uploadstash` (
   UNIQUE KEY `us_key` (`us_key`),
   KEY `us_user` (`us_user`),
   KEY `us_timestamp` (`us_timestamp`)
-) ENGINE=InnoDB AUTO_INCREMENT=49 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=55 DEFAULT CHARSET=utf8;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -4327,7 +4330,7 @@ CREATE TABLE `user_recommendation_click_log` (
   `urcl_user` int(11) NOT NULL,
   `urcl_date_added` varchar(24) NOT NULL,
   PRIMARY KEY  (`urcl_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=24 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=103 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -4494,7 +4497,7 @@ CREATE TABLE `videoadder` (
   `va_page_counter` bigint(20) unsigned NOT NULL default '0',
   PRIMARY KEY  (`va_id`),
   UNIQUE KEY `va_page` (`va_page`)
-) ENGINE=InnoDB AUTO_INCREMENT=259303 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=263245 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -4531,7 +4534,7 @@ CREATE TABLE `welcome_wagon_messages` (
   KEY `ww_to_user_id` (`ww_to_user_id`),
   KEY `ww_from_user_id` (`ww_from_user_id`),
   KEY `ww_timestamp` (`ww_timestamp`)
-) ENGINE=InnoDB AUTO_INCREMENT=7359 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=7698 DEFAULT CHARSET=utf8;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -4561,7 +4564,7 @@ CREATE TABLE `wh_db_ping` (
   `id` int(10) unsigned NOT NULL auto_increment,
   `i` int(11) default NULL,
   PRIMARY KEY  (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2644903 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=2675015 DEFAULT CHARSET=latin1;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -4809,4 +4812,4 @@ SET character_set_client = @saved_cs_client;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2014-05-23  3:05:01
+-- Dump completed on 2014-06-13  3:06:13

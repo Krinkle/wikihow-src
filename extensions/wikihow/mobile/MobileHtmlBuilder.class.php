@@ -484,7 +484,7 @@ class MobileArticleBuilder extends MobileBasicArticleBuilder {
 		}
 
 		if (class_exists('UCIPatrol') && UCIPatrol::showUCI($this->t)) {
-			$this->addCSS('mucic');
+			$this->addCSS('mucic'); // User Completed Images
 		}
 	}
 

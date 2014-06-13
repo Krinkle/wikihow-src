@@ -417,7 +417,9 @@ $(document).ready(function() {
 			//var exceptionsList = ['BR', 'JuneDays', 'Zack', 'KommaH'];
 			var exceptionsList = ['JuneDays', 'Zack', 'KommaH'];
 			if ($.inArray(wgUserName, exceptionsList) == -1) {
-				setTimeout( markPatrolled, 250 );
+				// Change to skip per lighthouse bug #572
+				setTimeout( skip, 250 );
+				//setTimeout( markPatrolled, 250 );
 			}
 		}
 	};

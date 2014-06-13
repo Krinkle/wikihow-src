@@ -60,4 +60,9 @@ class QuickEdit extends UnlistedSpecialPage {
 		return true;
 	}
 
+	public static function getQuickEditUrl($t) {
+		return Title::makeTitle(NS_SPECIAL, "QuickEdit")->getFullURL()
+		. '?type=editform&target=' . urlencode($t->getFullText());
+	}
+
 }

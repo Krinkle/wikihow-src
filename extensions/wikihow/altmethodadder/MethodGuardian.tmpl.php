@@ -1,5 +1,6 @@
 <div id="method" class="tool">
 	<div id="method_header" class="tool_header">
+		<p id="method_help" class="tool_help"><a href="/Use-the-Method-Guardian-App-on-wikiHow" target="_blank">Learn how</a></p>
 		<a href="#" id="method_keys">Get Shortcuts</a>
 		<h1>Is this new method good enough to send to editing?</h1>
 		<a href="#" id="method_skip" class="button secondary">Skip</a><a href="#" id="method_keep" class="button primary">Send to Editing</a> <a href="#" id="method_delete" class="button secondary">Delete Forever</a>

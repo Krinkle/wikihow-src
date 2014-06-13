@@ -51,11 +51,13 @@ class TipsPatrol extends SpecialPage {
 					$this->logTip($tipId, self::TIP_ACTION_SKIP);
 					$this->skipTool->skipItem($tipId);
 					$this->skipTool->unUseItem($tipId);
+					WHLogFactory::getUEL()->tipsPatrolSkip($user->getId()); //TODO: Is $user->getId() correct function call
 				} elseif ($wgRequest->getVal('deleteTip')) {
 					$tip = $wgRequest->getVal('tip');
 					$this->logTip($tipId, self::TIP_ACTION_DELETE, $tip);
 					$articleId = $wgRequest->getVal('articleId');
 					$this->deleteTip($tipId, $articleId, $tip);
+					WHLogFactory::getUEL()->tipsPatrolDelete($user->getId()); //TODO: Is $user->getId() correct function call
 				} elseif ($wgRequest->getVal('keepTip')) {
 					$articleId = $wgRequest->getVal('articleId');
 					$tip = $wgRequest->getVal('tip');
@@ -63,6 +65,7 @@ class TipsPatrol extends SpecialPage {
 					$this->logTip($tipId, self::TIP_ACTION_KEEP, $tip, $qcId);
 					$dbw = wfGetDB(DB_MASTER);
 					$dbw->delete('tipsandwarnings', array('tw_id' => $tipId));
+					WHLogFactory::getUEL()->tipsPatrolKeep($user->getId()); //TODO: Is $user->getId() correct function call
 				}
 
 				$this->getNextTip(&$result);

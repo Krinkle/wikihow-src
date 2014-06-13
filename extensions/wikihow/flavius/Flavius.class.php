@@ -30,7 +30,8 @@
 		fe_date_joined varchar(14) NULL,
 		fe_welcome_wagon int(1) NULL,
 		fe_email tinytext,
-		fe_name varchar(255)
+		fe_name varchar(255),
+		fe_is_community smallint(1) NOT NULL default 1
 	 );
  */
 
@@ -46,7 +47,8 @@ class FlaviusConfig {
 								 'FLanguage' => 1,
 								 'FLastEditDate' => 1,
 								 'FLastTalkPageDate' => 1,
-								 'FFirstHumanTalkPageMessage' => 1));
+								 'FFirstHumanTalkPageMessage' => 1,
+								 'FIsCommunity' => 1));
 	}
 	static function getGroupStats() {
 		return(array('FHydraExperiment' => 1));
@@ -79,10 +81,10 @@ class FlaviusFactory {
 	private $klasses = array();
 	
 	static function get() {
-		if($factory == NULL) {
-			$factory = new FlaviusFactory();	
+		if(self::$factory == NULL) {
+			self::$factory = new FlaviusFactory();	
 		}
-		return($factory);
+		return(self::$factory);
 	}
 
 	private function getClass($className) {
@@ -391,7 +393,7 @@ class Flavius {
 			}
 		}
 		$sqlStart = 'INSERT INTO flavius_eternal(fe_user, fe_date_calculated';
-		$sqlVals .= ") values\n";
+		$sqlVals  = ") values\n";
 		$sqlUpdate = ' ON DUPLICATE KEY UPDATE fe_user=values(fe_user), fe_date_calculated=values(fe_date_calculated) ';
 
 		$statVals = array();
@@ -843,7 +845,18 @@ class FWelcomeWagon extends FSEternal {
 		return($ret);
 	}
 }
+class FIsCommunity extends FSEternal {
+	function batchCalc(&$dbr, &$users) {
+		$ret = array();
+		$ids = array();
+		foreach($users as $user) {
+			$isCommunity = array_intersect($user->getGroups(),array('bot','translator','concierge','staff','staff_widget','editfish','babelfish')) ? 0 : 1;
+			$ret[$user->getId()] = array("fe_is_community" => $isCommunity);
+		}
+		return($ret);
+	}
 
+}
 /**
  * Number of images uploaded by user
  */
@@ -1592,7 +1605,7 @@ class FRequestsAnswered extends FSInterval {
 class FRevertedStats extends FSInterval {
 	function batchCalcInterval(&$dbr, &$users, $startDate, $endDate) {
 		$ids = $this->getIds($users);
-		$sql = 'select r2.rev_user as s_user,' . $this->getDayQuery('r.rev_timestamp') . ", count(*) as ct from revision r  join revision r2 on r.rev_page=r2.rev_page and r2.rev_id=r.rev_parent_id where r.rev_comment like '%Reverted%' and r.rev_timestamp >" . $dbr->addQuotes($startDate) . ' AND r.rev_timestamp <=' . $dbr->addQuotes($endDate)  . ' AND r2.rev_user in (' . implode(',',$ids) . ') GROUP BY r2.rev_user, day'; 
+		$sql = 'select r2.rev_user as s_user,' . $this->getDayQuery('r.rev_timestamp') . ", count(*) as ct from revision r  join revision r2 on r.rev_page=r2.rev_page and r2.rev_id=r.rev_parent_id where (r.rev_comment like '%Reverted%' or r.rev_comment like '%RCP reverted%') and r.rev_timestamp >" . $dbr->addQuotes($startDate) . ' AND r.rev_timestamp <=' . $dbr->addQuotes($endDate)  . ' AND r2.rev_user in (' . implode(',',$ids) . ') GROUP BY r2.rev_user, day'; 
 		$res = $dbr->query($sql, __METHOD__);
 		$ret = array();
 		foreach($res as $row) {
@@ -1602,7 +1615,7 @@ class FRevertedStats extends FSInterval {
 	}
 	function batchCalcTotals(&$dbr, &$users, $endDate) {
 		$ids = $this->getIds($users);
-		$sql = 'select r2.rev_user as s_user,' . $this->getDayQuery('r.rev_timestamp') . ", count(*) as ct from revision r  join revision r2 on r.rev_page=r2.rev_page and r2.rev_id=r.rev_parent_id where r.rev_comment like '%Reverted%' AND r.rev_timestamp <=" . $dbr->addQuotes($endDate)  . ' AND r2.rev_user in (' . implode(',',$ids) . ')  GROUP BY r2.rev_user, day'; 
+		$sql = "select r2.rev_user as s_user, count(*) as ct from revision r  join revision r2 on r.rev_page=r2.rev_page and r2.rev_id=r.rev_parent_id where (r.rev_comment like '%Reverted%' or r.rev_comment like '%RCP reverted%') AND r.rev_timestamp <=" . $dbr->addQuotes($endDate)  . ' AND r2.rev_user in (' . implode(',',$ids) . ')  GROUP BY r2.rev_user'; 
 		$res = $dbr->query($sql, __METHOD__);
 		$ret = array();
 		foreach($res as $row) {

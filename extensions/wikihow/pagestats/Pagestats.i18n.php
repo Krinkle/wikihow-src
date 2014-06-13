@@ -15,4 +15,8 @@ $messages['en'] = array (
 	'ps-fellow' => 'Last Fellow Edit:',
 	'ps-fellow-time' => 'Date:',
 	'ps-error' => 'Titus error...',
+	'ps-pm-desktop' => 'PM D:',
+	'ps-pm-tablet' => 'PM T:',
+	'ps-pm-mobile' => 'PM M:',
+	'ps-pm-views' => 'Views:'
 );

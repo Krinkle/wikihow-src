@@ -71,7 +71,6 @@ $wgSpamBlacklistFiles = array(
 );
 require_once("$IP/extensions/Cite/Cite.php");
 require_once("$IP/extensions/AntiSpoof/AntiSpoof.php");
-require_once("$IP/extensions/UniversalEditButton/UniversalEditButton.php");
 require_once("$IP/extensions/Drafts/Drafts.php");
 require_once("$IP/extensions/ImageMap/ImageMap.php");
 require_once("$IP/extensions/wikihow/EasyTemplate.php");
@@ -214,7 +213,8 @@ require_once("$IP/extensions/wikihow/TitleTests.class.php");
 require_once("$IP/extensions/wikihow/GoodRevision.class.php");
 require_once("$IP/extensions/wikihow/DailyEdits.php");
 require_once("$IP/extensions/wikihow/ArticleWidgets/ArticleWidgets.php");
-require_once("$IP/extensions/wikihow/spellchecker/Spellchecker.php");
+//require_once("$IP/extensions/wikihow/spellchecker/Spellchecker.php");
+require_once("$IP/extensions/wikihow/spelltool/Spellchecker.php");
 require_once("$IP/extensions/wikihow/ToolSkip.php");
 require_once("$IP/extensions/wikihow/wikihowAds/wikihowAds.class.php");
 require_once("$IP/extensions/wikihow/wikihowAds/Radlinks.php");
@@ -254,6 +254,7 @@ require_once("$IP/extensions/wikihow/ApiMobileArticleDownloader.php");
 require_once("$IP/extensions/wikihow/Watermark.php");
 require_once("$IP/extensions/wikihow/ArticleHTMLParser.php");
 require_once("$IP/extensions/wikihow/WikiError.php");
+require_once("$IP/extensions/wikihow/WikihowLog.php");
 
 if(IS_CLOUD_SITE || IS_DEV_SITE) {
 	require_once("$IP/extensions/wikihow/titus/ApiTitus.php");
@@ -286,4 +287,7 @@ require_once("$IP/extensions/wikihow/MassMessage/MassMessage.php");
 require_once("$IP/extensions/Echo/Echo.php");
 require_once("$IP/extensions/wikihow/EchoWikihow/EchoWikihow.php");
 require_once("$IP/extensions/wikihow/hooks/Email.php");
+
+require_once("$IP/extensions/wikihow/s3images/S3Images.php");
+require_once("$IP/extensions/AbuseFilter/AbuseFilter.php");
 

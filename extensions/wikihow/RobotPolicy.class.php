@@ -14,50 +14,54 @@ class RobotPolicy {
 	const POLICY_NOINDEX_FOLLOW_STR = 'noindex,follow';
 	const POLICY_NOINDEX_NOFOLLOW_STR = 'noindex,nofollow';
 
-	var $title, $article, $request;
+	var $title, $wikiPage, $request;
 
-	private function __construct($title, $article, $request = null) {
+	private function __construct($title, $wikiPage, $request = null) {
 		$this->title = $title;
-		$this->article = $article;
+		$this->wikiPage = $wikiPage;
 		$this->request = $request;
 	}
 
-	public static function setRobotPolicy() {
-		global $wgOut, $wgTitle, $wgArticle, $wgRequest;
-		if ($wgOut && $wgTitle) {
-			$robotPolicy = new RobotPolicy($wgTitle, $wgArticle, $wgRequest);
+	public static function setRobotPolicy($out) {
+		$context = $out ? $out->getContext() : null;
+		if ($context) {
+			$title = $context->getTitle();
+			$robotPolicy = self::newFromTitle($title, $context);
 			list($policy, $policyText) = $robotPolicy->genRobotPolicyLong();
 
 			switch ($policy) {
 			case self::POLICY_NOINDEX_FOLLOW:
-				$wgOut->setRobotPolicyCustom(self::POLICY_NOINDEX_FOLLOW_STR, $policyText);
+				$out->setRobotPolicyCustom(self::POLICY_NOINDEX_FOLLOW_STR, $policyText);
 				break;
 			case self::POLICY_NOINDEX_NOFOLLOW:
-				$wgOut->setRobotPolicyCustom(self::POLICY_NOINDEX_NOFOLLOW_STR, $policyText);
+				$out->setRobotPolicyCustom(self::POLICY_NOINDEX_NOFOLLOW_STR, $policyText);
 				break;
 			case self::POLICY_INDEX_FOLLOW:
-				$wgOut->setRobotPolicyCustom(self::POLICY_INDEX_FOLLOW_STR, $policyText);
+				$out->setRobotPolicyCustom(self::POLICY_INDEX_FOLLOW_STR, $policyText);
 				break;
 			case self::POLICY_DONT_CHANGE:
-				$oldPolicy = $wgOut->getRobotPolicy();
-				$wgOut->setRobotPolicyCustom($oldPolicy, $policyText);
+				$oldPolicy = $out->getRobotPolicy();
+				$out->setRobotPolicyCustom($oldPolicy, $policyText);
 				break;
 			}
 		}
 		return true;
 	}
 
-	public static function newFromTitle($title) {
+	private static function newFromTitle($title, $context = null) {
 		if (!$title) {
 			return null;
+		} elseif ($context) {
+			$wikiPage = $title->exists() ? $context->getWikiPage() : null;
+			return new RobotPolicy($title, $wikiPage, $context->getRequest());
 		} else {
-			$article = new Article($title);
-			return new RobotPolicy($title, $article);
+			$wikiPage = $title->exists() ? WikiPage::factory($title) : null;
+			return new RobotPolicy($title, $wikiPage);
 		}
 	}
 
-	public static function isIndexable($title) {
-		$policy = self::newFromTitle($title);
+	public static function isIndexable($title, $context = null) {
+		$policy = self::newFromTitle($title, $context);
 		$indexable = array(self::POLICY_INDEX_FOLLOW, self::POLICY_DONT_CHANGE);
 		if ($policy && in_array($policy->genRobotPolicy(), $indexable)) {
 			return true;
@@ -86,9 +90,9 @@ class RobotPolicy {
 		} elseif ($this->isInaccurate()) {
 			$policy = self::POLICY_NOINDEX_FOLLOW;
 			$policyText = 'isInaccurate';
-		} elseif ($this->isVideoThumbnailDeindexTest()) {
-			$policy = self::POLICY_NOINDEX_FOLLOW;
-			$policyText = 'isVideoThumbnailDeindexTest';
+		//} elseif ($this->isVideoThumbnailDeindexTest()) {
+		//	$policy = self::POLICY_NOINDEX_FOLLOW;
+		//	$policyText = 'isVideoThumbnailDeindexTest';
 		} elseif ($this->isProdButNotWWWHost()) {
 			$policy = self::POLICY_NOINDEX_NOFOLLOW;
 			$policyText = 'isProdButNotWWWHost';
@@ -158,8 +162,7 @@ class RobotPolicy {
 	 * We want to noindex,nofollow the Spam-Blacklist.
 	 */
 	private function isSpamBlacklistPage() {
-		global $wgTitle;
-		return $wgTitle && $wgTitle->getDBkey() == 'Spam-Blacklist';
+		return $this->title && $this->title->getDBkey() == 'Spam-Blacklist';
 	}
 
 	/**
@@ -264,14 +267,16 @@ class RobotPolicy {
 	*/
 	private function isShortUnNABbedArticle() {
 		$ret = false;
-		if ($this->article
+		if ($this->wikiPage
 			&& $this->title->exists() 
 			&& $this->title->getNamespace() == NS_MAIN) 
 		{
-			if (class_exists('Newarticleboost') && !Newarticleboost::isNABbed(self::getDB(), $this->title->getArticleID())) {
-				$r = $this->article->getRevisionFetched();
-				if ($r) {
-					$ret = $r->getSize() < 1500; // ~1500 bytes
+			if (class_exists('Newarticleboost')
+				&& !Newarticleboost::isNABbed(self::getDB(), $this->title->getArticleID()))
+			{
+				$content = $this->wikiPage->getContent();
+				if ($content) {
+					$ret = $content->getSize() < 1500; // ~1500 bytes
 				}
 			}
 		}
@@ -378,16 +383,15 @@ class RobotPolicy {
 
 	// Reuben added short deindex test to try and get video thumbnails out of 
 	// google index
-	private function isVideoThumbnailDeindexTest() {
-		global $wgTitle;
-		if ($wgTitle 
-			&& in_array($wgTitle->getPartialURL(), 
-				array('Make-Santa-Cookies', 'Delete-Apps')))
-		{
-			return true;
-		}
-		return false;
-	}
+//	private function isVideoThumbnailDeindexTest() {
+//		if ($this->title
+//			&& in_array($this->title->getPartialURL(),
+//				array('Make-Santa-Cookies', 'Delete-Apps')))
+//		{
+//			return true;
+//		}
+//		return false;
+//	}
 
 	/***
 	 * This function clears memc for the given article each time 

@@ -2,6 +2,7 @@
 <div id='nfd_options'></div>
 
 <div id='nfd_head' class='tool_header'>
+	<p id="nfd_help" class="tool_help"><a href="/Use-the-NFD-Guardian-App-on-wikiHow" target="_blank">Learn how</a></p>
 	<a href='#' class='button secondary' id='nfd_skip'><?= wfMsg('nfd_skip_article') ?></a>
 	<a href='#' class='button secondary' id='nfd_delete'><?= wfMsg("nfd_button_delete"); ?></a>
 	<a href='#' class='button secondary' id='nfd_keep'><?= wfMsg("nfd_button_keep"); ?></a>

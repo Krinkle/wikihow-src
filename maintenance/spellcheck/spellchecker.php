@@ -13,42 +13,41 @@ switch ($argv[0]) {
 		$dbw = wfGetDB(DB_MASTER);
 	
 		$pspell = wikiHowDictionary::getLibrary();
-		$capsString = wikiHowDictionary::getCaps();
 		$whitelistArray = wikiHowDictionary::getWhitelistArray();
 	
-		spellCheckArticle($dbw, $argv[1], $pspell, $capsString, $whitelistArray);
+		spellCheckArticle($dbw, $argv[1], $pspell, $whitelistArray);
 		break;
-	case "invalidateCapsWords":
-		$dbr = wfGetDB(DB_SLAVE);
-		$dbw = wfGetDB(DB_MASTER);
-
-		$words = DatabaseHelper::batchSelect(wikiHowDictionary::CAPS_TABLE, array('*'));
-		
-		echo "Invalidating " . count($words) . " words\n";
-		$i = 0;
-		foreach($words as $word) {
-			wikiHowDictionary::invalidateArticlesWithWord($dbr, $dbw, $word->sc_word);
-			$i++;
-			echo "$i ";
-			// sleep for 0.5s
-			usleep(500000);
-		}
-		break;
-	case "addWords":
-		wikiHowDictionary::batchAddWordsToDictionary();
-		break;
-	case "populateWhitelistTable":
-		populateWhitelistTable();
-		break;
-	case "addWordFile":
-		addWordFile($argv[1]);
-		break;
-	case "removeWordFile":
-		removeWordFile($argv[1]);
-		break;
-	case "moveCaps":
-		moveCaps();
-		break;
+//	case "invalidateCapsWords":
+//		$dbr = wfGetDB(DB_SLAVE);
+//		$dbw = wfGetDB(DB_MASTER);
+//
+//		$words = DatabaseHelper::batchSelect(wikiHowDictionary::CAPS_TABLE, array('*'));
+//
+//		echo "Invalidating " . count($words) . " words\n";
+//		$i = 0;
+//		foreach($words as $word) {
+//			wikiHowDictionary::invalidateArticlesWithWord($dbr, $dbw, $word->sc_word);
+//			$i++;
+//			echo "$i ";
+//			// sleep for 0.5s
+//			usleep(500000);
+//		}
+//		break;
+//	case "addWords":
+//		wikiHowDictionary::batchAddWordsToDictionary();
+//		break;
+//	case "populateWhitelistTable":
+//		populateWhitelistTable();
+//		break;
+//	case "addWordFile":
+//		addWordFile($argv[1]);
+//		break;
+//	case "removeWordFile":
+//		removeWordFile($argv[1]);
+//		break;
+//	case "moveCaps":
+//		moveCaps();
+//		break;
 }
 echo "Finish: " . $argv[0] . " " . date('G:i:s:u') . "\n\n";
 
@@ -57,6 +56,7 @@ echo "Finish: " . $argv[0] . " " . date('G:i:s:u') . "\n\n";
  * Should be run sparringly as it will take a long time.
  */
 function checkAllArticles() {
+	global $wgMemc;
     echo "Checking all articles for spelling mistakes at " . microtime(true) . "\n";
 
     $dbw = wfGetDB(DB_MASTER);
@@ -68,47 +68,65 @@ function checkAllArticles() {
     echo count($articles) . " IDs in array at " . microtime(true) . "\n";
 
     $pspell = wikiHowDictionary::getLibrary();
-    $caps = wikiHowDictionary::getCaps();
+
 	$whitelistArray = wikiHowDictionary::getWhitelistArray();
 	
 	$i = 0;
     foreach ($articles as $article) {
-        spellCheckArticle($dbw, $article->page_id, $pspell, $caps, $whitelistArray);
+        spellCheckArticle($dbw, $article->page_id, $pspell, $whitelistArray);
 		$i++;
 		if($i % 1000 == 0) {
 			echo $i . " articles processed at " . microtime(true) . "\n";
 		}
     }
+	if (sizeof($articles) > 0) {
+		Spellchecker::deleteSpellCheckerCacheKeys();
+	}
 
     echo "Done importing all articles at " . microtime(true) . "\n";
 }
+
+
 
 /***
  * Checks all articles that have been marked as dirty (have been
  * edited). 
  */
 function checkDirtyArticles() {
+	global $argv, $wgMemc;
+
 	echo "Checking dirty articles for spelling mistakes at " . microtime(true) . "\n";
 	
 	$dbr = wfGetDB(DB_SLAVE);
 	$dbw = wfGetDB(DB_MASTER);
-	$articles = DatabaseHelper::batchSelect('spellchecker', array('sc_page'), array('sc_dirty' => 1, 'sc_exempt' => 0));
+
+	$options = array();
+	if (!empty($argv[1])) {
+		$options['LIMIT'] = $argv[1];
+		echo "LIMIT of {$argv[1]} supplied via input \n";
+ 	}
+	$articles = DatabaseHelper::batchSelect('spellchecker',
+		array('sc_page'),
+		array('sc_dirty' => 1, 'sc_exempt' => 0),
+		__FUNCTION__,
+		$options);
 	
 	echo "Done grabbing articles. There are "  . count($articles) . " dirty articles.\n";
 	
 	$pspell = wikiHowDictionary::getLibrary();
-	$capsString = wikiHowDictionary::getCaps();
 	$whitelistArray = wikiHowDictionary::getWhitelistArray();
 	
 	$i = 0;
 	foreach ($articles as $article) {
-		spellCheckArticle($dbw, $article->sc_page, $pspell, $capsString, $whitelistArray);
+		spellCheckArticle($dbw, $article->sc_page, $pspell, $whitelistArray);
 		$i++;
 		if($i % 1000 == 0) {
 			echo $i . " articles processed at " . microtime(true) . "\n";
 		}
 	}
-
+	if (sizeof($articles) > 0) {
+		Spellchecker::deleteSpellCheckerCacheKeys();
+	}
     echo "Done checking dirty articles at " . microtime(true) . "\n";
 
 }
@@ -118,65 +136,180 @@ function checkDirtyArticles() {
  * Checks a specific article for spelling mistakes.
  * 
  */
-function spellCheckArticle (&$dbw, $articleId, &$pspell, &$capsString, &$whitelistArray) {
-	
+function spellCheckArticle (&$dbw, $articleId, &$pspell, &$whitelistArray) {
+
+	$debug = false;
+	$dryRun = false;
+
 	//first remove all mistakes from the mapping table
 	$dbw->delete('spellchecker_page', array('sp_page' => $articleId), __FUNCTION__);
 	
 	$title = Title::newFromID($articleId);
-	
+
 	if ($title) {
+
 		$revision = Revision::newFromTitle($title);
-		if(!$revision)
-			continue;
+		if(!$revision) {
+			return;
+		}
+
 
 		$text = $revision->getText();
 		
 		//now need to remove the sections we're not going to check
 		$wikiArticle = WikihowArticleEditor::newFromText($text);
-		
+
 		$sourceText = $wikiArticle->getSection(wfMsg('sources'));//WikiHow::textify($wikiArticle->getSection(wfMsg('sources'), array('remove_ext_links'=>1)));
 		$newtext = str_replace($sourceText, "", $text);
 		$relatedText = $wikiArticle->getSection(wfMsg('related'));//WikiHow::textify($wikiArticle->getSection(wfMsg('sources'), array('remove_ext_links'=>1)));
 		$newtext = str_replace($relatedText, "", $newtext);
-		
+
 		//remove reference tags
-		$newtext = preg_replace('@<ref>[^<].*</ref>@', "", $newtext);
-		
+		$newtext = preg_replace('@<ref[^>]*>[^<]+</ref>|<ref[^/]*/>@', "", $newtext);
+
 		//remove links
-		$newtext = preg_replace('@\[\[[^\]].*\]\]@', "", $newtext);
+		$newtext = preg_replace('@\[\[[^\]]+\]\]@', "", $newtext);
 
 		//remove magic words
 		$newtext = preg_replace('@__[^_]*__@', "", $newtext);
 		
 		//replace wierd apostrophes
 		$newtext = str_replace('’', "'", $newtext);
-		
-		$newtext = WikihowArticleEditor::textify($newtext);
+
+		// remove non-linked urls
+		$regex = "@\b((?:[a-z][\w-]+:(?:/{1,3}|[a-z0-9%])|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'\".,<>?«»“”‘’]))@";
+		$newtext = preg_replace($regex, "", $newtext);
+
+		$newtext = WikihowArticleEditor::textify($newtext, array('remove_ext_links' => 1, 'no-heading-text' => 1));
+
+
 		preg_match_all('/\b(\w|\')+\b/u', $newtext, $matches); //u modified allows for international characters
 		
 		$foundErrors = false;
-		
-		foreach ($matches[0] as $match) {
-			$word_id = wikiHowDictionary::spellCheckWord($dbw, $match, $pspell, $capsString, $whitelistArray);
+		if ($debug) {
+			var_dump('http://k.wikidiy.com/' . $title->getDBKey());
+			//var_dump($text);
+			//var_dump($matches[0]);
+		}
+		$wordsToAdd = array();
+		foreach ($matches[0] as $i => $match) {
+
+			$word_id = wikiHowDictionary::spellCheckWord($dbw, $match, $pspell, $whitelistArray);
+
 			if ($word_id > 0) {
 				//insert into the mapping table
-				$dbw->insert('spellchecker_page', array('sp_page' => $articleId, 'sp_word' => $word_id), __FUNCTION__, array('IGNORE'));
+				$key = getWordKey($text, $match, $matches[0], $i);
+				if ($debug) {
+					var_dump("key: $key");
+					var_dump("match: $match");
+				}
+				// Skip word if we can't establish a unique key
+				if (preg_match_all("@$key@m", $text, $found) > 1) {
+					if ($debug) {
+						var_dump("Duplicate key: $key");
+					}
+					continue;
+				}
+				// Don't include words where we find a slash or dash before or after the word. The majority of these
+				// cases aren't misspelled. Also don't include words which might be part of a larger url
+				if(preg_match("@[-/$]{$match}|{$match}[-/]|{$match}\.(com|edu|net|org|to)|\.{$match}@m", $text)) {
+					continue;
+				}
+
+				$numWordsInKey = substr_count($key, ' ') + 1;
+				if ($debug) {
+					//var_dump("key: " . $key. ", numwords: ". $numWordsInKey);
+				}
+				$wordsToAdd[] = array('sp_page' => $articleId, 'sp_word' => $word_id, 'sp_key' => $key, 'sp_key_count' => $numWordsInKey);
+
 				$foundErrors = true;
 			}
 		}
-		if ($foundErrors) {
-			$sql = "INSERT INTO spellchecker (sc_page, sc_timestamp, sc_dirty, sc_errors, sc_exempt) VALUES (" . 
-					$articleId . ", " . wfTimestampNow() . ", 0, 1, 0) ON DUPLICATE KEY UPDATE sc_dirty = '0', sc_errors = '1', sc_timestamp = " . wfTimestampNow();
-			$dbw->query($sql, __FUNCTION__);
-		}
-		else {
-			$dbw->update('spellchecker', array('sc_errors' => 0, 'sc_dirty' => 0), array('sc_page' => $articleId), __FUNCTION__);
+		$wordsToAdd = removeSubsetKeys($wordsToAdd);
+		if (!$dryRun) {
+			if (sizeof($wordsToAdd) > 0) {
+				$dbw->insert('spellchecker_page', $wordsToAdd, __FUNCTION__, array('IGNORE'));
+			}
+
+			if ($foundErrors) {
+				$sql = "INSERT INTO spellchecker (sc_page, sc_timestamp, sc_dirty, sc_errors, sc_exempt) VALUES (" .
+						$articleId . ", " . wfTimestampNow() . ", 0, 1, 0) ON DUPLICATE KEY UPDATE sc_dirty = '0', sc_errors = '1', sc_timestamp = " . wfTimestampNow();
+				$dbw->query($sql, __FUNCTION__);
+			}
+			else {
+				$dbw->update('spellchecker', array('sc_errors' => 0, 'sc_dirty' => 0), array('sc_page' => $articleId), __FUNCTION__);
+			}
 		}
 
 	}
 }
 
+/*
+ * Remove any keys that might be a substring of other keys to guarantee
+ * key uniqueness
+ */
+function removeSubsetKeys($wordsToAdd) {
+	$count = 0;
+	foreach ($wordsToAdd as $i => $lhword) {
+		foreach ($wordsToAdd as $rhword) {
+			//var_dump($lhword['sp_keykey'] . ' ' . $rhword['sp_key']);
+			if (strpos($rhword['sp_key'], $lhword['sp_key']) !== false) {
+				$count++;
+			}
+
+			if ($count > 1) {
+				//var_dump($lhword);
+				unset($wordsToAdd[$i]);
+				break;
+			}
+		}
+		$count = 0;
+	}
+
+	// return a consecutively keyed array
+	return array_values($wordsToAdd);
+}
+
+/**
+ *
+ * Find a unique word combination that can be later used to identify misspelled word in wikitext or html
+ * In order to do this we have to find 1 - 3 continuous words separated by spaces.  Other punctuation
+ * can cause a problem given that we strip it out.
+ *
+ */
+function getWordKey(&$text, $word, &$words, $i) {
+	$before = "";
+	$after = "";
+	$key = $word;
+
+	if ($i - 1 >= 0) {
+		$before = $words[$i - 1];
+	}
+
+	if ($i + 1 < sizeof($words)) {
+		$after = $words[$i + 1];
+	}
+
+	//var_dump($before, $word, $after);
+	$testKey = $before . ' ' . $word . ' ' . $after;
+	if (strpos($text, $testKey) !== false) {
+		return $testKey;
+	}
+
+	$testKey = $before . ' ' . $word;
+	if (strpos($text, $testKey) !== false) {
+		return $testKey;
+	}
+
+	$testKey = $word . ' ' . $after;
+	if (strpos($text, $testKey) !== false) {
+		return $testKey;
+	}
+
+	// If the above combinations don't work, just return the word itself
+	// Trim for case where word is at beginning of step section with no intro
+	return trim($key);
+}
 /**
  *
  * Takes all of the words out of the custom dictionary and adds them

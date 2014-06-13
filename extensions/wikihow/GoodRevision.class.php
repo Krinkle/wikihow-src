@@ -253,11 +253,13 @@ class GoodRevision {
 	/**
 	 * Callback for edit URL options
 	 */
-	public static function onEditURLOptions(&$useDefault) {
-		global $wgArticle;
-		if ($wgArticle) {
-			$usedRev = self::getUsedRev( $wgArticle->getID() );
-			$useDefault = !empty($usedRev);
+	public static function onEditURLOptions($context, &$useDefault) {
+		if ($context) {
+			$title = $context->getTitle();
+			if ($title && $title->exists()) {
+				$usedRev = self::getUsedRev( $title->getArticleId() );
+				$useDefault = !empty($usedRev);
+			}
 		}
 		return true;
 	}

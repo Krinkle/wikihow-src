@@ -65,7 +65,7 @@ class WatermarkSupport {
 
 		$cmd =  "";
 		// make sure image is rgb format so the watermark applies correctly
-		if(WatermarkSupport::isCMYK($srcPath)) {
+		if (WatermarkSupport::isCMYK($srcPath)) {
 			$cmd = wfEscapeShellArg($wgImageMagickConvertCommand)." ".
 					wfEscapeShellArg($srcPath)." ".
 					"-colorspace RGB ".
@@ -73,9 +73,20 @@ class WatermarkSupport {
 			$srcPath = $dstPath;
 		}
 
-		$cmd = $cmd . wfEscapeShellArg($wgImageMagickConvertCommand) . " -density $density -background none ".wfEscapeShellArg($wm).
-				" miff:- | " . wfEscapeShellArg($wgImageMagickCompositeCommand) . " -gravity southeast -quality 100 -geometry +8+10 - ". wfEscapeShellArg($srcPath) ." ".
-				wfEscapeShellArg($dstPath)." 2>&1";
+		// On certain servers (naming the image scalers), we have a newer
+		// version of ImageMagick (version 6.5.7 instead of version 6.2.8
+		// on the app servers), which requires an additional param to do
+		// alpha blending.
+		if (IS_IMAGE_SCALER) {
+			$imageMagick5678param = " -blend 50";
+		} else {
+			$imageMagick5678param = "";
+		}
+
+		$cmd = $cmd . wfEscapeShellArg($wgImageMagickConvertCommand) . " -density $density -background none " . wfEscapeShellArg($wm) .
+				" miff:- | " . wfEscapeShellArg($wgImageMagickCompositeCommand) . $imageMagick5678param .
+				" -gravity southeast -quality 100 -geometry +8+10 - " . wfEscapeShellArg($srcPath) . " " .
+				wfEscapeShellArg($dstPath) . " 2>&1";
 
 		$beforeExists = file_exists($dstPath);
 		wfDebug( __METHOD__.": running ImageMagick: $cmd\n");

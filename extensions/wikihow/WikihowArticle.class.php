@@ -592,8 +592,13 @@ class WikihowArticleEditor {
 
 		// headings tags
 		if (!isset($options["headings"])) {
-			$text = preg_replace("@^[=]+@m", "", $text);
-			$text = preg_replace("@[=]+$@m", "", $text);
+
+			if (isset($options["no-heading-text"])) {
+				$text = preg_replace("@^[=]+[^=]+[=]+$@m", "", $text);
+			} else {
+				$text = preg_replace("@^[=]+@m", "", $text);
+				$text = preg_replace("@[=]+$@m", "", $text);
+			}
 		}
 
 		// templates
@@ -1287,18 +1292,18 @@ class WikihowArticleHTML {
 			pq(".{$tipsClass} .section_text")->children()->filter("ul:last")->after(wikihowAds::getAdUnitPlaceholder('2a'));
 			
 			//add in the Taboola ads
-			if($wgLanguageCode == "en") {
-				$sourcesClass = mb_strtolower(wfMessage("sources")->text()); //grabs the sources and citations section by name, but internationalized
-				$sourcesClass = str_replace(' ','',$sourcesClass);
-				if (pq(".section.{$sourcesClass}")->length) {
-					//put above Sources & Citations if it exists
-					pq(".section.{$sourcesClass}")->before(wikihowAds::getAdUnitTaboola());
-				}
-				else {	
-					// put above Article Info
-					pq("#bodycontents")->after(wikihowAds::getAdUnitTaboola());
-				}
-			}
+			// if($wgLanguageCode == "en") {
+				// $sourcesClass = mb_strtolower(wfMessage("sources")->text()); //grabs the sources and citations section by name, but internationalized
+				// $sourcesClass = str_replace(' ','',$sourcesClass);
+				// if (pq(".section.{$sourcesClass}")->length) {
+					// //put above Sources & Citations if it exists
+					// pq(".section.{$sourcesClass}")->before(wikihowAds::getAdUnitTaboola());
+				// }
+				// else {	
+					// // put above Article Info
+					// pq("#bodycontents")->after(wikihowAds::getAdUnitTaboola());
+				// }
+			// }
 		}
 		$markPatrolledLink = self::getMarkPatrolledLink();
 		if ($markPatrolledLink) {

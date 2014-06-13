@@ -161,7 +161,7 @@ class EditPageWrapper extends EditPage {
 	# but use our own display
 	function showEditForm( $formCallback=null ) {
 		global $wgOut, $wgLanguageCode, $wgRequest, $wgTitle, $wgUser, $wgLang;
-		global $wgScriptPath;
+		global $wgScriptPath, $wgScript;
 
 		$whow = null;
 
@@ -256,8 +256,6 @@ class EditPageWrapper extends EditPage {
 			$wgOut->addHTML( "<strong>" .
 			wfMsg( "readonlywarning" ) .
 			"</strong>" );
-		} elseif ( $isCssJsSubpage and "preview" != $formtype) {
-			$wgOut->addHTML( wfMsg( "usercssjsyoucanpreview" ));
 		}
 
 		if( !$newArticle && $this->mTitle->isProtected( 'edit' ) ) {
@@ -466,6 +464,7 @@ class EditPageWrapper extends EditPage {
 		$video = htmlspecialchars( $wgLang->recodeForEdit( $whow->getSection(wfMsg('video')) ) );
 		$tips = htmlspecialchars( $wgLang->recodeForEdit( $whow->getSection(wfMsg('tips')) ) );
 		$warns = htmlspecialchars( $wgLang->recodeForEdit( $whow->getSection(wfMsg('warnings'))) );
+		$ingredients = '';
 
 		$related_text = htmlspecialchars( $wgLang->recodeForEdit( $whow->getSection(wfMsg('relatedwikihows')) ) );
 
@@ -514,8 +513,8 @@ class EditPageWrapper extends EditPage {
 		} elseif ($newArticle && $wgRequest->getVal('title', null) != null) {
 			$t = Title::newFromText("CreatePage", NS_SPECIAL);
 			 //$advanced = str_replace("href=", "class='guided-button' href=", $sk->makeLinkObj($t, wfMsg('advanced-editing'))) . " |";
-			//$advanced = "<a href='{$wgScript}?title=" . $wgTitle->getPrefixedURL() . "&action=edit&advanced=true$oldparameters';\">".wfMsg('advanced-editing')."</a>";
-			$advanced = "<a class='button secondary' style='float:left;' href='{$wgScript}?title=" . $wgTitle->getPrefixedURL() . "&action=edit&advanced=true$oldparameters'>".wfMsg('advanced-editing')."</a>";
+			//$advanced = "<a href='{$wgScript}?title=" . $wgTitle->getPrefixedURL() . "&action=edit&advanced=true';\">".wfMsg('advanced-editing')."</a>";
+			$advanced = "<a class='button secondary' style='float:left;' href='{$wgScript}?title=" . $wgTitle->getPrefixedURL() . "&action=edit&advanced=true'>".wfMsg('advanced-editing')."</a>";
 		}
 
 		$section_class = 'minor_section';
@@ -525,9 +524,10 @@ class EditPageWrapper extends EditPage {
 		if ($wgUser->getID() > 0) {
 			$ctitle = $this->mTitle->getText();
 			$css = HtmlSnips::makeUrlTags('css', array('categoriespopup.css'), 'extensions/wikihow', false);
+			$editCatHtml = '';
 			if ($wgLanguageCode == 'en') {
 				$editCatMore = "<a href=\"{$wgScriptPath}/Writer%27s-Guide?section=2#" . wfMsg('more-info-categorization') . "\" target=\"new\">" . wfMsg('moreinfo') ."</a>";
-				$editCatHtml = "<a href='#' id='ep_cat'>[".wfMsg('editcategory')."]</a><strong>$editCatLink</strong>";
+				$editCatHtml = "<a href='#' id='ep_cat'>[".wfMsg('editcategory')."]</a><strong></strong>";
 			}
 			$categoryHTML = "
 				$css
@@ -588,7 +588,7 @@ class EditPageWrapper extends EditPage {
 			$vidpreview = wfMsg('video_novideoyet');
 		}
 		$video_disabled = "";
-		$vid_alt = "";
+		$video_alt = "";
 		$video_msg = "";
 		$wasNew = "false";
 		if ($newArticle) {
@@ -614,7 +614,7 @@ class EditPageWrapper extends EditPage {
 		$ingredients_vis = "hide";
 		$section = $whow->getSection(wfMsg("ingredients"));
 		$ingredients_checked = "";
-		if ($section != '') {
+		if ($section) {
 			$ingredients_vis = "show";
 			$ingredients = $section;
 			$ingredients_checked = " CHECKED ";

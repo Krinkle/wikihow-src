@@ -378,7 +378,7 @@ class LogPager extends ReverseChronologicalPager {
 	public function reallyDoQuery( $offset, $limit, $descending ) {
 		list( $tables, $fields, $conds, $fname, $options, $join_conds ) = $this->buildQueryInfo( $offset, $limit, $descending );
 		$sql = $this->mDb->selectSQLText( $tables, $fields, $conds, $fname, $options, $join_conds );
-		if ($this->doIndexHack) {
+		if (isset($this->doIndexHack) && $this->doIndexHack) {
 			$sql = preg_replace('@( FROM `logging` )(LEFT JOIN )@', '$1FORCE INDEX (times) $2', $sql);
 		}
 		return $this->mDb->query( $sql, $fname );

@@ -6,6 +6,7 @@ class ImageHooks {
 
 	// AG - method signature changed due to how to check if file exists in lastest MW
 	static function onImageConvertNoScale($image, $params) {
+
 		// edge case...if the image will not actually get watermarked because it's too small, just return true
 		if (WatermarkSupport::validImageSize($params['physicalWidth'], $params['physicalHeight']) == false) {
 			return true;
@@ -14,10 +15,7 @@ class ImageHooks {
 		// return false here..we want to create the watermarked file!
 		// AG - TODO trying to figure out why we check if the file exists here..doesn't 
 		// seem necessary or should be inverted
-		if ( (isset($params[WatermarkSupport::ADD_WATERMARK])
-			&& $params[WatermarkSupport::ADD_WATERMARK])
-				|| $image->getRepo()->fileExists($params['dstPath']) )
-		{
+		if ( @$params[WatermarkSupport::ADD_WATERMARK] || $image->getRepo()->fileExists($params['dstPath']) ) {
 			return false;
 		}
 
@@ -25,16 +23,46 @@ class ImageHooks {
 	}
 
 	static function onImageConvertComplete($params) {
+		global $wgJpegOptimCommand, $wgOptiPngCommand;
 
-		if (isset($params[WatermarkSupport::ADD_WATERMARK])
-			&& $params[WatermarkSupport::ADD_WATERMARK])
-		{
-			WatermarkSupport::addWatermark($params['dstPath'], $params['dstPath'], $params['physicalWidth'], $params['physicalHeight']);
+		$dstPath = $params['dstPath'];
+
+		// First, add any watermarks to generated image
+		if (@$params[WatermarkSupport::ADD_WATERMARK]) {
+			WatermarkSupport::addWatermark($dstPath, $dstPath, $params['physicalWidth'], $params['physicalHeight']);
 		}
+
+		// Then try to optimize the output image for size while keeping
+		// display properties the same by using optipng and jpegoptim
+		if (IS_IMAGE_SCALER && @$params['mimeType'] == 'image/jpeg' && $wgJpegOptimCommand) {
+			$cmd = wfEscapeShellArg($wgJpegOptimCommand) . " --strip-all " .
+				wfEscapeShellArg($dstPath) . " >> /tmp/imgopt.log 2>&1";// . " 2>&1";
+			$beforeExists = file_exists($dstPath);
+			wfDebug( __METHOD__.": running jpegoptim: $cmd\n");
+			$err = wfShellExec( $cmd, $retval );
+			$afterExists = file_exists($dstPath);
+			$currentDate = `date`;
+			// debugging output
+			wfErrorLog(trim($currentDate) . " $cmd b:" . ($beforeExists ? 't' : 'f') .
+				" a:" . ($afterExists ? 't' : 'f') . " ret:$retval\n", '/tmp/imgopt.log');
+		} elseif (IS_IMAGE_SCALER && @$params['mimeType'] == 'image/png' && $wgOptiPngCommand) {
+			$cmd = wfEscapeShellArg($wgOptiPngCommand) . " " .
+				wfEscapeShellArg($dstPath) . " >> /tmp/imgopt.log 2>&1";// . " 2>&1";
+			$beforeExists = file_exists($dstPath);
+			wfDebug( __METHOD__.": running jpegoptim: $cmd\n");
+			$err = wfShellExec( $cmd, $retval );
+			$afterExists = file_exists($dstPath);
+			$currentDate = `date`;
+			// debugging output
+			wfErrorLog(trim($currentDate) . " $cmd b:" . ($beforeExists ? 't' : 'f') .
+				" a:" . ($afterExists ? 't' : 'f') . " ret:$retval\n", '/tmp/imgopt.log');
+		}
+
 		return true;
 	}
 
 	static function onFileTransform($image, &$params) {
+
 		if ( $image->getUser("text") 
 			&& WatermarkSupport::isWikihowCreator($image->getUser('text')) 
 			&& (!isset($params[WatermarkSupport::NO_WATERMARK]) 
@@ -151,7 +179,9 @@ class ImageHooks {
 			array_shift($parts);
 			$width = (int)$m[1];
 			if (!isset($p['width']) || $p['width'] <= 10) {
-				$p['width'] = $m[1];
+				$p['width'] = $width;
+			} else {
+				$p['reqwidth'] = $width;
 			}
 			// Note that we take the crop width param to be the correct one if two
 			// width params are present. This functionality can be verified by looking

@@ -52,11 +52,11 @@
 				action: 'next'
 			} ]
 		}, {
-			titlemsg: 'guidedtour-tour-dashboard-rc-title',
-			descriptionmsg: 'guidedtour-tour-dashboard-rc-description',
+			titlemsg: 'guidedtour-tour-dashboard-methodguardian-title',
+			descriptionmsg: 'guidedtour-tour-dashboard-methodguardian-description',
 
 			// attachment
-			attachTo: 'div.comdash-widget-RecentChangesAppWidget',
+			attachTo: 'div.comdash-widget-MethodGuardianAppWidget',
 			position: 'top',
 			offset: {'top': 20, 'left': 0},
 

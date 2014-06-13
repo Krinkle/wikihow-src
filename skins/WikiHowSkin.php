@@ -1394,14 +1394,9 @@ class SkinWikihowskin extends SkinTemplate {
 		if ($isMainPage) {
 			$htmlTitle = 'wikiHow - '.wfMessage('main_title')->text();
 		} elseif ($namespace == NS_MAIN && $wgTitle->exists() && $action == "view")  {
-			if ($wgLanguageCode == 'en') {
-				$titleTest = TitleTests::newFromTitle($wgTitle);
-				if ($titleTest) {
-					$htmlTitle = $titleTest->getTitle();
-				}
-			} else {
-				$howto = wfMessage('howto', $title)->text();
-				$htmlTitle = wfMessage('pagetitle', $howto)->text();
+			$titleTest = TitleTests::newFromTitle($wgTitle);
+			if ($titleTest) {
+				$htmlTitle = $titleTest->getTitle();
 			}
 		} elseif ($namespace == NS_USER || $namespace == NS_USER_TALK) {
 			$username = $wgTitle->getText();
@@ -1473,7 +1468,7 @@ class WikiHowTemplate extends QuickTemplate {
 
 		$showAds = wikihowAds::isEligibleForAds();
 
-		$isIndexed = RobotPolicy::isIndexable($wgTitle);
+		$isIndexed = RobotPolicy::isIndexable($wgTitle, $sk->getContext());
 
 		$pageTitle = SkinWikihowSkin::getHTMLTitle( $wgOut->getHTMLTitle(), $this->data['title'], $isMainPage );
 
@@ -1842,7 +1837,7 @@ class WikiHowTemplate extends QuickTemplate {
 		$showExitTimer = $wgLanguageCode == 'en' && class_exists('BounceTimeLogger') && !$isSlowSpeedUser;
 
 		$showRUM = false; //($isArticlePage || $isMainPage) && !$isBehindHttpAuth && !$isSlowSpeedUser;
-		$showGoSquared = ($isArticlePage || $isMainPage) && !$isLoggedIn && !$isBehindHttpAuth && mt_rand(1, 100) <= 30; // 30% chance
+		$showGoSquared = false; //($isArticlePage || $isMainPage) && !$isLoggedIn && !$isBehindHttpAuth && mt_rand(1, 100) <= 30; // 30% chance
 		$showClickIgniter = !$isLoggedIn && !$isBehindHttpAuth && !$wgSSLsite;
 
 		$showGA = !$isSlowSpeedUser;
@@ -1873,7 +1868,9 @@ class WikiHowTemplate extends QuickTemplate {
 			$wgTitle->exists() &&
 			$wgTitle->getNamespace() == NS_MAIN &&
 			!$isMainPage &&
-			UCIPatrol::showUCI($this->getSkin()->getContext()->getTitle());
+			UCIPatrol::showUCI(
+					$this->getSkin()->getContext()->getTitle(),
+					$this->getSkin()->getContext()->getRequest()->getVal("purgeuci") == "true");
 
 		$showImageFeedback =
 			class_exists('ImageFeedback') &&
@@ -2040,7 +2037,7 @@ UVPERF.start = new Date().getTime();
 		<?php wfRunHooks( 'PageHeaderDisplay', array( $sk->isUserAgentMobile() ) ); ?>
 
 		<?php
-		if(!$isLoggedIn)
+		if(!$isLoggedIn && wikihowAds::isEligibleForAds() && !wikihowAds::adExclusions($wgTitle))
 			echo wikihowAds::getSetup();
 		?>
 		<div id="header_outer"><div id="header">
@@ -2430,7 +2427,6 @@ UVPERF.start = new Date().getTime();
 			<?= $this->html('headscripts') ?>
 			<script type="text/javascript" src="<?= $fullJSuri ?>"></script>
 		<? endif; ?>
-		<?php if ($optimizelyJS) { print $optimizelyJS; } ?>
 
 		<? if ($showExitTimer): ?>
 			<script>
@@ -2466,11 +2462,7 @@ UVPERF.start = new Date().getTime();
 		<? // Google Analytics Event Track ?>
 		<script type="text/javascript">
 			<!--
-			if (typeof Event =='undefined' || typeof Event.observe == 'undefined') {
 				jQuery(window).load(gatStartObservers);
-			} else {
-				Event.observe(window, 'load', gatStartObservers);
-			}
 			//-->
 		</script>
 		<? // END Google Analytics Event Track ?>
@@ -2484,15 +2476,23 @@ UVPERF.start = new Date().getTime();
 		<? if ($showGAevents): ?>
 			<script type="text/javascript">
 				<!--
-				if (typeof Event =='undefined' || typeof Event.observe == 'undefined') {
 					jQuery(window).load(initSA);
-				} else {
-					Event.observe(window, 'load', initSA);
-				}
 				//-->
 			</script>
 		<? endif; ?>
 	<? endif; // $showGA ?>
+
+		<? if ($showClickIgniter): ?>
+			<script type="text/javascript">
+			  (function(w,d,s,p,v,e,r){w['$petametricsVar']=v;w[v]=w[v]||function(){w[v].q=w[v].q||[];w[v].q.push(arguments)};
+				w[v].l=1*new Date();e=d.createElement(s),r=d.getElementsByTagName(s)[0];e.async=1;e.src=p;r.parentNode.insertBefore(e,r)
+			  })(window,document,'script','//cdn.petametrics.com/p.js','$p');
+
+			  $p("init", "ppqk2eprfelgb455");
+			  $p("send", "pageview");
+			</script>
+		<? endif; ?>
+		<?php if ($optimizelyJS) { print $optimizelyJS; } ?>
 
 		<? // Load event listeners all pages ?>
 		<?
@@ -2501,15 +2501,6 @@ UVPERF.start = new Date().getTime();
 		}
 		?>
 
-		<? if ($showClickIgniter): ?>
-			<script type="text/javascript">
-			(function() {
-				var ci = document.createElement('script'); ci.type = 'text/javascript'; ci.async = true;
-				ci.src = 'http://cdn.clickigniter.io/ci.js';
-				var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ci, s);
-			})();
-			</script>
-		<? endif; ?>
 		<? if ($showGoSquared): ?>
 			<script type="text/javascript">
 				var GoSquared = {};
@@ -2530,6 +2521,7 @@ UVPERF.start = new Date().getTime();
 				})(window);
 			</script>
 		<? endif; ?>
+
 		<? if ($showRUM): ?>
 		<script>
 			(function(){

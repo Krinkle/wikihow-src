@@ -563,7 +563,7 @@ class Misc {
 		$matches = array();
 		preg_match('/{{nfd.*}}/i', $intro, $matches);
 
-		if ($matches[0] != null) {
+		if (count($matches) && $matches[0] != null) {
 			$loc = stripos($matches[0], "|", 4);
 			if ($loc) { //there is a reason
 				$loc2 = stripos($matches[0], "|", $loc + 1);

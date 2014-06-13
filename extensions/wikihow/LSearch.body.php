@@ -156,7 +156,7 @@ class LSearch extends SpecialPage {
 			}
 		}
 
-		$num_results = $contents['totalresults'] ? $contents['totalresults'] : 0;
+		$num_results = !empty($contents['totalresults']) ? $contents['totalresults'] : 0;
 		//self::logSearch($q, $host_id, $cache, 0, 0, $gm_tm_count, 0, $wgUser->getName(), $wgUser->getId(), 0, $num_results, $gm_type);
 
 		if ($set_cache) {

@@ -429,7 +429,7 @@ function wfCheckForCashSpammer($article, $user, $text, $summary, $flags, $p1, $p
 			|| $article->getTitle()->getText() == "Spam Blacklist") 
 				return true;
 		$msg = preg_replace('@<\![-]+-[\n]+|[-]+>@U', '', wfMsg('yrt291x'));
-		$msgs = split("\n", $msg);
+		$msgs = explode("\n", $msg);
 		foreach ($msgs as $m) {
 			$m = trim($m);
 			if ($m == "") continue;

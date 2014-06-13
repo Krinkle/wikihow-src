@@ -24,7 +24,7 @@ class MQG extends UnlistedSpecialPage {
 	}
 
 	function execute($par) {
-		global $wgOut, $wgRequest, $IP, $wgArticle, $wgUser, $isDevServer;
+		global $wgOut, $wgRequest, $IP, $wgUser, $isDevServer;
 
 		wfProfileIn(__METHOD__);
 		$wgOut->disable(); 

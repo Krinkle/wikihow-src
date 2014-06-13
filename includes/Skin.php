@@ -1014,7 +1014,9 @@ abstract class Skin extends ContextSource {
 	function editUrlOptions() {
 		$options = array( 'action' => 'edit' );
 
-		if ( !$this->isRevisionCurrent() ) {
+		$useDefault = true;
+		wfRunHooks( 'EditURLOptions', array( $this->getContext(), &$useDefault ) );
+		if ( !$useDefault && !$this->isRevisionCurrent() ) {
 			$options['oldid'] = intval( $this->getRevisionId() );
 		}
 

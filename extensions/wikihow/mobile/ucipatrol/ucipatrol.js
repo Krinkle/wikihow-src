@@ -72,6 +72,7 @@ WH.uciPatrol = (function() {
 			skip: true,
 			thumbUrl: thumbUrl,
 			pageId: pageId,
+			guestId: guestId
 			},
 			function (result) {
 				debugResult(result);
@@ -190,9 +191,18 @@ WH.uciPatrol = (function() {
 	function loadResult(result) {
 		debugResult(result);
 
+		thumbUrl = result['thumb_url'];
+		pageId = result['pageId'];
+
 		if (result['error']) {
 			$("#uci").hide();
 			$(".tool_count").hide();
+
+			// in the case the user already voted on this..just skip it
+			if (result['error'] == 'alreadyvoted') {
+				skip();
+				return;
+			}
 
 			if (result['error'] == 'notitle') {
 				$("#uci_error").show();
@@ -213,11 +223,8 @@ WH.uciPatrol = (function() {
 
 			return;
 		}
-
-		pageId = result['pageId'];
 		upVotes = parseInt(result['upvotes']);
 		downVotes = parseInt(result['downvotes']);
-		thumbUrl = result['thumb_url'];
 		imageWidth = result['width'];
 		imageHeight = result['height'];
 		articleTitle = result['articleTitle'];
