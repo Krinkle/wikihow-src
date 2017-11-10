@@ -1,6 +1,4 @@
-<?
-
-if (!defined('MEDIAWIKI')) die();
+<?php
 
 class AdminRedirects extends UnlistedSpecialPage {
 
@@ -27,7 +25,7 @@ class AdminRedirects extends UnlistedSpecialPage {
 	/**
 	 * Execute special page.  Only available to wikihow staff.
 	 */
-	function execute() {
+	function execute($par) {
 		global $wgRequest, $wgOut, $wgUser, $wgLang;
 
 		$userGroups = $wgUser->getGroups();
@@ -48,28 +46,58 @@ class AdminRedirects extends UnlistedSpecialPage {
 			foreach ($pageList as $url) {
 				$url = trim($url);
 				if (!empty($url)) {
-					$url = str_replace('%28', '(', $url);
-					$url = str_replace('%29', ')', $url);
+					$urlDecoded = urldecode($url);
 					$urls[] = $url;
+					$urls[] = $urlDecoded;
+					$partials[] = array();
+					$pIndex = count($partials) - 1;
 					if (preg_match('@^http://[^/]+/([^?]+)@', $url, $m)) {
-						$partials[ $m[1] ] = $url;
+						$partials[$pIndex]['plain']['match'] = $m[1];
+						$partials[$pIndex]['plain']['url'] = $url;
+					}
+					if (preg_match('@^http://[^/]+/([^?]+)@', $urlDecoded, $m)) {
+						$partials[$pIndex]['decoded']['match'] = $m[1];
+						$partials[$pIndex]['decoded']['url'] = $urlDecoded;
 					}
 				}
 			}
+
 			$results = Misc::getPagesFromURLs($urls, array('page_id', 'page_is_redirect'), true);
 
 			$lines = array();
 			foreach ($results as $url => $result) {
+				$storedUrl = '';
+
+				foreach ($partials as $pIndex => $partialInfo) {
+					if (!$partialInfo) {
+						continue;
+					}
+
+					if (($partialInfo['plain'] && $partialInfo['plain']['match'] == $result['page_title'])
+						|| ($partialInfo['decoded'] && $partialInfo['decoded']['match'] == $result['page_title']))
+					{
+						$type = $partialInfo['plain'] ? 'plain' : 'decoded';
+						$storedUrl = $partialInfo[$type]['url'];
+						unset($partials[$pIndex]);
+					}
+				}
+
 				$details = 'Not a redirect';
 				if ($result['page_is_redirect']) {
 					$redir = self::getIntlRedirect($result['lang'], $result['page_id']);
 					if ($redir) $details = $redir;
 				}
-				$lines[] = array($url, $result['page_id'], $result['page_is_redirect'], $details);
-				unset($partials[ $result['page_title'] ]);
+
+				$displayUrl = $storedUrl ?: $url;
+
+				$lines[] = array($displayUrl, $result['page_id'], $result['page_is_redirect'], $details);
 			}
-			foreach ($partials as $partial => $url) {
-				$lines[] = array($url, '', 0, 'Not found');
+
+			foreach ($partials as $partialInfo) {
+				if ($partialInfo) {
+					$type = $partialInfo['plain'] ? 'plain' : 'decoded';
+					$lines[] = array($partialInfo[$type]['url'], '', 0, 'Not found');
+				}
 			}
 
 			self::httpDownloadHeaders();

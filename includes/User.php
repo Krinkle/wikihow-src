@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Implements the User class for the %MediaWiki software.
  *
@@ -247,6 +248,7 @@ class User {
 	// JRS 12/18/13 Added
 	var $mNewKudos, $mLoadedFacebook = false, $mIsFacebook = false;
 	var $mLoadedGPlus = false, $mIsGPlus = false;
+	var $mLoadedCivic = false, $mIsCivic = false;
 
 	/**
 	 * Lightweight constructor for an anonymous user.
@@ -683,7 +685,7 @@ class User {
 				return false;
 			}
 		}
-		
+
 		//XXCHANGEDXX - hook for our custom validation [sc]
 		if ( wfRunHooks( 'UserValidateName', array( $name, &$result ) ) ) {
 			if (!$result) return false;
@@ -3262,7 +3264,11 @@ class User {
 			if ( $value === false ) {
 				$this->clearCookie( $name );
 			} else {
-				$this->setCookie( $name, $value, 0, $secure );
+				if ($this->getEditCount() < 1 ){
+					$this->setCookie( $name, $value, 30*24*60*60+time(), $secure );
+				} else {
+					$this -> setCookie( $name, $value, 0, $secure );
+				}
 			}
 		}
 
@@ -4412,14 +4418,14 @@ class User {
 		// Pull from a slave to be less cruel to servers
 		// Accuracy isn't the point anyway here
 
-		// Reuben 1/30/2014: Hack this user edit count to exclude any edits from 
+		// Reuben 1/30/2014: Hack this user edit count to exclude any edits from
 		// certain namespaces
 		$dbr = wfGetDB( DB_SLAVE );
 		$count = (int)$dbr->selectField(
 			array('revision', 'page'),
 			'COUNT(rev_user)',
 			array( 'rev_user' => $this->getId() ),
-			array( 'rev_page = page_id', 
+			array( 'rev_page = page_id',
 				'rev_user' => $this->getId(),
 				'page_namespace NOT IN(' . implode(',', $wgIgnoreNamespacesForEditCount) . ')'),
 			__METHOD__
@@ -4793,7 +4799,7 @@ class User {
 	 * @param string $permission User right required
 	 * @return Status
 	 */
-	static function newFatalPermissionDeniedStatus( $permission ) {
+	public static function newFatalPermissionDeniedStatus( $permission ) {
 		global $wgLang;
 
 		$groups = array_map(
@@ -4808,174 +4814,187 @@ class User {
 		}
 	}
 
-    /**
-     * Check if user has editing or login cookies set
-     */
-    function hasCookies() {                                                                                 
-        foreach ($_COOKIE as $cookie => $val) {
-            if (strpos($cookie, 'wiki_') === 0) {
-                return true;
-            }
-        }
-        return false;
-    }
+	/**
+	 * Check if user has editing or login cookies set
+	 */
+	public function hasCookies() {
+		foreach ($_COOKIE as $cookie => $val) {
+			if (strpos($cookie, 'wiki_') === 0) {
+				return true;
+			}
+		}
+		return false;
+	}
 
-    function getNewThumbsUp() {
-        $this->load();
-        return class_exists('ThumbsNotifications') && isset($_COOKIE['wiki_shared_session']) && ThumbsUp::getThumbsTalkOption($this->getId()) == 0;
-    }
+	public function getNewThumbsUp() {
+		$this->load();
+		return class_exists('ThumbsNotifications') && isset($_COOKIE['wiki_shared_session']) && ThumbsUp::getThumbsTalkOption($this->getId()) == 0;
+	}
 
-    function getNewkudos() {
-        $this->load();
+	public function getNewkudos() {
+		$this->load();
 
-        # Load the newkudos status if it is unloaded (mNewKudos=-1)
-        if ($this->mId == 0) return false;
-        if ( $this->mNewKudos == -1 ) {
-            $this->mNewKudos=0; # reset talk page status
-            $dbr =& wfGetDB( DB_SLAVE );
-            if($this->mId) {
-                $res = $dbr->select( 'user_newkudos', 1, array( 'user_id' => $this->mId ), __METHOD__ );
-                if ( $dbr->numRows($res)>0 ) {
-                    $this->mNewKudos= 1;
-                }
-                $dbr->freeResult( $res );
-            } else {
-                global $wgDBname, $wgMemc;
-                $key = "$wgDBname:newkudos:ip:{$this->mName}";
-                $newkudos = $wgMemc->get( wfMemcKey($key) );
-                if( ! is_integer( $newkudos ) ){
-                    $res = $dbr->select( 'user_newkudos', 1, array( 'user_ip' => $this->mName ), __METHOD__ );
+		/* sql:
+			CREATE TABLE `user_newkudos` (
+			  `user_id` int(10) NOT NULL DEFAULT '0',
+			  `user_ip` varchar(40) NOT NULL DEFAULT '',
+			  KEY `user_id` (`user_id`),
+			  KEY `user_ip` (`user_ip`)
+			);
+		 */
 
-                    $this->mNewKudos = $dbr->numRows( $res ) > 0 ? 1 : 0;
-                    $dbr->freeResult( $res );
+		# Load the newkudos status if it is unloaded (mNewKudos=-1)
+		if ($this->mId == 0) return false;
+		if ( $this->mNewKudos == -1 ) {
+			$this->mNewKudos=0; # reset talk page status
+			$dbr =& wfGetDB( DB_SLAVE );
+			if($this->mId) {
+				$res = $dbr->select( 'user_newkudos', 1, array( 'user_id' => $this->mId ), __METHOD__ );
+				if ( $dbr->numRows($res)>0 ) {
+					$this->mNewKudos= 1;
+				}
+				$dbr->freeResult( $res );
+			} else {
+				global $wgDBname, $wgMemc;
+				$key = "$wgDBname:newkudos:ip:{$this->mName}";
+				$newkudos = $wgMemc->get( wfMemcKey($key) );
+				if( ! is_integer( $newkudos ) ){
+					$res = $dbr->select( 'user_newkudos', 1, array( 'user_ip' => $this->mName ), __METHOD__ );
 
-                    $wgMemc->set( $key, $this->mNewKudos, time() ); // + 1800 );
-                } else {
-                    $this->mNewKudos = $newkudos ? 1 : 0;
-                }
-            }
-        }
-        return ( 0 != $this->mNewKudos );
-    }
+					$this->mNewKudos = $dbr->numRows( $res ) > 0 ? 1 : 0;
+					$dbr->freeResult( $res );
 
-    function getKudosPage() {
-        return Title::makeTitle( NS_USER_KUDOS, $this->mName );
-    }               
-    
-    static function updateNewkudos( $field, $id ) {
-        global $wgMemc;
-        $memkey = wfMemcKey('notification_box_'.$id);
-        $wgMemc->delete($memkey);
+					$wgMemc->set( $key, $this->mNewKudos, time() ); // + 1800 );
+				} else {
+					$this->mNewKudos = $newkudos ? 1 : 0;
+				}
+			}
+		}
+		return ( 0 != $this->mNewKudos );
+	}
 
-        // if( self::checkNewkudos( $field, $id ) ) {
-            // return false;
-        // }              
-        $dbw = wfGetDB( DB_MASTER );
-        $dbw->insert( 'user_newkudos',
-            array( $field => $id ),
-            __METHOD__,
-            'IGNORE' );
-        return true;
-    }
+	public function getKudosPage() {
+		return Title::makeTitle( NS_USER_KUDOS, $this->mName );
+	}
 
-    static function deleteNewkudos( $field, $id ) {
-        global $wgMemc;
-        $memkey = wfMemcKey('notification_box_'.$id);
-        $wgMemc->delete($memkey);
-        
-        // if( !self::checkNewkudos( $field, $id ) ) {
-            // return false;
-        // }
-        $dbw = wfGetDB( DB_MASTER );
-        $dbw->delete( 'user_newkudos',
-            array( $field => $id ), 
-            __METHOD__ );
-        return true;
-    }
+	public static function updateNewkudos( $field, $id ) {
+		global $wgMemc;
+		$memkey = wfMemcKey('notification_box_'.$id);
+		$wgMemc->delete($memkey);
 
-    static function checkNewkudos( $field, $id ) {
-        $dbr = wfGetDB( DB_SLAVE );
-        $ok = $dbr->selectField( 'user_newkudos', $field,
-            array( $field => $id ), __METHOD__ );
-        return $ok !== false;
-    }
+		// if( self::checkNewkudos( $field, $id ) ) {
+			// return false;
+		// }
+		$dbw = wfGetDB( DB_MASTER );
+		$dbw->insert( 'user_newkudos',
+			array( $field => $id ),
+			__METHOD__,
+			'IGNORE' );
+		return true;
+	}
 
-    function isSysop() { 
-        foreach ($this->mGroups as $g) {
-            if ($g == 'sysop') return true;
-        }
-        return false;
-    }
+	public static function deleteNewkudos( $field, $id ) {
+		global $wgMemc;
+		$memkey = wfMemcKey('notification_box_'.$id);
+		$wgMemc->delete($memkey);
 
-    function setNewkudos( $val ) {
-        if( wfReadOnly() ) {
-            return;
-        }
+		// if( !self::checkNewkudos( $field, $id ) ) {
+			// return false;
+		// }
+		$dbw = wfGetDB( DB_MASTER );
+		$dbw->delete( 'user_newkudos',
+			array( $field => $id ),
+			__METHOD__ );
+		return true;
+	}
 
-        $this->load();
-        $this->mNewKudos = $val;
+	public static function checkNewkudos( $field, $id ) {
+		$dbr = wfGetDB( DB_SLAVE );
+		$ok = $dbr->selectField( 'user_newkudos', $field,
+			array( $field => $id ), __METHOD__ );
+		return $ok !== false;
+	}
 
-        if( $this->isAnon() ) {
-            $field = 'user_ip';
-            $id = $this->getName();
-        } else {
-            $field = 'user_id';
-            $id = $this->getId();
-        }
+	public function hasGroup($group) {
+		foreach ($this->getGroups() as $g) {
+			if ($g == $group) return true;
+		}
+		return false;
+	}
 
-        if( $val ) {
-            $changed = self::updateNewkudos( $field, $id );
-        } else {
-            $changed = self::deleteNewkudos( $field, $id );
-        }
+	public function isSysop() {
+		return $this->hasGroup('sysop');
+	}
 
-        if( $changed ) {
-            if( $this->isAnon() ) {
-                // Anons have a separate memcached space, since
-                // user records aren't kept for them.
-                global $wgDBname, $wgMemc;
-                $key = "$wgDBname:newkudos:ip:$val";
-                $wgMemc->set( $key, $val ? 1 : 0 );
-            } else {
+	public function setNewkudos( $val ) {
+		if( wfReadOnly() ) {
+			return;
+		}
+
+		$this->load();
+		$this->mNewKudos = $val;
+
+		if( $this->isAnon() ) {
+			$field = 'user_ip';
+			$id = $this->getName();
+		} else {
+			$field = 'user_id';
+			$id = $this->getId();
+		}
+
+		if( $val ) {
+			$changed = self::updateNewkudos( $field, $id );
+		} else {
+			$changed = self::deleteNewkudos( $field, $id );
+		}
+
+		if( $changed ) {
+			if( $this->isAnon() ) {
+				// Anons have a separate memcached space, since
+				// user records aren't kept for them.
+				global $wgDBname, $wgMemc;
+				$key = "$wgDBname:newkudos:ip:$val";
+				$wgMemc->set( $key, $val ? 1 : 0 );
+			} else {
 				//We notify users other ways now [sc]
-                // if( $val ) {
-                    // // Make sure the user page is watched, so a notification
-                    // // will be sent out if enabled.
-                    // $this->addWatch( $this->getTalkPage() );
-                // }
-            }
-            $this->invalidateCache();
-            $this->saveSettings();
-        }
+				// if( $val ) {
+					// // Make sure the user page is watched, so a notification
+					// // will be sent out if enabled.
+					// $this->addWatch( $this->getTalkPage() );
+				// }
+			}
+			$this->invalidateCache();
+			$this->saveSettings();
+		}
 
-    }
+	}
 
-    function isFacebookUser() {
-		global $wgDBname;
-        if (!$this->mLoadedFacebook) {
-            $this->load();
-            $dbw = wfGetDB(DB_MASTER);
-            $dbw->selectDB(WH_DATABASE_NAME_SHARED);
-            $count = $dbw->selectField('facebook_connect',
-                array('count(*)'),
-                array('wh_user' => $this->mId),
-                __METHOD__
-            );
-            $dbw->selectDB($wgDBname);
+	public function isFacebookUser() {
+		if (!$this->mLoadedFacebook) {
+			$this->load();
+			$socialUser = SocialAuth\FacebookSocialUser::newFromWhId($this->mId);
+			$this->mIsFacebook = (bool) $socialUser;
+			$this->mLoadedFacebook = true;
+		}
+		return $this->mIsFacebook;
+	}
 
-            $this->mIsFacebook = $count > 0;
-            $this->mLoadedFacebook = true;
-        }
-        return $this->mIsFacebook;
-    }
+	public function isGPlusUser() {
+		if (!$this->mLoadedGPlus) {
+			$this->load();
+			$this->mIsGPlus = ($this->getOption('gplus_uid') != '');
+			$this->mLoadedGPlus = true;
+		}
+		return $this->mIsGPlus;
+	}
 
-    function isGPlusUser() {
-        if (!$this->mLoadedGPlus) {
-            $this->load();
-            $this->mIsGPlus = ($this->getOption('gplus_uid') != '');
-            $this->mLoadedGPlus = true;
-        }
-        return $this->mIsGPlus;
-    }
+	public function isCivicUser() {
+		if (!$this->mLoadedCivic) {
+			$this->load();
+			$this->mIsCivic = ($this->getOption('civic_uid') != '');
+			$this->mLoadedCivic = true;
+		}
+		return $this->mIsCivic;
+	}
 
 }

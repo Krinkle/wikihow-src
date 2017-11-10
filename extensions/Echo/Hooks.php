@@ -912,7 +912,7 @@ class EchoHooks {
 	public static function onUserClearNewTalkNotification( User $user ) {
 		//XXCHANGEDXX - allow anons [sc|rs]
 		// if ( !$user->isAnon() ) {
-			// MWEchoNotifUser::newFromUser( $user )->clearTalkNotification();
+			 MWEchoNotifUser::newFromUser( $user )->clearTalkNotification();
 		// }
 		return true;
 	}

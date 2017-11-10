@@ -8,7 +8,6 @@ class Sitemap extends SpecialPage {
 
 	function getTopLevelCategories() {
 		global $wgCategoriesArticle;
-		wfLoadExtensionMessages('Sitemap');
 		$results = array (); 
 		$revision = Revision::newFromTitle( Title::newFromText( wfMsg('categories_article') ) );
 		if (!$revision) return $results;
@@ -54,14 +53,15 @@ class Sitemap extends SpecialPage {
 	
 	function execute($par) {
 		global $wgOut, $wgUser;
-		$wgOut->setRobotPolicy("index,follow");
+		$out = $this->getOutput();
+		$out->setRobotPolicy("index,follow");
 		$sk = $wgUser->getSkin();
 		$topcats = $this->getTopLevelCategories();
 
-		$wgOut->setHTMLTitle('wikiHow Sitemap');
+		$out->setHTMLTitle('wikiHow Sitemap');
 
 		$count = 0;
-		$wgOut->addHTML("
+		$html = "
 			<style>
 				#catentry li {
 					margin-bottom: 0;
@@ -80,25 +80,38 @@ class Sitemap extends SpecialPage {
 					border-radius: 4px;
 				}
 			</style>
-			<table align='center' class='cats' cellspacing=10px>");
+			<table align='center' class='cats' cellspacing=10px>";
 
 		foreach ($topcats as $cat) {
 			$t = Title::newFromText($cat, NS_CATEGORY);
-			$subcats = $this->getSubcategories($t);
 			if ($count % 2 == 0)
-				$wgOut->addHTML("<tr>");
-			$wgOut->addHTML ( "<td><h3>" . $sk->makeLinkObj($t, $t->getText()) . "</h3><ul id='catentry'>");
-			foreach ($subcats as $sub) {
-				$t = Title::newFromText($sub, NS_CATEGORY);
-				$wgOut->addHTML ( "<li>" . $sk->makeLinkObj($t, $t->getText()) . "</li>\n");
+				$html .= "<tr>";
+			if ($t) {
+				$subcats = $this->getSubcategories($t);
+				$html .= "<td><h3>" . Linker::link($t, $t->getText()) . "</h3><ul id='catentry'>";
+				foreach ($subcats as $sub) {
+					$t = Title::newFromText($sub, NS_CATEGORY);
+					$html .= "<li>" . Linker::link($t, $t->getText()) . "</li>\n";
+				}
+				$html .= "</ul></td>\n";
 			}
-			$wgOut->addHTML("</ul></td>\n");
+			else {
+				if ($count % 2 == 1) {
+					$html .= "<tr>";
+				}
+				$html .= "<td><h3 style=\"color:red;\">" . $cat . "</h3></td>\n";
+			}
 			if ($count % 2 == 1)
-				$wgOut->addHTML("</tr>");
+				$html .= "</tr>";
 			$count++;
+
 		}
 
-		$wgOut->addHTML("</table>");
+		$html .= "</table>";
+
+		wfRunHooks( 'SitemapOutputHtml', array( &$html ) );
+
+		$out->addHTML( $html );
 	}
 
 }

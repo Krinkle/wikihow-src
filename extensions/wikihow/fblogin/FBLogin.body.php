@@ -1,247 +1,163 @@
-<?
+<?php
 
 class FBLogin extends UnlistedSpecialPage {
-	var $facebook = null; // Handle to facebook API
-	var $userid = 0;
-	var $returnto = "";
 
-    function __construct($source = null) {
-        parent::__construct( 'FBLogin' );
-    }
+	private $fbApi;
+	private $authToken;
 
-	function execute($par) {
-		global $wgOut, $wgRequest, $wgUser, $wgFBAppId, $wgFBAppSecret, $wgLanguageCode, $wgContLang, $IP;
-		require_once("$IP/extensions/wikihow/common/facebook-platform/facebook-php-sdk-771862b/src/facebook.php");
+	public function __construct($source = null) {
+		parent::__construct( 'FBLogin' );
+	}
 
-		wfLoadExtensionMessages('FBLogin');
-		if ( session_id() == '' ) {
-			wfSetupSession();                                                                                                                                                                                        
-		}
+	public function isMobileCapable() {
+		return true;
+	}
 
-		$this->returnto = $wgLanguageCode == 'en' ? wfMsg('fbc_returnto') : "/" . $wgContLang->getNSText(NS_PROJECT) . ":" . wfMsg('communityportal');
-		//$this->returnto = $_COOKIE['wiki_returnto'] ? $_COOKIE['wiki_returnto'] : "/Special:CommunityDashboard";
-		$this->userid = $_COOKIE['wiki_fbuser'];
-		$userid = $this->userid;
-		if (!$userid) {
-			$wgOut->addHTML("An error occurred.<!--" . print_r($_COOKIE, true) . "-->");
+	public function execute($par) {
+		global $wgLanguageCode, $wgContLang, $wgUser;
+
+		$out = $this->getOutput();
+		$req = $this->getRequest();
+
+		if (!$req->wasPosted()) {
+			$out->setRobotpolicy('noindex,nofollow');
+			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
-		$this->setWgUser();
 
-		$this->facebook = new Facebook(array('appId' => $wgFBAppId, 'secret' => $wgFBAppSecret));
-		$accessToken = $_COOKIE['wiki_fbtoken'];
-		$this->facebook->setAccessToken($accessToken);
-		
-		$result = $this->facebook->api('/me');
-
-		if (!$wgRequest->wasPosted()) {
-			// If they still have the FB_* name, show them the registration form with a proposed name
-			if (strpos($wgUser->getName(), "FB_") !== false) {
-				$this->printRegForm($result);
-			} else {
-				$this->updateAvatar($result);
-
-				// All logged in. Return them to wherever they're supposed to go
-				$this->setCookies();
-				$wgOut->redirect($this->returnto);
-			}
-		} else {
-			$this->processRegForm($result);
+		$this->authToken = $req->getVal('token', '');
+		if (!$this->authToken) {
+			$out->addHTML('An error occurred.');
+			return;
 		}
-	}	
 
-	function setCookies() {
-		setcookie( 'wiki_returnto', '', time() - 3600);
-		setcookie( 'wiki_fbtoken', '', time() - 3600);
-		setcookie( 'wiki_fbuser', '', time() - 3600);
+		$this->fbApi = new FacebookApiClient();
+		$profile = $this->fbApi->getProfile($this->authToken);
+		if (!$profile) {
+			$out->addHtml(wfMsg('fbc_api_error'));
+			return;
+		}
+
+		$out->setHTMLTitle(wfMsg('fblogin_page_title'));
+
+		$action = $req->getVal('action');
+		if ($action == 'login') {
+			$res = SocialLoginUtil::doSocialLogin('facebook', $profile['id'], $profile['name'],
+				$profile['email'], $this->fbApi->getAvatarUrl($profile['id']));
+			$isSignup = ($res == 'signup');
+			if ($res == 'error') {
+				$out->addHTML('The login process failed');
+				return;
+			} elseif ($isSignup
+						|| $wgUser->getBoolOption('is_generated_username')
+						|| strpos($wgUser->getName(), "FB_") !== false) {
+				$currentPic = Avatar::getAvatarURL($wgUser->getName());
+				$defaultPic = Avatar::getDefaultProfile();
+				$this->showForm( // Suggest a username change
+					$profile,
+					$wgUser->getEmail() ?: $profile['email'],
+					($currentPic != $defaultPic) ? $currentPic : $profile['picture'],
+					$isSignup
+				);
+			} else {
+				SocialLoginUtil::redirect($req->getText('returnTo'), $isSignup);
+			}
+		} elseif ($action == 'updateDetails') {
+			$this->processForm($profile);
+		} else {
+			$out->addHTML('Unsupported action.');
+		}
 	}
 
-	function setWgUser() {
+	private function showForm(&$profile, $email = '', $avatar = '', $isSignup, $username = null, $error = '') {
 		global $wgUser;
 
-		LoginForm::renewSessionId();
-		$dbw = wfGetDB(DB_MASTER);
-		$wh_userid = $dbw->selectField('facebook_connect', array('wh_user'), array('fb_user' => $this->userid));
-		// Never here before?  create a new user and log them in
-		if ($wh_userid == null) {
-			$u = User::createNew('FB_' . $this->userid);
-			if (!$u) {
-				$u = User::newFromName('FB_' . $this->userid);
-			}
-			$dbw->insert('facebook_connect', array('wh_user' => $u->getID(), 'fb_user' => $this->userid));	
-		} else {
-			$u = User::newFromID($wh_userid);
-			$dbw->update('facebook_connect', array('num_login = num_login + 1'), array('wh_user' => $wh_userid));
-		}
-		$wgUser = $u;		
-		$wgUser->setCookies();
-	}
+		$out = $this->getOutput();
+		$req = $this->getRequest();
 
-
-	function printRegForm(&$result, $username = null, $email = '', $error = '') {
-		global $wgOut, $_SERVER;
-		$username = $username !== null ? $username : $this->getProposedUsername($result['name']);
-		$prefill = true;
-		if(!$username) {
-			$prefill = false;	
+		$username = $username ?: SocialLoginUtil::createUsername($profile['name']);
+		if (!$username) {
+			$out->addHTML(wfMessage('sl_username_generation_failed')->text());
+			return;
 		}
-		$email = $email ? $email : $result['email'];
-		$picture = $this->getPicUrl($result['id'], 'square');
-		$friendsHtml = $this->getAppFriendsHtml();
-		//$affiliations = $this->getAffiliations($result);
+		$email = $email ? $email : $profile['email'];
+		$picture = $avatar ?: $this->fbApi->getAvatarUrl($profile['id']);
+		$token = $this->authToken;
+		$isMobile = Misc::isMobileMode();
+		$returnTo = ($isSignup && !$isMobile) ? '' : $req->getText('returnTo');
+		//$affiliations = $this->getAffiliations($profile);
 		$affiliations = "";
 		if(strlen($affiliations)) {
 			$affiliations .= ' &middot;';
 		}
 
-		//$numFriends = count($this->facebook->api_client->friends_get());
-		$numFriends = count($this->facebook->api('/me/friends'));
+		$numFriends = $this->fbApi->getFriendCount($token);
 		$fbicon = wfGetPad('/skins/WikiHow/images/facebook_share_icon.gif');
-		wfLoadExtensionMessages('FBLogin');
-		if ($prefill) {
-			$html = wfMsg('fbc_form_prefill', $fbicon, $username, $error, $picture, $affiliations, $numFriends, $email, $friendsHtml);
-		} else {
-			$html = wfMsg('fbc_form_no_prefill', $fbicon, $username, $error, $email, $friendsHtml);
+		$isApiSignup = $wgUser->getOption('is_api_signup');
+		$formUrl = SpecialPage::getTitleFor('FBLogin')->getFullURL('', false, PROTO_HTTPS);
+
+		$tmpl = new EasyTemplate(dirname(__FILE__));
+		$tmpl->set_vars(compact(
+			'token', 'returnTo', 'isSignup', 'fbicon', 'username', 'error', 'picture', 'affiliations', 'numFriends', 'email', 'isMobile', 'isApiSignup', 'formUrl'
+		));
+		$out->addHtml($tmpl->execute('FBLogin_form_prefill.tmpl.php'));
+
+		$out->addModules('ext.wikihow.FBLogin');
+		$out->addModuleStyles('ext.wikihow.FBLogin.styles');
+		if ($isMobile) {
+			$out->addModuleStyles('ext.wikihow.mobile.FBLogin.styles');
 		}
-		$tags = HtmlSnips::makeUrlTags('css', array('fblogin.css'), '/extensions/wikihow/fblogin', FBLOGIN_DEBUG);
-		$tags .= HtmlSnips::makeUrlTags('js', array('fblogin.js'), '/extensions/wikihow/fblogin', FBLOGIN_DEBUG);
-		$wgOut->addHtml($tags);
-		$wgOut->addHtml($html);
+
+		$out->addHtml($tags);
+		$out->addHtml($html);
 	}
 
-	function processRegForm(&$result) {
-		global $wgRequest, $wgUser, $wgOut;
-		$dbw = wfGetDB(DB_MASTER);
-		$userOverride = strlen($wgRequest->getVal('requested_username'));
-		$newname = $userOverride ? $wgRequest->getVal('requested_username') : $wgRequest->getVal('proposed_username');
-		$newname = $dbw->strencode($newname);
-		$email = $dbw->strencode($wgRequest->getVal('email'));
-		$realname = $userOverride ? '' : $dbw->strencode($result['name']);
+	private function processForm(&$profile) {
+		global $wgUser;
 
-		$newname = User::getCanonicalName($newname);
-		$exist = User::newFromName($newname);
-		if ($exist->getID() > 0 && $exist->getID() != $wgUser->getID()) {
-			$this->printRegForm($result, $newname, $email, wfMsg('fbconnect_username_inuse', $newname));
+		$req = $this->getRequest();
+		$dbw = wfGetDB(DB_MASTER);
+		$userOverride = strlen($req->getVal('requested_username'));
+		$newname = $userOverride ? $req->getVal('requested_username') : $req->getVal('proposed_username');
+		$newname = $dbw->strencode($newname);
+		$email = $dbw->strencode($req->getVal('email'));
+		$avatar = $req->getVal('fbc_user_avatar');
+		$isSignup = $req->getBool('isSignup');
+
+		$newname = User::getCanonicalName($newname, 'creatable');
+
+		if ($newname == false) {
+			$i18nErrorCode = 'fbc_username_not_valid';
+		} elseif (!SocialLoginUtil::isAvailableUsername($newname)) {
+			$i18nErrorCode = 'fbc_username_inuse';
+		}
+
+		if (isset($i18nErrorCode)) {
+			$this->showForm($profile, $email, $avatar, $isSignup, $newname, wfMsg($i18nErrorCode, $newname));
 			return;
 		}
+
 		$authenticatedTimeStamp = wfTimestampNow();
 		$dbw->update('user',
-			array('user_name' => $newname, 'user_email' => $email, 'user_real_name' => $realname, 'user_email_authenticated' => $authenticatedTimeStamp),
-			array('user_id' => $wgUser->getID())
+			array('user_name' => $newname, 'user_email' => $email, 'user_email_authenticated' => $authenticatedTimeStamp),
+			array('user_id' => $wgUser->getID()),
+			__METHOD__
 			);
-		if (!$userOverride) {
-			$this->updateAvatar($result);
-		}
+
 		$wgUser->invalidateCache();
 		$wgUser->loadFromID();
+
+		$wgUser->setOption('is_generated_username', false);
+		$wgUser->setOption('is_api_signup', false);
+		$wgUser->saveSettings();
 		$wgUser->setCookies();
-		wfRunHooks( 'AddNewAccount', array( $wgUser, true ) );
-		wfRunHooks( 'FBLoginComplete', array($wgUser));
-		
+
+		if ($wgUser->isEmailConfirmed()) {
+			wfRunHooks('ConfirmEmailComplete', array($wgUser));
+		}
+
 		// All registered. Send them along their merry way
-		$this->setCookies();
-		$wgOut->redirect($this->returnto);
+		SocialLoginUtil::redirect($req->getText('returnTo'), $isSignup);
 	}
 
-	function userNameIsFacebookUser($name) {
-		$dbr = wfGetDB(DB_SLAVE);
-		return $dbr->selectField( array('facebook_connect', 'user'),
-				array('count(*)'),
-				array('user_id=wh_user', 'user_name'=>$name)
-			) > 0;
-	}
-
-	//update avatar picture
-	function updateAvatar(&$result) {
-		global $wgLanguageCode, $wgUser;
-
-		if ($wgLanguageCode == 'en') {
-			$dbr = wfGetDB(DB_SLAVE);
-			$dbw = wfGetDB(DB_MASTER);
-			$res = $dbr->select('avatar', array('av_image', 'av_patrol'), array("av_user=" . $wgUser->getID()));
-			$row = $dbr->fetchObject($res);
-			$picUrl = $this->getPicUrl($result['id']);
-			if ($row && $row->av_image && ($row->av_patrol == 0 || $row->av_patrol == 1)) {
-				$dbw->query ("INSERT INTO avatar(av_user, av_image) VALUES ({$wgUser->getID()}, '{$picUrl}')
-								ON DUPLICATE KEY UPDATE av_image = '{$picUrl}'");
-			}
-
-			// Must be registering
-			if (!$row) {
-				$dbw->query ("INSERT INTO avatar(av_user, av_image, av_patrol) VALUES ({$wgUser->getID()}, '{$picUrl}', 0)
-								ON DUPLICATE KEY UPDATE av_image = '{$picUrl}, av_patrol = 0'");
-			}	
-		}
-	}
-	
-	function removeAvatar($userID) {
-		global $wgLanguageCode;
-
-		if ($wgLanguageCode == 'en') {
-			$u = User::newFromId($userID);
-			$dbr = wfGetDB(DB_SLAVE);
-			$dbw = wfGetDB(DB_MASTER);
-			$res = $dbr->select('avatar', array('av_image', 'av_patrol'), array("av_user=" . $u->getID()));
-			$row = $dbr->fetchObject($res);
-			if ($row && $row->av_image && ($row->av_patrol == 0 || $row->av_patrol == 1)) {
-				$dbw->delete('avatar', array('av_user' => $u->getID()), __METHOD__);
-			}
-		}
-	}
-
-	function getProposedUsername ($fullname) {
-		$proposed_name = '';
-		
-		$res = array(
-					array('@([\s]*)@', '$1'),
-					array('@([a-z]?)[a-z]*([\s]*)([a-z]+).*@im', '$1$3'),
-					array('@([a-z]+)([\s]*)([a-z]?).*@im', '$1$3'),
-				);
-		foreach ($res as $re) {
-			$name = preg_replace($re[0], $re[1], $fullname);
-			$u = User::newFromName($name);
-			if ($u && $u->getID() == 0) {
-				$proposed_name = $name;
-				break;
-			}
-		}
-		return $proposed_name;
-	}
-
-	function getAppFriendsHtml() {
-		global $wgOut;
-		$html = "";
-		$friends = $this->facebook->api('/me/friends');
-		$numFriends = count($friends);
-		if($friends === '' || $numFriends == 0) {
-			return $html;
-		}
-		$friendsToDisplay = 3;
-
-		for($i = 0; $i < $numFriends && $i < $friendsToDisplay; $i++) {
-			$pic = $this->getPicUrl($friends['data'][$i]['id']);
-			$html .= "<img class='fbc_avatar' src='$pic'/> ";
-		}
-		$html .= "$numFriends ";
-		$html .= $numFriends > 1 ? " of your friends have registered" : "friend has registered";
-		return $html;
-	}
-	
-	function getAffiliations(&$result) {
-		$affiliations = $result[0]['affiliations'];
-		$affCnt = count($affiliations);
-		$affStr = "";
-		if ($affiliations === '' || $affCnt == 0) {
-			return $affStr;
-		}
-
-		for($i = 0; $i < 2 && $i < $affCnt; $i++) {
-			$affStr .= $affiliations[$i]['name'] . ", ";
-		}
-		return substr($affStr, 0, strlen($affStr) - 2);
-	}
-
-	public static function getPicUrl($id, $type = 'square') {
-		return "http://graph.facebook.com/$id/picture?type=$type";
-	}
 }

@@ -1,4 +1,4 @@
-<?
+<?php
 
 $messages = array();
 $messages['en'] = array(
@@ -17,6 +17,8 @@ $messages['en'] = array(
 	'postcomment_preview' => 'Preview',
 	'postcomment_previewmessage' => 'Preview Message:',
 	'postcomment_generatingpreview' => 'Generating Preview...',
+	'postcomment_discussion_cta' => "<div id='editcta'>Can you improve this article? If so, you can edit it directly! <br/><b>$1</b> to go into edit mode and fix it up.</div>",
+	'postcomment_discussion_cta_link_text' => 'Click here',
 	'postcomment_formatted_comment' => '<div class="de">
 <div class="de_header">
 <p class="de_date">On $1</p>

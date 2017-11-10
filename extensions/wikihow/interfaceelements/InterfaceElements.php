@@ -1,27 +1,23 @@
 <?php
 
-Class InterfaceElements {
-	public function addBubbleTipToElement($element, $cookiePrefix, $text) {
-		global $wgOut;
+$wgAutoloadClasses['InterfaceElements'] = __DIR__ . '/InterfaceElements.body.php';
 
-		$wgOut->addJSCode('jqck'); //jQuery Cookie. Add as JS code so we don't have duplicate includes
-		$wgOut->addCSSCode('tbc'); // Tips Bubble CSS
+$wgResourceModules['ext.wikihow.tips_bubble'] = array(
+    'styles' => array('tipsbubble.css'),
+    'scripts' => array('tipsbubble.js'),
+    'localBasePath' => __DIR__,
+    'remoteExtPath' => 'wikihow/interfaceelements',
+    'position' => 'top',
+    'targets' => array('desktop', 'mobile'),
+    'dependencies' => array('ext.wikihow.common_top'),
+);
 
-		InterfaceElements::addJSVars(array('bubble_target_id' => $element, 'cookieName' => $cookiePrefix.'_b'));
-		$wgOut->addHTML(HtmlSnips::makeUrlTags('js', array('interfaceelements/tipsbubble.js'), 'extensions/wikihow', false));
-
-		$tmpl = new EasyTemplate(dirname(__FILE__));
-
-		$tmpl->set_vars(array('text' => $text));
-		$wgOut->addHTML($tmpl->execute('TipsBubble.tmpl.php'));
-	}
-
-	public function addJSVars($data) {
-		global $wgOut;
-		$text = "";
-		foreach($data as $key => $val) {
-			$text = $text."var ".$key." = ".json_encode($val).";";
-		}
-		$wgOut->addHTML(Html::inlineScript("\n$text\n") . "\n");
-	}
-}
+$wgResourceModules['common.mousetrap'] = array(
+    'scripts' => 'mousetrap.min.js',
+    'localBasePath' => __DIR__ . '/../common/',
+    'remoteExtPath' => 'wikihow/common',
+    'messages' => array(),
+    'position' => 'top',
+    'targets' => array( 'mobile', 'desktop' ),
+    'dependencies' => array('ext.wikihow.common_top')
+);

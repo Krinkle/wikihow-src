@@ -1,15 +1,13 @@
-<?
-
-define(IV_RESULTS_PER_PAGE, 10);
+<?php
 
 class Importvideo extends SpecialPage {
 
 	// youtube, 5min, etc.
 	public $mSource;
 
-	public $mResponseData = array(), $mCurrentNode, $mResults, $mCurrentTag = array();
+	//public $mResponseData = array(), $mCurrentNode, $mResults, $mCurrentTag = array();
 
-	function __construct($source = null) {
+	public function __construct($source = null) {
 		parent::__construct( 'Importvideo' );
 		$this->mSource = $source;
 	}
@@ -17,27 +15,28 @@ class Importvideo extends SpecialPage {
 	/**
 	 *  Returns a title of a newly created article that needs a video
 	 */
-	function getNewArticleWithoutVideo(){
-		global $wgRequest;
+	private function getNewArticleWithoutVideo() {
 		global $wgCookiePrefix, $wgCookiePath, $wgCookieDomain, $wgCookieSecure;
+		$req = $this->getRequest();
 		$t = null;
 		$dbr = wfGetDB(DB_SLAVE);
 		$vidns = NS_VIDEO;
-		$skip= "";
-		if ($wgRequest->getVal('skip') != null) {
-			$skip = " AND nap_page < {$wgRequest->getInt('skip')}";
-			setcookie( $wgCookiePrefix.'SkipNewVideo', $wgRequest->getVal('skip'), time() + 86400, $wgCookiePath, $wgCookieDomain, $wgCookieSecure );
-		} else if ( isset( $_COOKIE["{$wgCookiePrefix}SkipNewVideo"] ) ) {
-			$skip = " AND nap_page < " . intval($_COOKIE["{$wgCookiePrefix}SkipNewVideo"]);
+		$skip_sql = "";
+		$skipVal = $req->getInt('skip');
+		if ($skipVal) {
+			$skip_sql = " AND nap_page < $skipVal";
+			setcookie( $wgCookiePrefix.'SkipNewVideo', $skipVal, time() + 86400, $wgCookiePath, $wgCookieDomain, $wgCookieSecure );
+		} elseif ( isset( $_COOKIE["{$wgCookiePrefix}SkipNewVideo"] ) ) {
+			$skip_sql = " AND nap_page < " . intval($_COOKIE["{$wgCookiePrefix}SkipNewVideo"]);
 		}
 		$sql = "SELECT nap_page
 				FROM newarticlepatrol
 					LEFT JOIN templatelinks t1 ON t1.tl_from = nap_page and t1.tl_namespace = {$vidns}
 					LEFT JOIN templatelinks t2 on t2.tl_from =  nap_page and t2.tl_title IN ('Nfd', 'Copyvio', 'Merge', 'Speedy')
 					LEFT JOIN page on  nap_page = page_id
-			WHERE nap_patrolled =1 AND t1.tl_title is NULL AND nap_page != 0  AND t2.tl_title is null AND page_is_redirect = 0 {$skip}
+			WHERE nap_patrolled =1 AND t1.tl_title is NULL AND nap_page != 0  AND t2.tl_title is null AND page_is_redirect = 0 {$skip_sql}
 			ORDER BY nap_page desc LIMIT 1;";
-		$res = $dbr->query($sql);
+		$res = $dbr->query($sql, __METHOD__);
 		if ($row = $dbr->fetchObject($res)) {
 			$t = Title::newFromID($row->nap_page);
 		}
@@ -47,8 +46,8 @@ class Importvideo extends SpecialPage {
 	/**
 	 *  Returns an article from a specific category that requires a video
 	 */
-	function getTitleFromCategory($category) {
-		$cat = Title::makeTitle(NS_CATGEGORY, $category);
+	private function getTitleFromCategory($category) {
+		$cat = Title::makeTitle(NS_CATEGORY, $category);
 		$t	 = null;
 		$dbr = wfGetDB(DB_MASTER);
 		$sql = "SELECT page_title
@@ -58,7 +57,7 @@ class Importvideo extends SpecialPage {
 				WHERE tl_title is NULL
 					AND	cl_to = " . $dbr->addQuotes($cat->getDBKey()) . "
 				ORDER BY rand() LIMIT 1;";
-		$res = $dbr->query($sql);
+		$res = $dbr->query($sql, __METHOD__);
 		if ($row = $dbr->fetchObject($res))
 			$t = Title::newFromText($row->page_title);
 		return $t;
@@ -68,14 +67,15 @@ class Importvideo extends SpecialPage {
 	 * Processes a search for users who are looking for an article to
 	 * add a video to
 	 */
-	function doSearch($target, $orderby, $query, $search) {
-		global $wgOut, $wgRequest;
+	private function doSearch($target, $orderby, $query, $search) {
+		$req = $this->getRequest();
+		$out = $this->getOutput();
 		$me = Title::makeTitle(NS_SPECIAL, "Importvideo");
-		$wgOut->addHTML(wfMsg('importvideo_searchinstructions') .
+		$out->addHTML(wfMsg('importvideo_searchinstructions') .
 			"<br/><br/><form action='{$me->getFullURL()}'>
 					<input type='hidden' name='target' value='" . htmlspecialchars($target) . "'/>
 					<input type='hidden' name='orderby' value='{$orderby}'/>
-					<input type='hidden' name='popup' value='{$wgRequest->getVal('popup')}'/>
+					<input type='hidden' name='popup' value='{$req->getVal('popup')}'/>
 					<input type='hidden' name='q' value='" . htmlspecialchars($query) . "' >
 					<input type='text' name='dosearch' value='" . ($search != "1" ? htmlspecialchars($search) : "") . "' size='40'/>
 					<input type='submit' value='" . wfMsg('importvideo_search') . "'/>
@@ -83,54 +83,55 @@ class Importvideo extends SpecialPage {
 				<br/>");
 		if ($search != "1") {
 			$l = new LSearch();
-			$results = $l->googleSearchResultTitles($search);
+			$results = $l->externalSearchResultTitles($search);
 			$base_url = $me->getFullURL() . "?&q=" . urlencode($query) . "&source={$source}";
 			if (sizeof($results) == 0) {
-				$wgOut->addHTML(wfMsg('importvideo_noarticlehits'));
+				$out->addHTML(wfMsg('importvideo_noarticlehits'));
 				return;
 			}
 			#output the results
-			$wgOut->addHTML(wfMsg("importvideo_articlesearchresults") . "<ul>");
+			$out->addHTML(wfMsg("importvideo_articlesearchresults") . "<ul>");
 			foreach ($results as $t) {
-			$wgOut->addHTML("<li><a href='" . $base_url . "&target=" . urlencode($t->getText()) . "'>"
+			$out->addHTML("<li><a href='" . $base_url . "&target=" . urlencode($t->getText()) . "'>"
 					. wfMsg('howto', $t->getText() . "</a></li>"));
 			}
-			$wgOut->addHTML("</ul>");
+			$out->addHTML("</ul>");
 		}
 	}
 
 	/**
 	 * Maintain modes through URL parameters
 	 */
-	function getURLExtras() {
-		global $wgRequest;
-		$popup		= $wgRequest->getVal('popup') == 'true' ? "&popup=true" : "";
-		$rand		= $wgRequest->getVal('new') || $wgRequest->getVal('wasnew')
+	protected function getURLExtras() {
+		$req = $this->getRequest();
+		$popup		= $req->getVal('popup') == 'true' ? "&popup=true" : "";
+		$rand		= $req->getVal('new') || $req->getVal('wasnew')
 						? "&wasnew=1" : "";
-		$bycat		= $wgRequest->getVal('category') ? "&category=" . urlencode($wgRequest->getVal('category')) : "";
-		$orderby	= $wgRequest->getVal('orderby') ? "&orderby=" . $wgRequest->getVal('orderby') : "";
+		$bycat		= $req->getVal('category') ? "&category=" . urlencode($req->getVal('category')) : "";
+		$orderby	= $req->getVal('orderby') ? "&orderby=" . $req->getVal('orderby') : "";
 		return $popup . $rand. $bycat . $orderby;
 	}
 
-	/**
-	 *   The main function
-	 */
-	function execute($par) {
-		global $wgRequest, $wgUser, $wgOut, $wgImportVideoSources;
+	public function execute($par) {
+		global $wgImportVideoSources;
 
-		if ( $wgUser->isBlocked() ) {
-			$wgOut->blockedPage();
+		$req = $this->getRequest();
+		$out = $this->getOutput();
+		$user = $this->getUser();
+
+		if ( $user->isBlocked() ) {
+			$out->blockedPage();
 			return;
 		}
 
-		wfLoadExtensionMessages('Importvideo');
-		if ($wgRequest->getVal('popup') == 'true') {
-			$wgOut->setArticleBodyOnly(true);
+		if ($req->getVal('popup') == 'true') {
+			$out->setArticleBodyOnly(true);
 		}
 		$this->setHeaders();
-		$source = $this->mSource = $wgRequest->getVal('source', 'youtube');
-		$target = isset($par) ? $par : $wgRequest->getVal('target');
-		$query = $wgRequest->getVal('q');
+		$out->addModules( ['ext.wikihow.ImportVideo'] );
+		$source = $this->mSource = $req->getVal('source', 'youtube');
+		$target = isset($par) ? $par : $req->getVal('target');
+		$query = $req->getVal('q');
 		$me = Title::makeTitle(NS_SPECIAL, "Importvideo");
 		$wasnew = $this->getRequest()->getVal('wasnew');
 
@@ -138,23 +139,23 @@ class Importvideo extends SpecialPage {
 		if ($target && !$wasnew) {
 			$title = Title::newFromURL($target);
 			if (!$title || !$title->exists()) {
-				$wgOut->addHTML("Error: target article does not exist.");
+				$out->addHTML("Error: target article does not exist.");
 				return;
 			} else {
 				$article = new Article($title);
 				$article->loadPageData();
 				if ($article->mIsRedirect) {
-					$wgOut->addHTML("Error: target article is a redirect.");
+					$out->addHTML("Error: target article is a redirect.");
 					return;
 				}
 			}
 		}
 
-		$wgOut->addHTML("<div id='importvideo'>");
-		$wgOut->addHTML("<h2>".wfMsg('add_a_video')."</h2>");
+		$out->addHTML("<div id='importvideo'>");
+		$out->addHTML("<h2>".wfMsg('add_a_video')."</h2>");
 		# changing target article feature
-		$search = $wgRequest->getVal("dosearch", null);
-		if ($search != null) {
+		$search = $req->getVal("dosearch");
+		if ($search) {
 			$this->doSearch($target, $orderby, $query, $search);
 			return;
 		}
@@ -170,18 +171,18 @@ class Importvideo extends SpecialPage {
 		}
 
 		// handle special cases where user is adding a video to a new article or by category
-		if ($wgRequest->getVal('new') || $wgRequest->getVal('wasnew')) {
-			if ($wgRequest->getVal('new')) {
+		if ($req->getVal('new') || $req->getVal('wasnew')) {
+			if ($req->getVal('new')) {
 				$t = $this->getNewArticleWithoutVideo();
 				$target = $t->getText();
 			} else {
 				$t = Title::newFromText($target);
 			}
-			$wgRequest->setVal('target', $target);
-		} else if ($wgRequest->getVal('category') && $target == '') {
-			$t = $this->getTitleFromCategory($wgRequest->getVal('category'));
+			$req->setVal('target', $target);
+		} elseif ($req->getVal('category') && $target == '') {
+			$t = $this->getTitleFromCategory($req->getVal('category'));
 			$target = $t->getText();
-			$wgRequest->setVal('target', $target);
+			$req->setVal('target', $target);
 		}
 
 		// construct base url to switch between sources
@@ -189,7 +190,7 @@ class Importvideo extends SpecialPage {
 
 		$title = Title::newFromText($target);
 		if (!trim($target)) {
-			$wgOut->addHTML("Error: no target specified.");
+			$out->addHTML("Error: no target specified.");
 			return;
 		}
 		$target = $title->getText();
@@ -210,34 +211,34 @@ class Importvideo extends SpecialPage {
 			}
 		}
 		$extra = preg_replace("/{{[^}]*}}/", "", $extra);
-		$extra = $wgOut->parse($extra);
-		$steps = $wgOut->parse($steps);
+		$extra = $out->parse($extra);
+		$steps = $out->parse($steps);
 		$cancel = "";
 
 		$nextlink = "/Special:Importvideo?new=1&skip={$title->getArticleID()}";
-		if ($wgRequest->getVal('category'))
-			$nextlink = "/Special:Importvideo?category=" . urlencode($wgRequest->getVal('category'));
+		if ($req->getVal('category'))
+			$nextlink = "/Special:Importvideo?category=" . urlencode($req->getVal('category'));
 
-		if ($wgRequest->getVal('popup') != 'true') {
-			$wgOut->addHTML("<div class='article_title'>
+		if ($req->getVal('popup') != 'true') {
+			$out->addHTML("<div class='article_title'>
 				" . wfMsg('importvideo_article') . "- <a href='{$title->getFullURL()}' target='new'>" . wfMsg('howto', $title->getText()) . "</a>");
-			$wgOut->addHTML("<spanid='showhide' style='font-size: 80%; text-align:right; font-weight: normal;'>
+			$out->addHTML("<spanid='showhide' style='font-size: 80%; text-align:right; font-weight: normal;'>
 					(<a href='{$nextlink}' accesskey='s'>next article</a> |
 					<a href='$url&dosearch=1' accesskey='s'>" . wfMsg('importvideo_searchforarticle') . "</a> {$cancel} )
 				</span>");
-			if ($wgRequest->getVal('category')) {
-				$wgOut->addHTML("You are adding videos to articles from the \"{$wgRequest->getVal('category')}\" category.
+			if ($req->getVal('category')) {
+				$out->addHTML("You are adding videos to articles from the \"{$req->getVal('category')}\" category.
 					(<a href='#'>change</a>)");
 			}
-			$wgOut->addHTML("</div>");
+			$out->addHTML("</div>");
 
-			$wgOut->addHTML("<div class='video_related wh_block'>
+			$out->addHTML("<div class='video_related wh_block'>
 					<h2>Introduction</h2>
 					{$extra}
 					<br clear='all'/>
 					<div id='showhide' style='font-size: 80%; text-align:right;'>
-						<span id='showsteps'><a href='#' onclick='javascript:showhidesteps(); return false;'>" . wfMsg('importvideo_showsteps' ) . "</a></span>
-						<span id='hidesteps' style='display: none;'><a href='#' onclick='javascript:showhidesteps(); return false;'>" . wfMsg('importvideo_hidesteps' ) . "</a></span>
+						<span id='showsteps'><a href='#' onclick='WH.ImportVideo.showhidesteps(); return false;'>" . wfMsg('importvideo_showsteps' ) . "</a></span>
+						<span id='hidesteps' style='display: none;'><a href='#' onclick='WH.ImportVideo.showhidesteps(); return false;'>" . wfMsg('importvideo_hidesteps' ) . "</a></span>
 					</div>
 					<div id='stepsarea' style='display: none;'>
 					{$steps}
@@ -246,52 +247,49 @@ class Importvideo extends SpecialPage {
 				</div>
 			");
 		}
-		$wgOut->addHTML("<script type='text/javascript' src='" . wfGetPad('/extensions/min/f/extensions/wikihow/video/importvideo.js?rev=') . WH_SITEREV . "'> </script>	");
-		$wgOut->addHTML("<link rel='stylesheet' type='text/css' href='" . wfGetPad('/extensions/min/f/extensions/wikihow/video/importvideo.css?rev=') . WH_SITEREV . "' />");
-		$wgOut->addHTML("<script type='text/javascript'>
-			var isPopUp = " . ($wgRequest->getVal('popup') ?  "true" : "false") . ";
+		$out->addHTML("<script type='text/javascript'>
+			var isPopUp = " . ($req->getVal('popup') ?  "true" : "false") . ";
 			</script>");
 
-		if (!$wgRequest->wasPosted()) {
-			$wgOut->addHTML(wfMsgWikiHtml('add_video_info'));
+		if (!$req->wasPosted()) {
+			$out->addHTML(wfMsgWikiHtml('add_video_info'));
 			# HEADER for import page
 			$url = $me->getFullURL() . "?target=" . urlencode($target) . "&q=" . urlencode($query) . $this->getURLExtras(). "&source=";
 
 			// refine form
-			$orderby = $wgRequest->getVal('orderby', 'relevance');
-			$wgOut->addHTML($this->refineForm($me, $target, $wgRequest->getVal('popup') == 'true', $query, $orderby));
+			$orderby = $req->getVal('orderby', 'relevance');
+			$out->addHTML($this->refineForm($me, $target, $req->getVal('popup') == 'true', $query, $orderby));
 
 			// sources tab
-			$wgOut->addHTML("<ul id='importvideo_search_tabs'>");
+			$out->addHTML("<ul id='importvideo_search_tabs'>");
 			foreach ($wgImportVideoSources as $s) {
 				$selected = ($s == $source) ? ' class="iv_selected"' : '';
-				$wgOut->addHTML("<li$selected><a href='{$url}{$s}'>" . wfMsg('importvideo_source_' . $s) . "</a></li>");
+				$out->addHTML("<li$selected><a href='{$url}{$s}'>" . wfMsg('importvideo_source_' . $s) . "</a></li>");
 			}
-			$wgOut->addHTML("</ul>");
+			$out->addHTML("</ul>");
 
 			$vt = Title::makeTitle(NS_VIDEO, $target);
-			if ($vt->getArticleID() > 0 && $wgRequest->getVal('popup') != 'true') {
-				$wgOut->addHTML("<div class='wh_block importvideo_main'>".wfMsgExt('importvideo_videoexists', 'parse', $vt->getFullText())."</div>");
+			if ($vt->getArticleID() > 0 && $req->getVal('popup') != 'true') {
+				$out->addHTML("<div class='wh_block importvideo_main'>".wfMsgExt('importvideo_videoexists', 'parse', $vt->getFullText())."</div>");
 			}
 		}
 
 		//special class just for pop-ups
-		if ($wgRequest->getVal('popup')) $pop_class = 'importvideo_pop';
+		if ($req->getVal('popup')) $pop_class = 'importvideo_pop';
 
-		$wgOut->addHTML("<div class='wh_block importvideo_main $pop_class'>");
+		$out->addHTML("<div class='wh_block importvideo_main $pop_class'>");
 		$sp->execute($par);
-		$wgOut->addHTML("</div>");	//Bebeth: took out extra closing div
-		$wgOut->addHTML("</div>");	//Scott: put a brand new extra closing div in (take that, Bebeth!)
-
+		$out->addHTML("</div>");	//Bebeth: took out extra closing div
+		$out->addHTML("</div>");	//Scott: put a brand new extra closing div in (take that, Bebeth!)
 	}
 
-	function refineForm($me, $target, $popup, $query, $orderby = '') {
-		global $wgRequest;
+	protected function refineForm($me, $target, $popup, $query, $orderby = '') {
+		$req = $this->getRequest();
 		$p 		= $popup ? "true" : "false";
-		$rand 	= $wgRequest->getVal('new') || $wgRequest->getVal('wasnew')
+		$rand 	= $req->getVal('new') || $req->getVal('wasnew')
 					? "<input type='hidden' name='wasnew' value='1'/>" : "";
-		$cat   	= $wgRequest->getVal('category') != ""
-					? "<input type='hidden' name='category' value=\"" . htmlspecialchars($wgRequest->getVal('category')) . "\"/>" : "";
+		$cat   	= $req->getVal('category') != ""
+					? "<input type='hidden' name='category' value=\"" . htmlspecialchars($req->getVal('category')) . "\"/>" : "";
 		if ($query == '') $query = $target;
 		return "<div style='text-align:center; margin-top: 5px; padding: 3px;'>
 			<form action='{$me->getFullURL()}' name='refineSearch' method='GET'>
@@ -307,20 +305,20 @@ class Importvideo extends SpecialPage {
 			<br/>";
 	}
 
-	function getPostForm($target) {
-		global $wgRequest;
+	protected function getPostForm($target) {
+		$req = $this->getRequest();
 		$me = Title::makeTitle(NS_SPECIAL, "Importvideo");
 		$tar_es = htmlspecialchars($target);
-		$query = $wgRequest->getVal('q');
-		$popup = $wgRequest->getVal('popup') == "true" ?  "true" : "false" ;
-		$rand = $wgRequest->getVal('new') || $wgRequest->getVal('wasnew')
+		$query = $req->getVal('q');
+		$popup = $req->getVal('popup') == "true" ?  "true" : "false" ;
+		$rand = $req->getVal('new') || $req->getVal('wasnew')
 					? "<input type='hidden' name='wasnew' value='1'/>" : "";
-		$cat = $wgRequest->getVal('category') != ""
-					? "<input type='hidden' name='category' value=\"" . htmlspecialchars($wgRequest->getVal('category')) . "\"/>" : "";
+		$cat = $req->getVal('category') != ""
+					? "<input type='hidden' name='category' value=\"" . htmlspecialchars($req->getVal('category')) . "\"/>" : "";
 		return "<form method='POST' action='{$me->getFullURL()}' name='videouploadform' id='videouploadform'>
 				<input type='hidden' name='description' value='' />
 				<input type='hidden' name='url' id='url' value='/Special:Importvideo?{$_SERVER['QUERY_STRING']}'/>
-				<input type='hidden' name='popup' value='{$wgRequest->getVal('popup')}'/>
+				<input type='hidden' name='popup' value='{$req->getVal('popup')}'/>
 				{$rand}
 				{$cat}
 				<input type='hidden' name='video_id' value=''/>
@@ -329,43 +327,13 @@ class Importvideo extends SpecialPage {
 		";
 	}
 
-	function getPreviousNextButtons($maxResults = -1) {
-		global $wgRequest;
-		$query = $wgRequest->getVal('q');
-		$start = $wgRequest->getVal('start', 1);
-		$target = preg_replace('@ @','+',$wgRequest->getVal('target'));
-		$me = Title::makeTitle(NS_SPECIAL, "Importvideo");
-
-		// Previous, Next buttons if necessary
-		$s = "<table width='100%'><tr><td>";
-		$url = $me->getFullURL() . "?target=$target&source={$this->mSource}" . $this->getURLExtras();
-		$perpage = 10;
-
-		if ($start > 1) {
-			$nstart = $start - $perpage;
-			$nurl =  $url ."&start=" . $nstart . "&q=" . urlencode($query);
-			$s .= "<a href='$nurl'>" . wfMsg('importvideo_previous_results', 10) . "</a>";
-		}
-
-		$s .= "</td><td align='right'>";
-		// no point offering a next button if there are less than 10 results
-		if (sizeof($this->mResults) >= IV_RESULTS_PER_PAGE) {
-			if ($maxResults < 0 || $start + IV_RESULTS_PER_PAGE < $maxResults) {
-				$nstart = $start + $perpage;
-				$nurl = $url . "&start=" . $nstart . "&q=" . urlencode($query);
-				$s .= "<a href='$nurl'>" . wfMsg('importvideo_next_results', 10) . "</a>";
-			}
-		}
-		$s .= "</td></tr></table>";
-		return $s;
-	}
-
-	function getResults($url) {
+	protected function getResults($url) {
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_URL, $url);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 		curl_setopt($ch, CURLOPT_TIMEOUT, 5);
 		$contents = curl_exec($ch);
+
 		if (curl_errno($ch)) {
 			echo "curl error {$url}: " . curl_error($ch) . "\n";
 		}
@@ -373,43 +341,41 @@ class Importvideo extends SpecialPage {
 		return $contents;
 	}
 
-	function updateVideoArticle($title, $text, $editSummary) {
+	// Called by Videoadder
+	public static function updateVideoArticle($title, $text, $editSummary) {
 		$a = new Article($title);
 		$a->doEdit($text, $editSummary);
-		self::mark_video_as_patrolled($a->getId());
+		self::markVideoAsPatrolled($a->getId());
 	}
 
-	function mark_video_as_patrolled($article_id) {
-		global $wgUser;
-
-		$fname = 'Importvideo::mark_video_as_patrolled';
-		wfProfileIn( $fname );
-
+	// Called externally from video embed helper
+	public static function markVideoAsPatrolled($article_id) {
 		$dbw = wfGetDB(DB_MASTER);
 		$dbw->update('recentchanges',
 			array('rc_patrolled'=>1),
 			array('rc_namespace'=>NS_VIDEO, 'rc_cur_id'=>$article_id),
-			"mark_video_as_patrolled",
+			__METHOD__,
 			array("ORDER BY" => "rc_id DESC", "LIMIT"=>1));
-
-		wfProfileOut( $fname );
 	}
 
-	function urlCleaner($url) {
-	  $U = explode(' ',$url);
+	protected function urlCleaner($url) {
+	  $U = explode(' ', $url);
 
-	  $W =array();
+	  $W = array();
 	  foreach ($U as $k => $u) {
-		if (stristr($u,'http') || (count(explode('.',$u)) > 1)) {
+		if (stristr($u, 'http') || (count(explode('.', $u)) > 1)) {
 		  unset($U[$k]);
-		  return $this->urlCleaner( implode(' ',$U));
+		  return $this->urlCleaner( implode(' ', $U) );
 		}
 	  }
-	  return implode(' ',$U);
+	  return implode(' ', $U);
 	}
 
-	function updateMainArticle($target, $editSummary) {
-		global $wgOut, $wgRequest;
+	public static function updateMainArticle($target, $editSummary) {
+		$ctx = RequestContext::getMain();
+		$req = $ctx->getRequest();
+		$out = $ctx->getOutput();
+
 		$title = Title::makeTitle(NS_MAIN, $target);
 		$vid = Title::makeTitle(NS_VIDEO, $target);
 		$r = Revision::newFromTitle($title);
@@ -422,8 +388,8 @@ class Importvideo extends SpecialPage {
 		}
 
 		$tag = "{{" . $vid->getFullText() . "|}}";
-		if ($wgRequest->getVal('description') != '') {
-			$tag = "{{" . $vid->getFullText() . "|" . $wgRequest->getVal('description') . "}}";
+		if ($req->getVal('description') != '') {
+			$tag = "{{" . $vid->getFullText() . "|" . $req->getVal('description') . "}}";
 		}
 		$newsection .= "\n\n== " . wfMsg('video') . " ==\n{$tag}\n\n";
 		$a = new Article($title);
@@ -471,22 +437,24 @@ class Importvideo extends SpecialPage {
 				}
 			}
 		}
-		if ($newtext == "")
+		if ($newtext == "") {
 			$newtext = $newsection;
+		}
 		$watch = $title->userIsWatching();
-		if ($update)
+		if ($update) {
 			$a->updateArticle($newtext, $editSummary, false, $watch);
-		else
+		} else {
 			$a->insertNewArticle($newtext, $editSummary, false, $watch);
+		}
 
-		if ($wgRequest->getVal("popup") == "true") {
-			$wgOut->clearHTML();
-			$wgOut->disable();
+		if ($req->getVal("popup") == "true") {
+			$out->clearHTML();
+			$out->disable();
 			echo "<script type='text/javascript'>
 			function onLoad() {
 				var e = document.getElementById('video_text');
 				e.value = \"" . htmlspecialchars($tag) . "\";
-				pv_Preview();
+				WH.PreviewVideo.fetchPreview();
 				var summary = document.getElementById('wpSummary');
 				if (summary.value != '')
 					summary.value += ',  " . ($update ? wfMsg('importvideo_changingvideo_summary') : $editSummary) . "';
@@ -499,17 +467,17 @@ class Importvideo extends SpecialPage {
 				";
 		}
 		$me = Title::makeTitle(NS_SPECIAL, "Importvideo");
-		if ($wgRequest->getVal('wasnew') || $wgRequest->getVal('new')) {
+		if ($req->getVal('wasnew') || $req->getVal('new')) {
 			// log it, we track when someone uploads a video for a new article
 			$params = array($title->getArticleID());
 			$log = new LogPage( 'vidsfornew', false );
 			$log->addEntry('added', $title, 'added');
 
-			$wgOut->redirect($me->getFullURL() . "?new=1&skip=" . $title->getArticleID());
+			$out->redirect($me->getFullURL() . "?new=1&skip=" . $title->getArticleID());
 			return;
-		} else if ($wgRequest->getVal('category')) {
+		} elseif ($req->getVal('category')) {
 			// they added a video to a category, keep them in the category mode
-			$wgOut->redirect($me->getFullURL() . "?category=" . urlencode($wgRequest->getVal('category')));
+			$out->redirect($me->getFullURL() . "?category=" . urlencode($req->getVal('category')));
 			return;
 		}
 	}
@@ -517,8 +485,7 @@ class Importvideo extends SpecialPage {
 	/**
 	 * Parser setup functions, subclasses over ride parseStartElement
 	 * and parseEndElement
-	 */
-	function parseDefaultHandler ($parser, $data) {
+	function parseDefaultHandler($parser, $data) {
 		if ($this->mCurrentTag) {
 			if (is_array($this->mCurrentNode)) {
 				if (isset($this->mCurrentNode[$this->mCurrentTag])) {
@@ -541,8 +508,7 @@ class Importvideo extends SpecialPage {
 	}
 
 	function isValid(&$timestring) {
-		global $wgUser;
-		$userGroups = $wgUser->getGroups();
+		$userGroups = $this->getUser()->getGroups();
 		// Staff, admin and nabbers can see all vids
 		if (in_array('staff', $userGroups) || in_array('admin', $userGroups) || in_array('newarticlepatrol', $userGroups)) {
 			return true;
@@ -558,6 +524,7 @@ class Importvideo extends SpecialPage {
 		}
 		return $ret;
 	}
+*/
 }
 
 /**
@@ -566,35 +533,35 @@ class Importvideo extends SpecialPage {
  */
 class ImportvideoPopup extends UnlistedSpecialPage {
 
-	function __construct() {
+	public function __construct() {
 		parent::__construct( 'ImportvideoPopup' );
 	}
 
-	function execute($par) {
-		global $wgOut, $wgRequest;
-		$wgOut->setArticleBodyOnly(true);
-		wfLoadExtensionMessages('Importvideo');
-		$wgOut->addHTML('<div style="margin-top:20px">');
-		$wgOut->addWikiText(wfMsg('importvideo_add_desc_details'));
-		if ($wgRequest->wasPosted()) {
+	public function execute($par) {
+		$req = $this->getRequest();
+		$out = $this->getOutput();
+		$out->setArticleBodyOnly(true);
+		$out->addHTML('<div style="margin-top:20px">');
+		$out->addWikiText(wfMsg('importvideo_add_desc_details'));
+		if ($req->wasPosted()) {
 			$iv = Title::makeTitle(NS_SPECIAL, "Importvideo");
-			$wgOut->addHTML("<form method='POST' name='importvideofrompopup' action='{$iv->getLocalUrl()}'>");
-			$vals = $wgRequest->getValues();
+			$out->addHTML("<form method='POST' name='importvideofrompopup' action='{$iv->getLocalUrl()}'>");
+			$vals = $req->getValues();
 			foreach($vals as $key=>$val) {
 				if ($key != "title") {
-					$wgOut->addHTML("<input type='hidden' name='{$key}' value=\"" . htmlspecialchars($val) . "\"/>");
+					$out->addHTML("<input type='hidden' name='{$key}' value=\"" . htmlspecialchars($val) . "\"/>");
 				}
 			}
-			$wgOut->addHTML(' <p><center><textarea id="importvideo_comment" name="description" style="width:520px; height: 50px;margin-top: 10px"></textarea></p>
+			$out->addHTML(' <p><center><textarea id="importvideo_comment" name="description" style="width:520px; height: 50px;margin-top: 10px"></textarea></p>
 				<br/>
 				<p><input type="submit" class="button primary" value="' . wfMsg('importvideo_popup_add_desc') . '" />
 				</center>
 				</p>
 			</div></form>');
 		} else {
-			$wgOut->addHTML('<br /><center><p><textarea id="importvideo_comment" style="width:550px; height: 50px;"></textarea></p>
+			$out->addHTML('<br /><center><p><textarea id="importvideo_comment" style="width:550px; height: 50px;"></textarea></p>
 				<br/><br/>
-				<input type="button" class="button primary" value="' . wfMsg('importvideo_popup_add_desc') . '" onclick="throwdesc();" /> <a href="#" onclick="$(\'#dialog-box\').dialog(\'close\'); return false;" class="button">' . wfMsg('importvideo_popup_changearticle') . '</a>
+				<input type="button" class="button primary" value="' . wfMsg('importvideo_popup_add_desc') . '" onclick="WH.ImportVideo.throwdesc();" /> <a href="#" onclick="$(\'#dialog-box\').dialog(\'close\'); return false;" class="button">' . wfMsg('importvideo_popup_changearticle') . '</a>
 			</center>
 			</div></form>
 			');
@@ -607,16 +574,18 @@ class ImportvideoPopup extends UnlistedSpecialPage {
  *  This page is used for processing ajax requests to show a video preview in the guided editor
  */
 class Previewvideo extends UnlistedSpecialPage {
-	function __construct() {
+	public function __construct() {
 		parent::__construct( 'Previewvideo' );
 	}
 
-	function execute( $par ) {
-		global $wgRequest, $wgParser, $wgUser, $wgOut;
+	public function execute($par) {
+		$user = $this->getUser();
+		$req = $this->getRequest();
+		$out = $this->getOutput();
 
-		$wgOut->disable();
+		$out->disable();
 
-		$target = isset( $par ) ? $par : $wgRequest->getVal( 'target' );
+		$target = !empty($par) ? $par : $req->getVal( 'target' );
 		$vt = Title::newFromURL($target);
 		if (!$vt) return;
 		$t = Title::makeTitle(NS_MAIN, $vt->getText());
@@ -636,7 +605,7 @@ class Previewvideo extends UnlistedSpecialPage {
 		if (!$rv) return;
 		$text = $rv->getText();
 		$text = str_replace("{{{1}}}", $comment, $text);
-		$html = $wgOut->parse($text, true, true) ;
+		$html = $out->parse($text, true, true) ;
 		echo $html;
 	}
 }
@@ -647,43 +616,46 @@ class Previewvideo extends UnlistedSpecialPage {
 class Newvideoboard extends SpecialPage {
 
 
-	function __construct() {
+	public function __construct() {
 		parent::__construct( 'Newvideoboard' );
 	}
 
-	function execute ($par) {
-		global $wgRequest, $wgOut, $wgUser, $wgLang;
-		$target = isset( $par ) ? $par : $wgRequest->getVal( 'target' );
-		$sk = $wgUser->getSkin();
-		$dbr = &wfGetDB(DB_SLAVE);
+	public function execute($par) {
+		$req = $this->getRequest();
+		$out = $this->getOutput();
+		$user = $this->getUser();
+
+		$target = !empty($par) ? $par : $req->getVal( 'target' );
+		$sk = $user->getSkin();
+		$dbr = wfGetDB(DB_SLAVE);
 
 		$this->setHeaders();
 
-		$wgOut->addCSScode('pcc');
+		$out->addModuleStyles('ext.wikihow.PatrolCount');
 
 		$me = Title::makeTitle(NS_SPECIAL, "Newvideoboard");
 		$now = wfTimestamp(TS_UNIX);
 
 		// allow the user to grab the local patrol count relative to their own timezone
-		if ($wgRequest->getVal('window', 'day') == 'day') {
-			$links = "[" . $sk->makeLinkObj($me, wfMsg('videoboard_week'), "window=week") . "] [" . wfMsg('videoboard_day'). "]";
+		if ($req->getVal('window', 'day') == 'day') {
+			$links = "[" . Linker::link($me, wfMessage('videoboard_week'), array(), array("window" => "week")) . "] [" . wfMsg('videoboard_day'). "]";
 			$date1 = substr(wfTimestamp(TS_MW, $now - 24*3600*7), 0, 8) . "000000";
 			$date2 = substr(wfTimestamp(TS_MW, $now + 24*3600), 0, 8) . "000000";
 		} else {
-			$links = "[" . wfMsg('videoboard_week') . "] [" . $sk->makeLinkObj($me, wfMsg('videoboard_day'), "window=day") . "]";
+			$links = "[" . wfMsg('videoboard_week') . "] [" . Linker::link($me, wfMsg('videoboard_day'), array(), array("window" => "day")) . "]";
 			$date1 = substr(wfTimestamp(TS_MW), 0, 8) . "000000";
 			$date2 = substr(wfTimestamp(TS_MW, $now + 24*3600), 0, 8) . "000000";
 		}
 
-		$wgOut->addHTML($links);
-		$wgOut->addHTML("<br/><br/><table width='500px' align='center' class='status'>" );
+		$out->addHTML($links);
+		$out->addHTML("<br/><br/><table width='500px' align='center' class='status'>" );
 
 		$sql = "select log_user, count(*) as C
 				from logging where log_type='vidsfornew' and log_timestamp > '$date1' and log_timestamp < '$date2'
 				group by log_user order by C desc limit 20;";
-		$res = $dbr->query($sql);
+		$res = $dbr->query($sql, __METHOD__);
 		$index = 1;
-		$wgOut->addHTML("<tr>
+		$out->addHTML("<tr>
 						   <td></td>
 							<td>User</td>
 							<td  align='right'>" . wfMsg('videoboard_numberofvidsadded') . "</td>
@@ -695,19 +667,19 @@ class Newvideoboard extends SpecialPage {
 			$class = "";
 			if ($index % 2 == 1)
 				$class = 'class="odd"';
-			$log = $sk->makeLinkObj(Title::makeTitle( NS_SPECIAL, 'Log'), $count, 'type=vidsfornew&user=' .  $u->getName());
-			$wgOut->addHTML("<tr $class>
+			$log = Linker::link( Title::makeTitle( NS_SPECIAL, 'Log'), $count, array(), array('type' => 'vidsfornew', 'user' => $u->getName()) );
+			$out->addHTML("<tr $class>
 				<td>$index</td>
-				<td>" . $sk->makeLinkObj($u->getUserPage(), $u->getName()) . "</td>
+				<td>" . Linker::link($u->getUserPage(), $u->getName()) . "</td>
 				<td  align='right'>{$log}</td>
 				</tr>
 			");
 			$index++;
 		}
 
-		$wgOut->addHTML("</table></center>");
-		if ($wgUser->getOption('patrolcountlocal', "GMT") != "GMT")  {
-			$wgOut->addHTML("<br/><br/><i><font size='-2'>" . wfMsgWikiHtml('patrolcount_viewlocal_info') . "</font></i>");
+		$out->addHTML("</table></center>");
+		if ($user->getOption('patrolcountlocal', "GMT") != "GMT")  {
+			$out->addHTML("<br/><br/><i><font size='-2'>" . wfMsgWikiHtml('patrolcount_viewlocal_info') . "</font></i>");
 		}
 	}
 }

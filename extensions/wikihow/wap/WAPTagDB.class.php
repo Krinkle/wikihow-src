@@ -6,6 +6,10 @@ abstract class WAPTagDB {
 
 	const MAX_TAG_LENGTH = 200;
 
+	const TAG_ALL = 1;
+	const TAG_ACTIVE = 2;
+	const TAG_DEACTIVATED = 3;
+
 	function __construct($wapConfig) {
 		$this->wapConfig = $wapConfig;
 
@@ -82,6 +86,17 @@ abstract class WAPTagDB {
 		}
 	}
 
+	public function changeTagState($tagIds, $state) {
+		$dbw = wfGetDB(DB_MASTER);
+		$table = $this->wapConfig->getTagTableName();
+
+		if (!empty($tagIds) && ($state == self::TAG_ACTIVE || $state == self::TAG_DEACTIVATED)) {
+			$tagIds = "(" . implode(",", $tagIds) . ")";
+			$deactivatedState = $state == self::TAG_ACTIVE ? 0 : 1;
+			$dbw->update($table, array('ct_deactivated' => $deactivatedState), array("ct_id IN $tagIds"), __METHOD__);
+		}
+	}
+
 	public function getTagByRawTag($raw_tag) {
 		if (!isset($raw_tag)) {
 			die("getTagByRawTag argument missing");
@@ -106,10 +121,32 @@ abstract class WAPTagDB {
 		return $tag;
 	}
 
-	public function getAllTags() {
+	protected function getTagTypeWhereClause($tagType) {
+		$where = "";
+		switch ($tagType) {
+			case self::TAG_ALL:
+				// Do nothing
+                break;
+			case self::TAG_DEACTIVATED:
+				$where = 'ct_deactivated = 1';
+				break;
+			case self::TAG_ACTIVE:
+				$where = 'ct_deactivated = 0';
+				break;
+		}
+		return $where;
+	}
+
+	public function getAllTags($tagType = self::TAG_ACTIVE) {
 		$dbr = $this->dbr;
 		$table = $this->wapConfig->getTagTableName();
-		$sql = "SELECT DISTINCT ct_id, ct_tag, ct_raw_tag FROM $table ORDER BY ct_tag ASC";
+
+		$where = $this->getTagTypeWhereClause($tagType);
+		if (!empty($where)) {
+			$where = "WHERE $where";
+		}
+
+		$sql = "SELECT DISTINCT ct_id, ct_tag, ct_raw_tag, ct_deactivated FROM $table $where ORDER BY ct_tag ASC";
 		$res = $dbr->query($sql, __METHOD__);
 		$retarr = array();
 		foreach ($res as $row) {
@@ -117,6 +154,7 @@ abstract class WAPTagDB {
 					'tag_id' => $row->ct_id,
 					'tag' => $row->ct_tag,
 					'raw_tag' => $row->ct_raw_tag,
+					'deactivated' => $row->ct_deactivated,
 					);
 		}
 		return $retarr;
@@ -151,7 +189,10 @@ class WAPUserTagDB extends WAPTagDB  {
 
 		$dbr = $this->dbr;
 		$tag = $this->getTagByRawTag($tag);
-		$tagId = $tag['tag_id'];
+        $tagId = $tag['tag_id'];
+        if (!isset($tagId)) {
+            return false;
+        }
 
 		$userTagTable = $this->wapConfig->getUserTagTableName();
 
@@ -168,18 +209,23 @@ class WAPUserTagDB extends WAPTagDB  {
 		return $retarr;
 	}
 
-	function getUserTags($userId) {
+	function getUserTags($userId, $tagType = self::TAG_ACTIVE) {
 		if (!isset($userId)) {
 			return false;
 		}		
 		$dbr = $this->dbr;
 
+		$where = $this->getTagTypeWhereClause($tagType);
+		if (!empty($where)) {
+			$where = " AND $where ";
+		}
+
 		$userTagTable = $this->wapConfig->getUserTagTableName();
 		$tagTable = $this->wapConfig->getTagTableName();
 
-		$sql = "SELECT DISTINCT ct_tag, ct_raw_tag
+		$sql = "SELECT DISTINCT ct_tag, ct_raw_tag, ct_deactivated
 			FROM  $userTagTable INNER JOIN $tagTable ON (cr_tag_id = ct_id)
-			WHERE cr_user_id = $userId
+			WHERE cr_user_id = $userId $where
 			ORDER BY ct_tag ASC";
 
 		$res = $dbr->query($sql, __METHOD__);
@@ -188,6 +234,7 @@ class WAPUserTagDB extends WAPTagDB  {
 			$retarr[] = array(
 					'tag' => $row->ct_tag,
 					'raw_tag' => $row->ct_raw_tag,
+					'ct_deactivated' => $row->ct_deactivated,
 					);
 		}
 		return $retarr;
@@ -260,23 +307,33 @@ class WAPUserTagDB extends WAPTagDB  {
 	}
 }
 
+/*
+ * TODO: Abstract this out and use separate tag DBs accessed through config?
+ */
 class WAPArticleTagDB extends WAPTagDB {
 
 	const ARTICLE_UNASSIGNED = 0;
 	const ARTICLE_ASSIGNED = 1;
 	const ARTICLE_ALL = 2;
+	const ARTICLE_ASSIGNABLE = 3;
 
 	function __construct(WAPConfig $config) {
 		parent::__construct($config);
 	}
 
-	function getAssignedArticleTags() {
+	function getAssignedArticleTags($tagType = self::TAG_ACTIVE) {
 		$dbr = $this->dbr;
+
+		$where = $this->getTagTypeWhereClause($tagType);
+		if (!empty($where)) {
+			$where = "WHERE $where";
+		}
 
 		$tagTable = $this->wapConfig->getTagTableName();
 		$articleTagTable = $this->wapConfig->getArticleTagTableName();
-		$sql = "SELECT DISTINCT ct_id, ct_tag, ct_raw_tag
+		$sql = "SELECT DISTINCT ct_id, ct_tag, ct_raw_tag, ct_deactivated
 			FROM $tagTable INNER JOIN $articleTagTable ON (ca_tag_id = ct_id)
+			$where
 			ORDER BY ct_tag ASC
 			";
 		$res = $dbr->query($sql, __METHOD__);
@@ -286,20 +343,27 @@ class WAPArticleTagDB extends WAPTagDB {
 				'tag_id' => $row->ct_id,
 				'tag' => $row->ct_tag,
 				'raw_tag' => $row->ct_raw_tag,
+				'deactivated' => $row->ct_deactivated,
 				);
 		}
 		return $retarr;
 	}
 
-	function getUnassignedTags() {
+	function getUnassignedTags($tagType = self::TAG_ACTIVE) {
 		$dbr = $this->dbr;
 
 		$tagTable = $this->wapConfig->getTagTableName();
 		$articleTagTable = $this->wapConfig->getArticleTagTableName();
+
+		$where = $this->getTagTypeWhereClause($tagType);
+		if (!empty($where)) {
+			$where = " AND $where";
+		}
+
 		$sql = "SELECT DISTINCT a.ct_id, a.ct_tag, a.ct_raw_tag
 			FROM $tagTable as a
 			WHERE
-				NOT EXISTS (SELECT b.ca_tag_id FROM $articleTagTable b WHERE b.ca_tag_id = a.ct_id LIMIT 1)
+				NOT EXISTS (SELECT b.ca_tag_id FROM $articleTagTable b WHERE b.ca_tag_id = a.ct_id LIMIT 1) $where
 			ORDER BY ct_tag ASC
 			";
 		$res = $dbr->query($sql, __METHOD__);
@@ -309,6 +373,7 @@ class WAPArticleTagDB extends WAPTagDB {
 					'tag_id' => $row->ct_id,
 					'tag' => $row->ct_tag,
 					'raw_tag' => $row->ct_raw_tag,
+					'deactivated' => $row->ct_deactivated,
 					);
 		}
 		return $retarr;
@@ -346,7 +411,55 @@ class WAPArticleTagDB extends WAPTagDB {
 		}
 	}
 
-	public function getTagsOnArticle($pageId, $langCode) {
+	/*
+	 * NOTE: Titlefish-specific
+	 * TODO: Subclass this out?
+	 */
+	function tagArticlesByTitle(&$titles, $langCode, $tags) {
+		$dbw = $this->dbw;
+
+		// Check for and add new tags
+		$tags = $this->addNewTags($tags);
+		$ts = wfTimestampNow(TS_UNIX);
+		$data = array();
+		foreach ($titles as $title) {
+			foreach ($tags as $tag) {
+				$data[] = array(
+					'ca_tag_id' => $tag['tag_id'],
+					'ca_page_title' => $dbw->strencode($title),
+					'ca_lang_code' => $langCode,
+					'ca_tagged_on' => $ts);
+			}
+		}
+
+		if (!empty($data)) {
+            $dbType = $this->wapConfig->getDBType();
+			$articleClass = $this->wapConfig->getArticleClassName();
+			$articleTagTable = $this->wapConfig->getArticleTagTableName();
+			$articleTable = $this->wapConfig->getArticleTableName();
+			$sql = WAPUTIL::makeBulkInsertStatement($data, $articleTagTable);
+			$dbw->query($sql);
+
+			// Update number of reservations in article tags
+			$titlesByNumReserved = array();
+			foreach($titles as $title) {
+				$a = $articleClass::newFromTitle($title, $langCode, $dbType);
+				$titlesByNumReserved[$a->getNumReservations()][] = $title;
+			}
+
+			foreach ($titlesByNumReserved as $n => $titleGroup) {
+				$pageTitles = "(" . implode(",", array_map(array($dbw, 'addQuotes'), $titleGroup)) . ")";
+				$sql = "UPDATE $articleTable, $articleTagTable
+						SET ca_reservations = $n
+						WHERE ca_page_title = ct_page_title
+							AND ca_lang_code = '$langCode'
+							AND ca_page_title in $pageTitles";
+				$dbw->query($sql);
+			}
+		}
+	}
+
+	public function getTagsOnArticle($pageId, $langCode, $tagType = self::TAG_ACTIVE) {
 		if (!isset($pageId) && !isset($langCode)) {
 			return false;
 		}		
@@ -354,9 +467,14 @@ class WAPArticleTagDB extends WAPTagDB {
 		$articleTagTable = $this->wapConfig->getArticleTagTableName();
 		$tagTable = $this->wapConfig->getTagTableName();
 
-		$sql = "SELECT DISTINCT ct_tag, ct_raw_tag
+		$where = $this->getTagTypeWhereClause($tagType);
+		if (!empty($where)) {
+			$where = " AND $where";
+		}
+
+		$sql = "SELECT DISTINCT ct_tag, ct_raw_tag, ct_deactivated
 			FROM $articleTagTable INNER JOIN $tagTable ON (ca_tag_id = ct_id)
-			WHERE ca_page_id = $pageId AND ca_lang_code = '$langCode'
+			WHERE ca_page_id = $pageId AND ca_lang_code = '$langCode' $where
 			ORDER BY ct_tag ASC";
 
 		$res = $dbr->query($sql, __METHOD__);
@@ -365,6 +483,40 @@ class WAPArticleTagDB extends WAPTagDB {
 			$retarr[] = array(
 				'tag' => $row->ct_tag,
 				'raw_tag' => $row->ct_raw_tag,
+				'deactivated' => $row->ct_deactivated,
+				);
+		}
+		return $retarr;
+	}
+
+	public function getTagsOnArticleByTitle($pageTitle, $langCode, $tagType = self::TAG_ACTIVE) {
+		if (!isset($pageTitle) && !isset($langCode)) {
+			return false;
+		}
+		$dbr = $this->dbr;
+		$articleTagTable = $this->wapConfig->getArticleTagTableName();
+		$tagTable = $this->wapConfig->getTagTableName();
+
+
+		$where = $this->getTagTypeWhereClause($tagType);
+		if (!empty($where)) {
+			$where = " AND $where";
+		}
+
+		$pageTitle = $dbr->addQuotes($pageTitle);
+
+		$sql = "SELECT DISTINCT ct_tag, ct_raw_tag
+			FROM $articleTagTable INNER JOIN $tagTable ON (ca_tag_id = ct_id)
+			WHERE ca_page_title = $pageTitle AND ca_lang_code = '$langCode' $where
+			ORDER BY ct_tag ASC";
+
+		$res = $dbr->query($sql, __METHOD__);
+		$retarr = array();
+		foreach($res as $row) {
+			$retarr[] = array(
+				'tag' => $row->ct_tag,
+				'raw_tag' => $row->ct_raw_tag,
+				'deactivated' => $row->ct_deactivated,
 				);
 		}
 		return $retarr;
@@ -391,5 +543,24 @@ class WAPArticleTagDB extends WAPTagDB {
 		return true;
 	}
 
+	function deleteArticleTagsWithTagIdsByTitle($pageTitles, $langCode, $tagIds) {
+		if (empty($pageTitles) || empty($tagIds) || empty($langCode)) {
+			die("deleteArticleTagsWithTagIdsByTitle arguments missing or empty");
+			return false;
+		}
+		$dbw = $this->dbw;
 
+		$pageTitles = "(" . implode(", ", array_map(array($dbw, 'addQuotes'), $pageTitles)) . ")";
+		$tagIds = "(" . implode(", ", $tagIds) . ")";
+		$table = $this->wapConfig->getArticleTagTableName();
+
+		$sql = "DELETE FROM $table
+			WHERE
+			ca_page_title IN $pageTitles
+			AND ca_lang_code = '$langCode'
+			AND ca_tag_id in $tagIds
+			";
+		$res = $dbw->query($sql, __METHOD__);
+		return true;
+	}
 }

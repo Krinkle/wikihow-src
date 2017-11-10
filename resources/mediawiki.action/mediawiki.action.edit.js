@@ -34,7 +34,7 @@
 			id    : b.imageId || undefined,
 			'class': 'mw-toolbar-editbutton'
 		};
-		if ( b.imageId != "weave_button" && b.imageId != "easyimageupload_button" ) {
+		if ( b.imageId != "weave_button" && b.imageId != "imageupload_button" ) {
 			imageAttrs.width = 23;
 			imageAttrs.height = 22;
 

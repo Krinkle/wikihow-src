@@ -9,23 +9,16 @@ class Alien extends UnlistedSpecialPage {
 
     public function execute($par) {
 		header('Cache-Control: no-cache');
-		if (!self::checkFrontEndHTTPHeader()
-			|| defined('WIKIHOW_LIMITED'))
-		{
+		if (defined('WIKIHOW_LIMITED')) {
 			print 'nocheck';
 		} elseif ($this->quickTestBackend()) {
 			$time = microtime(true) - $this->startTime;
-			print sprintf('%.0f', 1000*$time);
+			print sprintf('%.3f', 1000*$time);
 		} else {
 			header('HTTP/1.0 404 Not Found');
 			print '-1';
 		}
 		exit;
-	}
-
-	private function checkFrontEndHTTPHeader() {
-		$isFastly = checkFastlyProxy();
-		return $isFastly;
 	}
 
 	private function quickTestBackend() {

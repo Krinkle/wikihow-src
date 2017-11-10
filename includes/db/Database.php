@@ -819,6 +819,7 @@ abstract class DatabaseBase implements IDatabase, DatabaseType {
 		$canonicalDBTypes = array(
 			'mysql' => array( 'mysqli', 'mysql' ),
 			'postgres' => array(),
+			'redshift' => array(),
 			'sqlite' => array(),
 			'oracle' => array(),
 			'mssql' => array(),
@@ -858,6 +859,7 @@ abstract class DatabaseBase implements IDatabase, DatabaseType {
 		$defaultSchemas = array(
 			'mysql' => null,
 			'postgres' => null,
+			'redshift' => null,
 			'sqlite' => null,
 			'oracle' => null,
 			'mssql' => 'get from global',
@@ -2454,7 +2456,7 @@ abstract class DatabaseBase implements IDatabase, DatabaseType {
 	protected function indexName( $index ) {
 		// Backwards-compatibility hack
 		$renamed = array(
-			'ar_usertext_timestamp' => 'usertext_timestamp',
+			//'ar_usertext_timestamp' => 'usertext_timestamp',
 			'un_user_id' => 'user_id',
 			'un_user_ip' => 'user_ip',
 		);

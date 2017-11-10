@@ -1,6 +1,3 @@
-
-if (!WH) var WH = {};
-
 jQuery.extend(WH, (function($) {
 
 	function TPCoachAdmin() {
@@ -35,6 +32,8 @@ jQuery.extend(WH, (function($) {
 		});
 
 		function toggleTPCoach(setting) {
+			alert('Change the mediawiki message named "tp_coach_enabled" from 1 to 0');
+		/*
 			$.post(toolURL, {action:"tpc_toggle", setting:setting},
 				function (result) {
 					debugResult(result);
@@ -44,6 +43,7 @@ jQuery.extend(WH, (function($) {
 				},
 				'json'
 			);
+		*/
 		}
 
 		$('.tpc_delete_test').click(function(e) {

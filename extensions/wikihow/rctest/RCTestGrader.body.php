@@ -1,4 +1,4 @@
-<?
+<?php
 
 class RCTestGrader extends UnlistedSpecialPage {
 	// Response Constants
@@ -28,14 +28,12 @@ class RCTestGrader extends UnlistedSpecialPage {
 		$result = $rcTest->gradeTest($testId, $response);
 		$wgOut->setArticleBodyOnly(true);
 
-		wfLoadExtensionMessages('RCTestGrader');
 		$this->printResponse($result, $response);
 	}
 
 	function printResponse($testResult, $response) {
 		global $wgOut, $wgUser;
 
-		wfLoadExtensionMessages('RCTestGrader');
 		
 		$testResult['heading'] = wfMsg('rct_heading', $wgUser->getName());
 		$testResult['intro'] = wfMsg('rct_intro');

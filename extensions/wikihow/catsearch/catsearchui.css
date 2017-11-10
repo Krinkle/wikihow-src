@@ -1,6 +1,11 @@
 .ui-autocomplete-loading { 
 	background: white url('/skins/WikiHow/images/csui_working.gif') right center no-repeat; 
 } 
+.ui-autocomplete {
+	border: 1px solid #ABABAB;
+}
+
+.ui-widget-content a { color: #363; }
 
 ul.ui-corner-all {
 	-moz-border-radius-topleft: 0px 0px;
@@ -17,6 +22,20 @@ ul.ui-corner-all {
 	border-bottom-left-radius: 8px 8px;
 }
 
+#csui_interests_label { font-weight: bold; }
+
+#csui_none {
+	font-size: .8em;
+	color: #ABABAB;
+}
+#csui_none ul {
+	margin-top: 5px;
+}
+#csui_none ul li {
+	list-style: inside;
+	padding: 5px;
+}
+
 .csui_hidden {
 	display: none;
 	visibility: hidden;
@@ -27,20 +46,21 @@ ul.ui-corner-all {
 }
 
 #csui_interests {
-	margin-top: 5px;
+	margin: .5em 0;
 	width: 295px;
 	height: 17px;
-	padding-left: 3px;
+	border-color: #ABABAB;
+	font-size: .8em;
+}
+
+.csui_topic_subdesc {
+	color: #ABABAB;
+	padding: 5px 0;
+	font-size: .8em;
 }
 
 .csui_category {
-	background: #FCFBF4;
-	border: 1px #BDB7A7 solid;
-	color: #504239;
-	padding: 7px 10px 5px 10px;
-	margin: 4px 0px 4px 0px;
-	min-width: 1px;
-	height: 15px;
+	margin: 10px 0;
 }
 
 .csui_active {
@@ -49,8 +69,10 @@ ul.ui-corner-all {
 
 
 .csui_close {
-	float: right;
+	float: left;
 	cursor: pointer;
+	padding-right: .5em;
+	color: #ABABAB;
 }
 
 .csui_minus_icon, 
@@ -72,7 +94,7 @@ ul.ui-corner-all {
 
 .csui_suggestion {
 	cursor: pointer;
-	color: #01769F;
+	color: #383;
 	text-decoration: none;
 	display: inline-block;
 }
@@ -91,6 +113,8 @@ ul.ui-corner-all {
 }
 
 .csui_final_button {
-	margin: 1em;
-	text-align: center;
+	margin: 1em 0;
+	text-align: right;
 }
+
+#csui_close_popup { margin: 0; }

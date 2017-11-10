@@ -14,14 +14,14 @@
 
 	 $(document).on('keyup', '.urls', function(e) {
 		var newLines = $(this).val().split("\n").length;
-		if (newLines > 1001) {
-			alert('System can only process 1,000 urls at a time');
+		if (newLines > 3001) {
+			alert('System can only process 3,000 urls at a time');
 			$('.urls').val('');
 		}
 	});
 
 	$(document).on('click', 
-		'#validate_complete_articles,#validate_remove_articles,#validate_assign_user,#validate_tag_articles,#validate_release_articles',
+		'#validate_complete_articles,#validate_remove_articles,#validate_assign_user,#validate_tag_articles,#validate_release_articles,#validate_notes_articles',
 		function(e) {
 		e.preventDefault();
 		validate($(this).attr('id'));
@@ -48,10 +48,46 @@
 		});
 	});
 
+	$(document).on('click', '#clearNotes', function(e) {
+		e.preventDefault();
+		var data = {'urls' : $('.urls').val(), 'a' : 'clear_notes_articles'};
+		setLoading();	
+		$.post(controller, data, function(res) {
+			$('#results').html(res);
+		});
+	});
+
+	$(document).on('click', '#csvNotes', function(e) {
+		e.preventDefault();
+		var data = {'csv' : $('#csv').val(), 'a' : 'add_csv_notes_articles'};
+		setLoading();	
+		$.post(controller, data, function(res) {
+			$('#results').html(res);
+		});
+	});
+
 	$(document).on('click', '#remove_tag_system', function(e) {
 		e.preventDefault();
 		var data = {'a' : 'remove_tag_system', 'tags' : getSelectedTags()};
 		setLoading();	
+		$.post(controller, data, function(res) {
+			$('#results').html(res);
+		});
+	});
+
+	$(document).on('click', '#deactivate_tag_system', function(e) {
+		e.preventDefault();
+		var data = {'a' : 'deactivate_tag_system', 'tags' : getSelectedTags()};
+		setLoading();
+		$.post(controller, data, function(res) {
+			$('#results').html(res);
+		});
+	});
+
+	$(document).on('click', '#activate_tag_system', function(e) {
+		e.preventDefault();
+		var data = {'a' : 'activate_tag_system', 'tags' : getSelectedTags()};
+		setLoading();
 		$.post(controller, data, function(res) {
 			$('#results').html(res);
 		});
@@ -100,6 +136,9 @@
 		setLoading();	
 		$.post(controller, data, function(res) {
 			$('#results').html(res);
+		}).fail(function(xhr) {
+			$('#results').html('<b>Error</b>: ' + xhr.statusText +
+				'<br/>' + xhr.responseText);
 		});
 	});
 
@@ -115,6 +154,17 @@
 		e.preventDefault();
 		if (hasCheckedAids()) {
 			var data = {'a' : $(this).attr('id'), 'tags' : getSelectedTags(), 'aids' : getCheckedAids()};
+			setLoading();	
+			$.post(controller, data, function(res) {
+				$('#results').html(res);
+			});
+		}
+	});
+
+	$(document).on('click', '#add_notes_articles', function (e) {
+		e.preventDefault();
+		if (hasCheckedAids()) {
+			var data = {'a' : $(this).attr('id'), 'notes' : $('#notes').val(), 'aids' : getCheckedAids()};
 			setLoading();	
 			$.post(controller, data, function(res) {
 				$('#results').html(res);
@@ -189,6 +239,15 @@
 		e.preventDefault();
 		var data = {'a' : 'remove_users', 'users' : getSelectedUsers()};
 		setLoading();	
+		$.post(controller, data, function(res) {
+			$('#results').html(res);
+		});
+	});
+
+	$(document).on('click', '#deactivate_users', function (e) {
+		e.preventDefault();
+		var data = {'a' : 'deactivate_users', 'users' : getSelectedUsers()};
+		setLoading();
 		$.post(controller, data, function(res) {
 			$('#results').html(res);
 		});

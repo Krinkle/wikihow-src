@@ -1,9 +1,7 @@
-<?
-
-if (!defined('MEDIAWIKI')) die();
+<?php
 
 global $IP;
-require_once("$IP/maintenance/copyscape_functions.php");
+require_once "$IP/extensions/wikihow/common/copyscape_functions.php";
 
 class AdminCopyCheck extends UnlistedSpecialPage {
 
@@ -56,6 +54,8 @@ class AdminCopyCheck extends UnlistedSpecialPage {
 		if (!$r) return 'No such article';
 		
 		$text = Wikitext::flatten($r->getText());
+		$text = Wikitext::stripLinkUrls($text);
+		
 		$res = copyscape_api_text_search_internet($text, 'ISO-8859-1', 2);
 		
 		if ($res['count']) {
@@ -79,12 +79,12 @@ class AdminCopyCheck extends UnlistedSpecialPage {
 	/**
 	 * Execute special page.  Only available to wikihow staff.
 	 */
-	public function execute() {
+	public function execute($par) {
 		global $wgRequest, $wgOut, $wgUser, $wgLang;
 
 		$user = $wgUser->getName();
 		$userGroups = $wgUser->getGroups();
-		if ($wgUser->isBlocked() || !in_array('staff', $userGroups)) {
+		if ($wgUser->isBlocked() || (!in_array('staff', $userGroups) && !in_array('staff_widget', $userGroups))) {
 			$wgOut->setRobotpolicy('noindex,nofollow');
 			$wgOut->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;

@@ -1,5 +1,5 @@
 
-var postcomment_request; 
+var postcomment_request;
 var postcomment_target;
 var postcomment_form;
 
@@ -7,11 +7,12 @@ function postcommentHandler() {
 	if ( postcomment_request.readyState == 4) {
 		if ( postcomment_request.status == 200 || postcomment_request.status == 409) {
 			var targetBox = document.getElementById(postcomment_target);
-			if (!targetBox) { 
+			var errorBox = $('#error-box');
+			if (!targetBox) {
 				if(postcomment_request.status == 409) {
 					targetBox = document.getElementById(postcomment_target + "_spam");
 					if(!targetBox) {
-						return;	
+						return;
 					}
 				}
 				else {
@@ -25,12 +26,15 @@ function postcommentHandler() {
 					var article = document.getElementById('noarticletext');
 					if (article) article.innerHTML = '';
 				}
-				targetBox.innerHTML += postcomment_request.responseText; 
+				if (postcomment_request.status == 200) {
+					errorBox.hide();
+					targetBox.innerHTML += postcomment_request.responseText;
+				}
 				var txtbox = document.getElementById("comment_text_" + postcomment_target.replace(/postcomment_newmsg_/, ''));
 				//var txtbox = document.getElementById("postcommentForm_textarea");
 				//
 				if (typeof txtbox !== "undefined" && txtbox) {
-					if (postcomment_request.status == 200) 
+					if (postcomment_request.status == 200)
 						txtbox.value = '';
 					txtbox.disabled = false;
 					txtbox.focus();
@@ -41,6 +45,14 @@ function postcommentHandler() {
     			if (p) p.setAttribute('style', 'display: none;');
 				var button = document.getElementById("postcommentbutton_" + postcomment_target.replace(/postcomment_newmsg_/, ''));
 				if (button) button.disabled = false;
+
+				if (postcomment_request.status == 409) {
+					if (postcomment_request.responseText) {
+						errorBox.html(postcomment_request.responseText);
+						errorBox.show();
+					}
+					postCommentReloadCaptcha();
+				}
 			}
 		}
 	}
@@ -66,8 +78,8 @@ function postcommentPreview (target) {
 		var parameters = "comment=" + encodeURIComponent( document.getElementsByName("comment_text_" + target)[0].value );
 		postcomment_request.open('POST', gPreviewURL,true);
 		postcomment_request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-		postcomment_request.send(parameters); 
-		
+		postcomment_request.send(parameters);
+
 		postcomment_request.onreadystatechange = postcommentHandler;
 	}
 }
@@ -96,7 +108,7 @@ function postcommentPublish(target, form) {
         	return false;
 		}
 	}
-	//var button = document.getElementByID('postcommentbutton_' + 
+	//var button = document.getElementByID('postcommentbutton_' +
 	var button = document.getElementById("postcommentbutton_" + target.replace(/postcomment_newmsg_/, ''));
 	if (button) {
 		button.disabled = true;
@@ -110,11 +122,11 @@ function postcommentPublish(target, form) {
 		parameters += "&wpCaptchaId" + document.getElementById('wpCaptchaId').value;
 		parameters += "&wpCaptchaWord" + document.getElementById('wpCaptchaWord').value;
 	}
-	
+
 	// If coming from an rc patrol quicknote dialog, and thumbs up is checked, pass along thumbs up info
 	var thumbParams = '';
 	if ($('input[name="qn_thumbs_check"]:checked').length) {
-		thumbParams = $('#thumbUp').html().split('?');	
+		thumbParams = $('#thumbUp').html().split('?');
 		thumbParams = thumbParams[1].replace(/\&amp;/g,'&');
 		thumbParams = thumbParams + "&thumb=1";
 		isThumbedUp = true;
@@ -130,6 +142,15 @@ function postcommentPublish(target, form) {
 	return false;
 }
 
+/**
+ * Replace the captcha with a new one
+ */
+function postCommentReloadCaptcha() {
+	$.get(gCaptchaURL, function(data) {
+		$('.fancycaptcha-wrapper').html(data);
+	});
+}
+
 $(document).ready(function() {
 	//cool anchor link animation
 	$('#leave_msg_link').click(function() {
@@ -138,5 +159,12 @@ $(document).ready(function() {
 			scrollTop: destination
 		},1000,'easeInOutExpo');
 		return false;
+	});
+
+	// Delete captcha error message on captcha input field focus
+	var errorBox = $('#error-box');
+	$('#bodycontents').on('focus', '#wpCaptchaWord', function() {
+		errorBox.hide();
+		errorBox.text('');
 	});
 });

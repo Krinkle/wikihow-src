@@ -20,13 +20,19 @@ $wgExtensionCredits['specialpage'][] = array(
 	'author' => 'Travis <travis@wikihow.com>',
 );
 
-$dir = dirname(__FILE__) . '/';
+$dir = __DIR__ . '/';
 $wgSpecialPages['Videoadder'] = 'Videoadder';
-$wgAutoloadClasses['Videoadder'] = dirname( __FILE__ ) . '/Videoadder.body.php';
+$wgAutoloadClasses['Videoadder'] = __DIR__ . '/Videoadder.body.php';
 $wgExtensionMessagesFiles['Videoadder'] = $dir . 'Videoadder.i18n.php';
 
 $wgGroupPermissions['sysop']['videoadder'] = true;
 $wgGroupPermissions['newarticlepatrol']['videoadder'] = true;
+
+$wgResourceModules['ext.wikihow.videoadder'] = $wgResourceModulesDesktopBoiler + [
+       'scripts' => [ 'video/videoadder.js', 'video/cookie.js' ],
+	   'messages' => [ 'va_congrats', 'va_check' ] ];
+$wgResourceModules['ext.wikihow.videoadder_styles'] = $wgResourceModulesDesktopBoiler + [
+       'styles' => [ 'video/videoadder.css' ] ];
 
 /* description of videoadder table, since it may seem convoluted
 

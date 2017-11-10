@@ -5,7 +5,7 @@ class ChineseVariantSelector
 	/**
 	 * Check a variant cookie for tracking the variant
 	 */
-	public static function onGetPreferredVariant($variant) {
+	public static function onGetPreferredVariant(&$variant) {
 		global $wgCookiePath, $wgCookieDomain, $wgCookiePrefix;
 		
 		$cookiename = $wgCookiePrefix.'variant';
@@ -19,9 +19,9 @@ class ChineseVariantSelector
 	 * Add message post processing to convert messages to variant
 	 * when needed
 	 */
-	public static function onMessagePostProcess($message) {
+	public static function onMessagePostProcess(&$message) {
 		global $wgContLang, $wgLanguageCode;
-	
+
 		if($wgLanguageCode == "zh" && $message && $message != "首页") {	
 			$message = $wgContLang->convert($message);
 		}

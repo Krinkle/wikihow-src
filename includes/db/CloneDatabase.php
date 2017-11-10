@@ -92,7 +92,14 @@ class CloneDatabase {
 
 			# Create new table
 			wfDebug( __METHOD__ . " duplicating $oldTableName to $newTableName\n", true );
-			$this->db->duplicateTableStructure( $oldTableName, $newTableName, $this->useTemporaryTables );
+			try {
+				$this->db->duplicateTableStructure( $oldTableName, $newTableName, $this->useTemporaryTables );
+			} catch ( MWException $e ) {
+				// Reuben, wikiHow, 2015-10-30: Put this in a try block so that it
+				// doesn't stop the unit tests if the searchindex table (which has
+				// a FULLTEXT column) can't be created.
+				print "NOTICE: Unable to clone table $oldTableName to $newTableName: {$e->getMessage()}\n";
+			}
 		}
 	}
 

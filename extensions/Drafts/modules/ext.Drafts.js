@@ -120,7 +120,7 @@ function Draft() {
 		self.setState( 'saving' );
 
 		checkMinLength = false;
-		checkForm();
+		WH.Editor.checkForm();
 		checkMinLength = true;
 
 		// setu p text
@@ -142,7 +142,7 @@ function Draft() {
 				return false;
 			}
 		}
-		var url = "http://" + window.location.hostname + "/Special:BuildWikihowArticle";
+		var url = "//" + window.location.hostname + "/Special:BuildWikihowArticle";
 		this.request.open('POST', url, false);
 		this.request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
 		this.request.send(parameters);

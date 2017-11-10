@@ -1,38 +1,141 @@
 <?php
 
+class Common {
+	public static function log($action, $articleId, $articleTitle) {
+		global $wgUser, $wgRequest;
+		wfDebugLog('nab', 'action = ' . $action
+			. '; user = ' . $wgUser->getID() . ' (' . $wgUser->getName() .')'
+			. '; article = ' . $articleId . ' (' . $articleTitle .')'
+			. '; referer = ' . $wgRequest->getHeader("referer")
+			. '; post string = ' . urldecode($wgRequest->getRawPostString())
+		);
+	}
+}
+
 class Newarticleboost extends SpecialPage {
 
 	/**
 	 * A constant to change when JS/CSS has been updated so that a new
 	 * version is pulled off the CDN.
 	 */
-	const REVISION = 4;
+	const REVISION = 10;
+	const DEMOTE_CATEGORY = "Articles in Quality Review";
+	const NAB_TABLE = "newarticlepatrol";
+	const BACKLOG_DATE = "20150401000000";
 
 	public function __construct() {
 		global $wgHooks;
 		parent::__construct('Newarticleboost');
-		$wgHooks['getToolStatus'][] = array('Misc::defineAsTool');
+		$wgHooks['getToolStatus'][] = array('SpecialPagesHooks::defineAsTool');
+	}
+
+	//Function to determine if a user is a new article patroller
+	public static function isNewArticlePatrol($user){
+		return in_array('newarticlepatrol', $user->getGroups());
+	}
+
+	/**
+	* Function which determines if an article can be summarily overwritten:
+	* which occurs when any of the following is true:
+	* 1.  A human pressed demote in NAB
+	* 2.  They have been in NAB for over 18 months
+	* 3.  They have been in NAB for over 6 months and have a quality score under .5
+	**/
+	public static function isOverwriteAllowed($title) {
+
+		if( $title && $title->exists() ) {
+			//first make sure it doesn't have a merge template
+			$revision = Revision::newFromTitle($title);
+			if (!$revision || $revision->getId() <= 0) return false;
+			$text = $revision->getText();
+			if (stripos($text, "{{merge") !== false) return false;
+
+			$dbr = wfGetDB(DB_SLAVE);
+
+			$eighteenMonths = wfTimestamp(TS_MW, strtotime("-18 months")); //18 months ago
+			$sixMonths = wfTimestamp(TS_MW, strtotime("-6 months")); //6 months ago
+
+			$res = $dbr->select(Newarticleboost::NAB_TABLE, array('nap_demote', 'nap_timestamp', 'nap_atlas_score', 'nap_patrolled'), array('nap_page' => $title->getArticleID()), __METHOD__);
+
+			$row = $dbr->fetchRow($res);
+			if($row === false) {
+				//it was never put into nab (likely older than 2009)
+				//which means we definitely don't want to overwrite
+				return false;
+			} elseif($row['nap_patrolled'] == 1) {
+				return false;
+			} elseif ($title->isRedirect()) {
+				return false;
+			} else if($row['nap_demote'] == 1) {
+				return true;
+			} else if ($row['nap_timestamp'] < $eighteenMonths) {
+				return true;
+			} else if($row['nap_timestamp'] < $sixMonths && $row['nap_atlas_score'] < 50) {
+				return true;
+			}
+
+			return false;
+
+		}
+		return false;
+	}
+
+	/**
+	 * Resets the values in the NAB table for the given title. The values to reset are:
+	 * 1) timestamp
+	 * 2) deomotion status
+	 * 3) score
+	 **/
+	public static function redoNabStatus($title) {
+		global $wgMemc;
+
+		if($title) {
+			Common::log('Newarticleboost::redoNabStatus', $title->getArticleID(), $title);
+			$dbw = wfGetDB(DB_MASTER);
+			$dbw->update(Newarticleboost::NAB_TABLE, array('nap_timestamp' => wfTimestamp(TS_MW), 'nap_demote' => 0, 'nap_atlas_score' => -1), array('nap_page' => $title->getArticleID()), __FUNCTION__);
+
+			$wgMemc->delete( self::getNabbedCachekey($title->getArticleID()) );
+		}
 	}
 
 	/**
 	 * Returns the total number of New Articles waiting to be
 	 * NAB'd.
 	 */
-	public function getNABCount(&$dbr) {
-		// Disabled the templatelinks Inuse part of the query because it 
-		// doesn't substantially affect the number (changes it by about 
-		// 1.5%, currently), and it changes the query speed from 0.18s to
-		// 2.39s (again, currently).
-		//
-		// LEFT JOIN templatelinks ON tl_from = page_id AND tl_title='Inuse'
-		// AND tl_title IS NULL
+	public static function getNABCount($dbr) {
+		// putting the templatelinks condition back into the query
+		// since the nab count is so low it does not effect the time of the query like it used
+		// to and the number differce is much higher percentage (like 6000% currently).
 		$one_hour_ago = wfTimestamp(TS_MW, time() - 60 * 60);
 		$sql = "SELECT count(*) as C
-				  FROM newarticlepatrol, page 
+				  FROM " . Newarticleboost::NAB_TABLE . ", page
+				  LEFT JOIN templatelinks ON tl_from = page_id AND tl_title='Inuse'
 				  WHERE page_id = nap_page
-				    AND page_is_redirect = 0 
-				    AND nap_patrolled = 0
-					AND nap_timestamp < '$one_hour_ago'";
+					AND page_is_redirect = 0
+					AND nap_patrolled = 0
+					AND nap_demote = 0
+					AND tl_title is NULL
+					AND nap_atlas_score >= 0
+					AND nap_timestamp < '$one_hour_ago'
+					AND nap_timestamp > '" . Newarticleboost::BACKLOG_DATE . "'";
+		$res = $dbr->query($sql, __METHOD__);
+		$row = $dbr->fetchObject($res);
+
+		return $row->C;
+	}
+
+	public function getNABCountOld() {
+		$dbr = wfGetDB(DB_SLAVE);
+
+		$one_hour_ago = wfTimestamp(TS_MW, time() - 60 * 60);
+		$sql = "SELECT count(*) as C
+				  FROM " . Newarticleboost::NAB_TABLE . ", page
+				  WHERE page_id = nap_page
+					AND page_is_redirect = 0
+					AND nap_patrolled = 0
+					AND nap_demote = 0
+					AND nap_timestamp < '$one_hour_ago'
+					AND nap_timestamp <= '" . Newarticleboost::BACKLOG_DATE . "'";
 		$res = $dbr->query($sql, __METHOD__);
 		$row = $dbr->fetchObject($res);
 
@@ -42,8 +145,8 @@ class Newarticleboost extends SpecialPage {
 	/**
 	 * Returns the id of the last NAB.
 	 */
-	public function getLastNAB(&$dbr) {
-		$res = $dbr->select('newarticlepatrol',
+	public static function getLastNAB($dbr) {
+		$res = $dbr->select(Newarticleboost::NAB_TABLE,
 			array('nap_user_ci', 'nap_timestamp_ci'),
 			array('nap_patrolled' => 1),
 			__METHOD__,
@@ -58,11 +161,11 @@ class Newarticleboost extends SpecialPage {
 	}
 
 	/**
-	 * Gets the total number of articles patrolled by the given user after 
+	 * Gets the total number of articles patrolled by the given user after
 	 * the given timestamp.
 	 */
-	public function getUserNABCount(&$dbr, $userId, $starttimestamp) {
-		$row = $dbr->selectField('newarticlepatrol',
+	public static function getUserNABCount($dbr, $userId, $starttimestamp) {
+		$row = $dbr->selectField(Newarticleboost::NAB_TABLE,
 			'count(*) as count',
 			array('nap_patrolled' => 1,
 				'nap_user_ci' => $userId,
@@ -72,49 +175,145 @@ class Newarticleboost extends SpecialPage {
 	}
 
 	private static function getNabbedCachekey($page) {
-		return wfMemcKey('nabbed', $page);
+		return wfMemcKey('napdata', $page);
 	}
 
 	/**
 	 * Check whether or not a page ID has been nabbed.
 	 * @param int $page
-	 * @return boolean true iff it's been nabbed
+	 * @return boolean true if it's been nabbed
+	 * or doesn't exist in newarticlepatrol table
 	 */
-	public function isNABbed(&$dbr, $page) {
-		global $wgMemc;
+	public static function isNABbed($dbr, $page) {
+		$nap = self::getNAPData($dbr, $page);
+		return (bool)$nap['nap_patrolled'];
+	}
 
-		$cachekey = self::getNabbedCachekey($page);
-		$val = $wgMemc->get($cachekey);
-		if (is_string($val)) return (bool)$val;
-
-		$nap_patrolled = $dbr->selectField(
-			'newarticlepatrol',
-			'nap_patrolled',
-			array('nap_page' => $page),
-			__METHOD__);
-
-		if ($nap_patrolled === '0') {
-			$boosted = 0;
-		} else {
-			//is == 1 or isn't in the table
-			$boosted = 1;
-		}
-		
-		$wgMemc->set($cachekey, $boosted, 5 * 60); // cache for 5 minutes
-
-		return (bool)$boosted;
+	public static function isNABbedNoDb($page) {
+		$dbr = wfGetDB(DB_SLAVE);
+		return self::isNABbed($dbr, $page);
 	}
 
 	/**
-	 * Used in community dashboard to find out the most recently nabbed 
+	 * For Titus -- get promoted date
+	 * @param int $page
+	 * @return date promoted, 0 (if it's not promoted), date created (if not in nab), or date added to nab (if too old to have a timestamp_ci)
+	 */
+	public static function getNABbedDate($dbr, $page) {
+		$result = 0;
+		$nap = self::getNAPData($dbr, $page);
+		if ((bool)$nap['nap_patrolled']) {
+			if ((bool)$nap['exists']) {
+				$date = ($nap['nap_timestamp_ci']) ? $nap['nap_timestamp_ci'] : $nap['nap_timestamp'];
+				if ($date) $result = $date;
+			}
+			else {
+				//doesn't exist in NAB; grab creation date
+				$createdate = $dbr->selectField('revision', 'min(rev_timestamp)', array('rev_page' => $page), __METHOD__);
+				if ($createdate) $result = $createdate;
+			}
+		}
+		return $result;
+	}
+
+	/**
+	 * Check whether or not a page ID has been demoted.
+	 * @param int $page
+	 * @return boolean true if it's been demoted
+	 * or doesn't exist in newarticlepatrol table
+	 */
+	public function isDemoted($dbr, $page) {
+		$nap = self::getNAPData($dbr, $page);
+		return (bool)$nap['nap_demote'];
+	}
+
+
+	public static function isDemotedNoDb($page) {
+		$dbr = wfGetDB(DB_SLAVE);
+		return self::isDemoted($dbr, $page);
+	}
+
+	/**
+	 * For Titus -- get demoted date
+	 * @param int $page
+	 * @return date, 0 (if it's not promoted), or 1 (if it's promoted but old and dateless OR not in NAB)
+	 */
+	public static function getDemotedDate($dbr, $page) {
+		$result = 0;
+		$nap = self::getNAPData($dbr, $page);
+		if ((bool)$nap['nap_demote']) {
+			if ((bool)$nap['exists']) {
+				$date = ($nap['nap_timestamp_ci']) ? $nap['nap_timestamp_ci'] : $nap['nap_timestamp'];
+				if ($date) $result = $date;
+			}
+			else {
+				//doesn't exist in NAB; grab assume it hasn't been demoted
+			}
+		}
+		return $result;
+	}
+
+	/**
+	 * Check whether or not a page ID is older than
+	 * @param $dbr
+	 * @param int $page
+	 * @param $ts timestamp cutoff
+	 * @return boolean true iff the page is older than the timestamp
+	 * in the newarticlepatrol table. Returns false f the article doesn't exist or isn't older
+	 * than the $ts param
+	 */
+	public function isOlderThan($dbr, $page, $ts) {
+		$nap = self::getNAPData($dbr, $page);
+		return isset($nap['nap_timestamp']) ? $nap['nap_timestamp'] < $ts : false;
+	}
+
+	/**
+	 * @param $dbr
+	 * @param int $page
+	 * @return array containing data on whether page is nabbed.
+	 * The nap timestamp will also be returned if the page exists in
+	 * the newarticlepatrol table
+	 */
+	private static function getNAPData($dbr, $page) {
+		global $wgMemc;
+
+		$cachekey = self::getNabbedCachekey($page);
+		$nap = $wgMemc->get($cachekey);
+		if (is_array($nap)) return $nap;
+
+		$nap = array('nap_patrolled' => 1,'nap_demote' => 0);
+		$res = $dbr->select(
+			Newarticleboost::NAB_TABLE,
+			array('nap_patrolled', 'nap_timestamp','nap_demote','nap_timestamp_ci'),
+			array('nap_page' => $page),
+			__METHOD__);
+
+		$row = $dbr->fetchRow($res);
+		if (is_array($row)) {
+			if ($row['nap_patrolled'] === '0') $nap['nap_patrolled'] = 0;
+			if ($row['nap_demote'] === '1') $nap['nap_demote'] = 1;
+			$nap['nap_timestamp'] = $row['nap_timestamp'];
+			$nap['nap_timestamp_ci'] = $row['nap_timestamp_ci'];
+			$nap['exists'] = 1;
+		}
+		else {
+			$nap['exists'] = 0;
+		}
+
+		$wgMemc->set($cachekey, $nap, 5 * 60); // cache for 5 minutes
+		return $nap;
+	}
+
+	/**
+	 * Used in community dashboard to find out the most recently nabbed
 	 * article.
 	 */
-	public function getHighestNAB(&$dbr, $period = '7 days ago') {
+	public static function getHighestNAB($dbr, $period = '7 days ago') {
 		$startdate = strtotime($period);
 		$starttimestamp = date('YmdG', $startdate) . floor(date('i', $startdate) / 10) . '00000';
 
-		$res = $dbr->select('logging', 
-			array('*', 
+		$res = $dbr->select('logging',
+			array('*',
 				'count(*) as C',
 				'MAX(log_timestamp) as recent_timestamp'),
 			array("log_type" => 'nap',
@@ -133,95 +332,29 @@ class Newarticleboost extends SpecialPage {
 	}
 
 	/**
-	 * Display the HTML for the NAB list. Displays all articles to be nabbed.
-	 */
-	private function displayNABList(&$dbw, &$dbr) {
-		global $wgOut, $wgLang, $wgRequest;
-
-		$wgOut->addHTML("<div class='minor_section'>");
-		$wgOut->addHtml('<p id="nap_help" class="tool_help"><a href="/Use-the-wikiHow-New-Article-Boost-App" target="_blank">Learn how</a></p>');
-		if ($this->can_newbie) {
-			$btn_class = "style='margin-bottom: 10px;' class='button secondary buttonright'";
-			if ($this->do_newbie) {
-				$wgOut->addHTML("<a $btn_class href='/Special:Newarticleboost'>All articles</a><br/>");
-			} else {
-				$wgOut->addHTML("<a $btn_class href='/Special:Newarticleboost?newbie=1'>Newbie articles</a><br/>");
-			}
-		}
-
-		list( $limit, $offset ) = wfCheckLimits();
-
-		$patrolled_opt = $this->do_newbie ? '' : 'AND nap_patrolled = 0';
-		$newbie_opt = $this->do_newbie ? 'AND nap_newbie = 1' : '';
-
-		$one_hour_ago = wfTimestamp(TS_MW, time() - 60 * 60);
-
-		$sql = "SELECT page_namespace, page_title, nap_timestamp, st_title,
-				    nap_page
-				  FROM newarticlepatrol, page 
-				    LEFT JOIN templatelinks ON tl_from = page_id
-				      AND tl_title = 'Inuse'
-				    LEFT JOIN suggested_titles ON page_title = st_title
-				  WHERE page_id = nap_page
-				    AND page_is_redirect = 0
-				    {$patrolled_opt}
-				    AND nap_timestamp < '$one_hour_ago'
-				    AND tl_title is NULL
-				    {$newbie_opt}
-				  GROUP BY page_title
-				  ORDER BY nap_page DESC
-				  LIMIT $offset, $limit";
-		$res = $dbr->query($sql, __METHOD__);
-		$wgOut->addHTML("<table width='100%' class='nablist section_text'><tr class='toprow'><td>#</td><td>Article</td><td title='Was this article from the Suggested Title list?'>ST?</td><td style='width:180px;'>Created</td></tr>");
-		$index = 0;
-		foreach ($res as $row) {
-			$index++;
-			$title = Title::makeTitle($row->page_namespace, $row->page_title);
-			$s = SpecialPage::getTitleFor( 'Newarticleboost', $title->getPrefixedText() );
-			$wgOut->addHTML("<tr><td>{$index}.<!--{$row->nap_page}--></td><td class='link'>" . $this->skin->makeLinkObj($s, $title->getText(), $this->do_newbie ? "newbie=1&page=" . $row->nap_page : "page=" . $row->nap_page) . "</td><td class='sugg'>");
-			if ($row->st_title != null) {
-				$wgOut->addHTML("<img src='" . wfGetPad('/skins/WikiHow/images/checkmark-nab.png') . "' height='16' width='16' alt='suggestion'/>");
-			}
-			$wgOut->addHTML("</td><td>");
-			if ($row->nap_timestamp != '') {
-				$dateStr = $wgLang->timeanddate($row->nap_timestamp, true);
-				$wgOut->addHTML($dateStr);
-			}
-			$wgOut->addHTML("</td></tr>\n");
-		}
-		$wgOut->addHTML("</table>");
-		$wgOut->addHTML("</div>");
-		$dbr->freeResult($res);
-	}
-
-	/**
 	 * If a user is nabbing an article, there are Skip/Cancel and Mark as
 	 * Patrolled buttons at the buttom of the list of NAB actions.  When
 	 * either of these buttons are pushed, this function processes the
 	 * submitted form.
 	 */
-	private function doNABAction(&$dbw) {
+	private function doNABAction($dbw) {
 		global $wgRequest, $wgOut, $wgUser;
 
-		$err = false;
+		$errMsg = '';
 		$aid = $wgRequest->getVal('page', 0);
 		$aid = intval($aid);
 
 		if ($wgRequest->getVal('nap_submit', null) != null) {
 			$title = Title::newFromID($aid);
 
+			Common::log('Newarticleboost::doNABAction - nap_submit', $aid, $title);
 			// MARK ARTICLE AS PATROLLED
 			self::markNabbed($dbw, $aid, $wgUser->getId());
 
 			if (!$title) {
-				$wgOut->addHTML('Error: target page for NAB was not found');
+				Misc::jsonResponse(array('message' => "Error: target page for NAB was not found"), 400);
 				return;
 			}
-
-			// LOG ENTRY
-			$params = array($aid);
-			$log = new LogPage('nap', false);
-			$log->addEntry( 'nap', $title, wfMsg('nap_logsummary', $title->getFullText()), $params );
 
 			// ADD ANY TEMPLATES
 			self::addTemplates($title);
@@ -236,50 +369,33 @@ class Newarticleboost extends SpecialPage {
 			}
 
 			// MOVE/RE-TITLE ARTICLE IF PATROLLER WANTED THIS
-			if ($wgRequest->getVal('move', null) != null
-				&& $wgUser->isAllowed('move'))
-			{
+			if ($wgRequest->getVal('move', null) != null && $wgUser->isAllowed('move')) {
 				if ($wgRequest->getVal('move_newtitle', null) == null) {
-					$wgOut->addHTML('Error: no target page title specified.');
+					Misc::jsonResponse(array('message' => "Error: no target page title specified."), 400);
 					return;
 				}
 				$newTarget = $wgRequest->getVal('move_newtitle');
 				$newTitle = Title::newFromText($newTarget);
 				if (!$newTitle) {
-					$wgOut->addHTML("Bad new title: $newTarget");
+					Misc::jsonResponse(array('message' => "Bad new title: $newTarget"), 400);
 					return;
 				}
 
-				$ret  = $title->moveTo($newTitle);
+				$ret = $title->moveTo($newTitle);
 				if (is_string($ret)) {
-					$wgOut->addHTML("Renaming of the article failed: " . wfMsg($ret));
-					$err = true;
+					$errMsg = "Renaming of the article failed: " . wfMsg($ret);
 				}
 
 				// move the talk page if it exists
 				$oldTitleTalkPage = $title->getTalkPage();
-				if( $oldTitleTalkPage->exists() ) {
+				if ($oldTitleTalkPage->exists()) {
 					$newTitleTalkPage = $newTitle->getTalkPage();
-					$err = $oldTitleTalkPage->moveTo($newTitleTalkPage) === true;
+					if ($oldTitleTalkPage->moveTo($newTitleTalkPage) === true) {
+						$errMsg = "Error moving the talk page";
+					}
 				}
 
 				$title = $newTitle;
-			}
-
-			// MARK ALL PREVIOUS EDITS AS PATROLLED IN RC
-			$maxrcid = $wgRequest->getVal('maxrcid');
-			if ($maxrcid) {
-				$res = $dbw->select('recentchanges',
-					'rc_id',
-					array('rc_id<=' . $maxrcid,
-						'rc_cur_id=' . $aid,
-						'rc_patrolled=0'), 
-					__METHOD__);
-				while ($row = $dbw->fetchObject($res)) {
-					RecentChange::markPatrolled( $row->rc_id );
-					PatrolLog::record( $row->rc_id, false );
-				}
-				$dbw->freeResult($res);
 			}
 
 			wfRunHooks("NABArticleFinished", array($aid));
@@ -287,46 +403,213 @@ class Newarticleboost extends SpecialPage {
 
 		// GET NEXT UNPATROLLED ARTICLE
 		if ($wgRequest->getVal('nap_skip') && $wgRequest->getVal('page') ) {
-			// if article was skipped, clear the checkout of the 
+			Common::log('Newarticleboost::doNABAction - nap_skip', $aid, Title::newFromID($aid));
+			// if article was skipped, clear the checkout of the
 			// article, so others can NAB it
-			$dbw->update('newarticlepatrol',
-				array('nap_user_co=0'),
-				array("nap_page", $aid),
+			$dbw->update(Newarticleboost::NAB_TABLE,
+				array('nap_user_co' => 0),
+				array('nap_page' => $aid),
 				__METHOD__);
 		}
 
-		$title = $this->getNextUnpatrolledArticle($dbw, $aid);
-		if (!$title) {
-			$wgOut->addHTML("Unable to get next id to patrol.");
-			return;
+		if( $wgRequest->getVal('nap_demote') && $wgRequest->getVal('page') ) {
+			// ADD ANY TEMPLATES
+			$title = Title::newFromID($aid);
+			Common::log('Newarticleboost::doNABAction - nap_demote', $aid, $title);
+			self::addTemplates($title);
+
+			$this->demoteArticle($dbw, $aid, $wgUser->getId());
 		}
 
-		$nap = SpecialPage::getTitleFor( 'Newarticleboost', $title->getPrefixedText() );
-		$url = $nap->getFullURL() . ($this->do_newbie ? '?newbie=1' : '');
-		if (!$err) {
-			$wgOut->redirect($url);
+		if ($errMsg) {
+			Misc::jsonResponse(array('message' => $errMsg), 400);
 		} else {
-			$wgOut->addHTML("<br/><br/>Click <a href='{$nap->getFullURL()}'>here</a> to continue.");
+			Misc::jsonResponse(array('message' => "Operation successful"));
+		}
+	}
+
+	public static function markPreviousEditsPatrolled($aid, $maxrcid = false) {
+		$dbr = wfGetDB( DB_SLAVE );
+		$user = RequestContext::getMain()->getUser();
+
+		if (!$maxrcid) {
+			$maxrcid = $dbr->selectField('recentchanges', 'MAX(rc_id)', array('rc_cur_id' => $aid), __METHOD__);
+		}
+
+		if ($maxrcid) {
+			$res = $dbr->select('recentchanges',
+								'rc_id',
+								array('rc_id <= ' . $dbr->addQuotes($maxrcid),
+										'rc_cur_id' => $aid,
+										'rc_patrolled' => 0,
+										'rc_user <> ' . $user->getId()
+									),
+								__METHOD__
+							);
+
+			foreach ($res as $row) {
+					RecentChange::markPatrolled( $row->rc_id );
+					PatrolLog::record( $row->rc_id, false );
+			}
+
+			$dbr->freeResult($res);
+		}
+
+	}
+	public static function removeDemotedCategory($aid) {
+		global $wgContLang;
+
+		//remove the demoted category if it exists on this page
+		$dbr = wfGetDB(DB_SLAVE);
+		$cats = $dbr->select('categorylinks', array('cl_to'), array('cl_from' => $aid), __METHOD__);
+		$dbCat = str_replace(" ", "-", Newarticleboost::DEMOTE_CATEGORY);
+		$found = false;
+		foreach($cats as $cat) {
+			if($cat->cl_to == $dbCat) {
+				$found = true;
+				break;
+			}
+		}
+
+		if($found) {
+			$t = Title::newFromID($aid);
+			$wikitext = Wikitext::getWikitext($dbr, $t);
+			Common::log('Newarticleboost::removeDemotedCategory', $aid, $t);
+
+			$intro = Wikitext::getIntro($wikitext);
+			$intro = str_replace("\n[[" . $wgContLang->getNSText(NS_CATEGORY) . ":" . Newarticleboost::DEMOTE_CATEGORY . "]]", "", $intro);
+			$wikitext = Wikitext::replaceIntro($wikitext, $intro);
+			$result = Wikitext::saveWikitext($t, $wikitext, wfMessage('nap_demote_remove')->text());
 		}
 	}
 
 	/**
 	 * Mark an article as NAB'bed.
 	 */
-	private static function markNabbed(&$dbw, $aid, $userid) {
-		global $wgMemc;
+	public static function markNabbed($dbw, $aid, $userid, $logit = true) {
+		global $wgMemc, $wgLanguageCode, $wgRequest;
 
 		$wgMemc->delete( self::getNabbedCachekey($aid) );
 
 		$ts = wfTimestampNow();
-		$dbw->update('newarticlepatrol',
+		$dbw->update(Newarticleboost::NAB_TABLE,
 			array('nap_timestamp_ci' => $ts,
 				'nap_user_ci' => $userid,
-				'nap_patrolled' => '1'),
+				'nap_patrolled' => '1',
+				'nap_demote' => '0'),
 			array('nap_page' => $aid),
 			__METHOD__);
 
+		Newarticleboost::removeDemotedCategory($aid);
+
+		$page = WikiPage::newFromID($aid);
+		if ($page) {
+			RobotPolicy::clearArticleMemc($page);
+		}
+
+		// LOG ENTRY
+		if ($logit) {
+			$title = Title::newFromID($aid);
+			if($title) {
+				Common::log('Newarticleboost::markNabbed', $aid, $title);
+				$params = array($aid);
+				$log = new LogPage('nap', false);
+				$log->addEntry( 'nap', $title, wfMsg('nap_logsummary', $title->getFullText()), $params );
+			}
+		}
+
+		if ( $wgRequest->getVal('maxrcid') ) {
+			self::markPreviousEditsPatrolled($aid, $wgRequest->getVal('maxrcid'));
+		} else {
+			self::markPreviousEditsPatrolled($aid);
+		}
+
 		wfRunHooks('NABMarkPatrolled', array($aid));
+
+		//send message
+		if ($wgLanguageCode == "en") {
+			Newarticleboost::sendPromotedMessage($userid, $page);
+		}
+	}
+
+	// Review this in relation to Felicity: NAB automatically adding... bug
+	public function demoteArticle($dbw, $aid, $userid, $logit = true) {
+		global $wgContLang, $wgMemc, $wgLanguageCode;
+
+		$wgMemc->delete( self::getNabbedCachekey($aid) );
+
+		//clear robot cache
+		$page = WikiPage::newFromID($aid);
+		if ($page) RobotPolicy::clearArticleMemc($page);
+
+		$ts = wfTimestampNow();
+
+		Common::log('Newarticleboost::demoteArticle', $aid, Title::newFromID($aid));
+		if (self::existsInNab($aid)) {
+			//do that demotion
+			$dbw->update(Newarticleboost::NAB_TABLE,
+				array('nap_timestamp_ci' => $ts,
+					'nap_user_ci' => $userid,
+					'nap_patrolled' => '0',
+					'nap_demote' => '1'),
+				array('nap_page' => $aid),
+				__METHOD__);
+		}
+		else {
+			//add it demoted, but first grab the rev timestamp
+			$min_ts = $dbw->selectField('revision',
+				array('min(rev_timestamp)'),
+				array('rev_page' => $aid),
+				__METHOD__);
+
+			$dbw->insert(Newarticleboost::NAB_TABLE,
+				array(
+					'nap_page' => $aid,
+					'nap_timestamp' => $min_ts,
+					'nap_patrolled' => '0',
+					'nap_demote' => '1'),
+				__METHOD__);
+
+			//also add to nab_atlas
+			if ($wgLanguageCode == 'en') {
+				$dbw->insert('nab_atlas', array('na_page_id' => $aid), __METHOD__);
+			}
+
+		}
+
+
+		//add demote cat
+		$t = Title::newFromId($aid);
+		if ($t && $t->exists()) {
+			$dbr = wfGetDB(DB_MASTER);
+			$wikitext = Wikitext::getWikitext($dbr, $t);
+			$intro = Wikitext::getIntro($wikitext);
+			$cat = "\n[[" . $wgContLang->getNSText(NS_CATEGORY) . ":" . Newarticleboost::DEMOTE_CATEGORY . "]]";
+			$intro .= $cat;
+			$wikitext = Wikitext::replaceIntro($wikitext, $intro);
+			$result = Wikitext::saveWikitext($t, $wikitext, wfMessage('nap_demote_comment')->text());
+		}
+
+		// LOG ENTRY
+		if ($logit) {
+			$params = array($aid);
+			$log = new LogPage('nap', false);
+			$log->addEntry( 'nap', $t, wfMsg('nap_logsummary_demote', $t->getFullText()), $params );
+		}
+
+		self::markPreviousEditsPatrolled($aid);
+		wfRunHooks( 'NABArticleDemoted', array($aid) );
+	}
+
+	private function getNabUrl($title) {
+		$nap = SpecialPage::getTitleFor('Newarticleboost', $title);
+		return $nap->getFullURL(
+			($this->do_newbie ? 'newbie=1' : '') .
+			"&sortOrder={$this->sortOrder}" .
+			"&sortValue={$this->sortValue}" .
+			"&low={$this->wantLow}" .
+			"&old={$this->wantOld}"
+		);
 	}
 
 	/**
@@ -334,43 +617,61 @@ class Newarticleboost extends SpecialPage {
 	 * @param string $aid The article ID to look up
 	 * @return Title the representing Title object or null if not found
 	 */
-	private function getNextUnpatrolledArticle(&$dbw, $aid, $recurse=true) {
+	private function getNextUnpatrolledArticle($dbw, $aid) {
 		global $wgUser;
 
 		$patrolled_opt = $this->do_newbie ? '' : 'AND nap_patrolled = 0';
 		$newbie_opt = $this->do_newbie ? 'AND nap_newbie = 1' : '';
+		$score_opt = $this->do_score ? 'AND nap_atlas_score != -1' : '';
+		$old_opt = $this->wantOld ? ' AND nap_timestamp <= "' . Newarticleboost::BACKLOG_DATE . '" ' : ' AND nap_timestamp > "' . Newarticleboost::BACKLOG_DATE . '" ';
+
+		$order = " ORDER BY nap_atlas_score DESC, nap_page DESC";
+		if ($this->sortValue == "score") {
+			$order = " ORDER BY nap_atlas_score {$this->sortOrder}, nap_page {$this->sortOrder}";
+		} elseif ($this->sortValue == "date") {
+			$order = " ORDER BY nap_timestamp {$this->sortOrder}";
+		}
 
 		$half_hour_ago = wfTimestamp(TS_MW, time() - 30 * 60);
+
 		$sql = "SELECT page_title, nap_page
-				  FROM newarticlepatrol, page
+				  FROM " . Newarticleboost::NAB_TABLE . ", page
 				  LEFT OUTER JOIN templatelinks ON page_id = tl_from
-				    AND tl_title='Inuse'
-				  WHERE nap_page < $aid
-				    AND page_id = nap_page
-				    AND page_is_redirect = 0
-				    {$patrolled_opt} 
-				    AND (nap_user_co = 0 OR nap_timestamp_co < '$half_hour_ago')
-				    AND tl_title IS NULL
-				    {$newbie_opt}
-				  ORDER BY nap_page DESC
-				  LIMIT 1";
+					AND tl_title='Inuse'
+				  WHERE nap_page != $aid
+				  AND page_id = nap_page
+					AND page_is_redirect = 0
+					{$patrolled_opt}
+					AND (nap_user_co = 0 OR nap_timestamp_co < '$half_hour_ago')
+					AND tl_title IS NULL
+					AND nap_demote = 0
+					{$score_opt}
+					{$newbie_opt}
+					{$old_opt}";
+		if ($this->sortValue == "date") {
+			$timestamp = $dbw->selectField(Newarticleboost::NAB_TABLE, 'nap_timestamp', array('nap_page' => $aid), __METHOD__);
+			if ($this->sortOrder == "asc") {
+				$sql .= " AND nap_timestamp >= {$timestamp}";
+			} else {
+				$sql .= " AND nap_timestamp <= {$timestamp}";
+			}
+			$sql .= " AND nap_page != {$aid} ";
+		} else {
+			$atlasScore = $dbw->selectField(Newarticleboost::NAB_TABLE, 'nap_atlas_score', array('nap_page' => $aid), __METHOD__);
+			if ($this->sortOrder == "asc") {
+				$sql .= "AND ((nap_page > $aid AND nap_atlas_score = $atlasScore) OR (nap_page != $aid AND nap_atlas_score > $atlasScore))";
+			} else {
+				$sql .= "AND ((nap_page < $aid AND nap_atlas_score = $atlasScore) OR (nap_page != $aid AND nap_atlas_score < $atlasScore))";
+			}
+		}
+
+		$sql .= "{$order} LIMIT 1";
+
 		$res = $dbw->query($sql, __METHOD__);
 
 		$id = 0;
 		if (($row = $dbw->fetchObject($res)) != null) {
 			$id = $row->nap_page;
-			if ($id && $recurse) {
-				$target = $row->page_title;
-				// title contains bad character '?', try again!
-				if (strstr($target, '?') !== false) {
-					// HACK NOTE
-					// Auto-mark as patrolled illegal article titles -- this
-					// was done by hand before.  Not the best solution, but
-					// at least it's automated.
-					self::markNabbed($dbw, $id, $wgUser->getId());
-					return $this->getNextUnpatrolledArticle($dbw, $aid, false);
-				}
-			}
 		}
 
 		return $id ? Title::newFromID($id) : null;
@@ -417,7 +718,7 @@ class Newarticleboost extends SpecialPage {
 			if (strpos($wikitext, $newTemplates) === false) {
 				$wikitext = "$newTemplates\n$wikitext";
 				$watch = $title->userIsWatching(); // preserve watching just in case
-				$updateResult = $article->updateArticle($wikitext, 
+				$updateResult = $article->updateArticle($wikitext,
 					wfMsg('nap_applyingtemplatessummary', implode(', ', $templatesArray)),
 					false, $watch);
 				if ($updateResult) {
@@ -437,6 +738,7 @@ class Newarticleboost extends SpecialPage {
 		if ($wgRequest->getVal('cb_risingstar', null) != "on") {
 			return;
 		}
+		Common::log('Newarticleboost::flagRisingStar', $title->getArticleID(), $title);
 
 		$dateStr = $wgLang->timeanddate(wfTimestampNow());
 
@@ -452,7 +754,7 @@ class Newarticleboost extends SpecialPage {
 			$this->notifyUserOfRisingStar($title, $contribUsername);
 		}
 
-		// Give user a thumbs up. Set oldId to -1 as this should be the 
+		// Give user a thumbs up. Set oldId to -1 as this should be the
 		// first revision
 		//if (class_exists('ThumbsUp')) {
 		//	ThumbsUp::thumbNAB(-1, $title->getLatestRevID(), $title->getArticleID());
@@ -471,7 +773,7 @@ class Newarticleboost extends SpecialPage {
 
 		$talkPage = $title->getTalkPage();
 		$comment = '{{Rising-star-discussion-msg-2|[['.$contribUserPage.'|'.$contribUserName.']]|[['.$patrolUserPage.'|'.$patrolUserName.']]}}' . "\n";
-		$formattedComment = wfMsg('postcomment_formatted_comment', $dateStr, $patrollerName, $patrollerRealName, $comment);
+		$formattedComment = TalkPageFormatter::createComment( $this->getUser(), $comment );
 
 		wfRunHooks("MarkTitleAsRisingStar", array($title));
 
@@ -506,13 +808,17 @@ class Newarticleboost extends SpecialPage {
 			$watch = $wgUser->isWatched($title->getTalkPage());
 		}
 
-		$wikitext .= "\n".  date('==Y-m-d==') . "\n" . $title->getFullURL() . "\n";
+		$wikitext .= "\n".  date('==Y-m-d==') . "\n" . $title->getCanonicalURL() . "\n";
 		$article->updateArticle($wikitext, wfMsg('nab-rs-feed-editsummary'), true, $watch);
 
 	}
 
-	private function displayNABConsole(&$dbw, &$dbr, $target) {
+	private function displayNABConsole($dbw, $dbr, $target, $noSkin = false) {
 		global $wgOut, $wgRequest, $wgUser, $wgParser;
+
+		if ($noSkin) {
+			$wgOut->clearHTML();
+		}
 
 		$not_found = false;
 		$title = Title::newFromURL($target);
@@ -531,7 +837,7 @@ class Newarticleboost extends SpecialPage {
 		}
 
 		if (!$not_found) {
-			$in_nab = $dbr->selectField('newarticlepatrol', 'count(*)', array('nap_page'=>$title->getArticleID()), __METHOD__) > 0;
+			$in_nab = $dbr->selectField(Newarticleboost::NAB_TABLE, 'count(*)', array('nap_page'=>$title->getArticleID()), __METHOD__) > 0;
 			if (!$in_nab) {
 				$wgOut->addHTML("<p>Error: This article is not in the NAB list.</p>");
 				$not_found = true;
@@ -542,6 +848,10 @@ class Newarticleboost extends SpecialPage {
 			$pageid = $wgRequest->getVal('page');
 			if (strpos($target, ':') !== false && $pageid) {
 				$wgOut->addHTML('<p>We can to try to <a href="/Special:NABClean/' . $pageid . '">delete this title</a> if you know this title exists in NAB yet is likely bad data.</p>');
+			}
+			if ($noSkin) {
+				$wgOut->disable();
+				echo $wgOut->getHTML();
 			}
 			return;
 		}
@@ -566,41 +876,60 @@ class Newarticleboost extends SpecialPage {
 		$wgOut->setPageTitle(wfMsg('nap_title', $title->getFullText()));
 		$count = $dbr->selectField('suggested_titles', array('count(*)'), array('st_title' => $title->getDBKey()), __METHOD__);
 		$extra = $count > 0 ? ' - from Suggested Titles database' : '';
-		$wgOut->addWikiText(wfMsg('nap_writtenby', $user->getName(), $display_name, $extra));
 
-		$wgOut->addHTML( wfMsgExt('nap_quicklinks', 'parseinline', $this->me->getFullText() . "/" . $title->getFullText()) );
+		$tmpl = new EasyTemplate( dirname(__FILE__) );
+		$vars = array();
+		$vars['low'] = $this->wantLow;
+		$vars['old'] = $this->wantOld;
+		$vars['sortValue'] = $this->sortValue;
+		$vars['sortOrder'] = $this->sortOrder;
+		$vars['articleTitle'] = $title->getFullText();
+		$vars['authorInfo'] = wfMessage('nap_writtenby', $user->getName(), $display_name, $extra)->parse();
+		$vars['articleId'] = $title->getArticleID();
+		$vars['score'] = $dbr->selectField(Newarticleboost::NAB_TABLE, 'nap_atlas_score', array('nap_page' => $title->getArticleID()), __METHOD__);
+
+		$nextTitle = $this->getNextUnpatrolledArticle($dbw, $title->getArticleID());
+
+		if ($nextTitle && $nextTitle->exists()) {
+			$vars['nextNabUrl'] = $this->getNabUrl($nextTitle->getPrefixedText(), true);
+			$vars['nextNabTitle'] = wfMsg('nap_title', $nextTitle->getFullText());
+		} else {
+			$vars['nextNabUrl'] = NULL;
+			$vars['nextNabTitle'] = NULL;
+		}
 
 		/// CHECK TO SEE IF ARTICLE IS LOCKED OR ALREADY PATROLLED
 		$aid = $title->getArticleID();
 		$half_hour_ago = wfTimestamp(TS_MW, time() - 30 * 60);
 
-		$patrolled = $dbr->selectField('newarticlepatrol', 'nap_patrolled', array("nap_page=$aid"), __METHOD__);
-		if ($patrolled) {
+		$patrolled = $dbr->selectField(Newarticleboost::NAB_TABLE, 'nap_patrolled', array("nap_page=$aid"), __METHOD__);
+		$lockedMsg = "";
+
+		if (self::isDemoted($dbr,$aid)) {
+			$patrolledMsg = $this->msg( 'nap_already_demoted' );
 			$locked = true;
-			$wgOut->addHTML(wfMsgExt("nap_patrolled", 'parse'));
+		} elseif ($patrolled) {
+			$locked = true;
+			$patrolledMsg = wfMsgExt("nap_patrolled", 'parse');
 		} else {
-			$user_co = $dbr->selectField('newarticlepatrol', 'nap_user_co', array("nap_page=$aid", "nap_timestamp_co > '$half_hour_ago'"), __METHOD__);
+			$user_co = $dbr->selectField(Newarticleboost::NAB_TABLE, 'nap_user_co', array('nap_page' => $aid, "nap_timestamp_co > '$half_hour_ago'"), __METHOD__);
 			if ($user_co != '' && $user_co != 0 && $user_co != $wgUser->getId()) {
 				$x = User::newFromId($user_co);
-				$wgOut->addHTML(wfMsgExt("nap_usercheckedout", 'parse', $x->getName()));
+				$lockedMsg = wfMsgExt("nap_usercheckedout2", 'parse', $x->getName());
 				$locked = true;
 			} else {
 				// CHECK OUT THE ARTICLE TO THIS USER
 				$ts = wfTimestampNow();
-				$dbw->update('newarticlepatrol', array('nap_timestamp_co' => $ts, 'nap_user_co' => $wgUser->getId()), array("nap_page = $aid"), __METHOD__);
+				$dbw->update(Newarticleboost::NAB_TABLE, array('nap_timestamp_co' => $ts, 'nap_user_co' => $wgUser->getId()), array("nap_page = $aid"), __METHOD__);
 			}
 		}
 
-		$expandSpan = '<span class="nap_expand">&#9660;</span>';
 		$externalLinkImg = '<img src="' . wfGetPad('/skins/common/images/external.png') . '"/>';
 
 		/// SIMILAR RESULT
-		$wgOut->addHTML("<div class='nap_section minor_section'>");
-		$wgOut->addHTML("<h2 class='nap_header'>$expandSpan " . wfMsg('nap_similarresults') . "</h2>");
-		$wgOut->addHTML("<div class='nap_body section_text'>");
 		$count = 0;
 		$l = new LSearch();
-		$hits  = $l->googleSearchResultTitles($title->getFullText(), 0, 5);
+		$hits  = $l->externalSearchResultTitles($title->getFullText(), 0, 5);
 		if (sizeof($hits) > 0) {
 			$html = "";
 			foreach ($hits as $hit) {
@@ -615,87 +944,56 @@ class Newarticleboost extends SpecialPage {
 				}
 				$safe_title = htmlspecialchars(str_replace("'", "&#39;", $t1->getText()));
 
-				$html .= "<tr><td>"
-					. $this->skin->makeLinkObj($t1, wfMsg('howto', $t1->getText() ))
-					. "</td><td style='text-align:right; width: 200px;'>[<a href='#action' onclick='nap_Merge(\"{$safe_title}\");'>" . wfMsg('nap_merge') . "</a>] "
-					. " [<a href='#action' onclick='javascript:nap_Dupe(\"{$safe_title}\");'>" . wfMsg('nap_duplicate') . "</a>] "
-					. " <span id='mr_$id'>[<a onclick='javascript:nap_MarkRelated($id, {$t1->getArticleID()}, {$title->getArticleID()});'>" . wfMsg('nap_related') . "</a>]</span> "
-					. "</td></tr>";
+				$matches[] = array(
+					'relatedLink' => Linker::link($t1, wfMessage('howto', $t1->getText()) ),
+					'safeTitle' => $safe_title,
+					'relatedId' => $t1->getArticleID(),
+					'random' => $id,
+					'count' => $count,
+
+				);
+
 				$count++;
 			}
 		}
-		if ($count == 0) {
-			$wgOut->addHTML(wfMsg('nap_no-related-topics'));
-		} else {
-			$wgOut->addHTML(wfMsg('nap_already-related-topics') . "<table style='width:100%;'>$html</table>");
-		}
 
-		$wgOut->addHTML(wfMsg('nap_othersearches', urlencode($title->getFullText()) ));
-		$wgOut->addHTML("</div>");
-		$wgOut->addHTML("</div>");
-
-		/// COPYRIGHT CHECKER
-		$cc_check = SpecialPage::getTitleFor( 'Copyrightchecker', $title->getText() );
-		$wgOut->addHTML("<script type='text/javascript'>window.onload = nap_cCheck; var nap_cc_url = \"{$cc_check->getFullURL()}\";</script>");
-		$wgOut->addHTML("<div class='nap_section minor_section'>");
-		$wgOut->addHTML("<h2 class='nap_header'>$expandSpan " . wfMsg('nap_copyrightchecker') . "</h2>");
-		$wgOut->addHTML("<div class='nap_body section_text'>");
-		$wgOut->addHTML("<div id='nap_copyrightresults'><center><img src='/extensions/wikihow/rotate.gif' alt='loading...'/></center></div>");
-		$wgOut->addHTML("<center><input type='button' class='button primary' onclick='nap_cCheck();' value='Check'/></center>");
-		$wgOut->addHTML("</div>");
-		$wgOut->addHTML("</div>");
+		//$vars['titleTextUrl'] = urlencode($title->getFullText());
+		$vars['matches']  = $matches;
 
 		/// ARTICLE PREVIEW
-		$editUrl =  Title::makeTitle(NS_SPECIAL, "QuickEdit")->getFullURL() . "?type=editform&target=" . urlencode($title->getFullText()) . "&fromnab=1";
-		$wgOut->addHTML("<div class='nap_section minor_section'>");
-		$wgOut->addHTML("<a name='article' id='anchor-article'></a>");
-		$wgOut->addHTML("<h2 class='nap_header'>$expandSpan " . wfMsg('nap_articlepreview')
-			. " - <a href=\"{$title->getFullURL()}\" target=\"new\">" . wfMsg('nap_articlelinktext')."</a> $externalLinkImg"
-			. " - <a href=\"{$title->getEditURL()}\" target=\"new\">" . wfMsg('edit')."</a> $externalLinkImg"
-			. " - <a href=\"{$title->getFullURL()}?action=history\" target=\"new\">" . wfMsg('history')."</a> $externalLinkImg"
-			. " - <a href=\"{$title->getTalkPage()->getFullURL()}\" target=\"new\">" . wfMsg('discuss')."</a> $externalLinkImg"
-			. "</h2>");
-		$wgOut->addHTML("<div class='nap_body section_text'>");
-		$wgOut->addHTML("<div id='article_contents' ondblclick='nap_editClick(\"$editUrl\");'>");
 		$popts = $wgOut->parserOptions();
 		$popts->setTidy(true);
-		// $parserOutput = $wgOut->parse($rev->getText(), $title, $popts);
 		$output = $wgParser->parse($rev->getText(), $title, $popts);
 		$parserOutput = $output->getText();
 		$magic = WikihowArticleHTML::grabTheMagic($rev->getText());
 		$html = WikihowArticleHTML::processArticleHTML($parserOutput, array('no-ads' => true, 'ns' => $title->getNamespace(), 'magic-word' => $magic));
-		$wgOut->addHTML($html);
-		$wgOut->addHTML("</div>");
-		$wgOut->addHTML("<center><input id='editButton' type='button' class='button primary' name='wpEdit' value='" . wfMsg('edit') .
-			"' onclick='nap_editClick(\"$editUrl\");'/></center>");
-		$wgOut->addHTML("</div>");
-		$wgOut->addHTML("</div>");
 
-		$wgOut->addHTML('<div style="clear: both;"></div>');
+		$vars['externalLinkImg'] = $externalLinkImg;
+		$vars['fullUrl'] = $title->getFullURL();
+		$vars['editUrl'] = $title->getEditURL();
+		$vars['quickEditUrl'] = Title::makeTitle(NS_SPECIAL, "QuickEdit")->getFullURL() . "?type=editform&target=" . urlencode($title->getFullText()) . "&fromnab=1";;
+		$vars['talkUrl'] = $title->getTalkPage()->getFullURL();
+		$vars['articleHtml'] = $html;
 
 		/// DISCUSSION PREVIEW
+		$discText = '';
 		$talkPage = $title->getTalkPage();
-		$wgOut->addHTML("<div class='nap_section minor_section'>");
-		$wgOut->addHTML("<a name='talk' id='anchor-talk'></a>");
-		$wgOut->addHTML("<h2 class='nap_header'>$expandSpan " . wfMsg('nap_discussion')
-			. " - <a href=\"{$talkPage->getFullURL()}\" target=\"new\">" . wfMsg('nap_articlelinktext')."</a> $externalLinkImg"
-			. "</h2>");
-		$wgOut->addHTML("<div class='nap_body section_text'>");
-		$wgOut->addHTML("<div id='disc_page'>");
 		if ($talkPage->getArticleID() > 0) {
 			$rp = Revision::newFromTitle($talkPage);
-			$wgOut->addHTML($wgOut->parse($rp->getText()));
-		} else {
-			$wgOut->addHTML(wfMsg('nap_discussionnocontent'));
+			if ($rp) {
+				$discText = $wgOut->parse($rp->getText());
+				$discText = Avatar::insertAvatarIntoDiscussion($discText);
+			}
 		}
-		$wgOut->addHTML(PostComment::getForm(true, $talkPage, true));
-		$wgOut->addHTML("</div>");
-		$wgOut->addHTML("</div>");
-		$wgOut->addHTML("</div>");
+		if ($discText ==  '') $discText = wfMsg('nap_discussionnocontent');
+
+		$postComment = new PostComment;
+		$commentForm = $postComment->getForm(true, $talkPage, true);
+
+		$vars['discText'] = $discText;
+		$vars['commentForm'] = $commentForm;
 
 		/// USER INFORMATION
-		$wgOut->addHTML("<div class='nap_section minor_section'>");
-		$wgOut->addHTML("<a name='user' id='anchor-user'></a>");
 		$used_templates = array();
 		if ($ut_id > 0) {
 			$res = $dbr->select('templatelinks', array('tl_title'), array('tl_from=' . $ut_id), __METHOD__);
@@ -704,11 +1002,6 @@ class Newarticleboost extends SpecialPage {
 			}
 			$dbr->freeResult($res);
 		}
-		$wgOut->addHTML("<h2 class='nap_header'>$expandSpan " . wfMsg('nap_userinfo')
-			. " - <a href=\"{$user_talk->getFullURL()}\" target=\"new\">" . wfMsg('nap_articlelinktext')."</a> $externalLinkImg"
-			. "</h2>");
-		$wgOut->addHTML("<div class='nap_body section_text'>");
-		$contribs = SpecialPage::getTitleFor( 'Contributions', $user->getName() );
 
 		$regDateTxt = "";
 		if ($user->getRegistration() > 0) {
@@ -721,15 +1014,8 @@ class Newarticleboost extends SpecialPage {
 
 		$key = 'nap_userinfodetails_anon';
 		if ($user->getID() != 0) {
-			$key = 'nap_userinfodetails';
+			$key = 'nap_userinfodetails2';
 		}
-		$wgOut->addWikiText(
-			wfMsg($key,
-				$user->getName(),
-				number_format(WikihowUser::getAuthorStats($first_user), 0, "", ","),
-				$title->getFullText(),
-				$regDateTxt)
-		);
 
 		if (WikihowUser::getAuthorStats($first_user) < 50) {
 			if ($user_talk->getArticleId() == 0) {
@@ -741,120 +1027,37 @@ class Newarticleboost extends SpecialPage {
 					$xtra = "max-height: 300px; overflow: scroll;";
 				$output = $wgParser->parse($rp->getText(), $user_talk, $popts);
 				$parserOutput = $output->getText();
-				$wgOut->addHTML("<div style='border: 1px solid #eee; {$xtra}'>" . $parserOutput . "</div>");
+				$userMsg = "<div style='border: 1px solid #eee; {$xtra}' id='nap_talk'>" . $parserOutput . "</div>";
 			}
 		}
 
-		if ($user_talk->getArticleId() != 0
-			&& sizeof($used_templates) > 0)
-		{
-			$wgOut->addHTML('<br />' . wfMsg('nap_usertalktemplates', implode($used_templates, ", ")));
-		}
+		$vars['userInfo'] = wfMessage($key,
+			$user->getName(),
+			number_format(WikihowUser::getAuthorStats($first_user), 0, "", ","),
+			$title->getFullText(),
+			$regDateTxt)->parse();
+		$vars['userTalkUrl'] = $user_talk->getFullURL();
+		$vars['userMsg'] = $userMsg;
+		$vars['userTalkComment'] = $postComment->getForm(true, $user_talk, true);
 
-		$wgOut->addHTML(PostComment::getForm(true, $user_talk, true));
-		$wgOut->addHTML("</div>");
-		$wgOut->addHTML("</div>");
-
-		/// ACTION INFORMATION
+		// ACTION INFORMATION
 		$maxrcid = $dbr->selectField('recentchanges', 'max(rc_id)', array('rc_cur_id=' . $aid), __METHOD__);
-		$wgOut->addHTML("<div class='nap_section minor_section'>");
-		$wgOut->addHTML("<a name='action' id='anchor-action'></a>");
-		$wgOut->addHTML("<h2 class='nap_header'> " . wfMsg('nap_action') . "</h2>");
-		$wgOut->addHTML("<div class='nap_body section_text'>");
-		$wgOut->addHTML("<form action='{$this->me->getFullURL()}' name='nap_form' method='post' onsubmit='return checkNap();'>");
-		$wgOut->addHTML("<input type='hidden' name='target' value='" . htmlspecialchars($title->getText()) . "'/>");
-		$wgOut->addHTML("<input type='hidden' name='page' value='{$aid}'/>");
-		$wgOut->addHTML("<input type='hidden' name='newbie' value='". $wgRequest->getVal('newbie', 0) . "'/>");
-		$wgOut->addHTML("<input type='hidden' name='prevuser' value='" . $user->getName() . "'/>");
-		$wgOut->addHTML("<input type='hidden' name='maxrcid' value='{$maxrcid}'/>");
-		$wgOut->addHTML("<table>");
-		$suggested = $dbr->selectField('suggested_titles', 'count(*)', array('st_title'=>$title->getDBKey()), __METHOD__);
-		if ($suggested > 0) {
-			$wgOut->addHTML("<tr><td valign='top'>" . wfMsg('nap_suggested_warning') . "</td></tr>");
+
+		//$vars['meUrl'] = $this->me->getFullURL();
+		$vars['titleText'] = $title->getText();
+		$vars['userName'] = $user->getName();
+		$vars['maxrcid'] = $maxrcid;
+		//$vars['actionMsg'] = $actionMsg;
+		//$vars['locked'] = $locked;
+		$vars['lockedMsg'] = $lockedMsg;
+		$vars['patrolledMsg'] = $patrolledMsg;
+		$tmpl->set_vars( $vars );
+		$wgOut->addHTML($tmpl->execute('newarticleboost.tmpl.php'));
+
+		if ($noSkin) {
+			$wgOut->disable();
+			echo $wgOut->getHTML();
 		}
-
-		$wgOut->addHTML("</table>");
-		$wgOut->addHTML(wfMsg('nap_actiontemplates'));
-		if ($wgUser->isAllowed( 'delete' )  || $wgUser->isAllowed( 'move' ) ) {
-			$wgOut->addHTML(wfMsg('nap_actionmovedeleteheader'));
-			if ($wgUser->isAllowed( 'move' )) {
-				$wgOut->addHTML(wfMsg('nap_actionmove', htmlspecialchars($title->getText())));
-			}
-			if ($wgUser->isAllowed( 'delete' )) {
-				$wgOut->addHTML(wfMsg('nap_actiondelete'));
-			}
-		}
-
-		// BUTTONS
-		$wgOut->addHTML("<input type='submit' value='" . wfMsg('nap_skip') . "' id='nap_skip' name='nap_skip' class='button secondary' />");
-		if (!$locked)
-			$wgOut->addHTML("<input type='submit' value='" . wfMsg('nap_markaspatrolled') . "' id='nap_submit' name='nap_submit' class='button primary' />");
-		$wgOut->addHTML("</form>");
-		$wgOut->addHTML("</div>");
-		$wgOut->addHTML("</div>");
-
-		$wgOut->addHTML(<<<END
-<script type='text/javascript'>
-
-var tabindex = 1;
-for(i = 0; i < document.forms.length; i++) {
-	for (j = 0; j < document.forms[i].elements.length; j++) {
-		switch (document.forms[i].elements[j].type) {
-			case 'submit':
-			case 'text':
-			case 'textarea':
-			case 'checkbox':
-			case 'button':
-				document.forms[i].elements[j].tabIndex = tabindex++;
-				break;
-			default:
-				break;
-		}
-	}
-}
-
-// Handlers for expand/contract arrows
-(function ($) {
-$('.nap_expand').click(function() {
-	var thisSpan = $(this);
-	var body = thisSpan.parent().next();
-	var footer = body.next();
-	if (body.css('display') != 'none') {
-		footer.hide();
-		body.css('overflow', 'hidden');
-		var oldHeight = body.height();
-		body.animate(
-			{ height: 0 },
-			200,
-			'swing',
-			function () {
-				thisSpan.html('&#9658;');
-				body
-					.hide()
-					.height(oldHeight);
-			});
-	} else {
-		var oldHeight = body.height();
-		body.height(0);
-		body.animate(
-			{ height: oldHeight },
-			200,
-			'swing',
-			function () {
-				thisSpan.html('&#9660;');
-				footer.show();
-				body.css('overflow', 'visible');
-			});
-	}
-	return false;
-});
-})(jQuery);
-
-</script>
-
-END
-);
-
 
 	}
 
@@ -862,10 +1065,7 @@ END
 	 * Special page class entry point
 	 */
 	public function execute($par) {
-		global $wgRequest, $wgUser, $wgOut;
-
-		wfLoadExtensionMessages('Newarticleboost');
-		$target = isset($par) ? $par : $wgRequest->getVal('target');
+		global $wgRequest, $wgUser, $wgOut, $wgLanguageCode;
 
 		if ($wgUser->isBlocked()) {
 			$wgOut->blockedPage();
@@ -877,41 +1077,66 @@ END
 		$opts->setTidy(true);
 		$wgOut->parserOptions($opts);
 		$wgOut->addMeta('X-UA-Compatible', 'IE=8');
+		$wgOut->setRobotpolicy('noindex,nofollow');
 
-		if ( !in_array( 'newarticlepatrol', $wgUser->getRights() ) ) {
+		if ($wgLanguageCode == 'en') {
+			$hasNABrights = in_array( 'newarticlepatrol', $wgUser->getRights() );
+			$this->doAtlasScore = true;
+		} else {
+			$hasNABrights = in_array( 'staff', $wgUser->getGroups() )
+				|| in_array( 'sysop', $wgUser->getGroups() );
+			$this->doAtlasScore = false;
+		}
+		if ( !$hasNABrights ) {
 			$wgOut->setArticleRelated(false);
-			$wgOut->setRobotpolicy('noindex,nofollow');
 			$wgOut->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
 
 		$dbw = wfGetDB(DB_MASTER);
 		$dbr = wfGetDB(DB_SLAVE);
-		$wgOut->setHTMLTitle(wfMsg('nap_page_title'));
 		$this->me = Title::makeTitle(NS_SPECIAL, "Newarticleboost");
 		$this->can_newbie = in_array( 'newbienap', $wgUser->getRights() );
 		$this->do_newbie = $wgRequest->getVal("newbie") == 1
 			&& $this->can_newbie;
+		$this->wantLow = $wgRequest->getVal("low") == "1";
+		$this->sortValue = $wgRequest->getVal("sortValue", 'score');
+		$this->sortOrder = $wgRequest->getVal("sortOrder", 'desc');
+		$this->wantOld = $wgRequest->getVal("old") == "1";
+
+		// We don't care about atlas score on int'l
+		$this->do_score = $wgLanguageCode === 'en';
 
 		$this->skin = $wgUser->getSkin();
-		$wgOut->addHTML('<style type="text/css" media="all">/*<![CDATA[*/ @import "' . wfGetPad('/extensions/min/f/extensions/wikihow/nab/newarticleboost.css&' . self::REVISION) . '"; /*]]>*/</style>');
-		$wgOut->addHTML('<script type="text/javascript">
-			var gAutoSummaryText = "' . wfMsg('nap_autosummary') . '";
-			var gChangesLost = "'.wfMsg('all-changes-lost').'";
-			</script>');
-		$wgOut->addHTML('<script type="text/javascript" src="' . wfGetPad('/extensions/min/?f=skins/common/clientscript.js,extensions/wikihow/nab/newarticleboost.js&' . self::REVISION) . '"></script>');
+		$wgOut->addModuleStyles('ext.wikihow.nab.styles');
+		$wgOut->addModules('ext.wikihow.nab');
+		$wgOut->addModules('ext.wikihow.UsageLogs');
+
+		// We need to add the math styles here
+		// because special pages technically don't contain math tags
+		// so they're not loaded when we go to parse the article
+
+		if ( class_exists( 'MathHooks') ) {
+			$wgOut->addModules( array( 'ext.math.styles' ) );
+			$wgOut->addModules( array( 'ext.math.desktop.styles' ) );
+			$wgOut->addModules( array( 'ext.math.scripts' ) );
+		}
+
+		$target = isset($par) ? $par : $wgRequest->getVal('target');
+		$wgOut->addJsConfigVars("isArticlePage", $target == true);
 
 		if (!$target) {
-			$this->displayNABList($dbw, $dbr);
+			$llr = new NabQueryPage($this->can_newbie, $this->do_newbie, $this->sortValue, $this->sortOrder, $this->wantLow, $this->doAtlasScore, $this->wantOld);
+			$llr->getList();
 		} elseif ($wgRequest->wasPosted()) {
 			$this->doNABAction($dbw);
 		} else {
-			$this->displayNABConsole($dbw, $dbr, $target);
+			$this->displayNABConsole($dbw, $dbr, $target, $wgRequest->getVal('noSkin') == true);
 		}
 	}
 
 	/**
-	 * Place the Rising-star-usertalk-msg on the user's talk page 
+	 * Place the Rising-star-usertalk-msg on the user's talk page
 	 * and emails the user
 	 */
 	public function notifyUserOfRisingStar($title, $name) {
@@ -922,16 +1147,14 @@ END
 			$real_name = $user;
 		}
 
-		$dateStr = $wgLang->timeanddate(wfTimestampNow());
 		$wikitext = "";
-		$article = "";
 
 		$userObj = new User();
 		$userObj->setName($name);
 		$user_talk = $userObj->getTalkPage();
 
 		$comment = '{{subst:Rising-star-usertalk-msg|[['.$title->getText().']]}}' . "\n";
-		$formattedComment = wfMsg('postcomment_formatted_comment', $dateStr, $user, $real_name, $comment);
+		$formattedComment = TalkPageFormatter::createComment( $this->getUser(), $comment );
 
 		if ($user_talk->getArticleId() > 0) {
 			$rev = Revision::newFromTitle($user_talk);
@@ -947,6 +1170,80 @@ END
 		AuthorEmailNotification::notifyRisingStar($title->getText(), $name, $real_name, $user);
 	}
 
+	public function existsInNab($article_id) {
+		$dbr = wfGetDB(DB_SLAVE);
+		$count = $dbr->selectField(Newarticleboost::NAB_TABLE,array('count(*)'),array('nap_page' => $article_id),__METHOD__);
+		$result = ((int)$count > 0) ? true : false;
+		return $result;
+	}
+
+	function sendPromotedMessage($userid, $page) {
+		global $wgRequest;
+
+		if (!$page) return;
+		$t = $page->getTitle();
+
+		//don't show when we're also going to give a rising star (that's yet another talk page message)
+		if ($wgRequest && $wgRequest->getVal('cb_risingstar', null) == "on") return;
+
+		//don't send this if this page won't get indexed (bad templates or some such thing)
+		if (!RobotPolicy::isIndexable($t)) return;
+
+		//don't send this if this page is a redirect
+		if ($t->isRedirect()) return;
+
+		$creator = $page->getCreator();
+		if (!$creator) return;
+		if (!$creator->getOption('promotenotify')) return;
+
+		$talkPage  = $creator->getUserPage()->getTalkPage();
+
+		if ($talkPage) {
+			$submitter = User::newFromID($userid);
+			$text = '';
+			$unformatted_comment = wfMessage('usertalk_promoted_article_message',$t->getText())->text();
+
+			$comment = TalkPageFormatter::createComment(
+				$submitter,
+				$unformatted_comment,
+				true,
+				$t
+			);
+
+			// Send Echo notification
+			if (class_exists( 'EchoEvent' )) {
+				EchoEvent::create(
+					array(
+						'type' => 'edit-user-talk',
+						'title' => $t,
+						'extra' => array(
+							'kudoed-user-id' => $creator->getId()
+						),
+						'agent' => $submitter
+					) );
+			}
+
+			//add to existing?
+			if ($talkPage->exists()) {
+				$revision = Revision::newFromTitle($talkPage);
+				$content = $revision->getContent(Revision::RAW);
+				$text = ContentHandler::getContentText($content);
+			}
+
+			$text .= $comment;
+			$page = WikiPage::factory($talkPage);
+			$content = ContentHandler::makeContent($text, $talkPage);
+
+			// Notify users of usertalk updates
+			AuthorEmailNotification::notifyUserTalk($talkPage->getArticleID(), $submitter->getID(), $unformatted_comment);
+
+			try {
+				$page->doEditContent($content, '', EDIT_SUPPRESS_RC, false, $submitter);
+			} catch (MWException $e) {
+				wfDebugLog( 'CreateFirstArticle', 'exception in ' . __METHOD__ . ':' . $e->getText() );
+			}
+		}
+	}
 }
 
 /**
@@ -974,29 +1271,28 @@ class NABStatus extends SpecialPage {
 		$days = $wgRequest->getVal('days', 1);
 		if ($days == 1) {
 			$wgOut->addHTML(" [". wfMsg('nap_last1day') . "] ");
-			$wgOut->addHTML(" [" . $sk->makeLinkObj($wgTitle, wfMsg('nap_last7day'), "days=7") . "] ");
-			$wgOut->addHTML(" [" . $sk->makeLinkObj($wgTitle, wfMsg('nap_last30day'), "days=30") . "] ");
+			$wgOut->addHTML(" [" . Linker::link($wgTitle, wfMsg('nap_last7day'), array(), array('days' => 7)) . "] ");
+			$wgOut->addHTML(" [" . Linker::link($wgTitle, wfMsg('nap_last30day'), array(), array('days' => 30)) . "] ");
 		} else if ($days == 7) {
-			$wgOut->addHTML(" [" . $sk->makeLinkObj($wgTitle, wfMsg('nap_last1day'), "days=1") . "] ");
+			$wgOut->addHTML(" [" . Linker::link($wgTitle, wfMsg('nap_last1day'), array(), array('days' => 1)) . "] ");
 			$wgOut->addHTML(" [" . wfMsg('nap_last7day') . "] ");
-			$wgOut->addHTML(" [" . $sk->makeLinkObj($wgTitle, wfMsg('nap_last30day'), "days=30") . "] ");
+			$wgOut->addHTML(" [" . Linker::link($wgTitle, wfMsg('nap_last30day'), array(), array('days' => 30)) . "] ");
 		} else if ($days == 30) {
-			$wgOut->addHTML(" [" . $sk->makeLinkObj($wgTitle, wfMsg('nap_last1day'), "days=1") . "] ");
-			$wgOut->addHTML(" [" . $sk->makeLinkObj($wgTitle, wfMsg('nap_last7day'), "days=7") . "] ");
+			$wgOut->addHTML(" [" . Linker::link($wgTitle, wfMsg('nap_last1day'), array(), array('days' => 1)) . "] ");
+			$wgOut->addHTML(" [" . Linker::link($wgTitle, wfMsg('nap_last7day'), array(), array('days' => 7)) . "] ");
 			$wgOut->addHTML(" [" . wfMsg('nap_last30day') . "] ");
-
 		}
 
 		$days_ago = wfTimestamp(TS_MW, time() - 60 * 60 * 24 * $days);
-		$boosted = $dbr->selectField(array('newarticlepatrol', 'page'),
+		$boosted = $dbr->selectField(array(Newarticleboost::NAB_TABLE, 'page'),
 			array('count(*)'),
 			array('page_id=nap_page', 'page_is_redirect=0', 'nap_patrolled=1', "nap_timestamp_ci > '$days_ago'"),
 			__METHOD__);
-		$newarticles = $dbr->selectField(array('newarticlepatrol'),
+		$newarticles = $dbr->selectField(array(Newarticleboost::NAB_TABLE),
 			array('count(*)'),
 			array("nap_timestamp > '$days_ago'"),
 			__METHOD__);
-		$na_boosted = $dbr->selectField(array('newarticlepatrol'),
+		$na_boosted = $dbr->selectField(array(Newarticleboost::NAB_TABLE),
 			array('count(*)'),
 			array("nap_timestamp > '$days_ago'", "nap_patrolled"=>1),
 			__METHOD__);
@@ -1034,7 +1330,7 @@ class NABStatus extends SpecialPage {
 
 		$sql = "SELECT log_user, count(*) AS C
 				  FROM logging WHERE log_type = 'nap'
-				    AND log_timestamp > '$days_ago'
+					AND log_timestamp > '$days_ago'
 				  GROUP BY log_user
 				  ORDER BY C DESC
 				  LIMIT 20";
@@ -1051,10 +1347,10 @@ class NABStatus extends SpecialPage {
 			$user = User::newFromID($row->log_user);
 			$percent = $total == 0 ? "0" : number_format($row->C / $total * 100, 0);
 			$count = number_format($row->C, 0, "", ',');
-			$log = $sk->makeLinkObj(Title::makeTitle( NS_SPECIAL, 'Log'), $count, 'type=nap&user=' .  $user->getName());
+			$log = Linker::link( Title::makeTitle( NS_SPECIAL, 'Log'), $count, array(), array('type' => 'nap', 'user' => $user->getName()) );
 			$wgOut->addHTML("<tr>
 				<td>$index</td>
-				<td>" . $sk->makeLinkObj($user->getUserPage(), $user->getName()) . "</td>
+				<td>" . Linker::link($user->getUserPage(), $user->getName()) . "</td>
 				<td  align='right'>{$log}</td>
 				<td align='right'> $percent % </td>
 				</tr>
@@ -1088,14 +1384,13 @@ class Copyrightchecker extends UnlistedSpecialPage {
 
 		$query = $wgRequest->getVal('query');
 
-		wfLoadExtensionMessages('Newarticleboost');
 
 		$title = Title::newFromURL($target);
 		$rev = Revision::newFromTitle($title);
 		$wgOut->setArticleBodyOnly(true);
 
 		if (!$query) {
-			// Get the text and strip the steps header, any templates, 
+			// Get the text and strip the steps header, any templates,
 			// flatten it to HTML and strip the tags
 			if (!$rev) {
 				echo "Revision for article not found by copyright check";
@@ -1241,9 +1536,9 @@ class NABClean extends UnlistedSpecialPage {
 		global $wgRequest, $wgOut, $wgMemc;
 		$target = isset($par) ? $par : $wgRequest->getVal('page');
 		$dbw = wfGetDB(DB_MASTER);
-		$in_nab = $dbw->selectField('newarticlepatrol', 'count(*)', array('nap_page' => $target), __METHOD__);
+		$in_nab = $dbw->selectField(Newarticleboost::NAB_TABLE, 'count(*)', array('nap_page' => $target), __METHOD__);
 		if ($in_nab) {
-			$dbw->delete('newarticlepatrol', array('nap_page' => $target), __METHOD__);
+			$dbw->delete(Newarticleboost::NAB_TABLE, array('nap_page' => $target), __METHOD__);
 			$wgMemc->delete( self::getNabbedCachekey($target) );
 			$wgOut->addHTML('<p>Deleted from NAB.</p>');
 		} else {
@@ -1254,3 +1549,259 @@ class NABClean extends UnlistedSpecialPage {
 
 }
 
+/**
+ * AJAX server-side code for the "nabbed" functionality from article pages.
+ */
+class NABPatrol extends UnlistedSpecialPage {
+
+	public function __construct() {
+		parent::__construct('NABPatrol', '', false, true);
+	}
+
+	public function execute($par) {
+		global $wgRequest;
+
+		$out = $this->getContext()->getOutput();
+		$user = $this->getUser();
+
+		$out->setArticleBodyOnly(true);
+
+		if ( !in_array( 'newarticlepatrol', $user->getRights()) && !in_array( 'sysop', $user->getGroups() ) ) {
+			$result['err'] = true;
+			$result['msg'] = "You do not have permission to promote this article.";
+			echo json_encode($result);
+			return;
+		} else {
+			$dbw = wfGetDB(DB_MASTER);
+			$aid = $wgRequest->getVal("aid", null);
+			if($aid == null) {
+				$result['err'] = true;
+				$result['msg'] = "No article ID provided.";
+				echo json_encode($result);
+				return;
+			}
+			if ($wgRequest->getVal("demote") == '1') {
+				//DEMOTING
+				$demoted = Newarticleboost::isDemotedNoDb($aid);
+				if($demoted) {
+					$result['err'] = true;
+					$result['msg'] = "The article has already been demoted by another user.";
+					echo json_encode($result);
+					return;
+				}
+				Common::log('NABPatrol::execute - demote', $aid, Title::newFromID($aid));
+				NewArticleBoost::demoteArticle($dbw, $aid, $user->getId(), false);
+
+				$result['msg'] = wfMessage('nab_warning_demote_done')->text();
+
+				$title = Title::newFromID($aid);
+				if($title) {
+					//need to log this demotion too!
+					$params = array($aid);
+					$log = new LogPage('nap', false);
+					$log->addEntry( 'nap', $title, wfMsg('nap_logsummary_demote_admin', $title->getFullText()), $params );
+				}
+			}
+			else {
+				//PROMOTING
+				$patrolled = Newarticleboost::isNABbedNoDb($aid);
+				if($patrolled) {
+					$result['err'] = true;
+					$result['msg'] = "The article has already been patrolled by another user.";
+					echo json_encode($result);
+					return;
+				}
+				Common::log('NABPatrol::execute - promote', $aid, Title::newFromID($aid));
+				NewArticleBoost::markNabbed($dbw, $aid, $user->getId(), false);
+				wfRunHooks("NABArticleFinished", array($aid));
+
+				$result['msg'] = wfMessage('Nab_warning_done')->text();
+
+				$title = Title::newFromID($aid);
+				if($title) {
+					//need to log this promotion too!
+					$params = array($aid);
+					$log = new LogPage('nap', false);
+					$log->addEntry( 'nap', $title, wfMsg('nap_logsummary_admin', $title->getFullText()), $params );
+				}
+			}
+
+			$result['err'] = false;
+			echo json_encode($result);
+		}
+	}
+
+}
+
+class NabQueryPage extends QueryPage {
+
+	private $canNewbie;
+	private $doNewbie;
+	private $sortValue;
+	private $sortOrder;
+	private $wantLow;
+	private $wantOld;
+
+	function __construct($canNewbie, $doNewbie, $sortValue, $sortOrder, $wantLow, $doAtlasScore=true, $wantOld = false) {
+		global $wgHooks;
+		$this->canNewbie = $canNewbie;
+		$this->doNewbie = $doNewbie;
+		$this->sortValue = $sortValue;
+		$this->sortOrder = $sortOrder;
+		$this->wantLow = $wantLow;
+		$this->doAtlasScore = $doAtlasScore;
+		$this->wantOld = $wantOld;
+		parent::__construct('Newarticleboost');
+		$this->listoutput = false;
+
+
+		$wgHooks['wgQueryPagesNoResults'][] = array("NabQueryPage::wfQueryNoResults");
+	}
+
+	function wfQueryNoResults(&$msg) {
+		$msg = "nabnoresults";
+		return true;
+	}
+
+	function sortDescending() {
+		return $this->sortOrder == "desc";
+	}
+
+	function linkParameters() {
+		return array('sortOrder' => $this->sortOrder, 'sortValue' => $this->sortValue, 'low' => $this->wantLow, 'old' => $this->wantOld);
+	}
+
+	function getName() {
+		return "Newarticleboost";
+	}
+
+	function isSyndicated() { return false; }
+
+	function getOrderFields() {
+		switch ($this->sortValue) {
+			case 'score':
+				return array('nap_atlas_score', 'nap_page');
+			case 'date':
+				return array('nap_timestamp');
+		}
+
+	}
+
+	function getSQL() {
+		$req = $this->getRequest();
+		if ($req && $req->getVal('scored')) {
+			$score_opt = $this->doAtlasScore ? "AND nap_atlas_score >= 0" : '';
+		} else {
+			$six_hours_ago = wfTimestamp(TS_MW, time() - 6 * 60 * 60);
+			$score_opt = $this->doAtlasScore ? "AND (nap_atlas_score >= 0 OR nap_timestamp < '$six_hours_ago')" : '';
+		}
+		$newbie_opt = $this->doNewbie ? 'AND nap_newbie = 1' : '';
+		$low_opt = $this->wantLow ? ' AND nap_atlas_score < 30' : '';
+		$old_opt = $this->wantOld ? ' AND nap_timestamp <= "' . Newarticleboost::BACKLOG_DATE . '" ' : ' AND nap_timestamp > "' . Newarticleboost::BACKLOG_DATE . '" ';
+
+		$one_hour_ago = wfTimestamp(TS_MW, time() - 60 * 60);
+
+		$sql = "SELECT page_namespace, page_title, nap_timestamp,
+					nap_page, nap_atlas_score
+				  FROM " . Newarticleboost::NAB_TABLE . ", page
+					LEFT JOIN templatelinks ON tl_from = page_id
+					  AND tl_title = 'Inuse'
+				  WHERE page_id = nap_page
+					AND page_is_redirect = 0
+					AND nap_patrolled = 0
+					AND nap_timestamp < '$one_hour_ago'
+					AND nap_demote = 0
+					AND tl_title is NULL
+					{$score_opt} {$newbie_opt} {$low_opt} {$old_opt}";
+		return $sql;
+	}
+
+	function getColumnHeader($param) {
+		switch ($param) {
+			case "page":
+				return "Article";
+			case "score":
+				return "Score";
+			case "date":
+				return "Created";
+		}
+	}
+
+	function openList( $offset ) {
+		$html = "\n<ol start='" . ( $offset + 1 ) . "' class='special nablist section_text'>\n";
+		$html .= "<li class='toprow'><span>Article</span><span>";
+
+		$pageTarget = "/Special:Newarticleboost?sortValue=";
+		$linkClass = "active {$this->sortOrder}";
+		$low = $this->wantLow ? '&low=1' : '';
+		$old = $this->wantOld ? '&old=1' : '';
+
+		foreach(array('score', 'date') as $param) {
+			$class = "";
+			$order = "";
+			if($this->sortValue == $param) {
+				$class = $linkClass;
+				if($this->sortOrder == "desc") {
+					$order = "&sortOrder=asc";
+				}
+			}
+			$html .= "<a class='{$class}' href='{$pageTarget}{$param}{$order}{$low}{$old}'>" . $this->getColumnHeader($param) . "</a></span><span>";
+		}
+
+		return $html;
+	}
+
+	function formatResult( $skin, $result ) {
+		$title = Title::makeTitle($result->page_namespace, $result->page_title);
+		$specialPage = SpecialPage::getTitleFor( 'Newarticleboost', $title->getPrefixedText() );
+		if ($this->doNewbie) {
+			$linkAttribs = array(
+				"newbie" => 1,
+				"page" => $result->nap_page);
+		} else {
+			$linkAttribs = array(
+				"page" => $result->nap_page,
+				"sortValue" => $this->sortValue,
+				"sortOrder" => $this->sortOrder);
+			if ($this->wantLow) $linkAttribs["low"] = 1;
+			if ($this->wantOld) $linkAttribs["old"] = 1;
+		}
+		$nabResultLink = Linker::link($specialPage, $title->getText(), array(), $linkAttribs);
+		$scoreText = $result->nap_atlas_score < 0 ? "<i>unscored</i>" : $result->nap_atlas_score;
+		$html =  "<span class='link'>" . $nabResultLink . "</span>";
+		$html .= "<span class='nap_score'>" . $scoreText . "</span>";
+		if ($result->nap_timestamp != '') {
+			$dateStr = date('n/j/Y', wfTimestamp(TS_UNIX, $result->nap_timestamp));
+			$html .= "<span class='nap_date'>" . $dateStr . "</span>";
+		}
+
+		return $html;
+	}
+
+	function getList() {
+		list( $limit, $offset ) = wfCheckLimits();
+		$this->limit = $limit;
+		$this->offset = $offset;
+		$out = $this->getOutput();
+		$out->addHTML("<div class='minor_section'>");
+		if($this->wantOld) {
+			$out->addHTML("Total left: " . Newarticleboost::getNABCountOld());
+		}
+		$lowUrl =  "/Special:Newarticleboost?".($this->doNewbie ? "newbie=1&":"")."sortValue={$this->sortValue}&sortOrder={$this->sortOrder}" . (!$this->wantLow?"&low=1":"") . ($this->wantOld?"&old=1":"");
+		$out->addHTML("<span id='low_wrap'>Low Rated <input id='low_url' type='hidden' value='{$lowUrl}' /><input type='checkbox' id='nap_low' " . ($this->wantLow?"checked":"") . " /></span>");
+		if ($this->canNewbie) {
+			$btn_class = "style='margin-bottom: 10px; margin-top:10px; clear:right;' class='button secondary buttonright'";
+			if ($this->doNewbie) {
+				$out->addHTML("<a $btn_class href='/Special:Newarticleboost'>All articles</a>");
+			} else {
+				$out->addHTML("<a $btn_class href='/Special:Newarticleboost?newbie=1'>Newbie articles</a>");
+			}
+		}
+
+		parent::execute('');
+
+		$out->addHTML("</div>");
+
+		return;
+	}
+}

@@ -1,4 +1,3 @@
-<?=$css?>
 <script type='text/javascript'>
 $('a.rct_detail').live('click', function(e) {
 	var id = $(this).attr('id');
@@ -7,10 +6,11 @@ $('a.rct_detail').live('click', function(e) {
 	$('#dialog-box').html('');
 	$('#dialog-box').load('/Special:RCTestAdmin?a=detail&uid=' + id[1], function() {
 		jQuery('#dialog-box').dialog({
-			width: 670,
+			width: 700,
+			height: 400,
 			modal: true,
 			title: title,
-			closeText: 'Close',
+			closeText: 'x',
 		});
 	});
 });

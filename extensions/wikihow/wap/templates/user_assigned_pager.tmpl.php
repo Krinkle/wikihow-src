@@ -7,6 +7,7 @@
 		<th>Categories</th>
 		<th>Reserved Date</th>
 		<th>Process</th>
+		<th>Notes</th>
 	</thead>
 	<tbody>
 		<?=$assigned?>

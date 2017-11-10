@@ -55,7 +55,7 @@ class VideoPage extends Article {
 		# Show shared description, if needed
 		if ( $this->mExtraDescription ) {
 			$fol = wfMsgNoTrans( 'shareddescriptionfollows' );
-			if( $fol != '-' && !wfEmptyMsg( 'shareddescriptionfollows', $fol ) ) {
+			if( $fol != '-' && !wfMessage( 'shareddescriptionfollows' )->isBlank() ) {
 				$wgOut->addWikiText( $fol );
 			}
 			$wgOut->addHTML( '<div id="shared-image-desc">' . $this->mExtraDescription . '</div>' );

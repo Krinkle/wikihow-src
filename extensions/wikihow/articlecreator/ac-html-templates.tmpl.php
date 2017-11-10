@@ -18,7 +18,7 @@
 </script>
 
 <script type="text/html" id="ac_method_tmpl">
-	<li class='ac_method' id='$id'>
+	<li class='ac_method section' id='$id'>
 		<div class='ac_method_info'>
 			<div class='ac_method_controls'>
 				<span class='ac_method_tools'>		 			
@@ -37,8 +37,7 @@
 				<input type='text' class='ac_edit_method_text' placeholder='<?=$nameMethodPlaceholder?>'></input>				
 			</div>
 		</div>
-		<h2>Steps</h2>
-		<div class='ac_desc'><?=$desc?></div>
+		<h2><span class='mw-headline'>Steps</span><span class='ac_desc'><?=$desc?></span></h2>
 		<div class='ac_editor'>
 			<div class='ac_content' class='ui-draggable'>
 				<ul class='ac_lis'></ul>

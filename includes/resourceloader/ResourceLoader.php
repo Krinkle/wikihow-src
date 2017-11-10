@@ -135,7 +135,7 @@ class ResourceLoader {
 	 * @param string $data Text to filter, such as JavaScript or CSS text
 	 * @return String: Filtered data, or a comment containing an error message
 	 */
-	protected function filter( $filter, $data ) {
+	public function filter( $filter, $data ) {
 		global $wgResourceLoaderMinifierStatementsOnOwnLine, $wgResourceLoaderMinifierMaxLineLength;
 		wfProfileIn( __METHOD__ );
 
@@ -1164,7 +1164,8 @@ class ResourceLoader {
 
 		// Prevent the IE6 extension check from being triggered (bug 28840)
 		// by appending a character that's invalid in Windows extensions ('*')
-		return wfExpandUrl( wfAppendQuery( $wgLoadScript, $query ) . '&*', PROTO_RELATIVE );
+		$url = wfExpandUrl( wfAppendQuery( $wgLoadScript, $query ) . '&*', PROTO_RELATIVE );
+		return $url;
 	}
 
 	/**

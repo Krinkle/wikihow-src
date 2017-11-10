@@ -74,12 +74,13 @@ class SpellcheckerAppWidget extends DashboardWidget {
 	 * Returns the number of changes left to be patrolled.
 	 */
 	public function getCount(&$dbr){
-		$sql = "SELECT count(*) as C from spellchecker WHERE sc_errors = '1' and sc_dirty = '0';";
-		$res = $dbr->query($sql);
+		$sql = "SELECT count(*) as C from spellchecker WHERE sc_errors = '1' and sc_dirty = '0' and sc_exempt = '0';";
+		$res = $dbr->query($sql, __METHOD__);
 
 		$row = $dbr->fetchRow($res);
-		$res->free();
-		return $row['C'];
+		$count = $row ? $row['C'] : 0;
+		if ($res) $res->free();
+		return $count;
 	}
 
 	public function getUserCount(&$dbr){
@@ -98,7 +99,7 @@ class SpellcheckerAppWidget extends DashboardWidget {
 	 * Gets data from the Leaderboard class for this widget
 	 */
 	public function getLeaderboardData(&$dbr, $starttimestamp){
-		$data = Leaderboard::getSpellchecked($starttimestamp);
+		$data = LeaderboardStats::getSpellchecked($starttimestamp);
 		arsort($data);
 
 		return $data;
@@ -110,9 +111,6 @@ class SpellcheckerAppWidget extends DashboardWidget {
 	}
 
 	public function isAllowed($isLoggedIn, $userId=0){
-		if(!$isLoggedIn)
-			return false;
-		else
 			return true;
 	}
 

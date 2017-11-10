@@ -38,7 +38,7 @@ $wgExtraNamespaces[NS_VIDEO_TALK] = "Video_talk";
 $wgExtraNamespaces[NS_VIDEO_COMMENTS] = "VideoComments";
 $wgExtraNamespaces[NS_VIDEO_COMMENTS_TALK] = "VideoComments_talk";
 
-$wgImportVideoSources = array("youtube", "howcast");
+$wgImportVideoSources = array( 'youtube' );
 $wgImportVideoBadUsers = array("expertvillage", "ehow", "videojug", "howcast");
 
 $wgLogTypes[]               = 'vidsfornew';
@@ -47,3 +47,13 @@ $wgLogHeaders['vidsfornew'] = 'vidsfornewtext';
 $wgLogActions['vidsfornew/added'] = 'vidsfornew_logsummary';
 
 $wgHowcastAPIKey = WH_HOWCAST_API_KEY;
+
+$wgResourceModules['ext.wikihow.ImportVideo'] = [
+    'localBasePath' => __DIR__,
+    'targets' => [ 'desktop' ],
+    'remoteExtPath' => 'wikihow',
+	'styles' => [ 'importvideo.css' ],
+	'scripts' => [ 'importvideo.js' ],
+	'dependencies' => [ 'ext.wikihow.common_top', 'jquery.ui.dialog' ],
+    'position' => 'top' ];
+

@@ -1,7 +1,7 @@
 <?php
 
 if ( !defined('MEDIAWIKI') ) die();
-    
+
 $wgExtensionCredits['specialpage'][] = array(
 	'name' => 'Quizzes',
 	'author' => 'Scott Cushman',
@@ -18,6 +18,19 @@ $wgAutoloadClasses['AdminQuizzes'] = dirname( __FILE__ ) . '/AdminQuizzes.body.p
 $wgGroupPermissions['*']['AdminQuizzes'] = false;
 $wgGroupPermissions['staff']['AdminQuizzes'] = true;
 
+$wgResourceModules['ext.wikihow.quizzes'] = [
+	'styles' => ['quizzes.css'],
+	'scripts' => [
+		'quizzes.js',
+		//'interstitialCookie.js',
+	],
+	'localBasePath' => __DIR__,
+	'remoteExtPath' => 'wikihow/quizzes',
+	'position' => 'top',
+	'targets' => ['desktop', 'mobile'],
+	'dependencies' => ['ext.wikihow.common_top'],
+];
+
 $wgHooks['WebRequestPathInfoRouter'][] = array('wfGetQuizPage');
 $wgHooks["BeforeParserFetchFileAndTitle2"][] = array("wfGrabQuizCTA");
 $wgHooks["ArticleSaveComplete"][] = array("wfConnectQuiz");
@@ -29,7 +42,7 @@ function wfGrabQuizCTA(&$parser, &$nt, &$ret, $ns) {
 		//remove the namespace and colon
 		$nt = preg_replace('@'.$wgCanonicalNamespaceNames[$ns].':@','',$nt);
 		//do it
-		$ret = Quizzes::GrabQuizCTA($nt, $parser->mTitle);
+		$ret = Quizzes::grabQuizCTA($nt, $parser->mTitle);
 	}
 	return true;
 }

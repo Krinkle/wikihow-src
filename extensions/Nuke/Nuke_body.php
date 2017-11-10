@@ -10,6 +10,7 @@ class SpecialNuke extends SpecialPage {
 		if ( !$this->userCanExecute( $this->getUser() ) ) {
 			$this->displayRestrictionError();
 		}
+
 		$this->setHeaders();
 		$this->outputHeader();
 

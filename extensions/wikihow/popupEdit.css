@@ -27,7 +27,7 @@ left: 0px;
 
 .editModalContainer {
 	position: relative;
-	top: 10%;
+	top: 12%;
 	left: 22%; /*to center the quick edit window */
 	z-index: 1000;
 	width: 690px;
@@ -52,7 +52,7 @@ left: 0px;
 	border-bottom: 1px dashed #999;
 }
 
-#modal_logo { 
+#modal_logo {
 	margin: 5px;
 }
 
@@ -91,8 +91,8 @@ margin-bottom: 1em;
 	text-align: center;
 	font-size:	85%;
 }
-	
-	
+
+
 
 div.nap_header {
        font-size:		1.2em;
@@ -101,7 +101,7 @@ div.nap_header {
        background:     	#CDB;
        padding:         5px;
        margin:        	 0 -8px 5px -8px;
-}	
+}
 div.nap_section {
        border:       	1px solid #555;
        margin-top:      15px;
@@ -128,7 +128,7 @@ div.nap_footer {
 .templatesUsed {
 	display:none;
 }
-	
+
 #nap_skip, #nap_submit {
         font-size: 100%;
         font-weight: bold;
@@ -178,8 +178,7 @@ table.status td {
 }
 #article_contents {
 	margins: 0;
-	padding: 0;
-	width:670px;
+	padding: 0 10px 0 0;
 	height:460px;
 	overflow-y:auto;
 	overflow-x:auto;
@@ -189,7 +188,7 @@ table.status td {
 	margin-left:0;
 }
 
-#easyimageupload_button, #weave_button { display: none; }
+#imageupload_button, #weave_button { display: none; }
 
 .spam-error {
 	color:red;

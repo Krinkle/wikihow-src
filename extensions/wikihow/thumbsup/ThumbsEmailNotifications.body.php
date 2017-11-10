@@ -1,4 +1,4 @@
-<?
+<?php
 
 class ThumbsEmailNotifications extends UnlistedSpecialPage {
 
@@ -35,18 +35,18 @@ class ThumbsEmailNotifications extends UnlistedSpecialPage {
 	}
 
 	function sendEmail(&$u, &$content) {
-		global $wgServer;
-		wfLoadExtensionMessages('ThumbsEmailNotifications');
+		global $wgIsDevServer;
+
 		$email = $u->getEmail();
 		$userText = $u->getName();
 
 		$semi_rand = md5(time());
 		$mime_boundary = "==MULTIPART_BOUNDARY_$semi_rand";
 		$mime_boundary_header = chr(34) . $mime_boundary . chr(34);
-
 		$userPageLink = self::getUserPageLink($userText);
-		$html_text = wfMsg('tn_email_html', wfGetPad(''), $userPageLink, $content);
-		$plain_text = wfMsg('tn_email_plain', $userText, $u->getTalkPage()->getFullURL());
+		$link = UnsubscribeLink::newFromId($u->getId());
+		$html_text = wfMsg('tn_email_html', wfGetPad(''), $userPageLink, $content, $link->getLink());
+		$plain_text = wfMsg('tn_email_plain', $userText, $u->getTalkPage()->getCanonicalURL(), $link->getLink());
 
 		$body = "This is a multi-part message in MIME format.
 
@@ -64,25 +64,20 @@ $html_text";
 
 			$from = new MailAddress (wfMsg('aen_from'));
 			$subject =  "Congratulations! You just got a thumbs up";
-
-			$isDev = false;
-			if (strpos($_SERVER['HOSTNAME'],"wikidiy.com") !== false || strpos($wgServer, "wikidiy.com") !== false) {
+			
+			if ( $wgIsDevServer ) {
 				wfDebug("AuthorEmailNotification in dev not notifying: TO: ".  $userText .",FROM: $from_name\n");
-				$isDev = true;
-				$subject = "[FROM DEV] $subject";
 			}
 		
-			if (!$isDev) {
-				$to = new MailAddress ($email);
-				UserMailer::send($to, $from, $subject, $body, null, "multipart/alternative;\n" .
-				"     boundary=" . $mime_boundary_header) ;
-			}
+			$to = new MailAddress ($email);
+			UserMailer::send($to, $from, $subject, $body, null, "multipart/alternative;\n" .
+							"     boundary=" . $mime_boundary_header, "thumbs_up") ;
 
 			// send one to our test email account for debugging
 			/*
 			$to = new MailAddress ('elizabethwikihowtest@gmail.com');
 			UserMailer::send($to, $from, $subject, $body, null, "multipart/alternative;\n" .
-							"     boundary=" . $mime_boundary_header) ;
+							"     boundary=" . $mime_boundary_header, "thumbs_up") ;
 			*/
 			return true;
 
@@ -139,7 +134,9 @@ $html_text";
 			$diffLink = self::formatDiffLink($pageId, $revId);
 			$pageLink = self::formatPageLink($pageId);
 			$givers = self::formatGivers($notification['givers']);
-			$html .= wfMsg('th_notification_email', $givers, $diffLink, $pageLink) . "<br><br>";
+			$pre = "<tr nowrap><td style=\"padding:10px 20px 10px 20px; text-align:center;\">-</td><td style=\"padding-top:10px; padding-bottom:10px;\">";
+			$post = "</td></tr>";
+			$html .= $pre . wfMsg('th_notification_email', $givers, $diffLink, $pageLink) . $post;
 		}
 		return $html;
 	}
@@ -150,7 +147,7 @@ $html_text";
 		$t = Title::newFromID($pageId);
 		$diff = "";
 		if ($t->getArticleId() > 0) {
-			$diff = "<a href='{$t->getFullURL()}?diff=$revId&oldid=PREV'>$label</a>";
+			$diff = "<a href='{$t->getCanonicalURL()}?diff=$revId&oldid=PREV'>$label</a>";
 		}
 		return $diff;
 	}
@@ -161,7 +158,7 @@ $html_text";
 		$t = Title::newFromID($pageId);
 		$page = "";
 		if ($t->getArticleId() > 0) {
-			$page = "<a href='{$t->getFullURL()}'>{$t->getFullText()}</a>";
+			$page = "<a href='{$t->getCanonicalURL()}'>{$t->getFullText()}</a>";
 		}
 		return $page;
 	}
@@ -199,7 +196,7 @@ $html_text";
 		if ($u) {
 			$t = $u->getTalkPage();	
 			if ($t) {
-				$uTalkPage = "<a href='{$t->getFullUrl()}'>$userText</a>";
+				$uTalkPage = "<a href='{$t->getCanonicalURL()}'>$userText</a>";
 			}
 		}
 		return $uTalkPage;
@@ -212,7 +209,7 @@ $html_text";
 		if ($u) {
 			$t = $u->getUserPage();	
 			if ($t) {
-				$uPage = "<a href='{$t->getFullUrl()}'>$userText</a>";
+				$uPage = "<a href='{$t->getCanonicalURL()}'>$userText</a>";
 			}
 		}
 		return $uPage;

@@ -59,4 +59,40 @@ class LanguageJa extends Language {
 	function emphasize( $text ) {
 		return $text;
 	}
+
+	/**
+	 * Added by Alberto (wikiHow)
+	 *
+	 * @param $text string
+	 * @return string
+	 */
+	function segmentForDiff($text) {
+		$pattern = $this->getSegmentPattern();
+		return preg_replace("/$pattern/", ' $0', $text);
+	}
+
+	/**
+	 * Added by Alberto (wikiHow)
+	 *
+	 * @param $text string
+	 * @return string
+	 */
+	function unsegmentForDiff($text) {
+		$pattern = $this->getSegmentPattern();
+		return preg_replace("/ ($pattern)/", '$1', $text);
+	}
+
+	/**
+	 * Added by Alberto (wikiHow)
+	 *
+	 * @return string
+	 */
+	private function getSegmentPattern() {
+		# Regular expressions on UTF-8 bytes
+		$hiragana = '(?:\xe3(?:\x81[\x80-\xbf]|\x82[\x80-\x9f]))'; # U+3040-U+309F
+		$katakana = '(?:\xe3(?:\x82[\xa0-\xbf]|\x83[\x80-\xbf]))'; # U+30A0-U+30FF
+		# Don't group Kanji: runs can be very long, and Kanji tend to disambiguate themselves well
+		$nonBasicLatin = '(?:[\xc0-\xff][\x80-\xbf]*)'; # U+0080-U+10FFFF
+		return "$hiragana+|$katakana+|$nonBasicLatin";
+	}
 }

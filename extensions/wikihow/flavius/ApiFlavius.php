@@ -15,5 +15,3 @@ $wgExtensionCredits['api'][] = array(
 $wgAutoloadClasses['ApiFlavius'] = dirname( __FILE__ ) . '/ApiFlavius.body.php';
 
 $wgAPIModules['flavius'] = 'ApiFlavius';
-
-

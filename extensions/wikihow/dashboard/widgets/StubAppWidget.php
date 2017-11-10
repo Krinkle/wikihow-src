@@ -114,7 +114,7 @@ class StubAppWidget extends DashboardWidget {
 	 */
 	public function getLeaderboardData(&$dbr, $starttimestamp){
 
-		$data = Leaderboard::getArticlesRepaired($starttimestamp, 'stub');
+		$data = LeaderboardStats::getArticlesRepaired($starttimestamp, 'stub');
 		arsort($data);
 
 		return $data;

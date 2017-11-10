@@ -1,7 +1,7 @@
 <?php
 
 /**********************
- * 
+ *
  *  Here are all the ad units we have currently:
  *  intro: At the bottom of the intro
  *  0: Text ad after the first step
@@ -13,95 +13,310 @@
  *  6: Docviewer2: Image ad at the top of the samples page
  *  7: Docviewer3: Text ads at the bottom of the samples page
  *  8: Linkunit2: Link unit in the right rail
- * 
+ *
  *********************/
 
 if (!defined('MEDIAWIKI')) die();
 
 class wikihowAds {
-	
+
 	static $mGlobalChannels = array();
 	static $mGlobalComments = array();
+	static $mDfpUnits = array();
+	static $mDfpCategory = null;
 	public static $mCategories = array();
+	static $mCategoriesSet = false;
+	static $mTopLevelCategory = null;
 
-	var $adsLoaded = false;
+	public static $mDesktopDfpCategoryInfo  = array(
+		'Health' => array(
+			'name' => 'Health',
+			'targeting' => 'du8y3d'
+		),
+		'Arts-and-Entertainment' => array(
+			'name' => 'ArtsEntertainment',
+			'targeting' => 'fq2ja1'
+		),
+		'Food-and-Entertaining' => array(
+			'name' => 'FoodEntertaining',
+			'targeting' => 'at4gnq'
+		),
+		'Pets-and-Animals' => array(
+			'name' => 'PetsAnimals',
+			'targeting' => 'msddfv'
+		),
+		'Sports-and-Fitness' => array(
+			'name' => 'SportsFitness',
+			'targeting' => 'kldq5k'
+		),
+		'Cars-&-Other-Vehicles' => array(
+			'name' => 'CarsVehicles',
+			'targeting' => 'h730qx'
+		),
+		'Travel' => array(
+			'name' => 'Travel',
+			'targeting' => 'dmh3g7'
+		),
+		'Computers-and-Electronics' => array(
+			'name' => 'ComputersElectronics',
+			'targeting' => 'pzw484'
+		),
+		'Education-and-Communications' => array(
+			'name' => 'EducationCommunications',
+			'targeting' => 'g0492s'
+		),
+		'Work-World' => array(
+			'name' => 'WorkWorld',
+			'targeting' => 'xxvbh8'
+		),
+		'Family-Life' => array(
+			'name' =>'Family',
+			'targeting' => 'yp5ls2'
+		),
+		'Finance-and-Business' => array(
+			'name' => 'FinanceBusiness',
+			'targeting' => 'do6iwc'
+		),
+		'Hobbies-and-Crafts' => array(
+			'name' => 'HobbiesCrafts',
+			'targeting' => 'ft9nd3'
+		),
+		'Holidays-and-Traditions' => array(
+			'name' => 'HolidaysTraditions',
+			'targeting' => 'grute5'
+		),
+		'Home-and-Garden' => array (
+			'name' => 'HomeGarden',
+			'targeting' => 'gw0bcg'
+		),
+		'Other' => array(
+			'name' => 'Other',
+			'targeting' => 'sw181a'
+		),
+		'Personal-Care-and-Style' => array(
+			'name' => 'PersonalCareStyle',
+			'targeting' => 'jqar4r'
+		),
+		'WikiHow' => array(
+			'name' => 'WikiHow',
+			'targeting' => 'zn61ho'
+		),
+		'Youth' => array(
+			'name' => 'Youth',
+			'targeting' => 'czmmhl'
+		),
+		'Philosophy-and-Religion' => array(
+			'name' => 'PhilosophyReligion',
+			'targeting' => 'dfswr3'
+		),
+		'Relationships' => array(
+			'name' => 'Relationships',
+			'targeting' => 'fgfev6'
+		)
+	);
+
+	static $mDesktopDfpAccount = "10095428";
+	static $mDesktopDfpRandom = "div-gpt";
+
+	static $mDesktopDfpNames = array(
+		0 => '_First-Step_Desktop',
+		1 => array(
+			0 => '_Tips-L_300x250_Desktop',
+			1 => '_Tips-R_300x250_Desktop'
+		),
+		2 => '_Method1_Desktop',
+		3 => '_Method2_Desktop',
+		4 => '_Method3_Desktop',
+		5 => '_Method4_Desktop',
+		6 => '_Method5_Desktop',
+		7 => '_Method-Last_Desktop',
+		8 => array(
+			0 => '_Tips-L_300x250_Desktop',
+			1 => '_Tips-R_300x250_Desktop'
+		),
+		9 => '_RR_2_English_Desktop',
+		10 => '_RR_3_English_Desktop',
+	);
+
+	static $mDesktopIdNames = array(
+		0 => '-First-Step',
+		1 => array(
+			0 => '-Tips-L',
+			1 => '-Tips-R'
+		),
+		2 => '-Method1',
+		3 => '-Method2',
+		4 => '-Method3',
+		5 => '-Method4',
+		6 => '-Method5',
+		7 => '-Method-Last',
+		8 => array(
+			0 => '-Tips-L',
+			1 => '-Tips-R'
+		),
+		9 => '-ad-rr-second',
+		10 => '-ad-rr-third'
+	);
+
+	static $mDesktopDfpSizes = array(
+		0 => '[728, 90]',
+		1 => '[300, 250]',
+		2 => '[728, 90]',
+		3 => '[728, 90]',
+		4 => '[728, 90]',
+		5 => '[728, 90]',
+		6 => '[728, 90]',
+		7 => '[728, 90]',
+		8 => '[300, 250]',
+		9 => '[300, 250]',
+		10 => '[300, 250]'
+	);
+
+	static $mDesktopDfpLazy = array(
+		0 => "false",
+		1 => "false",
+		2 => "false",
+		3 => "false",
+		4 => "false",
+		5 => "false",
+		6 => "false",
+		7 => "false",
+		8 => "false",
+		9 => "true",
+		10 => "true");
+
+	static $mIntlRightRailUnits = array(
+		'default' => array('/10095428/Chinese_300x250', '[300, 250]', 'div-gpt-ad-RR-intl', "false"),
+		'de' => array('/10095428/German_300x250', '[300, 250]', 'div-gpt-ad-RR-intl', "false"),
+		'es' => array('/10095428/Spanish_300x250', '[300, 250]', 'div-gpt-ad-RR-intl', "false"),
+		'fr' => array('/10095428/French_300x250', '[300, 250]', 'div-gpt-ad-RR-intl', "false"),
+		'it' => array('/10095428/Italian_300x250', '[300, 250]', 'div-gpt-ad-RR-intl', "false"),
+		'nl' => array('/10095428/Dutch_300x250', '[300, 250]', 'div-gpt-ad-RR-intl', "false"),
+		'pt' => array('/10095428/Portuguese_300x250', '[300, 250]', 'div-gpt-ad-RR-intl', "false"),
+		'ru' => array('/10095428/Russian_300x250', '[300, 250]', 'div-gpt-ad-RR-intl', "false"),
+		'ja' => array('/10095428/Japan_300x250', '[300, 250]', 'div-gpt-ad-RR-intl', "false")
+	);
+
 	var $ads;
-	static $isABTest = null;
-	static $hasAltMethods = false;
-	
-	function wikihowAds() {
+	static $mTimeout = 625;
+
+	public function __construct() {
 		$this->ads = array();
 	}
-	
-	public static function getSetup() {
-		global $wgUser, $IP, $wgMemc;
-		
-		$isHHM = wikihowAds::isHHM();
-		$isABTest = wikihowAds::isABTestArticle();
-		$cachekey = wfMemcKey('ads_setup', intval($isHHM), intval($isABTest), WH_SITEREV);
-		//$html = $wgMemc->get($cachekey);
-		$html = null;
-		if ($html === null) {
-			$js = wfMessage('Wikihowads_setup', $isHHM, intVal($isABTest))->text();
-			require_once("$IP/extensions/min/lib/JSMinPlus.php");
-			$adsClass = file_get_contents("$IP/extensions/wikihow/wikihowAds/wikihowAds.js");
-			$min = JSMinPlus::minify($adsClass . $js);
-			$html = <<<EOHTML
-<!-- MediaWiki:wikihowads_setup -->
-<script type='text/javascript'>
-<!--
-$min
-//-->
-</script>
-EOHTML;
-			$wgMemc->set($cachekey, $html);
+
+	public static function getDesktopDfpUnit($num) {
+		global $wgTitle;
+
+		if(self::isExcluded($wgTitle)) {
+			return "";
 		}
 
-		return $html;
+		// allow hooks to override the ad
+		$result = "";
+		wfRunHooks( "WikihowAdsBeforeGetDesktopDfpUnit", array( $num, &$result ) );
+		if ( $result ) {
+			return $result;
+		}
+
+		$unitInfo = self::getUnitParams($num);
+		if ( $num == 8 ) {
+			// this is no longer supported
+			return;
+		}
+
+		if ($num == 1) { //tips and section when there are no tips
+			//tips
+			self::$mDfpUnits[] = $unitInfo[0];
+			self::$mDfpUnits[] = $unitInfo[1];
+
+			$tmpl = new EasyTemplate( dirname(__FILE__) );
+			$tmpl->set_vars(array(
+				'unitName' => $unitInfo[0][0],
+				'unitNumber' => $unitInfo[0][2],
+				'lazy' => $unitInfo[0][3]
+			));
+
+			$adCode1 = $tmpl->execute('wikihowDfp.tmpl.php');
+			$tmpl = new EasyTemplate( dirname(__FILE__) );
+			$tmpl->set_vars(array(
+				'unitName' => $unitInfo[1][0],
+				'unitNumber' => $unitInfo[1][2],
+				'lazy' => $unitInfo[1][3]
+			));
+
+			$adCode2 = $tmpl->execute('wikihowDfp.tmpl.php');
+
+			return wfMessage("Dfpunit{$num}", $adCode1.$adCode2)->text();
+
+		} else {
+			self::$mDfpUnits[] = $unitInfo;
+
+			$tmpl = new EasyTemplate( dirname(__FILE__) );
+			$tmpl->set_vars(array(
+				'unitName' => $unitInfo[0],
+				'unitNumber' => $unitInfo[2],
+				'lazy' => $unitInfo[3]
+			));
+
+			$adCode = $tmpl->execute('wikihowDfp.tmpl.php');
+
+			return wfMessage("Dfpunit{$num}", $adCode)->text();
+		}
 	}
 
-	public static function getAdUnitPlaceholder($num, $isLinkUnit = false, $postLoad = true) {
-		global $wgSingleLoadAllAds, $wgEnableLateLoadingAds, $wgUser, $wgTitle;
+	public static function addToDFPUnits( $unit ) {
+		self::$mDfpUnits[] = $unit;
+	}
 
-		if(self::adExclusions($wgTitle))
+	public function getUnitParams($unitNum) {
+		$info = array();
+
+		if ($unitNum == 1 || $unitNum == 8) {
+			$info[] = array(
+				0 => "/" . self::$mDesktopDfpAccount . "/" . self::$mDesktopDfpCategoryInfo[self::$mTopLevelCategory]['name'] . self::$mDesktopDfpNames[$unitNum][0],
+				1 => self::$mDesktopDfpSizes[$unitNum],
+				2 => self::$mDesktopDfpRandom . "-" . $unitNum . "a" . self::$mDesktopIdNames[$unitNum][0],
+				3 => self::$mDesktopDfpLazy[$unitNum]
+			);
+			$info[] = array(
+				0 => "/" . self::$mDesktopDfpAccount . "/" . self::$mDesktopDfpCategoryInfo[self::$mTopLevelCategory]['name'] . self::$mDesktopDfpNames[$unitNum][1],
+				1 => self::$mDesktopDfpSizes[$unitNum],
+				2 => self::$mDesktopDfpRandom . "-" . $unitNum . "b" . self::$mDesktopIdNames[$unitNum][1],
+				3 => self::$mDesktopDfpLazy[$unitNum]
+			);
+		} else {
+			$info[0] = "/" . self::$mDesktopDfpAccount . "/" . self::$mDesktopDfpCategoryInfo[self::$mTopLevelCategory]['name'] . self::$mDesktopDfpNames[$unitNum];
+			$info[1] = self::$mDesktopDfpSizes[$unitNum];
+			$info[2] = self::$mDesktopDfpRandom . "-" . $unitNum . self::$mDesktopIdNames[$unitNum];
+			$info[3] = self::$mDesktopDfpLazy[$unitNum];
+		}
+
+		return $info;
+	}
+
+	public static function getAdUnitPlaceholder( $num ) {
+		global $wgTitle;
+
+		if ( self::isExcluded( $wgTitle ) ) {
 			return "";
+		}
 
 		if ( !self::isCombinedCall($num) ) {
-			$unit = !$isLinkUnit ? self::getAdUnit($num) : self::getLinkUnit($num);
+			$unit = self::getAdUnit($num);
 		} else {
-			$unit = !$isLinkUnit ? self::getWikihowAdUnit($num) : self::getLinkUnit($num);
-		}
-		$adID = !$isLinkUnit ? 'au' . $num : 'lu' . $num;
-		
-		if($wgSingleLoadAllAds && !$isLinkUnit && $num != 4) {
-			
-		}
-
-		static $postLoadTest = null;
-		if (!$wgEnableLateLoadingAds) {
-			$postLoad = false;
-		}
-
-		if ($postLoadTest == null) {
-			$postLoadTest = mt_rand(1,2);
-			if ($postLoadTest == 1)
-				// no post load
-				self::$mGlobalChannels[] = "2490795108";
-			else
-				// yes post load
-				self::$mGlobalChannels[] = "7974857016";
+			$unit = self::getWikihowAdUnit($num);
 		}
 
 		return $unit;
 	}
-	
+
 	/***
-	 * 
+	 *
 	 * Generally our text ads are all combined,
 	 * and image ads cannot be combined. Occasionally
 	 * other ads besides image ads we don't want
 	 * combine into one call
-	 * 
+	 *
 	 ***/
 	function isCombinedCall($ad) {
 		global $wgLanguageCode;
@@ -111,6 +326,7 @@ EOHTML;
 		}
 		$adString = strval($ad);
 		switch($adString) {
+			case "tips":
 			case "4":
 			case "4b":
 			case "4c":
@@ -123,12 +339,12 @@ EOHTML;
 				break;
 			default:
 				$ret = true;
-			
+
 		}
 		return $ret;
 	}
-	
-	function adExclusions($title){
+
+	public static function isExcluded($title) : bool {
 		global $wgLanguageCode, $wgMemc;
 
 		if (!$title || !$title->exists()) {
@@ -153,12 +369,7 @@ EOHTML;
 			$wgMemc->set($key, $excludeList);
 		}
 
-		if(in_array($title->getArticleID(), $excludeList)) {
-			return true;
-		}
-		else {
-			return false;
-		}
+		return in_array($title->getArticleID(), $excludeList);
 	}
 
 	function resetAllAdExclusionCaches() {
@@ -199,26 +410,14 @@ EOHTML;
 		$wgMemc->set($key, $excludeList);
 	}
 
-	function getLinkUnit($num) {
-		global $wgUser;
-		$channels = self::getCustomGoogleChannels('linkunit' . $num, false);
-		$s = wfMessage('linkunit' . $num, $channels[0])->text();
-		$s = "<div class='wh_ad'>" . preg_replace('/\<[\/]?pre[^>]*>/', '', $s) . "</div>";
-		return $s;
-	}
-
+	/*******
+	 * Currently only used for en
+	 */
 	function getAdUnit($num) {
-		global $wgUser, $wgLanguageCode, $wgTitle;
+		global $wgLanguageCode;
 		if($wgLanguageCode == "en") {
-			$tempTitle = $wgTitle->getText();
-			if($tempTitle == "Get Caramel off Pots and Pans"){
-				if(is_int($num) && $num == 4)
-					$s = wfMessage('adunit_test')->text();
-			}
-			else {
-				$channels = self::getCustomGoogleChannels('adunit' . $num, false);
-				$s = wfMessage('adunit' . $num, $channels[0], self::$hasAltMethods)->text();
-			}
+			$channels = self::getCustomGoogleChannels('adunit' . $num);
+			$s = wfMessage('adunit' . $num, $channels[0])->text();
 		}
 		else {
 			$channels = self::getInternationalChannels();
@@ -229,18 +428,21 @@ EOHTML;
 		$s = "" . preg_replace('/\<[\/]?pre[^>]*>/', '', $s) . "";
 		return $s;
 	}
-	
+
+	/*******
+	 * Currently this is only used for intl
+	 ******/
 	function getWikihowAdUnit($num) {
-		global $wgUser, $wgLanguageCode;
-		if ($wgLanguageCode == "en") { 
-			$channelArray = self::getCustomGoogleChannels('adunit' . $num, false);
+		global $wgLanguageCode;
+		if ($wgLanguageCode == "en") {
+			$channelArray = self::getCustomGoogleChannels('adunit' . $num);
 			$channels = $channelArray[0];
 		}
 		else
 			$channels = self::getInternationalChannels();
-		
+
 		$params = self::getCSIParameters($num);
-		
+
 		if($params['slot'] == null || $params['width'] == null || $params['height'] == null || $params['max_ads'] == null) {
 			//we don't have the required information, so lets spit out an error message
 			$tmpl = new EasyTemplate( dirname(__FILE__) );
@@ -258,78 +460,53 @@ EOHTML;
 				'params' => $params,
 			));
 
-			if(wikihowAds::isABTestArticle()) {
-				$s = $tmpl->execute('wikihowAdAsync.tmpl.php');
-			} else {
-				if ($wgLanguageCode == "en") {
-					$s = $tmpl->execute('wikihowAdCSI.tmpl.php');
-				}
-				else {
-					$tmpl->set_vars(array('adLabel' => wfMsg('ad_label')));
-					$s = $tmpl->execute('wikihowAdAsyncIntl.tmpl.php');
-				}
-			}
 
-			//$s = "<div class='wh_ad'>" . $s . "</div>";
+			if ($wgLanguageCode == "en") {
+				$s = $tmpl->execute('wikihowAdCSI.tmpl.php');
+			}
+			else {
+				$tmpl->set_vars(array('adLabel' => wfMsg('ad_label')));
+				$s = $tmpl->execute('wikihowAdAsyncIntl.tmpl.php');
+			}
 		}
 		return $s;
 	}
-	
+
 	static public function getCSIParameters($adNum) {
 		global $wgLanguageCode;
-		
+
 		$adSizes = array(
-			"intro" =>		array("width" => 671, "height" => 120, "max_ads" => 2),
-			"0" =>			array("width" => 629, "height" => 120, "max_ads" => 2),
-			"1" =>			array("width" => 627, "height" => 180, "max_ads" => 3),
-			"2" =>			array("width" => 607, "height" => 180, "max_ads" => 3),
-			"2a" =>			array("width" => 607, "height" => 180, "max_ads" => 3),
-			"7" =>			array("width" => 613, "height" => 120, "max_ads" => 2),
-			"docviewer3" =>	array("width" => 621, "height" => 120, "max_ads" => 3)
+			"intro" => array("width" => 728, "height" => 120, "max_ads" => 2),
+			"0" => array("width" => 728, "height" => 120, "max_ads" => 2),
+			"1" => array("width" => 728, "height" => 120, "max_ads" => 2),
+			"2" => array("width" => 607, "height" => 180, "max_ads" => 3),
+			"2a" => array("width" => 300, "height" => 250, "max_ads" => 3),
+			"7" => array("width" => 728, "height" => 120, "max_ads" => 2),
+			"docviewer3" => array("width" => 621, "height" => 120, "max_ads" => 3)
 		);
-		
+
 		$adSlots = array(
 			"en" => array("intro" => "8579663774", "0" => "5205564977", "1" => "7008858971", "2" => "7274067370", "2a" => "2533130178", "7" => "4009863375", "docviewer3" => "3079259774"),
-			"es" => array("intro" => "2950638973", "0" => "4427372174", "1" => "5904105372", "2" => "1334304979", "2a" => "8857571779", "7" => "7380838578"),
-			"fr" => array("intro" => "7263087379", "0" => "8739820574", "1" => "1216553779", "2" => "5646753377", "2a" => "4170020176", "7" => "2693286977"),
-			"it" => array("intro" => "5925954977", "0" => "7402688174", "1" => "1076952977", "2" => "4309620974", "2a" => "2832887770", "7" => "1356154575"),
-			"nl" => array("intro" => "7123486573", "0" => "8600219770", "1" => "1076952977", "2" => "5507152571", "2a" => "4030419379", "7" => "2553686171"),
-			"pt" => array("intro" => "4287771370", "0" => "5764504576", "1" => "7241237772", "2" => "4148170578", "2a" => "2671437375", "7" => "8717970978"),
-			"de" => array("intro" => "7101636972", "0" => "8578370175", "1" => "1055103375", "2" => "5485302970", "2a" => "4008569778", "7" => "2531836571"),
-			"hi" => array("intro" => "8460618972", "0" => "9937352170", "1" => "2414085379", "2" => "6844284972", "2a" => "5367551779", "7" => "3890818573"),
-			"ru" => array("intro" => "9291645375", "0" => "7814912177", "1" => "4721844971", "2" => "1768378579", "2a" => "3245111774", "7" => "6338178978"),
-			"zh" => array("intro" => "6399420978", "0" => "4922687771", "1" => "3306353770", "2" => "9352887376", "2a" => "1829620571", "7" => "9492488178"),
+			"intl" => array("intro" => "2950638973", "0" => "4427372174", "1" => "6102046573", "2" => "1334304979", "2a" => "3818061373", "7" => "3102862578"),
 		);
-		
+
 		$adString = strval($adNum);
 		$params = array();
-		
+
 		$params['width'] = $adSizes[$adString]['width'];
 		$params['height'] = $adSizes[$adString]['height'];
 		$params['max_ads'] = $adSizes[$adString]['max_ads'];
-		$params['slot'] = $adSlots[$wgLanguageCode][$adString];
-		
+		if ($wgLanguageCode == "en") {
+			$params['slot'] = $adSlots[$wgLanguageCode][$adString];
+		} else {
+			$params['slot'] = $adSlots["intl"][$adString];
+		}
+
 		return $params;
 	}
-	
-	function getIatestAd() {
-		global $wgTitle;
-		
-        if ($wgTitle->getNamespace() == NS_MAIN) {
-			$titleUrl = $wgTitle->getFullURL();
-			
-			$msg = wfMessage('IAtest')->text();
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					return wikihowAds::getAdUnitPlaceholder(4);
-				}
-			}
-		}
-	}
-	
+
 	public static function getGlobalChannels() {
-		global $wgTitle, $wgUser;
+		global $wgTitle;
 
 		self::$mGlobalChannels[] = "1640266093";
 		self::$mGlobalComments[] = "page wide track";
@@ -345,72 +522,61 @@ EOHTML;
 
 			//Tech buckets (no longer only WRM)
 			$foundTech = false;
-			$title = $wgTitle->getFullURL();
-			$titleUrl = $wgTitle->getFullURL();
-			$msg = ConfigStorage::dbGetConfig('T_bin1'); //popular companies
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $title){
-					$foundTech = true;
-					$ts = $details->rev_timestamp;
-					if (preg_match("@^201106@", $ts)){
-						self::$mGlobalChannels[] = "5265927225";
-					} else if (preg_match("@^201105@", $ts)){
-						self::$mGlobalChannels[] = "2621163941";
-					} else if (preg_match("@^201104@", $ts)){
-						self::$mGlobalChannels[] = "6703830173";
-					} else if (preg_match("@^201103@", $ts)){
-						self::$mGlobalChannels[] = "7428198201";
-					} else if (preg_match("@^201102@", $ts)){
-						self::$mGlobalChannels[] = "6027428251";
-					} else if (preg_match("@^201101@", $ts)){
-						self::$mGlobalChannels[] = "3564919246";
-					}
-					break;
+			$title =  "http://www.wikihow.com/" . $wgTitle->getPartialURL();
+			$titleUrl =  "http://www.wikihow.com/" . $wgTitle->getPartialURL();
+			$pageid = $wgTitle->getArticleId();
+			if (ArticleTagList::hasTag('T_bin1', $pageid)) { //popular companies
+				$foundTech = true;
+				$ts = $details->rev_timestamp;
+				if (preg_match("@^201106@", $ts)){
+					self::$mGlobalChannels[] = "5265927225";
+				} else if (preg_match("@^201105@", $ts)){
+					self::$mGlobalChannels[] = "2621163941";
+				} else if (preg_match("@^201104@", $ts)){
+					self::$mGlobalChannels[] = "6703830173";
+				} else if (preg_match("@^201103@", $ts)){
+					self::$mGlobalChannels[] = "7428198201";
+				} else if (preg_match("@^201102@", $ts)){
+					self::$mGlobalChannels[] = "6027428251";
+				} else if (preg_match("@^201101@", $ts)){
+					self::$mGlobalChannels[] = "3564919246";
 				}
 			}
 
-			if (!$foundTech) {
-				$msg = ConfigStorage::dbGetConfig('T_bin2'); //startup companies
-				$articles = explode("\n", $msg);
-				foreach ($articles as $article) {
-					if($article == $title){
-						$foundTech = true;
-						$ts = $details->rev_timestamp;
-						if (preg_match("@^201112@", $ts)){
-							self::$mGlobalChannels[] = "4113109859";
-						} else if (preg_match("@^201111@", $ts)){
-							self::$mGlobalChannels[] = "1967209400";
-						} else if (preg_match("@^201110@", $ts)){
-							self::$mGlobalChannels[] = "0168911685";
-						} else if (preg_match("@^201109@", $ts)){
-							self::$mGlobalChannels[] = "5356416885";
-						} else if (preg_match("@^201108@", $ts)){
-							self::$mGlobalChannels[] = "3273638668";
-						} else if (preg_match("@^201107@", $ts)){
-							self::$mGlobalChannels[] = "9892808753";
-						} else if (preg_match("@^201106@", $ts)){
-							self::$mGlobalChannels[] = "3519312489";
-						} else if (preg_match("@^201105@", $ts)){
-							self::$mGlobalChannels[] = "2958013308";
-						} else if (preg_match("@^201104@", $ts)){
-							self::$mGlobalChannels[] = "2240499801";
-						} else if (preg_match("@^201103@", $ts)){
-							self::$mGlobalChannels[] = "9688666159";
-						} else if (preg_match("@^201102@", $ts)){
-							self::$mGlobalChannels[] = "2421515764";
-						} else if (preg_match("@^201101@", $ts)){
-							self::$mGlobalChannels[] = "8503617448";
-						}
-						break;
-					}
+			if (!$foundTech && ArticleTagList::hasTag('T_bin2', $pageid)) { //startup companies
+				$foundTech = true;
+				$ts = $details->rev_timestamp;
+				if (preg_match("@^201112@", $ts)){
+					self::$mGlobalChannels[] = "4113109859";
+				} else if (preg_match("@^201111@", $ts)){
+					self::$mGlobalChannels[] = "1967209400";
+				} else if (preg_match("@^201110@", $ts)){
+					self::$mGlobalChannels[] = "0168911685";
+				} else if (preg_match("@^201109@", $ts)){
+					self::$mGlobalChannels[] = "5356416885";
+				} else if (preg_match("@^201108@", $ts)){
+					self::$mGlobalChannels[] = "3273638668";
+				} else if (preg_match("@^201107@", $ts)){
+					self::$mGlobalChannels[] = "9892808753";
+				} else if (preg_match("@^201106@", $ts)){
+					self::$mGlobalChannels[] = "3519312489";
+				} else if (preg_match("@^201105@", $ts)){
+					self::$mGlobalChannels[] = "2958013308";
+				} else if (preg_match("@^201104@", $ts)){
+					self::$mGlobalChannels[] = "2240499801";
+				} else if (preg_match("@^201103@", $ts)){
+					self::$mGlobalChannels[] = "9688666159";
+				} else if (preg_match("@^201102@", $ts)){
+					self::$mGlobalChannels[] = "2421515764";
+				} else if (preg_match("@^201101@", $ts)){
+					self::$mGlobalChannels[] = "8503617448";
 				}
 			}
 
             if ($fe == 'WRM' && !$foundTech) { //only care if we didn't put into a tech bucket
 				self::$mGlobalComments[] = "wrm";
 				$ts = $details->rev_timestamp;
-				
+
 				if (preg_match("@^201112@", $ts)){
 					self::$mGlobalChannels[] = "6155290251";
 				} else if (preg_match("@^201111@", $ts)){
@@ -445,7 +611,7 @@ EOHTML;
 				   self::$mGlobalChannels[] = "8422911943";
 				} else if (preg_match("@^201008@", $ts)) {
 				   self::$mGlobalChannels[] = "3379176477";
-				} 
+				}
             } else if (in_array($fe, array('Burntheelastic', 'CeeZee', 'Claricea', 'EssAy', 'JasonArton', 'Nperry302', 'Sugarcoat'))) {
                 self::$mGlobalChannels[] = "8537392489";
                 self::$mGlobalComments[] = "mt";
@@ -453,480 +619,239 @@ EOHTML;
                 self::$mGlobalChannels[] = "5860073694";
                 self::$mGlobalComments[] = "!wrm && !mt";
             }
-			
+
 			//Original WRM bucket
-			$msg = ConfigStorage::dbGetConfig('Dec2010_bin0');
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					self::$mGlobalChannels[] = "8110356115"; //original wrm channels
-					break;
-				}
+			if (ArticleTagList::hasTag('Dec2010_bin0', $pageid)) {
+				self::$mGlobalChannels[] = "8110356115"; //original wrm channels
 			}
-			
+
 
 			//WRM buckets
 			$found = false;
 			$title = $wgTitle->getFullText();
-			$msg = ConfigStorage::dbGetConfig('Dec2010_bin1');
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $title){
-					$found = true;
-					self::$mGlobalChannels[] = "8052511407";
-					break;
-				}
+			if (ArticleTagList::hasTag('Dec2010_bin1', $pageid)) {
+				$found = true;
+				self::$mGlobalChannels[] = "8052511407";
 			}
-			if(!$found){
-				$msg = ConfigStorage::dbGetConfig('Dec2010_bin2');
-				$articles = explode("\n", $msg);
-				foreach ($articles as $article) {
-					if($article == $title){
-						$found = true;
-						self::$mGlobalChannels[] = "8301953346";
-						break;
-					}
-				}
+			if (!$found && ArticleTagList::hasTag('Dec2010_bin2', $pageid)) {
+				$found = true;
+				self::$mGlobalChannels[] = "8301953346";
 			}
-			if(!$found){
-				$msg = ConfigStorage::dbGetConfig('Dec2010_bin3');
-				$articles = explode("\n", $msg);
-				foreach ($articles as $article) {
-					if($article == $title){
-						$found = true;
-						self::$mGlobalChannels[] = "7249784941";
-						break;
-					}
-				}
+			if (!$found && ArticleTagList::hasTag('Dec2010_bin3', $pageid)) {
+				$found = true;
+				self::$mGlobalChannels[] = "7249784941";
 			}
-			if(!$found){
-				$msg = ConfigStorage::dbGetConfig('Dec2010_bin4');
-				$articles = explode("\n", $msg);
-				foreach ($articles as $article) {
-					if($article == $title){
-						$found = true;
-						self::$mGlobalChannels[] = "8122486186";
-						break;
-					}
-				}
+			if (!$found && ArticleTagList::hasTag('Dec2010_bin4', $pageid)) {
+				$found = true;
+				self::$mGlobalChannels[] = "8122486186";
 			}
-			if(!$found){
-				$msg = ConfigStorage::dbGetConfig('Dec2010_bin5');
-				$articles = explode("\n", $msg);
-				foreach ($articles as $article) {
-					if($article == $title){
-						$found = true;
-						self::$mGlobalChannels[] = "8278846457";
-						break;
-					}
-				}
+			if (!$found && ArticleTagList::hasTag('Dec2010_bin5', $pageid)) {
+				$found = true;
+				self::$mGlobalChannels[] = "8278846457";
 			}
-			if(!$found){
-				$msg = ConfigStorage::dbGetConfig('Dec2010_bin6');
-				$articles = explode("\n", $msg);
-				foreach ($articles as $article) {
-					if($article == $title){
-						$found = true;
-						self::$mGlobalChannels[] = "1245159133";
-						break;
-					}
-				}
+			if (!$found && ArticleTagList::hasTag('Dec2010_bin6', $pageid)) {
+				$found = true;
+				self::$mGlobalChannels[] = "1245159133";
 			}
-			if(!$found){
-				$msg = ConfigStorage::dbGetConfig('Dec2010_bin7');
-				$articles = explode("\n", $msg);
-				foreach ($articles as $article) {
-					if($article == $title){
-						$found = true;
-						self::$mGlobalChannels[] = "7399043796";
-						break;
-					}
-				}
+			if (!$found && ArticleTagList::hasTag('Dec2010_bin7', $pageid)) {
+				$found = true;
+				self::$mGlobalChannels[] = "7399043796";
 			}
-			if(!$found){
-				$msg = ConfigStorage::dbGetConfig('Dec2010_bin8');
-				$articles = explode("\n", $msg);
-				foreach ($articles as $article) {
-					if($article == $title){
-						$found = true;
-						self::$mGlobalChannels[] = "6371049270";
-						break;
-					}
-				}
+			if (!$found && ArticleTagList::hasTag('Dec2010_bin8', $pageid)) {
+				$found = true;
+				self::$mGlobalChannels[] = "6371049270";
 			}
-			if(!$found){
-				$msg = ConfigStorage::dbGetConfig('Dec2010_bin9');
-				$articles = explode("\n", $msg);
-				foreach ($articles as $article) {
-					if($article == $title){
-						$found = true;
-						self::$mGlobalChannels[] = "9638019760"; //WRM Bucket: WRG-selected
-						break;
-					}
-				}
+			if (!$found && ArticleTagList::hasTag('Dec2010_bin9', $pageid)) {
+				$found = true;
+				self::$mGlobalChannels[] = "9638019760"; //WRM Bucket: WRG-selected
 			}
 
-			$msg = ConfigStorage::dbGetConfig('Dec2010_e1');
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					self::$mGlobalChannels[] = "8107511392"; //WRM Bucket: E1
-					break;
-				}
+			if (ArticleTagList::hasTag('Dec2010_e1', $pageid)) {
+				self::$mGlobalChannels[] = "8107511392"; //WRM Bucket: E1
 			}
 
-			$msg = ConfigStorage::dbGetConfig('Dec2010_e2');
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					self::$mGlobalChannels[] = "3119976353"; //WRM Bucket: E2
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('DrawTest'); //drawing articles
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "4881792894"; //WRM Bucket: E2
-					break;
-				}
+			if (ArticleTagList::hasTag('Dec2010_e2', $pageid)) {
+				self::$mGlobalChannels[] = "3119976353"; //WRM Bucket: E2
 			}
 
 			if (isset(self::$mCategories['Recipes']) && self::$mCategories['Recipes'] != null) {
 				self::$mGlobalChannels[] = "5820473342"; //Recipe articles
 			}
-			
-			$msg = ConfigStorage::dbGetConfig('CS_a'); //content strategy A
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "8989984079"; //Content Strategy A
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('CS_b'); //content strategy B
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "3833770891"; //Content Strategy B
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('CS_c'); //content strategy C
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "5080980738"; //Content Strategy C
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('CS_d'); //content strategy D
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "3747905129"; //Content Strategy D
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('CS_e'); //content strategy E
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "0499166168"; //Content Strategy E
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('CS_f'); //content strategy F
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "3782603124"; //Content Strategy F
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('CS_g'); //content strategy G
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "2169636267"; //Content Strategy G
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('CS_h') . "\n" . wfMessage('CS_h1')->text(); //content strategy H
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "6341255402"; //Content Strategy H
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('CS_i'); //content strategy I
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "5819170825"; //Content Strategy I
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('CS_j'); //content strategy J
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "7694072995"; //Content Strategy J
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('CS_k'); //content strategy K
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "5982569583"; //Content Strategy K
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('CS_l'); //content strategy L
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "7774283315"; //Content Strategy L
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('CS_m'); //content strategy M
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "6128624756"; //Content Strategy M
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('CS_n'); //content strategy N
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "2682008177"; //Content Strategy N
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('CS_o'); //content strategy O
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "4294279486"; //Content Strategy O
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('CS_p'); //content strategy P
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "8749396082"; //Content Strategy P
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('CS_q'); //content strategy Q
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "0856671147"; //Content Strategy Q
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('CS_r'); //content strategy R
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "4560446682"; //Content Strategy R
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('CS_s'); //content strategy S
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "3657316725"; //Content Strategy S
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('CS_t'); //content strategy T
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "9924756626"; //Content Strategy T
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('CS_u'); //content strategy U
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "8414472671"; //Content Strategy U
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('WRM_2012Q1'); 
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "4126436138"; 
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('WRM_2012Q2'); 
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "3130480452"; 
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('WRM_2012Q3');
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "5929918148";
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('WRM_2012Q4'); 
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "5980804200"; 
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('WRM_2013Q1'); 
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "2374803371"; 
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('WRM_2013Q2'); 
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "3851536574"; 
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('WRM_2013Q3');
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "5328269777";
-					break;
-				}
-			}
-			
-			$msg = ConfigStorage::dbGetConfig('WRM_2013Q4'); 
-			$articles = explode("\n", $msg);
-			foreach ($articles as $article) {
-				if($article == $titleUrl){
-					$ts = $details->rev_timestamp;
-					self::$mGlobalChannels[] = "6805002974"; 
-					break;
-				}
-			}
-			
-			if (wikihowAds::isHHM()) {
-				self::$mGlobalChannels[] = "5905062452"; //is an HHM page
-			}
-			
-			if(self::isRedesignControl()) {
-				$ts = $details->rev_timestamp;
-				self::$mGlobalChannels[] = "9595513032"; //test off
-			}
-			
-			if(self::isRedesignTest()) {
-				$ts = $details->rev_timestamp;
-				self::$mGlobalChannels[] = "6754085577";  //redesign test
-			}
-			
-        }
-	}
-	
-	function getCustomGoogleChannels($type, $use_chikita_sky) {
 
-		global $wgTitle, $wgLang, $IP, $wgUser;
-		
+			if (ArticleTagList::hasTag('CS_a', $pageid)) { //content strategy A
+				self::$mGlobalChannels[] = "8989984079"; //Content Strategy A
+			}
+
+			if (ArticleTagList::hasTag('CS_b', $pageid)) {
+				self::$mGlobalChannels[] = "3833770891"; //Content Strategy B
+			}
+
+			if (ArticleTagList::hasTag('CS_c', $pageid)) {
+				self::$mGlobalChannels[] = "5080980738"; //Content Strategy C
+			}
+
+			if (ArticleTagList::hasTag('CS_d', $pageid)) {
+				self::$mGlobalChannels[] = "3747905129"; //Content Strategy D
+			}
+
+			if (ArticleTagList::hasTag('CS_e', $pageid)) {
+				self::$mGlobalChannels[] = "0499166168"; //Content Strategy E
+			}
+
+			if (ArticleTagList::hasTag('CS_f', $pageid)) {
+				self::$mGlobalChannels[] = "3782603124"; //Content Strategy F
+			}
+
+			if (ArticleTagList::hasTag('CS_g', $pageid)) {
+				self::$mGlobalChannels[] = "2169636267"; //Content Strategy G
+			}
+
+			$foundCSh = false;
+			if (ArticleTagList::hasTag('CS_h', $pageid)) {
+				$foundCSh = true;
+			} else {
+				$msg = wfMessage('CS_h1')->text(); //content strategy H
+				$articles = explode("\n", $msg);
+				foreach ($articles as $article) {
+					if ($article == $titleUrl) {
+						$foundCSh = true;
+						break;
+					}
+				}
+			}
+			if ($foundCSh) {
+				self::$mGlobalChannels[] = "6341255402"; //Content Strategy H
+			}
+
+			if (ArticleTagList::hasTag('CS_i', $pageid)) {
+				self::$mGlobalChannels[] = "5819170825"; //Content Strategy I
+			}
+
+			if (ArticleTagList::hasTag('CS_j', $pageid)) {
+				self::$mGlobalChannels[] = "7694072995"; //Content Strategy J
+			}
+
+			if (ArticleTagList::hasTag('CS_k', $pageid)) {
+				self::$mGlobalChannels[] = "5982569583"; //Content Strategy K
+			}
+
+			if (ArticleTagList::hasTag('CS_l', $pageid)) {
+				self::$mGlobalChannels[] = "7774283315"; //Content Strategy L
+			}
+
+			if (ArticleTagList::hasTag('CS_m', $pageid)) {
+				self::$mGlobalChannels[] = "6128624756"; //Content Strategy M
+			}
+
+			if (ArticleTagList::hasTag('CS_n', $pageid)) {
+				self::$mGlobalChannels[] = "2682008177"; //Content Strategy N
+			}
+
+			if (ArticleTagList::hasTag('CS_o', $pageid)) {
+				self::$mGlobalChannels[] = "4294279486"; //Content Strategy O
+			}
+
+			if (ArticleTagList::hasTag('CS_p', $pageid)) {
+				self::$mGlobalChannels[] = "8749396082"; //Content Strategy P
+			}
+
+			if (ArticleTagList::hasTag('CS_q', $pageid)) {
+				self::$mGlobalChannels[] = "0856671147"; //Content Strategy Q
+			}
+
+			if (ArticleTagList::hasTag('CS_r', $pageid)) {
+				self::$mGlobalChannels[] = "4560446682"; //Content Strategy R
+			}
+
+			if (ArticleTagList::hasTag('CS_s', $pageid)) {
+				self::$mGlobalChannels[] = "3657316725"; //Content Strategy S
+			}
+
+			if (ArticleTagList::hasTag('CS_t', $pageid)) {
+				self::$mGlobalChannels[] = "9924756626"; //Content Strategy T
+			}
+
+			if (ArticleTagList::hasTag('CS_u', $pageid)) {
+				self::$mGlobalChannels[] = "8414472671"; //Content Strategy U
+			}
+
+			if (ArticleTagList::hasTag('WRM_2012Q1', $pageid)) {
+				self::$mGlobalChannels[] = "4126436138";
+			}
+
+			if (ArticleTagList::hasTag('WRM_2012Q2', $pageid)) {
+				self::$mGlobalChannels[] = "3130480452";
+			}
+
+			if (ArticleTagList::hasTag('WRM_2012Q3', $pageid)) {
+				self::$mGlobalChannels[] = "5929918148";
+			}
+
+			if (ArticleTagList::hasTag('WRM_2012Q4', $pageid)) {
+				self::$mGlobalChannels[] = "5980804200";
+			}
+
+			if (ArticleTagList::hasTag('WRM_2013Q1', $pageid)) {
+				self::$mGlobalChannels[] = "2374803371";
+			}
+
+			if (ArticleTagList::hasTag('WRM_2013Q2', $pageid)) {
+				self::$mGlobalChannels[] = "3851536574";
+			}
+
+			if (ArticleTagList::hasTag('WRM_2013Q3', $pageid)) {
+				self::$mGlobalChannels[] = "5328269777";
+			}
+
+			if (ArticleTagList::hasTag('WRM_2013Q4', $pageid)) {
+				self::$mGlobalChannels[] = "6805002974";
+			}
+		}
+	}
+
+	private function getMobileChannels($type) {
+		$channels = array();
+		$mobileCategoryUnits = array(
+			'Arts-and-Entertainment' =>			array("1" => "8187082578", "4" => "2140548978", "5" => "9663815778"),
+			'Health' =>							array("1" => "9325738579", "4" => "7709404578", "5" => "3279204975"),
+			'Relationships' =>					array("1" => "7849005372", "4" => "1802471773", "5" => "4755938173"),
+			'Cars-&-Other-Vehicles' =>			array("1" => "8420754977", "4" => "5467288573", "5" => "9897488173"),
+			'Personal-Care-and-Style' =>		array("1" => "1244068573", "4" => "2720801771", "5" => "5674268171"),
+			'Computers-and-Electronics' =>		array("1" => "5094015371", "4" => "3617282176", "5" => "2000948178"),
+			'Pets-and-Animals' =>				array("1" => "7290602174", "4" => "3000003371", "5" => "7430202978"),
+			'Education-and-Communications' =>	array("1" => "3837608170", "4" => "2360874976", "5" => "1861347377"),
+			'Philosophy-and-Religion' =>		array("1" => "6093070573", "4" => "7569803776", "5" => "1662870970"),
+			'Family-Life' =>					array("1" => "8267807776", "4" => "2221274173", "5" => "9744540976"),
+			'Finance-and-Business' =>			array("1" => "6651473778", "4" => "3698007376", "5" => "3558406572"),
+			'Sports-and-Fitness' =>				array("1" => "3418805774", "4" => "6511872979", "5" => "9465339373"),
+			'Food-and-Entertaining' =>			array("1" => "6372272176", "4" => "1942072571", "5" => "7988606176"),
+			'Travel' =>							array("1" => "2081673376", "4" => "5035139778", "5" => "9604940178"),
+			'Hobbies-and-Crafts' =>				array("1" => "4616337377", "4" => "3139604176", "5" => "9046536978"),
+			'Work-World' =>						array("1" => "5453942178", "4" => "2640076579", "5" => "2500475771"),
+			'Home-and-Garden' =>				array("1" => "8767335375", "4" => "7151001374", "5" => "4197534972"),
+			'Holidays-and-Traditions' =>		array("1" => "5813868976", "4" => "8906936177", "5" => "1523270178"),
+			'Other' =>							array("1" => "4057934172", "4" => "1104467774", "5" => "5534667372"),
+			'Youth' =>							array("1" => "4675212978", "4" => "6151946172", "5" => "3198479773"),
+			'WikiHow' =>						array("1" => "6930675371", "4" => "8407408571", "5" => "8128206973"),
+		);
+
+		if (isset($mobileCategoryUnits[self::$mTopLevelCategory][$type])) {
+			$channels[] = $mobileCategoryUnits[self::$mTopLevelCategory][$type];
+		}
+
+		return "+" . implode("+", $channels);
+	}
+
+	function getCustomGoogleChannels($type = "") {
+
+		global $wgTitle, $wgLang;
+
 		$channels = array();
 		$comments = array();
 
 		$ad = array();
 		$ad['adunitintro'] 			= '0206790666';
 		$ad['horizontal_search'] 	= '9965311755';
-		$ad['rad_bottom'] 			= '0403699914';
-		$ad['ad_section'] 			= '7604775144';
-		$ad['rad_left'] 			= '3496690692';
-		$ad['rad_left_custom']		= '3371204857';
-		$ad['rad_video'] 			= '8650928363';
-		$ad['skyscraper']			= '5907135026';
-		$ad['vertical_search']		= '8241181057';
-		$ad['embedded_ads']			= '5613791162';
-		$ad['embedded_ads_top']		= '9198246414';
-		$ad['embedded_ads_mid']		= '1183596086';
-		$ad['embedded_ads_vid']		= '7812294912';
-		$ad['side_ads_vid']			= '5407720054';
 		$ad['adunit0']				= '2748203808';
 		$ad['adunit1']				= '4065666674';
 		$ad['adunit2']				= '7690275023';
@@ -966,15 +891,35 @@ EOHTML;
 		$namespace[NS_USER_KUDOS]       = '3105174400';
 		$namespace[NS_USER_KUDOS_TALK]  = '3105174400';
 
+		$desktopCategoryUnits = array(
+			'Arts-and-Entertainment' =>			array("adunit0" => "5355674178", "adunit1" => "6832407373", "adunitintro" => "5329517779"),
+			'Health' =>							array("adunit0" => "6053678177", "adunit1" => "9007144577", "adunitintro" => "2096849770"),
+			'Relationships' =>					array("adunit0" => "4158142577", "adunit1" => "8588342172", "adunitintro" => "7864181778"),
+			'Cars-&-Other-Vehicles' =>			array("adunit0" => "8169539779", "adunit1" => "9646272973", "adunitintro" => "1200369376"),
+			'Personal-Care-and-Style' =>		array("adunit0" => "1483877772", "adunit1" => "5914077373", "adunitintro" => "1957248974"),
+			'Computers-and-Electronics' =>		array("adunit0" => "7670012178", "adunit1" => "4576944976", "adunitintro" => "6806250974"),
+			'Pets-and-Animals' =>				array("adunit0" => "2402207776", "adunit1" => "3878940970", "adunitintro" => "3433982177"),
+			'Education-and-Communications' =>	array("adunit0" => "7390810573", "adunit1" => "8867543772", "adunitintro" => "8282984171"),
+			'Philosophy-and-Religion' =>		array("adunit0" => "1983405376", "adunit1" => "3460138576", "adunitintro" => "4910715374"),
+			'Family-Life' =>					array("adunit0" => "2123006172", "adunit1" => "3599739378", "adunitintro" => "9759717373"),
+			'Finance-and-Business' =>			array("adunit0" => "9785873778", "adunit1" => "3739340178", "adunitintro" => "2236450570"),
+			'Sports-and-Fitness' =>				array("adunit0" => "8448741379", "adunit1" => "9925474572", "adunitintro" => "9340914972"),
+			'Food-and-Entertaining' =>			array("adunit0" => "1344276972", "adunit1" => "2821010171", "adunitintro" => "3713183772"),
+			'Travel' =>							array("adunit0" => "6413604978", "adunit1" => "7890338177", "adunitintro" => "1817648170"),
+			'Hobbies-and-Crafts' =>				array("adunit0" => "7251209778", "adunit1" => "8727942973", "adunitintro" => "5050316177"),
+			'Work-World' =>						array("adunit0" => "5076472572", "adunit1" => "6553205779", "adunitintro" => "9201314170"),
+			'Home-and-Garden' =>				array("adunit0" => "4297743373", "adunit1" => "5774476570", "adunitintro" => "8003782579"),
+			'Holidays-and-Traditions' =>		array("adunit0" => "8029938971", "adunit1" => "9506672179", "adunitintro" => "6527049374"),
+			'Other' =>							array("adunit0" => "9866598976", "adunit1" => "2203731371", "adunitintro" => "9480515774"),
+			'Youth' =>							array("adunit0" => "2541808571", "adunit1" => "4018541777", "adunitintro" => "1678047370"),
+			'WikiHow' =>						array("adunit0" => "5495274978", "adunit1" => "6972008179", "adunitintro" => "7584980178"),
+		);
+
 		$channels[] = $ad[$type];
 		$comments[] = $type;
 
-		if ($use_chikita_sky) {
-			$channels[] = "7697985842";
-			$comments[] = "chikita sky";
-		} else {
-			$channels[] = "7733764704";
-			$comments[] = "google sky";
+		if (!Misc::isMobileMode() && isset($desktopCategoryUnits[self::$mTopLevelCategory][$type])) {
+			$channels[] = $desktopCategoryUnits[self::$mTopLevelCategory][$type];
 		}
 
 		foreach (self::$mGlobalChannels as $c) {
@@ -983,21 +928,6 @@ EOHTML;
 		foreach (self::$mGlobalComments as $c) {
 			$comments[] = $c;
 		}
-
-		// Video
-		if ($wgTitle->getNamespace() ==  NS_SPECIAL && $wgTitle->getText() == "Video") {
-			$channels[] = "9155858053";
-			$comments[] = "video";
-		}
-
-		/* Elizabeth said this was not used and ok to comment as of 8/27/2012
-		$fas = FeaturedArticles::getFeaturedArticles(3);
-		foreach ($fas as $fa) {
-			if ($fa[0] == $wgTitle->getFullURL()) {
-				$comments[] = 'FA';
-				$channels[] = '6235263906';
-			}
-		}*/
 
 		// do the categories
 		// Elizabeth said this is in used as of 8/27/2012
@@ -1033,10 +963,10 @@ EOHTML;
 		$result = array(implode("+", $channels), implode(", ", $comments));
 		return $result;
 	}
-	
+
 	function getInternationalChannels() {
-		global $wgTitle, $wgUser;
-		
+		global $wgTitle;
+
 		$channels = array();
 
 		if ($wgTitle->getNamespace() == NS_MAIN) {
@@ -1044,7 +974,7 @@ EOHTML;
             $minrev = $dbr->selectField('revision', 'min(rev_id)', array('rev_page'=>$wgTitle->getArticleID()), __METHOD__);
 			$details = $dbr->selectRow('revision', array('rev_user_text', 'rev_timestamp'), array('rev_id'=>$minrev), __METHOD__);
 			$fe = $details->rev_user_text;
-			
+
 			$ts = $details->rev_timestamp;
 
             if (in_array($fe, array('Wilfredor', 'WikiHow Traduce')) ){ //spanish
@@ -1099,7 +1029,7 @@ EOHTML;
 					$channels[] = "2740109778";
 				elseif (preg_match("@^2013(10|11|12)@", $ts)) //2013 fourth quarter
 					$channels[] = "4216842972";
-				
+
             } else if($fe == "Traduções wikiHow"){ //PT
                 $channels[] = "3705134139";
 				if (preg_match("@^2012(01|02|03)@", $ts)) //2012 first quarter
@@ -1152,85 +1082,13 @@ EOHTML;
 					$channels[] = "7760784972";
 				elseif (preg_match("@^2013(10|11|12)@", $ts)) //2013 fourth quarter
 					$channels[] = "9237518179";
-			}  
-			
+			}
+
 		}
-		
+
 		$channelString = implode("+", $channels);
-			
+
 		return $channelString;
-	}
-	
-	function isRedesignControl() {
-		global $wgTitle;
-		
-		$wikihowUrl = "http://www.wikihow.com/" . $wgTitle->getPartialURL();
-		
-		$msg = ConfigStorage::dbGetConfig('redesign_control'); 
-		$articles = explode("\n", $msg);
-		if(in_array($wikihowUrl, $articles))
-			return true;
-		else
-			return false;
-	}
-	
-	function isRedesignTest() {
-		global $wgTitle;
-		
-		$wikihowUrl = "http://www.wikihow.com/" . $wgTitle->getPartialURL();
-		
-		$msg = ConfigStorage::dbGetConfig('redesign_test'); 
-		$articles = explode("\n", $msg);
-		if(in_array($wikihowUrl, $articles))
-			return true;
-		else
-			return false;
-	}
-	
-	function isJSTest() {
-		global $wgTitle;
-		
-		$msg = wfMessage('Js_control')->text(); //JS test
-		$articles = explode("\n", $msg);
-		
-		if(in_array($wgTitle->getDBkey(), $articles) ) 
-			return true;
-		else
-			return false;
-		
-	}
-	
-	function isJSControl() {
-		global $wgTitle;
-		
-		$msg = wfMessage('Js_test')->text(); //JS test
-		$articles = explode("\n", $msg);
-		
-		if(in_array($wgTitle->getDBkey(), $articles) ) 
-			return true;
-		else
-			return false;
-	}
-	
-	function isMtv() {
-		global $wgTitle;
-		
-		$titleText = $wgTitle->getDBkey();
-		
-		if($titleText == "Confess-to-an-Online-Lover-That-You-Are-Hiding-a-Secret")
-			return true;
-		return false;
-	}
-	
-	function getMtv() {
-		$s = "";
-			
-		$s = "<div class='wh_ad'><div class='side_ad'>"; 
-		$s .= "<a href='http://mtvcasting.wufoo.com/forms/mtvs-online-relationship-show-now-casting' target='_blank'>";
-		$s .= "<img src='" . wfGetPad('/skins/WikiHow/images/mtv_ad.jpg?1') . "' alt='MTV' /></a>";
-		$s .= "</div></div>";
-		
-		return $s;
 	}
 
 	public static function getCategoryChannelMap() {
@@ -1258,125 +1116,238 @@ EOHTML;
 		return $tree;
 
 	}
-	
+
+	function isRightRailTest() {
+		global $wgTitle;
+
+		if( $wgTitle ) {
+			$isTest = $wgTitle->getArticleID() % 2 == 0;
+		}
+
+		return $isTest;
+	}
+
+	// only supports non english for now, for english it returns nothing
 	function getCategoryAd() {
-		global $wgUser, $wgLanguageCode, $wgTitle;
+		global $wgLanguageCode, $wgTitle;
 
-        if(self::adExclusions($wgTitle))
-            return "";
-		
-		$categories = array(
-			'Arts-and-Entertainment' =>			array('/10095428/IMAGE_RR_ARTS_ENTER',			'div-gpt-ad-1358462597978-0'),
-			'Health' =>							array('/10095428/IMAGE_RR_HEALTH',				'div-gpt-ad-1358462906741-8'),
-			'Relationships' =>					array('/10095428/IMAGE_RR_RELATIONSHIPS',		'div-gpt-ad-1358462906741-16'),
-			'Cars-&-Other-Vehicles' =>			array('/10095428/IMAGE_RR_CARS_VEHICLES',		'div-gpt-ad-1358462906741-1'),
-			'Personal-Care-and-Style' =>		array('/10095428/IMAGE_RR_PERSONAL_STYLE',		'div-gpt-ad-1358462906741-13'),
-			'Computers-and-Electronics' =>		array('/10095428/IMAGE_RR_COMP_ELECTRO',		'div-gpt-ad-1358462906741-2'),
-			'Pets-and-Animals' =>				array('/10095428/IMAGE_RR_PETS_ANIMALS',		'div-gpt-ad-1358462906741-14'),
-			'Education-and-Communications' =>	array('/10095428/IMAGE_RR_EDUCATION_COMM',		'div-gpt-ad-1358462906741-3'),
-			'Philosophy-and-Religion' =>		array('/10095428/IMAGE_RR_PHIL_RELIGION',		'div-gpt-ad-1358462906741-15'),
-			'Family-Life' =>					array('/10095428/IMAGE_RR_FAMILY_LIFE',			'div-gpt-ad-1358462906741-5'),
-			'Finance-and-Business' =>			array('/10095428/IMAGE_RR_FINANCE_BIZ_LEGAL',	'div-gpt-ad-1358462906741-6'),
-			'Sports-and-Fitness' =>				array('/10095428/IMAGE_RR_SPORTS_FITNESS',		'div-gpt-ad-1358462906741-17'),
-			'Food-and-Entertaining' =>			array('/10095428/IMAGE_RR_FOOD_ENTERTAIN',		'div-gpt-ad-1358462906741-7'),
-			'Travel' =>							array('/10095428/IMAGE_RR_TRAVEL',				'div-gpt-ad-1358462906741-18'),
-			'Hobbies-and-Crafts' =>				array('/10095428/IMAGE_RR_HOBBIES_CRAFTS',		'div-gpt-ad-1358470416956-0'),
-			'Work-World' =>						array('/10095428/IMAGE_RR_WORK_WORLD',			'div-gpt-ad-1358462906741-20'),
-			'Home-and-Garden' =>				array('/10095428/IMAGE_RR_HOME_GARDEN',			'div-gpt-ad-1358462906741-11'),
-			'Holidays-and-Traditions' =>		array('/10095428/IMAGE_RR_HOLIDAY_TRADIT',		'div-gpt-ad-1358462906741-10'),
-			'Other' =>							array('/10095428/IMAGE_RR_OTHER',				'div-gpt-ad-1358462906741-12'),
-			'Youth' =>							array('/10095428/IMAGE_RR_YOUTH',				'div-gpt-ad-1358462537340-0'),
-			'WikiHow' =>						array('/10095428/IMAGE_RR_WIKIHOW',				'div-gpt-ad-1358462906741-19'),
-		);
-
-		$params = $categories['Other']; // default category
-		foreach ($categories as $category => $par) {
-			if (isset(self::$mCategories[$category]) && self::$mCategories[$category] != null) {
-				$params = $par;
-				break;
-			}
+		if( self::isExcluded( $wgTitle ) ) {
+			return "";
 		}
-		
-		if($wgLanguageCode == "en") 
-			$s = wfMessage('adunit-image-rightrail', $params[0], $params[1])->text();
 
-		else
-			$s = "<div class='side_ad'>" . wfMessage('adunit4')->text() . "</div>";
-
-		$s = "<div class='wh_ad'>" . preg_replace('/\<[\/]?pre[^>]*>/', '', $s) . "</div>";
-		
-		return $s;
-	}
-	
-	function isHHM() {
-		global $wgTitle, $wgUser;
-
-		if ( $wgTitle->getNamespace() == NS_CATEGORY && $wgTitle->getPartialURL() == "Home-and-Garden") {
-			return true;
-		}
-		else {
-			if (isset(self::$mCategories['Home-and-Garden']) && self::$mCategories['Home-and-Garden'] != null) {
-				return true;
-			}
-		}
-		
-		return false;
-	}
-	
-	function getHhmAd() {
 		$s = "";
-
-		if(wikihowAds::isHHM()) {
-			$catString = "diy.misc";
-			$catNumber = "4777";
-			
-			$s = wfMessage('adunit-hhm', $catString, $catNumber)->text();
+		if ( $wgLanguageCode != "en" ) {
+			$s = "<div class='side_ad'>" . self::getIntlRightRailDfpUnit() . "</div>";
 			$s = "<div class='wh_ad'>" . preg_replace('/\<[\/]?pre[^>]*>/', '', $s) . "</div>";
 		}
-		
+
 		return $s;
 	}
-	
-	function getAdUnitInterstitial($show = true) {
-		$slot = '6356699771';
-	
+
+	function getHeaderBiddingCode() {
+		global $wgLanguageCode, $wgTitle;
+
+		$id = 0;
+		if($wgTitle) {
+			$id = $wgTitle->getArticleID();
+		}
+
+		$bidders = array();
+
+		switch($wgLanguageCode) {
+			case "en":
+				$bidders['amazon'] = true;
+				$bidders['sovrn'] = true;
+				$bidders['index'] = true;
+				$bidders['yieldbot'] = false;
+				$bidders['districtm'] = false;
+				break;
+			default:
+				$bidders['amazon'] = true;
+				break;
+		}
+
+		$bidders['timeout'] = self::getTimeout();
+
+		list($bidders['units'], $bidders['targeting']) = self::getDfpInitInfo();
+
+		Mustache_Autoloader::register();
+		$options =  array(
+			'loader' => new Mustache_Loader_FilesystemLoader(dirname(__FILE__)),
+		);
+		$m = new Mustache_Engine($options);
+
+		return $m->render('headerBidding', $bidders);
+	}
+
+	private static function getTimeout() {
+		return self::$mTimeout;
+	}
+
+	// make sure the dfpunits are set before this is called
+	function getDfpInitInfo() {
+		$units = array();
+
+		foreach(self::$mDfpUnits as $param) {
+			$units[] = array("name" => $param[0], "size" => $param[1], "id" => $param[2], "lazy" => $param[3]);
+		}
+
+		$targeting = "googletag.pubads().setTargeting('Categories', ['" . self::$mDesktopDfpCategoryInfo[self::$mTopLevelCategory]['targeting'] . "']);";
+
+		return array($units, $targeting);
+	}
+
+	function initIntlRightRailDfpUnit() {
+		global $wgLanguageCode, $wgTitle;
+
+		if (self::isExcluded($wgTitle) || $wgLanguageCode == "en") {
+			return;
+		}
+
+		if (array_key_exists($wgLanguageCode, self::$mIntlRightRailUnits)) {
+			self::$mDfpUnits[] = self::$mIntlRightRailUnits[$wgLanguageCode];
+		} else {
+			self::$mDfpUnits[] = self::$mIntlRightRailUnits['default'];
+		}
+	}
+
+	public function getLangDFPUnitInfo() {
+		global $wgLanguageCode;
+		return  self::$mIntlRightRailUnits[$wgLanguageCode];
+	}
+
+	function getIntlRightRailDfpUnit() {
+		global $wgLanguageCode, $wgTitle;
+
+		if (self::isExcluded($wgTitle) || $wgLanguageCode == "en") {
+			return "";
+		}
+
+		if (array_key_exists($wgLanguageCode, self::$mIntlRightRailUnits)) {
+			$unit = self::$mIntlRightRailUnits[$wgLanguageCode];
+		} else {
+			$unit = self::$mIntlRightRailUnits['default'];
+		}
+
 		$tmpl = new EasyTemplate( dirname(__FILE__) );
 		$tmpl->set_vars(array(
-			'slot' => $slot,
+			'unitName' => $unit[0],
+			'unitNumber' => $unit[2],
+			'language' => $wgLanguageCode
 		));
-		$s = $tmpl->execute('wikiHowAdInterstitial.tmpl.php');
 
-		if (!$show) $hideit_style = ' style="display: none;"';
-		
-		$s = "<div class='wh_ad wh_ad_interstitial'$hideit_style>$s</div>";	
-	
-		return $s;
+		return $tmpl->execute('intlImageAd.tmpl.php');
 	}
-	
-	function getAdUnitTaboola($show = true) {
-		global $wgTitle;
-		
-		if (self::adExclusions($wgTitle))
-			$placement = 'below-article-thumbs-pg-13';
-		else
-			$placement = 'below-article-thumbs';
-		
-		$tmpl = new EasyTemplate( dirname(__FILE__) );
-		$tmpl->set_vars(array(
-			'placement' => $placement,
-		));
-		$s = $tmpl->execute('wikiHowAdTaboola.tmpl.php');
 
-		$hideit_style = '';
-		if (!$show) $hideit_style = ' style="display: none;"';
-		
-		$s = "<div class='wh_ad'$hideit_style>$s</div>";
-	
-		return $s;
+	function getCategoryDfpUnit() {
+		global $wgLanguageCode, $wgTitle;
+
+		if(self::isExcluded($wgTitle) || $wgLanguageCode != "en")
+			return;
+
+		$categories = array(
+				'Arts-and-Entertainment' =>			'IMAGE_RR_ARTS_ENTER',
+				'Health' =>							'IMAGE_RR_HEALTH',
+				'Relationships' =>					'IMAGE_RR_RELATIONSHIPS',
+				'Cars-&-Other-Vehicles' =>			'IMAGE_RR_CARS_VEHICLES',
+				'Personal-Care-and-Style' =>		'IMAGE_RR_PERSONAL_STYLE',
+				'Computers-and-Electronics' =>		'IMAGE_RR_COMP_ELECTRO',
+				'Pets-and-Animals' =>				'IMAGE_RR_PETS_ANIMALS',
+				'Education-and-Communications' =>	'IMAGE_RR_EDUCATION_COMM',
+				'Philosophy-and-Religion' =>		'IMAGE_RR_PHIL_RELIGION',
+				'Family-Life' =>					'IMAGE_RR_FAMILY_LIFE',
+				'Finance-and-Business' =>			'IMAGE_RR_FINANCE_BIZ_LEGAL',
+				'Sports-and-Fitness' =>				'IMAGE_RR_SPORTS_FITNESS',
+				'Food-and-Entertaining' =>			'IMAGE_RR_FOOD_ENTERTAIN',
+				'Travel' =>							'IMAGE_RR_TRAVEL',
+				'Hobbies-and-Crafts' =>				'IMAGE_RR_HOBBIES_CRAFTS',
+				'Work-World' =>						'IMAGE_RR_WORK_WORLD',
+				'Home-and-Garden' =>				'IMAGE_RR_HOME_GARDEN',
+				'Holidays-and-Traditions' =>		'IMAGE_RR_HOLIDAY_TRADIT',
+				'Other' =>							'IMAGE_RR_OTHER',
+				'Youth' =>							'IMAGE_RR_YOUTH',
+				'WikiHow' =>						'IMAGE_RR_WIKIHOW',
+		);
+
+		$catSize = "[300, 250]";
+		$catName = "div-gpt-ad-rr-top";
+		$catLazyLoad = "false";
+		$catUnit = "/".self::$mDesktopDfpAccount."/".$categories[self::$mTopLevelCategory];
+
+		$params = [$catUnit, $catSize, $catName, $catLazyLoad];
+
+		self::$mDfpCategory = $params;
+		if(!self::isRightRailTest()) {
+			return $params;
+		}
 	}
-	
+
+	public function initDfpUnit($num) {
+		if(($num == 9 || $num == 10) && !self::isRightRailTest()) {
+			self::$mDfpUnits[] = self::getUnitParams($num);
+		}
+	}
+
+	public static functiON getSearchAdsWidget() {
+
+		return '<div id="search_adcontainer2"></div>';
+	}
+
+	public static function getSearchAds($sk) {
+		// 2016/05/16 - Trying out YPA Ads
+		return self::getSearchAdsYPA($sk);
+
+		$html = '';
+
+		// No search ads for the Android app
+		if (class_exists('AndroidHelper') && AndroidHelper::isAndroidRequest()) {
+			return $html;
+		}
+
+		if ($sk->getUser()->isAnon()) {
+			$tmpl = new EasyTemplate( dirname(__FILE__) );
+			$tmplName = Misc::isMobileMode() ?
+				'wikihowAdSearchMobile.tmpl.php' :
+				'wikihowAdSearch.tmpl.php';
+			$html = $tmpl->execute($tmplName);
+		}
+		return $html;
+	}
+
+	public static function getSearchAdsYPA($sk) {
+		$html = '';
+
+		// No search ads for the Android app
+		if (class_exists('AndroidHelper') && AndroidHelper::isAndroidRequest()) {
+			return $html;
+		}
+
+		if ($sk->getUser()->isAnon()) {
+			$vars = [
+				'slotIdPrefix' => '',
+				'adConfig' => '0000008c4',
+			];
+			if (Misc::isMobileMode()) {
+				$vars['slotIdPrefix'] = 'M';
+				$vars['adConfig'] = '0000008c5';
+			}
+
+			$typeTag = self::getTypeTag();
+
+            wfRunHooks( 'WikihowAdsAfterGetTypeTag', array( &$typeTag ) );
+
+			$vars['adTypeTag'] = $typeTag;
+
+			$tmpl = new EasyTemplate( dirname(__FILE__) );
+			$tmpl->set_vars($vars);
+			$html = $tmpl->execute('wikihowAdSearchYPA.tmpl.php');
+		}
+
+		return $html;
+	}
+
 	/******
-	 * 
+	 *
 	 * Function return true if the current
 	 * page is even eligible for having ads.
 	 * Currently the requirements are:
@@ -1385,39 +1356,41 @@ EOHTML;
 	 * 3. Current page is NOT an index.php
 	 * 4. Is not the main page
 	 * 5. Action is not edit
-	 * 
+	 *
 	 * Exceptions
 	 * 1. Special:Categorylisting
-	 * 
+	 *
 	 * In order to turn off ads all together,
 	 * simply return false at the start of this
 	 * function.
-	 * 
+	 *
 	 ******/
 	function isEligibleForAds() {
-		global $wgUser, $wgTitle, $wgRequest, $wgLanguageCode;
-		
+		global $wgUser, $wgTitle, $wgRequest, $wgOut;
+
 		if(!$wgTitle) //don't want to check if it exists, b/c there are a few special pages that should show ads, and they don't "exist"
 			return false;
-		
-		if($wgLanguageCode == "hi")
-			return false;
-		
+
 		$isEligible = true;
-		if($wgUser->getID() != 0)
+		if($wgUser->getID() != 0 && !GoogleAmp::isAmpMode($wgOut))
 			return false;
-		
+
 		$namespace = $wgTitle->getNamespace();
 		if($namespace != NS_MAIN && $namespace != NS_IMAGE && $namespace != NS_CATEGORY)
 			$isEligible = false;
-		
+
+		// No ads on mobile category pages
+		if($namespace == NS_CATEGORY && Misc::isMobileMode()) {
+			$isEligible = false;
+		}
+
 		if($wgTitle && preg_match("@^/index\.php@", @$_SERVER["REQUEST_URI"]))
 			$isEligible = false;
-		
+
 		$action = $wgRequest->getVal('action', 'view');
 		if($action == 'edit')
 			$isEligible = false;
-		
+
 		//check if its the main page
 		if ($wgTitle
 			&& $namespace == NS_MAIN
@@ -1429,45 +1402,43 @@ EOHTML;
 
 		//now some special exceptions
 		$titleText = $wgTitle->getText();
-		if ($namespace == NS_SPECIAL && 
+		if ($namespace == NS_SPECIAL &&
 			(0 === strpos($titleText, "Categorylisting") ||
 			0 === strpos($titleText, "DocViewer") ||
 			0 == strpos($titleText, "Quizzes"))) {
 			$isEligible = true;
 		}
-		
+
 		//check to see if the page is indexed, if its not, then it shouldn't show ads
-		$indexed = RobotPolicy::isIndexable($wgTitle);
+		$indexed = RobotPolicy::isIndexable($wgTitle, RequestContext::getMain());
 		if(!$indexed)
 			$isEligible = false;
-		
+
+		if (class_exists('AndroidHelper') && AndroidHelper::isAndroidRequest()) {
+			$isEligible = false;
+		}
+
 		return $isEligible;
-		
+
 	}
 
-	protected static function isABTestArticle() {
+	function setCategories($title = null) {
 		global $wgTitle;
 
-		$isTest = false;
-		if ($wgTitle && !preg_match("@^DocViewer$@", $wgTitle->getText())) {
-			if (is_null(wikihowAds::$isABTest)) {
-				// Turn on new ad test for all articles
-				$wikihowUrl = "http://www.wikihow.com/" . $wgTitle->getPartialURL();
-
-				$msg = ConfigStorage::dbGetConfig('beta_test');
-				$articles = explode("\n", $msg);
-				if(in_array($wikihowUrl, $articles))
-					wikihowAds::$isABTest = true;
-			}
-			$isTest = wikihowAds::$isABTest;
+		if(self::$mCategoriesSet) {
+			return;
 		}
-		return $isTest;
-	}
 
-	function setCategories() {
-		global $wgUser;
+		if(!$title) {
+			$title = $wgTitle;
+		}
 
-		$tree = Categoryhelper::getCurrentParentCategoryTree();
+		if (!$title || !$title->exists() || !$title->inNamespace(NS_MAIN)) {
+			self::$mCategoriesSet = true;
+			return;
+		}
+
+		$tree = Categoryhelper::getCurrentParentCategoryTree($title);
 		if ($tree != null) {
 			foreach($tree as $key => $path) {
 				$catString = str_replace("Category:", "", $key);
@@ -1480,25 +1451,419 @@ EOHTML;
 				}
 			}
 		}
+
+		$categories = array(
+			'Arts-and-Entertainment',
+			'Health',
+			'Relationships',
+			'Cars-&-Other-Vehicles',
+			'Personal-Care-and-Style',
+			'Computers-and-Electronics',
+			'Pets-and-Animals',
+			'Education-and-Communications',
+			'Philosophy-and-Religion',
+			'Family-Life',
+			'Finance-and-Business',
+			'Sports-and-Fitness',
+			'Food-and-Entertaining',
+			'Travel',
+			'Hobbies-and-Crafts',
+			'Work-World',
+			'Home-and-Garden',
+			'Holidays-and-Traditions',
+			'Other',
+			'Youth',
+			'WikiHow',
+		);
+
+		self::$mTopLevelCategory = "Other";
+		foreach($categories as $category) {
+			if (isset(self::$mCategories[$category]) && self::$mCategories[$category] != null) {
+				self::$mTopLevelCategory = $category;
+				break;
+			}
+		}
+
+		self::$mCategoriesSet = true;
 	}
 
-	static function setAltMethods($hasAlts) {
-		self::$hasAltMethods = $hasAlts;
+	// Change any javascript that writes closing html tags as follows:
+	// document.write("</div>"); // input
+	// document.write("</" + "div>"); // output
+	public static function rewriteAdCloseTags($html) {
+		$changed = false;
+		$lines = explode("\n", $html);
+		foreach ($lines as &$line) {
+			if (preg_match('@^\s*document\.write\((["\']).*\1\);$@', $line, $m)) {
+				$quote = $m[1];
+				$line = preg_replace('@(</)([A-Za-z])@', '$1' . $quote . ' + ' . $quote . '$2', $line, -1, $count);
+				if ($count > 0) $changed = true;
+			}
+		}
+		if ($changed) {
+			return join("\n", $lines);
+		} else {
+			return $html;
+		}
 	}
 
-	function getJump() {
+	public function hasIntroAd() {
 		global $wgLanguageCode, $wgTitle;
 
-		if($wgLanguageCode == "en") {
-			$msg = ConfigStorage::dbGetConfig('ad_jump'); //articles that need the jump
-			$articles = explode("\n", $msg);
-				if(in_array($wgTitle->getArticleID(), $articles)) {
-					return wfMsg('ad_jump');
-				}
+		if (self::isExcluded($wgTitle)) {
+			return false;
+		}
+
+		if ($wgLanguageCode != "en" || !in_array(self::$mTopLevelCategory, array('Philosophy-and-Religion', 'Holidays-and-Traditions', 'WikiHow', 'Youth'))) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	public static function getIntroAd() {
+		global $wgTitle;
+
+		if (self::isExcluded($wgTitle)) {
+			return "";
+		}
+
+		if (self::hasIntroAd()) {
+			return wikihowAds::getAdUnitPlaceholder("intro");
+		} else {
+			return "";
+		}
+	}
+
+	function getIntlBottomRightRail() {
+		return self::rewriteAdCloseTags(wfMessage('rightrailtest')->text());
+	}
+
+	// not used in production yet
+	public static function insertMatchedContentAdDesktop() {
+		// TODO check ..  do we need an id here?
+		$id = 'someid';
+		$tmpl = new EasyTemplate( dirname(__FILE__) );
+		$tmpl->set_vars(array(
+			'id' => $id,
+			'slot' => 4282330575,
+		));
+
+		$html = $tmpl->execute('matchedcontentdesktop');
+		// TODO check to see if this section exists and create it if not or
+		// possibly only insert the ad if the section doesn't exist
+		pq("#relatedwikihows *")->remove();
+		pq("#relatedwikihows")->append($html);
+	}
+
+	private static function getMatchedContentAdMobile( $id ) {
+		$tmpl = new EasyTemplate( dirname(__FILE__) . "/mobileadtemplates" );
+		$tmpl->set_vars(array(
+			'id' => $id,
+			'slot' => 7407580571,
+		));
+
+		$html = $tmpl->execute('matchedcontentmobile');
+		return $html;
+	}
+
+	// add the mobile ad setup javascript to the output as a head item
+	public static function addMobileAdSetup( $out ) {
+		$abg = '<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>';
+		$out->addHeadItem( 'mobileadsetup', $abg );
+	}
+
+	private static function getIntlMobileAdData() {
+		$introChannel = "";
+		$methodChannel = "";
+		$relatedChannel = "";
+
+		$data = [
+			"channels" => [
+				"base" => "",
+				'small' => [
+					'intro' => $introChannel,
+					'method' => $methodChannel,
+					'related' => $relatedChannel
+				],
+				'medium' => [
+				],
+				'large' => [
+				]
+			],
+			"slots" => [
+				'small' => [
+					'intro' => "2831688978",
+					'method' => "6771527778",
+					'related' => "9724994176",
+				],
+				'medium' => [
+
+				],
+				'large' => [
+					'intro' => "9046346177",
+					'method' => "8248260977",
+					'related' => "9724994176"
+				]
+
+			]
+		];
+
+		$script = Html::element( 'script', [ 'id' => 'wh_ad_data', 'type'=>'application/json' ], json_encode( $data ) );
+		return $script;
+	}
+
+	private static function getMobileAdData() {
+        global $wgTitle;
+		$intro = 1;
+		$method = 4;
+		$related = 5;
+		// use same as related
+		$footer = 5;
+
+		$channels = wikihowAds::getCustomGoogleChannels();
+        $baseChannels = $channels[0];
+		$introChannel = wikihowAds::getMobileChannels( $intro );
+		$methodChannel = wikihowAds::getMobileChannels( $method );
+		$relatedChannel = wikihowAds::getMobileChannels( $related );
+		$footerChannel = wikihowAds::getMobileChannels( $footer );
+
+		$data = [
+			"channels" => [
+				"base" => $baseChannels,
+				'small' => [
+					'intro' => $introChannel,
+					'method' => $methodChannel,
+					'related' => $relatedChannel,
+					'footer' => $footerChannel,
+				],
+				'medium' => [
+				],
+				'large' => [
+				]
+			],
+			"slots" => [
+				'small' => [
+					'intro' => "8943394577",
+					'method' => "7710650179",
+					'related' => "9047782573",
+					'footer' => "8862180975",
+					'method-scrollload' => "7197620178",
+				],
+				'medium' => [
+
+				],
+				'large' => [
+					'intro' => "5867332578",
+					'method' => "4377789372",
+					'related' => "5854522578",
+					'footer' => "8862180975",
+					'method-scrollload' => "7197620178",
+				]
+
+			]
+		];
+
+		$script = Html::element( 'script', [ 'id' => 'wh_ad_data', 'type'=>'application/json' ], json_encode( $data ) );
+
+		wfRunHooks( "WikihowAdsAfterGetMobileAdData", array( &$script ) );
+
+		return $script;
+	}
+
+	private static function insertMobileAdSetup( $intl ) {
+
+		// get the data which defines the slots and channels
+		$data = "";
+		// then add the setup js which reads the ad data
+		$script = Misc::getEmbedFile( 'js', dirname(__FILE__) . "/mobileAdSetup.js" );
+		if ( $intl ) {
+			$data = self::getIntlMobileAdData();
+			$script .= "window.intlAds = true;";
+		} else {
+			$data = self::getMobileAdData();
+		}
+
+		// wrap the script in script tags
+		$script = Html::inlineScript( $script );
+
+		// TODO add the google adsense code if we add it in head with link rel preload
+		//$script .= '<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>';
+
+		$html = Html::rawElement( 'div', [ 'id' => 'wh_ad_setup' ], $data . $script );
+
+		pq("#intro")->append($html);
+	}
+
+	private static function insertMobileAdIntro() {
+		$type = 'intro';
+		$id = 'wh_ad_intro';
+		$html = Html::rawElement( 'div', [ 'data-type' => $type, 'class' => 'wh_ad', 'id' => $id ] );
+		$script = Html::inlineScript("WH.mobileads.add('$id');");
+
+		pq("#intro")->append($html.$script);
+	}
+
+	private static function insertMobileAdMethods() {
+        global $wgTitle;
+
+        $pageId = $wgTitle->getArticleID();
+
+		$clear = Html::rawElement( 'div', [ 'style' => 'clear:left;' ] );
+
+		//ad in last step of each method
+		$methodNumber = 1;
+		foreach( pq( ".steps:not('.sample') .steps_list_2 > li:last-child" ) as $node ) {
+			$id = 'wh_ad_method'.$methodNumber;
+			$attributes = array(
+				'id' => $id ,
+				'class' => 'method_ad',
+				'data-type' => 'method',
+			);
+			$attributes['data-scroll-load'] = true;
+
+			$html = Html::rawElement( 'div', $attributes, $clear );
+			// add the bottom label
+			$html .= Html::rawElement( 'div', [ 'class' => 'ad_label_method' ], 'Advertisement' );
+
+			$script = Html::inlineScript("WH.mobileads.add('$id');");
+			pq( $node )->append( $html . $script );
+			$methodNumber++;
+		}
+
+	}
+
+	private static function insertMobileAdRelated() {
+        global $wgTitle;
+
+        $pageId = $wgTitle->getArticleID();
+
+		$id = 'wh_ad_related';
+		$attributes = array(
+			'id' => $id ,
+			'class' => 'wh_ad',
+			'data-type' => 'related',
+		);
+
+		$attributes['data-scroll-load'] = true;
+		$html = Html::rawElement( 'div', $attributes );
+		$html .= Html::rawElement( 'div', [ 'class' => 'ad_label_related' ], 'Advertisement' );
+
+		$script = Html::inlineScript("WH.mobileads.add('$id');");
+		$relatedsname = RelatedWikihows::getSectionName();
+		pq("#{$relatedsname}")->append($html.$script);
+	}
+
+	private static function insertMatchedContentAdMobile() {
+		global $wgOut, $wgLanguageCode;
+
+		// for now we do not have this in google amp mode
+		if ( GoogleAmp::isAmpMode( $wgOut ) ) {
+			return '';
+		}
+
+
+		if ( !pq(".section.articleinfo")->length ) {
+			return;
+		}
+
+		// create a related wikihow section since we do not have one and put
+		// the matched content ad inside it
+		$headline = Html::element( "span", array( "class" => "mw-headline", "id" => "Other_wikiHows" ), "Other wikiHows" );
+		$content = Html::rawElement( "h2", array(), $headline );
+		$matchedContentAd = wikihowAds::getMatchedContentAdMobile( 'relatedwikihows' );
+		$content .= $matchedContentAd;
+		$contents = Html::rawElement( "div", array( 'class' => array( 'section', 'otherwikihows' ) ), $content );
+		$contents = wikihowAds::rewriteAdCloseTags( $contents );
+		pq(".section.articleinfo")->before( $contents );
+	}
+
+
+	// public function which will get the mobile ads and insert them into the dom
+	// as well as the javascript to load them
+	public static function insertMobileAds() {
+		global $wgLanguageCode, $wgOut;
+
+		self::setCategories();
+		if ( GoogleAmp::isAmpMode( $wgOut ) ) {
+			GoogleAmp::insertAMPAds();
+			return;
+		}
+
+		$intl = $wgLanguageCode != 'en';
+		wikihowAds::insertMobileAdSetup( $intl );
+		wikihowAds::insertMobileAdIntro();
+		wikihowAds::insertMobileAdMethods();
+
+		$relatedsname = RelatedWikihows::getSectionName();
+		if ( !pq("#{$relatedsname}")->length && $wgLanguageCode == 'en' ) {
+			wikihowAds::insertMatchedContentAdMobile();
+		}
+
+		wikihowAds::insertMobileAdRelated();
+
+	}
+
+	public static function getMobileFooterAd() {
+		if ( !self::isEligibleForAds() ) {
+			return "";
 		}
 		return "";
 	}
 
+	public static function getMobileStickyFooterAd() {
+		if ( !self::isEligibleForAds() ) {
+			return "";
+		}
+        $type = 'footer';
+        $id = 'wh_ad_footer';
+		$attr = array(
+			'data-sticky-footer' => true,
+			'data-load-class' => 'wh_ad_footer_fixed',
+			'data-scroll-load' => true,
+			'data-type' => $type,
+			'class' => 'wh_ad',
+			'id' => $id
+		);
+        $html = Html::rawElement( 'div', $attr );
+        $script = Html::inlineScript("WH.mobileads.add('$id');");
+        return $html . $script;
+	}
+
+	public static function getMobilePageCenterClass() {
+		if ( self::getMobileFooterAd() ) {
+			return "footerad";
+		}
+
+	}
+
+	private static function getTypeTag(): string {
+		global $wgLanguageCode;
+
+		$isM = Misc::isMobileMode();
+		$lang = $wgLanguageCode;
+
+		if ($lang == 'en')     return $isM ? '__alt__ddc_mobile_wikihow_com' : '__alt__ddc_wikihow_com';
+		elseif ($lang == 'ar') return $isM ? '__alt__ddc_arm_wikihow_com'    : '__alt__ddc_ar_wikihow_com';
+		elseif ($lang == 'cs') return $isM ? '__alt__ddc_mobile_wikihow_cz'  : '__alt__ddc_wikihow_cz';
+		elseif ($lang == 'de') return $isM ? '__alt__ddc_dem_wikihow_com'    : '__alt__ddc_de_wikihow_com';
+		elseif ($lang == 'es') return $isM ? '__alt__ddc_esm_wikihow_com'    : '__alt__ddc_es_wikihow_com';
+		elseif ($lang == 'fr') return $isM ? '__alt__ddc_frm_wikihow_com'    : '__alt__ddc_fr_wikihow_com';
+		elseif ($lang == 'hi') return $isM ? '__alt__ddc_him_wikihow_com'    : '__alt__ddc_hi_wikihow_com';
+		elseif ($lang == 'id') return $isM ? '__alt__ddc_idm_wikihow_com'    : '__alt__ddc_id_wikihow_com';
+		elseif ($lang == 'it') return $isM ? '__alt__ddc_mobile_wikihow_it'  : '__alt__ddc_wikihow_it';
+		elseif ($lang == 'ja') return $isM ? '__alt__ddc_mobile_wikihow_jp'  : '__alt__ddc_wikihow_jp';
+		elseif ($lang == 'ko') return $isM ? '__alt__ddc_kom_wikihow_com'    : '__alt__ddc_ko_wikihow_com';
+		elseif ($lang == 'nl') return $isM ? '__alt__ddc_nl_mwikihow_com'    : '__alt__ddc_nl_wikihow_com';
+		elseif ($lang == 'pt') return $isM ? '__alt__ddc_ptm_wikihow_com'    : '__alt__ddc_pt_wikihow_com';
+		elseif ($lang == 'ru') return $isM ? '__alt__ddc_rum_wikihow_com'    : '__alt__ddc_ru_wikihow_com';
+		elseif ($lang == 'th') return $isM ? '__alt__ddc_thm_wikihow_com'    : '__alt__ddc_th_wikihow_com';
+		elseif ($lang == 'vi') return $isM ? '__alt__ddc_mobile_wikihow_vn'  : '__alt__ddc_wikihow_vn';
+		elseif ($lang == 'zh') return $isM ? '__alt__ddc_zhm_wikihow_com'    : '__alt__ddc_zh_wikihow_com';
+
+		return $isM ? '__alt__ddc_mobile_wikihow_com' : '__alt__ddc_wikihow_com';
+
+	}
 
 }
 

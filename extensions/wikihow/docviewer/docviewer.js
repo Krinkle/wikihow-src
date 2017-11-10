@@ -11,12 +11,12 @@ $(document).ready(function() {
 
     $('#sampleAccuracyYes').click(function(e){
         e.preventDefault();
-        rateItem(1, wgSampleName, 'sample');
+        WH.ratings.rateItem(1, wgSampleName, 'sample', 'desktop');
     });
 
     $('#sampleAccuracyNo').click(function(e){
         e.preventDefault();
-        rateItem(0, wgSampleName, 'sample');
+        WH.ratings.rateItem(0, wgSampleName, 'sample', 'desktop');
     });
 
 });

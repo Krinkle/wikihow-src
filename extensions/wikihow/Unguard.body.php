@@ -1,4 +1,5 @@
-<?
+<?php
+
 class Unguard extends UnlistedSpecialPage {
 
     function __construct() {

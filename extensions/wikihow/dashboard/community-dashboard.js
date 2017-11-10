@@ -17,7 +17,7 @@ WH.dashboard = (function ($) {
 		REFRESH_USER_DATA_THROTTLE_SECS_2 = 900,
 		REFRESH_USER_DATA_THROTTLE_AFTER_2 = 1800;
 	//var CDN_BASE = wgCDNbase,
-	var CDN_BASE = 'http://www.wikihow.com',
+	var CDN_BASE = '//www.wikihow.com',
 		MAX_INT = 2147483647; // 2^31 - 1
 
 	// module (closure) variables
@@ -41,7 +41,7 @@ WH.dashboard = (function ($) {
 		addNetworkListeners();
 		addUIListeners();
 
-		startTimers();
+		if (!WH.isMobileDomain) startTimers();
 
 		initApps();
 
@@ -125,7 +125,7 @@ WH.dashboard = (function ($) {
 				minHeight: 500,
 				modal: true,
 				title: 'Your Contributions This Week',
-				closeText: 'Close',
+				closeText: 'x',
 			});
 			$.ajax({
 				url: '/Special:CommunityDashboard/userstats',
@@ -249,7 +249,8 @@ WH.dashboard = (function ($) {
 				.disableSelection();
 			$('.cd-customize-dialog').dialog({
                 width: 520,
-                modal: true
+                modal: true,
+				closeText: 'x'
             });
 
 			return false;
@@ -272,7 +273,7 @@ WH.dashboard = (function ($) {
 			// save ordering locally and to server
 			WH.dashboard.prefsOrdering = ordering;
 			$.post('/Special:CommunityDashboard/customize',
-				{ ordering: $.toJSON(ordering) },
+				{ ordering: JSON.stringify(ordering) },
 				function (data) {
 					if (data && !data['error']) {
 						// reload this page to reload widget order
@@ -450,8 +451,8 @@ WH.dashboard = (function ($) {
 
 	function animateUpdateImage(oldImage, newImageHtml) {
 		var oldImageHtml = oldImage.first().html();
-		var oldSrc = $(oldImageHtml).attr('src').replace(/^http:\/\/[^\/]*/, '');
-		var newSrc = $(newImageHtml).attr('src').replace(/^http:\/\/[^\/]*/, '');
+		var oldSrc = $(oldImageHtml).attr('src').replace(/^https?:\/\/[^\/]*/, '');
+		var newSrc = $(newImageHtml).attr('src').replace(/^https?:\/\/[^\/]*/, '');
 		if (newSrc != oldSrc) {
 			oldImage.fadeOut('slow', function () {
 				$(this).html(newImageHtml);

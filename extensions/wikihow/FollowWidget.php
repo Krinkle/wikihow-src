@@ -14,7 +14,3 @@ $wgExtensionMessagesFiles['FollowWidget'] = dirname(__FILE__) . '/FollowWidget.i
 $wgSpecialPages['FollowWidget'] = 'FollowWidget';
 $wgAutoloadClasses['FollowWidget'] = dirname( __FILE__ ) . '/FollowWidget.body.php';
 
-$wgExtensionMessagesFiles['SubmitEmail'] = dirname(__FILE__) . '/FollowWidget.i18n.php';
-$wgSpecialPages['SubmitEmail'] = 'SubmitEmail';
-$wgAutoloadClasses['SubmitEmail'] = dirname( __FILE__ ) . '/FollowWidget.body.php';
-

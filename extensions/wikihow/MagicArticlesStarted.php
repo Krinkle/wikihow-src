@@ -61,9 +61,9 @@ function MagicArticlesStartedLanguageGetMagic(&$magicWords, $langCode) {
 }
 
 function articlesstarted($parser, $part1 = '', $part2 = '', $part3 = 'time', $part4 = '', $part5 = 'width:200px;border: 1px solid #ccc; padding:10px;') {
-	global $wgTitle;
+	$title = RequestContext::getMain()->getTitle();
 	$ret = "";
-	if ($wgTitle->getNamespace() == NS_USER) {
+	if ($title instanceof Title && $title->getNamespace() === NS_USER) {
 		$ret = "";
 		$msg = "";
 		if ($part2 == 'box') {
@@ -71,10 +71,10 @@ function articlesstarted($parser, $part1 = '', $part2 = '', $part3 = 'time', $pa
 				$msg = wfMsg('articlesstarted_byme');
 			} else {
 				switch ($part3) {
-					case 'popular': 
+					case 'popular':
 						$msg = wfMsg('articlesstarted_byme_mostpopular', $part1);
 						break;
-					case 'time_asc': 
+					case 'time_asc':
 						$msg = wfMsg('articlesstarted_byme_first', $part1);
 						break;
 					default:
@@ -105,7 +105,7 @@ function articlesstarted($parser, $part1 = '', $part2 = '', $part3 = 'time', $pa
 		$res = $dbr->select(
 			array('firstedit','page'),
 			array ('page_title', 'page_namespace', 'fe_timestamp'),
-			array ('fe_page=page_id', 'fe_user_text' => $wgTitle->getText()),
+			array ('fe_page=page_id', 'fe_user_text' => $title->getText()),
 			__METHOD__,
 			$order
 		);
@@ -120,17 +120,17 @@ function articlesstarted($parser, $part1 = '', $part2 = '', $part3 = 'time', $pa
 }
 
 function patrolcount($parser, $date1 = '', $date2  = '') {
-	global $wgTitle;
+	$title = RequestContext::getMain()->getTitle();
 	$ret = "";
-	if ($wgTitle->getNamespace() == NS_USER) {
+	if ($title instanceof Title && $title->getNamespace() === NS_USER) {
 		$msg_key = $fdate1 = $fdate2 = '';
-		$u = User::newFromName($wgTitle->getText());
+		$u = User::newFromName($title->getText());
 		if (!$u || $u->getID() == 0) {
 			$ret = wfMsg('patrolcount_error');
 			return;
 		}
 		$options = array('log_user=' . $u->getID(), 'log_type' => 'patrol');
-		
+
 		$fdate1 = $date1;
 		$fdate2 = $date2;
 		$date1 = str_replace("-", "", $date1);
@@ -148,17 +148,17 @@ function patrolcount($parser, $date1 = '', $date2  = '') {
 }
 
 function nabcount($parser, $date1 = '', $date2  = '') {
-	global $wgTitle;
+	$title = RequestContext::getMain()->getTitle();
 	$ret = "";
-	if ($wgTitle->getNamespace() == NS_USER) {
+	if ($title instanceof Title && $title->getNamespace() === NS_USER) {
 		$msg_key = $fdate1 = $fdate2 = '';
-		$u = User::newFromName($wgTitle->getText());
+		$u = User::newFromName($title->getText());
 		if (!$u || $u->getID() == 0) {
 			$ret = wfMsg('nabcount_error');
 			return;
 		}
 		$options = array('log_user=' . $u->getID(), 'log_type' => 'nap');
-		
+
 		$fdate1 = $date1;
 		$fdate2 = $date2;
 		$date1 = str_replace("-", "", $date1);
@@ -176,26 +176,28 @@ function nabcount($parser, $date1 = '', $date2  = '') {
 }
 
 function wfWikiHowMagicAssignAValue(&$parser, &$cache, &$magicWordId, &$ret) {
-	if ('VIEWERSHIP' == $magicWordId) {
-		global $wgTitle;
-		if (!$wgTitle) return true;
+	$title = RequestContext::getMain()->getTitle();
+
+	if( !$title || !$title instanceof Title ) {
+		return true;
+	}
+
+	if ('VIEWERSHIP' === $magicWordId) {
 		$dbr = wfGetDB(DB_SLAVE);
-		$u = User::newFromName($wgTitle->getText());
+		$u = User::newFromName($title->getText());
 		if (!$u || $u->getID() == 0) {
-			$ret = "No such user \"{$wgTitle->getText()}\"";
+			$ret = "No such user \"{$title->getText()}\"";
 			return true;
 		}
 		$options = array('fe_user=' . $u->getID(), 'page_id=fe_page');
 		$count = $dbr->selectField(array('page', 'firstedit'), 'sum(page_counter)', $options, "viewership");
 		$ret = number_format($count, 0, "", ",");
 		return true;
-	} else  if ('NUMBEROFARTICLESSTARTED' == $magicWordId) {
-		global $wgTitle;
-		if (!$wgTitle) return true;
+	} else  if ('NUMBEROFARTICLESSTARTED' === $magicWordId) {
 		$dbr = wfGetDB(DB_SLAVE);
-		$u = User::newFromName($wgTitle->getText());
+		$u = User::newFromName($title->getText());
 		if (!$u || $u->getID() == 0) {
-			$ret = "No such user \"{$wgTitle->getText()}\"";
+			$ret = "No such user \"{$title->getText()}\"";
 			return true;
 		}
 		$options = array('fe_user=' . $u->getID(), 'page_id=fe_page');

@@ -15,6 +15,7 @@ $wgHooks['MarkPatrolledDB'][] = array('GoodRevision::onMarkPatrolled');
 $wgHooks['EditURLOptions'][] = array('GoodRevision::onEditURLOptions');
 $wgHooks['Unpatrol'][] = array('GoodRevision::onUnpatrol');
 $wgHooks['TitleMoveComplete'][] = array('GoodRevision::onMovePage');
+$wgHooks['UnitTestsList'][] = array('GoodRevision::onUnitTestsList');
 
 class GoodRevision {
 
@@ -31,10 +32,9 @@ class GoodRevision {
 	 * Note: uses $articleID if it's provided, for efficiency.
 	 */
 	public static function newFromTitle(&$title, $articleID = 0) {
-		global $wgLanguageCode;
 
-		if ('en' != $wgLanguageCode
-			|| !$title
+		if ( !$title
+			|| !$title->exists()
 			|| $title->getNamespace() != NS_MAIN)
 		{
 			return null;
@@ -113,6 +113,9 @@ class GoodRevision {
 
 				$dbw->query($sql, __METHOD__);
 				$wgMemc->set($this->cachekey, $rev);
+
+				wfRunHooks( 'GoodRevisionUpdated', array( $this->articleID, $rev ) );
+
 				return true;
 			}
 		}
@@ -131,7 +134,7 @@ class GoodRevision {
 			// rollback, just return 0 so that it looks to any
 			// calling function like there is no associated 
 			// revision ID to assign.
-			$rollbackCommentPrefix = wfMsgForContent('rollback_comment_prefix');
+			$rollbackCommentPrefix = wfMessage('rollback_comment_prefix')->inContentLanguage()->text();
 			$dbr = self::getDB('read');
 			$res = $dbr->select('recentchanges', array('rc_comment'),
 				array('rc_cur_id' => $pageid, 'rc_id > ' . $rcid),
@@ -161,7 +164,11 @@ class GoodRevision {
 		
 		// get the last good revision
 		$goodRev = self::newFromTitle($title);
-		$last_good_rev = $goodRev->latestGood();
+		if (!$goodRev) {
+			$last_good_rev = 0;
+		} else {
+			$last_good_rev = $goodRev->latestGood();
+		}
 		
 		return $last_rev_id == $last_good_rev;
 	}
@@ -310,5 +317,10 @@ class GoodRevision {
 		}
 	}
 
+	public static function onUnitTestsList( &$files ) {
+		global $IP;
+		$files = array_merge( $files, glob( __DIR__ . '/tests/*Test.php' ) );
+		return true;
+	}
 }
 

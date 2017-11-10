@@ -1,4 +1,4 @@
-<?
+<?php
 
 if (!defined('MEDIAWIKI')) die();
 
@@ -11,10 +11,10 @@ class DashboardData {
 		$fetchOnFirstCallOnly = false;
 
 	const GLOBAL_STATS_CACHEKEY = 'cd-stats'; // this is updated constantly
-	const GLOBAL_STATS_EXPIRES = 3600; // 60 minutes ttl in case of bad updates
+	const GLOBAL_STATS_EXPIRES = 21600; // 6 hours ttl grace period on stats, in case of updates stop working
 	const GLOBAL_OPTS_CACHEKEY = 'cd-opts';
-	const GLOBAL_OPTS_EXPIRES = 600; // 10 minutes
-	const USER_STATS_EXPIRES = 600; // 10 minutes
+	const GLOBAL_OPTS_EXPIRES = 3600; // 1 hour
+	const USER_STATS_EXPIRES = 3600; // 1 hour
 
 	public function __construct() {
 		global $wgUser;
@@ -114,14 +114,19 @@ class DashboardData {
 			$widgetStats = array();
 			$widgets = $this->widgets;
 			foreach ($widgets as $name => $widget) {
+				$start = microtime(true);
 				$code = @$wgWidgetShortCodes[$name];
 				$idx = $code ? $code : $name . '-add-to-wgWidgetShortCodes';
 				try {
 					$widgetStats[$idx] = $widget->compileStatsData($dbr);
 				} catch(Exception $e) {
+					print "debug: exception=$e\n";
 					$widgetStats[$idx] = array('error' => "error getting $name widget data");
 					$success = false;
 				}
+				$delta = microtime(true) - $start;
+				// Great for debugging
+				//print "$name: " . sprintf('%.3fs', $delta) . "\n";
 			}
 			$stats = array('widgets' => $widgetStats);
 			if (!$firstStats) $firstStats = $stats;
@@ -130,7 +135,16 @@ class DashboardData {
 			//print "populating fake stats\n";
 		}
 
-		$wgMemc->set(wfMemcKey(self::GLOBAL_STATS_CACHEKEY), $stats, self::GLOBAL_STATS_EXPIRES);
+		// Write result to multi-write / replicated memcache
+		global $wgObjectCaches;
+		$memc = null;
+		if ( isset($wgObjectCaches['multi-memcache']) ) {
+			$memc = wfGetCache('multi-memcache');
+		}
+		if (!$memc) {
+			$memc = $wgMemc;
+		}
+		$memc->set(wfMemcKey(self::GLOBAL_STATS_CACHEKEY), $stats, self::GLOBAL_STATS_EXPIRES);
 
 		return $success;
 	}
@@ -197,7 +211,7 @@ class DashboardData {
 					$row['completion'] =
 						json_decode($row['cdu_completion_json'], true);
 				}
-				if (!is_array($row['completion'])) {
+				if (!isset($row['completion']) || !is_array($row['completion'])) {
 					$row['completion'] = array();
 				}
 
@@ -247,7 +261,10 @@ class DashboardData {
 			$data = array();
 			foreach ($widgets as $name => $widget) {
 				try {
-					$data[$name] = $widget->getUserStats($dbr);
+					$stats = $widget->getUserStats($dbr);
+					if($stats) {
+						$data[$name] = $stats;
+					}
 				} catch(Exception $e) {
 					//$widgetStats[$name] = array('error' => "error getting $name widget data");
 				}

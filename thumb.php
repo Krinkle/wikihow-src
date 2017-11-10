@@ -21,8 +21,16 @@
  * @ingroup Media
  */
 
+if (preg_match('@^(/[^/]*){5}/aid--crop@', $_SERVER['REQUEST_URI'])) {
+	header('HTTP/1.1 500 Temporary error');
+	die('Temporary error');
+}
+
 define( 'MW_NO_OUTPUT_COMPRESSION', 1 );
 require __DIR__ . '/includes/WebStart.php';
+if ( $wgIsDevServer ) {
+	require __DIR__ . '/extensions/wikihow/devimages404.php';
+}
 
 // Don't use fancy mime detection, just check the file extension for jpg/gif/png
 $wgTrivialMimeDetection = true;
@@ -65,13 +73,23 @@ function wfThumbHandle404() {
 	# Note: If Custom per-extension repo paths are set, this may break.
 	$repo = RepoGroup::singleton()->getLocalRepo();
 	$oldArticlePath = $wgArticlePath;
-	$wgArticlePath = $repo->getZoneUrl( 'thumb' ) . '/$1';
+
+	// Route image urls with a language code properly
+	if ( preg_match('@^(/images_[a-z]{2}/)@', @$_SERVER['REQUEST_URI'], $m) ) {
+		$wgArticlePath = $m[1] . 'thumb/$1';
+	} else {
+		$wgArticlePath = $repo->getZoneUrl( 'thumb' ) . '/$1';
+	}
 
 	$matches = WebRequest::getPathInfo();
 
 	$wgArticlePath = $oldArticlePath;
 
 	if ( !isset( $matches['title'] ) ) {
+		// ARG - wikihow - added this special handler to get regular images from remote server on dev
+		if ( function_exists( 'wfImageHandle404' ) ) {
+			return wfImageHandle404();
+		}
 		wfThumbError( 404, 'Could not determine the name of the requested thumbnail.' );
 		return;
 	}
@@ -124,8 +142,10 @@ function wfStreamThumb( array $params ) {
 	$isTemp = ( isset( $params['temp'] ) && $params['temp'] );
 	unset( $params['temp'] ); // handlers don't care
 
-	// Some basic input validation
-	$fileName = strtr( $fileName, '\\/', '__' );
+	// Some basic input validation.
+	// Reuben (wikiHow) 11/25/2014: code changed so "/" is now allowed in the filename
+	//$fileName = strtr( $fileName, '\\/', '__' );
+	$fileName = strtr( $fileName, '\\', '_' );
 
 	// Actually fetch the image. Method depends on whether it is archived or not.
 	if ( $isTemp ) {
@@ -253,7 +273,7 @@ function wfStreamThumb( array $params ) {
 			wfThumbError( 400, 'The specified thumbnail parameters are not valid.' );
 			return;
 		}
-		$thumbName2 = $img->thumbName( $params, File::THUMB_FULL_NAME ); // b/c; "long" style
+		$thumbName2 = $img->thumbName( $params, array(), File::THUMB_FULL_NAME ); // b/c; "long" style
 	} catch ( MWException $e ) {
 		wfThumbError( 500, $e->getHTML() );
 		return;
@@ -410,11 +430,25 @@ function wfExtractThumbRequestInfo( $thumbRel ) {
 		$hashDirReg .= "$subdirReg/";
 	}
 
+	// Reuben (wikiHow) 1/12/2016: Newer code was used to deal with files that
+	// have "/" in their legit filename.
+	//
+	// Some edge/test cases:
+	// /images/thumb/a/ae/Access-Your-Router-if-You-Do-Not-Know-Username%2FPassword-Step-3.jpg/671px-Access-Your-Router-if-You-Do-Not-Know-Username%2FPassword-Step-3.jpg
+	// /images/thumb/a/a2/Recognize-and-Treat-Legionnaires%27-Disease-Step-1.jpg/901px-Recognize-and-Treat-Legionnaires%27-Disease-Step-1.jpg
+	// /images/thumb/5/53/Draw-a-Wolf-Step-1-Version-2.jpg/728px-Draw-a-Wolf-Step-1-Version-2.jpg.png
+	//
 	// Check if this is a thumbnail of an original in the local file repo
 	if ( preg_match( "!^((archive/)?$hashDirReg([^/]*)/([^/]*))$!", $thumbRel, $m ) ) {
 		list( /*all*/, $rel, $archOrTemp, $filename, $thumbname ) = $m;
+	// Check if this is a thumbnail of an original in the local file repo
+	} elseif ( preg_match( "!^((archive/)?$hashDirReg(.*)/([^/]*\\3))$!", $thumbRel, $m ) ) {
+		list( /*all*/, $rel, $archOrTemp, $filename, $thumbname ) = $m;
 	// Check if this is a thumbnail of an temp file in the local file repo
 	} elseif ( preg_match( "!^(temp/)($hashDirReg([^/]*)/([^/]*))$!", $thumbRel, $m ) ) {
+		list( /*all*/, $archOrTemp, $rel, $filename, $thumbname ) = $m;
+	// Check if this is a thumbnail of an temp file in the local file repo
+	} elseif ( preg_match( "!^(temp/)($hashDirReg(.*)/([^/]*\\3))$!", $thumbRel, $m ) ) {
 		list( /*all*/, $archOrTemp, $rel, $filename, $thumbname ) = $m;
 	} else {
 		return null; // not a valid looking thumbnail request
@@ -518,6 +552,8 @@ function wfThumbError( $status, $msg ) {
 	} else {
 		$debug = '';
 	}
+	// Reuben, wikiHow 2015/12/10: fix a reported XSS attack
+	$msg = htmlspecialchars($msg);
 	echo <<<EOT
 <html><head><title>Error generating thumbnail</title></head>
 <body>

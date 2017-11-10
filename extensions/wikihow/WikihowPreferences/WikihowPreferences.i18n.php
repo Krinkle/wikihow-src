@@ -16,7 +16,12 @@ $messages['en'] =
 		'prefs-rctest' => "Enable the Patrol Coach diffs in RC Patrol",
 		'prefs-rcwidget' => "Show Recent Changes Widget",
 		'prefs-welcomer' => "Don't allow my account to welcome new users",
+		'prefs-showdemoted' => "Show demoted article contents immediately, without prompting first",
 		'prefs-autopatrol' => "Mark my edits patrolled by default",
 		'prefs-articlecreator' => "Use the Article Creation Tool for writing new articles",
 		'prefs-emailsettingsind' => "Individual Email Settings",
+		'prefs-showarticleinfo' => 'Show article information box in right column',
+		'prefs-showhelpfulnessdata' => 'Show page helpfulness data in right column',
+		'prefs-promotenotify' => 'Notify my Talk Page when my article is promoted',
+		'prefs-disableqaemail' => 'Email me occasional updates about my Community Q&A activity'
 	);

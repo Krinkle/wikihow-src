@@ -10,6 +10,7 @@ abstract class DashboardWidget {
 	static $completion = array();
 	static $baselines = array();
 	static $max_username_length;
+	static $is_mobile = false;
 
 	const WIDGET_LOGIN = "login";
 	const WIDGET_DISABLED = "disabled";
@@ -62,7 +63,26 @@ abstract class DashboardWidget {
 			'widgetMWName' => $this->getMWName(),
 			'extraInternalHTML' => $this->getExtraInternalHTML(),
 		));
+		
 		$html = $tmpl->execute('widgets/dashboardWidget.tmpl.php');
+		return $html;
+	}
+
+	/**
+	 * Returns HTML internals of the mobile widget box.
+	 */
+	public function getMobileHTML($initialData) {
+		$tmpl = new EasyTemplate( dirname(__FILE__) );
+		$tmpl->set_vars(array(
+			'data' => $initialData,
+			'widgetName' => $this->getName(),
+			'header' => $this->getMobileHeaderHTML(),
+			'countDescription' => $this->getCountDescription(),
+			'widgetLink' => $this->getWidgetLink(),
+			'extraInternalHTML' => $this->getExtraInternalHTML(),
+		));
+		
+		$html = $tmpl->execute('widgets/dashboardWidgetMobile.tmpl.php');
 		return $html;
 	}
 
@@ -72,7 +92,14 @@ abstract class DashboardWidget {
 	 * is calls getHTML() and is called by the dashboard display.
 	 */
 	public function getContainerHTML($initialData) {
-		return '<div class="comdash-widget-box comdash-widget-' . $this->getName() . ' ' . $this->getWidgetStatus() . ' '. $this->getWeatherClass($initialData['ct']) . '"><div class="status" id="status-' . $this->getName() . '"></div>' . $this->getHTML($initialData) . '</div>';
+		if (self::$is_mobile) {
+			$container = '<div class="comdash-widget-box comdash-widget-' . $this->getName() . ' ' . $this->getWidgetStatus() . ' '. $this->getWeatherClass($initialData['ct']) . '"><div class="status" id="status-' . $this->getName() . '"></div>' . $this->getMobileHTML($initialData) . '</div>';
+		}
+		else {
+			$container = '<div class="comdash-widget-box comdash-widget-' . $this->getName() . ' ' . $this->getWidgetStatus() . ' '. $this->getWeatherClass($initialData['ct']) . '"><div class="status" id="status-' . $this->getName() . '"></div>' . $this->getHTML($initialData) . '</div>';
+			
+		}
+		return $container;
 	}
 
 	public function getLoginLink() {
@@ -83,8 +110,9 @@ abstract class DashboardWidget {
 	 * Needs to return the visual title for
 	 * this widget.
 	 */
-	public function getTitle() {
-		return wfMsg('cd-' . $this->getMWName() . '-title');
+	public function getTitle($forMobile = false) {
+		$mobile_suffix = $forMobile ? '-mobile' : '';
+		return wfMsg('cd-' . $this->getMWName() . '-title'.$mobile_suffix);
 	}
 
 	protected abstract function getLeaderboardTitle();
@@ -118,9 +146,6 @@ abstract class DashboardWidget {
 	 *
 	 */
 	public function populateUserObject($userId, $timestamp) {
-		global $wgUser;
-		$sk = $wgUser->getSkin();
-
 		$imguser = array();
 		$imguser['id'] = $userId;
 		$imguser['date'] = wfTimeAgo($timestamp);
@@ -170,9 +195,6 @@ abstract class DashboardWidget {
 	protected abstract function getCount(&$dbr);
 
 	public function getLeaderboard(&$dbr) {
-		global $wgUser;
-		$sk = $wgUser->getSkin();
-
 		$startdate = strtotime('7 days ago');
 		$starttimestamp = date('YmdG',$startdate) . floor(date('i',$startdate)/10) . '00000';
 
@@ -192,7 +214,7 @@ abstract class DashboardWidget {
 				}
 
 				$leaderboardData[$count]['img'] = $img;
-				$leaderboardData[$count]['user'] = $sk->makeLinkObj($u->getUserPage(), $u->getName());
+				$leaderboardData[$count]['user'] = Linker::link($u->getUserPage(), $u->getName());
 				$leaderboardData[$count]['count'] = $value;
 
 				$data[$key] = $value * -1;
@@ -239,6 +261,16 @@ abstract class DashboardWidget {
 	public function getMoreLink() {
 		return "<a href='#' class='comdash-more' id='comdash-more-" . $this->widgetName . "'></a>";
 	}
+	
+	/**
+	 *
+	 * returns the first part of the <a href> tag for the full box widget link for mobile
+	 */
+	public function getWidgetLink() {
+		$full_link = $this->getStartLink(false,DashboardWidget::WIDGET_ENABLED);
+		$link = str_replace('Start</a>','',$full_link);
+		return $link;
+	}
 
 	/*
 	 * Returns the class for the weather icon
@@ -276,6 +308,13 @@ abstract class DashboardWidget {
 	 */
 	public function getHeaderHTML() {
 		return '<div class="comdash-widget-header">' . $this->getTitle() . $this->getStartLink(true, $this->getWidgetStatus()) . '</div>';
+	}
+	
+	/**
+	 * Returns the HTML for just the top part of the widget
+	 */
+	public function getMobileHeaderHTML() {
+		return '<div class="comdash-widget-header">' . $this->getTitle(true) . '</div>';
 	}
 
 	/**
@@ -328,6 +367,13 @@ abstract class DashboardWidget {
 	}
 
 	/**
+	 * Sets the is_mobile flag for the widgets
+	 */
+	public static function setIsMobile() {
+		self::$is_mobile = true;
+	}
+
+	/**
 	 * Sets the thresholds for all apps.
 	 * @param $thresholds an array like array('App1'=>array('mid'=>'1'),...)
 	 */
@@ -357,8 +403,12 @@ abstract class DashboardWidget {
 	 */
 	public function getBaseline() {
 		$name = $this->getName();
-		$baselines = self::$baselines[$name];
-		return $baselines;
+		if (isset(self::$baselines[$name])) {
+			$baselines = self::$baselines[$name];
+			return $baselines;
+		} else {
+			return null;
+		}
 	}
 
 	/**
@@ -392,7 +442,8 @@ abstract class DashboardWidget {
 	private function getAvatarURL($img) {
 		if (preg_match('@^([^:]*)(:(.*))?$@', $img, $m)) {
 			$type = $m[1];
-			if ($type != 'df') $param = $m[3];
+			$param = '';
+			if ($type != 'df' && isset($m[3])) $param = $m[3];
 		} else {
 			$type = 'df';
 		}
@@ -408,7 +459,7 @@ abstract class DashboardWidget {
 
 	/**
 	 * Return the html for a link to a user's page.  (TODO: it'd be
-	 * better to use the makeLinkObj() function here.)
+	 * better to use the Linker::linkKnown() function here.)
 	 */
 	public function getUserLink($username) {
 		if ($username == "Anonymous")

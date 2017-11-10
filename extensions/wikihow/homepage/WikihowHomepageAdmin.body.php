@@ -103,10 +103,11 @@ class WikihowHomepageAdmin extends UnlistedSpecialPage {
 wgAjaxUploadDestCheck = {$adc};
 wgAjaxLicensePreview = {$alp};
 </script>" );
-		$wgOut->addScript(HtmlSnips::makeUrlTags('js', array('jquery-ui-1.8.custom.min.js'), 'extensions/wikihow/common/ui/js', false));
-		$wgOut->addScript(HtmlSnips::makeUrlTags('js', array('wikihowhomepageadmin.js'), 'extensions/wikihow/homepage', false));
-		$wgOut->addScript(HtmlSnips::makeUrlTags('css', array('wikihowhomepageadmin.css'), 'extensions/wikihow/homepage', false));
-		$wgOut->addScript(HtmlSnips::makeUrlTags('js', array('upload.js'), 'skins/common', false));
+		$wgOut->addModules('jquery.ui.dialog');
+		$wgOut->addScript(HtmlSnips::makeUrlTag('/extensions/wikihow/common/ui/js/jquery-ui-1.8.custom.min.js'));
+		$wgOut->addScript(HtmlSnips::makeUrlTag('/extensions/wikihow/homepage/wikihowhomepageadmin.js'));
+		$wgOut->addScript(HtmlSnips::makeUrlTag('/extensions/wikihow/homepage/wikihowhomepageadmin.css'));
+		$wgOut->addScript(HtmlSnips::makeUrlTag('/skins/common/upload.js'));
 
 		$this->displayHomepageData();
 

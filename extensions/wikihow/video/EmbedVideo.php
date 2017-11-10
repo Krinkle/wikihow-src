@@ -75,12 +75,11 @@ if ( defined( 'MW_SUPPORTS_PARSERFIRSTCALLINIT' ) ) {
 }
 $wgEmbedVideoServiceList = array(
 	'dailymotion' => array(
-		'url' => 'http://www.dailymotion.com/swf/$1'
+		'url' => '//www.dailymotion.com/embed/video/$1'
 	),
 	'funnyordie' => array(
 		'url' => 
-			'http://www.funnyordie.com/v1/flvideo/fodplayer.swf?file='.
-			'http://funnyordie.vo.llnwd.net/o16/$1.flv&autoStart=false'
+			'//www.funnyordie.com/embed/$1'
 	),
 	'googlevideo' => array(
 		'id_pattern'=>'%[^0-9\\-]%',
@@ -93,20 +92,23 @@ $wgEmbedVideoServiceList = array(
 		'url' => 'http://flash.revver.com/player/1.0/player.swf?mediaId=$1'
 	),
 	'youtube' => array(
-		'url'=>'http://www.youtube.com/v/$1'
+		'url'=>'https://www.youtube.com/embed/$1'
+	),
+	'whyoutube' => array(
+		'url'=>'https://www.youtube.com/embed/$1?showinfo=0'
 	),
 	'5min' => array (
 				'id_pattern'=>'%[^0-9\\-]%',
-				'url' => 'http://www.5min.com/Embeded/$1/&sid=102',
+				'url' => '//www.5min.com/Embeded/$1/&sid=102',
 			),
 	'videojug' => array (
-				'url' => 'http://www.videojug.com/film/player?id=$1&username=wikihow',
+				'url' => '//www.videojug.com/embed/$1?username=wikihow',
 			),
 	'popcorn' => array (
 				'url' => 'http://popcorn.webmadecontent.org/$1',
 			),
 	'howcast' => array (
-				'url' => 'http://www.howcast.com/flash/howcast_player.swf?file=$1',
+				'url' => '//player.ooyala.com/iframe.html?ec=$1&pbid=5d8891bc445c4156a75933fbf4bcfc9a&platform=html5-fallback&docUrl=http%3A%2F%2Fwww.wikihow.com&options[liverail-ads-manager.LR_PUBLISHER_ID]=6283&options[liverail-ads-manager.LR_PARTNERS]=6929',
 			),
 	'wonderhowto' => array( 
 			'id_pattern' => '',	
@@ -131,7 +133,6 @@ $wgEmbedVideoServiceList = array(
 		global $wgTitle;
 		if ($service===null || $id===null) return '<div class="errorbox">'.wfMsg('embedvideo-missing-params').'</div>';
 
-		 wfLoadExtensionMessages('EmbedVideo');
 		$params = array(
 			'service' => trim($service),
 			'id' => trim($id),
@@ -172,6 +173,10 @@ $wgEmbedVideoServiceList = array(
 
 		$url = wfMsgReplaceArgs($service['url'], array($id, $width, $height));
 		
+		if ($params['service'] == 'youtube' || $params['service'] == 'whyoutube') {
+			$pOut = $parser->getOutput();
+			$pOut->addOutputHook( 'ampEmbedVideoParserOutputHook' );
+		}
 		if ($params['service'] == 'videojug') {
 			return $parser->insertStripItem( wfMessage('embedvideo-embed-clause-videojug', $url, $width, $height)->inContentLanguage()->text());
 		} else if ($params['service'] == 'popcorn') {
@@ -180,10 +185,12 @@ $wgEmbedVideoServiceList = array(
 			$id = str_replace("&61;", "=", htmlspecialchars_decode($id)); 
 			// youtube now requires a ? after the http://www.youtube.com/v/[^?&]+). If you use 
 			// an ampersand things will autoplay.  Very bad!
-			$id = preg_replace("@(http://www.youtube.com/v/[^?&]+)(&)autoplay=@", "$1?", $id); 
+			$id = preg_replace("@(https?://www.youtube.com/v/[^?&]+)(&)autoplay=@", "$1?", $id); 
 			return $parser->insertStripItem( $id );
 		} else if ($params['service'] == 'howcast') {
 			return $parser->insertStripItem( wfMessage('embedvideo-embed-clause-howcast', $url, $width, $height)->inContentLanguage()->text());
+		} else if ($params['service'] == '5min') {
+			return "";
 		} else {
 			return $parser->insertStripItem( wfMessage('embedvideo-embed-clause', $url, $width, $height)->inContentLanguage()->text());
 		}

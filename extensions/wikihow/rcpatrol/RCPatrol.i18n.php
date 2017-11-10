@@ -1,7 +1,7 @@
 <?
 
 $messages = array();
-$messages['en'] = 
+$messages['en'] =
            array (
 				'rcpatrol_patrolled_title' => "mark as patrolled [ctrl+alt m]",
 				'rcpatrol_patrolled_button' => "Mark as Patrolled",
@@ -36,4 +36,5 @@ $messages['en'] =
 				'rcpatrol_helplink' => "<div class='rchelp'><a href='/wikiHow:Frequently-Asked-Questions#What_are_unpatrolled_edits.3F_What_does_the_little_weather_icon_mean.3F' target='new'>?</a></div>",
 				'group-patrolblock' => 'Patrol Blockers',
 				'grouppage-patrolblock' => '{{ns:project}}:Patrol Block',
+				'rcpatrol_rollback_notice' => 'This edit is a rollback. <a href="$1" target="_blank">See what was undone</a>.',
    );

@@ -1,19 +1,21 @@
-<?
-
-if (!defined('MEDIAWIKI')) exit;
+<?php
 
 class PostComment extends UnlistedSpecialPage {
 
 	var $revId = null;
 
-	function __construct() {
+	public function __construct() {
 		parent::__construct( 'PostComment' );
 	}
 
-	function getForm($new_window = false, $title = null, $return_result = false) {
+	/*
+	 * returns string for desktop
+	 * returns array for mobile
+	*/
+	public function getForm($new_window = false, $title = null, $return_result = false, $isMobile = false) {
 		$postbtn = " class= 'button primary' ";
 		$prevbtn = " class= 'button secondary' ";
-			
+
 		if ($title == null)
 			$title = $this->getTitle();
 
@@ -36,23 +38,23 @@ class PostComment extends UnlistedSpecialPage {
 			return;
 		}
 
-		$sk = $this->getSkin();
-
 		$user_str = "";
 		if ($this->getUser()->getID() == 0) {
 			$user_str = wfMsg('postcomment_notloggedin');
 		} else {
-			$link = $sk->makeLinkObj($this->getUser()->getUserPage(), $this->getUser()->getName());
+			$link = Linker::link($this->getUser()->getUserPage(), $this->getUser()->getName());
 			$user_str = wfMsg('postcomment_youareloggedinas', $link);
 		}
 
 		$msg = wfMsg('postcomment_addcommentdiscussionpage');
 		$previewPage = Title::makeTitle(NS_SPECIAL, "PostCommentPreview");
+		$captchaPage = Title::makeTitle(NS_SPECIAL, "PostCommentCaptcha");
 		$me = Title::makeTitle(NS_SPECIAL, "PostComment");
 
 		$pc = Title::newFromText("PostComment", NS_SPECIAL);
-		if ($title->getNamespace() == NS_USER_TALK)
-			$msg = wfMsg('postcomment_leaveamessagefor',$title->getText());
+		if ($title->getNamespace() == NS_USER_TALK) {
+			$msg = wfMessage('postcomment_leaveamessagefor', $title->getText())->escaped();
+		}
 
 		$id = rand(0, 10000);
 		$newpage = $title->getArticleId() == 0 ? "true" : "false";
@@ -62,34 +64,47 @@ class PostComment extends UnlistedSpecialPage {
 		if ($this->getUser()->getID()== 0) {
 			 $fc = new FancyCaptcha();
 		}
-	   $result = "<div id='postcomment_newmsg_$id'></div>
+		$future_comment = "<div id='postcomment_newmsg_$id'></div>";
+		$preview_place = "<div id='postcomment_preview_$id' class='postcomment_preview'></div>";
+		$result = "
 			<script type='text/javascript'>
 				var gPreviewText = \"" . wfMsg('postcomment_generatingpreview') . "\";
 				var gPreviewURL = \"{$previewPage->getFullURL()}\";
 				var gPostURL = \"{$me->getFullURL()}\";
+				var gCaptchaURL = \"{$captchaPage->getFullURL()}\";
 				var gPreviewMsg = \"" . wfMsg('postcomment_previewmessage') . "\";
 				var gNewpage = {$newpage};
 			</script>
 			<script type='text/javascript' src='" . wfGetPad('/extensions/min/f/extensions/wikihow/PostComment/postcomment.js?') . WH_SITEREV . "'></script>
-			<div id='postcomment_progress_$id' style='display:none;'><center><img src='" . wfGetPad('/extensions/wikihow/PostComment/upload.gif') . "' alt='Sending...'/></center></div>
+			<div id='postcomment_progress_$id' style='display:none;'><center><img src='" . wfGetPad('/skins/owl/images/wh_loading70x70.gif') . "' alt='Sending...'/></center></div>
 			";
 
 		// Include google analytics tracking (gat)
-		if ($this->getTitle()->getNamespace() == NS_TALK) {
-			$result .= "<form id=\"gatDiscussionPost\" name=\"postcommentForm_$id\" method=\"post\" action=\"{$pc->getFullURL()}\" " . ($new_window ? "target='_blank'" :"") ." onsubmit='return postcommentPublish(\"postcomment_newmsg_$id\", document.postcommentForm_$id);'>" ;
-		} else if ($this->getTitle()->getNamespace() == NS_USER_TALK) {
-			$result .= "<form id=\"gatTalkPost\" name=\"postcommentForm_$id\" method=\"post\" action=\"{$pc->getFullURL()}\" " . ($new_window ? "target='_blank'" :"") ." onsubmit='return postcommentPublish(\"postcomment_newmsg_$id\", document.postcommentForm_$id);'>" ;
+		if ( $this->getTitle()->inNamespace(NS_TALK) ) {
+			$result .= "<form id=\"gatDiscussionPost\" name=\"postcommentForm_$id\" method=\"post\" action=\"{$pc->getFullURL()}\" " . ($new_window ? "target='_blank'" :"") ." onsubmit='return postcommentPublish(\"postcomment_newmsg_$id\", document.postcommentForm_$id);' class='postcomment_form'>" ;
+		} elseif ( $this->getTitle()->inNamespace(NS_USER_TALK) ) {
+			$result .= "<form id=\"gatTalkPost\" name=\"postcommentForm_$id\" method=\"post\" action=\"{$pc->getFullURL()}\" " . ($new_window ? "target='_blank'" :"") ." onsubmit='return postcommentPublish(\"postcomment_newmsg_$id\", document.postcommentForm_$id);' class='postcomment_form'>" ;
 		} else {
-			$result .= "<form name=\"postcommentForm_$id\" method=\"post\" action=\"{$pc->getFullURL()}\" " . ($new_window ? "target='_blank'" :"") ." onsubmit='return postcommentPublish(\"postcomment_newmsg_$id\", document.postcommentForm_$id);'>" ;
+			$result .= "<form name=\"postcommentForm_$id\" method=\"post\" action=\"{$pc->getFullURL()}\" " . ($new_window ? "target='_blank'" :"") ." onsubmit='return postcommentPublish(\"postcomment_newmsg_$id\", document.postcommentForm_$id);' class='postcomment_form'>" ;
 		}
 
+		$user_icon = '';
+		$mobile_avatar = '';
 		$avatar = Avatar::getAvatarURL($this->getUser()->getName());
-		if ($avatar) $user_icon = 'background-image: url('.$avatar.')';
-		
+		if ($avatar) {
+			if ($isMobile) {
+				$mobile_avatar = "<div class=\"postcomment_usericon\"><img src=\"".$avatar."\" /></div>";
+			}
+			else {
+				$user_icon = 'background-image: url('.$avatar.')';
+			}
+		}
+
 		$result .= "
 			<input name=\"target\" type=\"hidden\" value=\"" . htmlspecialchars($title->getPrefixedDBkey()) . "\"/>
 			<a name=\"postcomment\"></a>
 			<a name=\"post\"></a>
+			".$mobile_avatar."
 			<textarea class=\"postcommentForm_textarea\" tabindex='3' rows='15' cols='100' name=\"comment_text_$id\" id=\"comment_text_$id\" placeholder=\"$msg\" style=\"$user_icon\"></textarea>
 			<div class=\"postcommentForm_buttons\">
 				<input tabindex='4' type='button' onclick='postcommentPreview(\"$id\");' value=\"".wfMsg('postcomment_preview')."\" {$prevbtn} />
@@ -101,19 +116,44 @@ class PostComment extends UnlistedSpecialPage {
 				" . ($fc == null ? "" : $fc->getForm('') ) . "
 			</div>
 			</form>
-			<div id='postcomment_preview_$id' class='postcomment_preview'></div>
 			";
-		
+
 		//add anchor link
-		$return = '<a name="leave-a-message" id="leave-a-message"></a>';
-		
+		$result = '<a name="leave-a-message" id="leave-a-message"></a>'.$result;
+
+		if ($isMobile) {
+			//need to be able to put that future comment space
+			//in JUST the right place
+			$result = array($result,$future_comment,$preview_place);
+		}
+		else {
+			if ($title->inNamespace(NS_TALK)) {
+				$articleTitle = Title::newFromText($title->getText());
+				$cta = "";
+				if ($articleTitle && $articleTitle->exists()) {
+					$link = Linker::link(
+						$articleTitle,
+						wfMessage('postcomment_discussion_cta_link_text')->text(),
+						array(),
+						array('action' => 'edit')
+					);
+					$cta = wfMessage('postcomment_discussion_cta', $link)->text();
+				}
+
+				$result = $cta . $result;
+			}
+
+			$error_box = "<div class='captcha-warning hidden' id='error-box'></div>";
+			$result = $future_comment . $result . $error_box . $preview_place;
+		}
+
 		if ($return_result)
 			return $result;
 		else
 			echo $result;
 	}
 
-	function execute($par) {
+	public function execute($par) {
 		$this->writeOutput($par);
 
 		if ($this->getRequest()->getVal('jsonresponse') == 'true') {
@@ -124,7 +164,7 @@ class PostComment extends UnlistedSpecialPage {
 		}
 	}
 
-	function writeOutput($par) {
+	private function writeOutput($par) {
 		global $wgLang, $wgMemc, $wgDBname, $wgUser;
 		global $wgSitename, $wgLanguageCode;
 		global $wgFeedClasses, $wgFilterCallback, $wgWhitelistEdit, $wgParser;
@@ -145,12 +185,7 @@ class PostComment extends UnlistedSpecialPage {
 
 		$article = new Article($t);
 
-		$user = $this->getUser()->getName();
-		$real_name = User::whoIsReal($this->getUser()->getID());
-		if ($real_name == "") {
-			$real_name = $user;
-		}
-		$dateStr = $wgLang->timeanddate(wfTimestampNow());
+		$user = $this->getUser();
 
 		$comment = $this->getRequest()->getVal("comment_text");
 		foreach ($this->getRequest()->getValues() as $key=>$value) {
@@ -174,7 +209,7 @@ class PostComment extends UnlistedSpecialPage {
 			ThumbsUp::quickNoteThumb($this->getRequest()->getVal('revold'), $this->getRequest()->getVal('revnew'), $this->getRequest()->getVal('pageid'), $userName[1]);
 		}
 
-		$formattedComment = wfMsg('postcomment_formatted_comment', $dateStr, $user, $real_name, $comment);
+		$formattedComment = TalkPageFormatter::createComment( $user, $comment );
 
 		if ($this->getRequest()->getVal('fromajax') == 'true') {
 			$this->getOutput()->setArticleBodyOnly(true);
@@ -185,7 +220,7 @@ class PostComment extends UnlistedSpecialPage {
 			$text = $r->getText();
 		}
 
-		$text .= "\n\n$formattedComment\n\n";
+		$text .= $formattedComment;
 		$this->getOutput()->setStatusCode(409);
 
 		//echo "updating with text:<br/> $text";
@@ -221,7 +256,7 @@ class PostComment extends UnlistedSpecialPage {
 		$content = ContentHandler::makeContent( $text, $t, $contentModel, $contentFormat );
 		$status = Status::newGood();
 		if (!wfRunHooks('EditFilterMergedContent', array($this->getContext(), $content, &$status, '', $wgUser, false))) {
-			return;	
+			return;
 		}
 		if (!$status->isGood()) {
 			$errors = $status->getErrorsArray(true);
@@ -231,11 +266,11 @@ class PostComment extends UnlistedSpecialPage {
 				}
 				if (preg_match('@^spamprotection@', $error)) {
 					$message = 'Error: found spam link';
-					$this->getOutput()->addHTML( $message );
+					$this->getOutput()->addHTML($message);
 					return;
 				}
 			}
-			$message = 'EditFilterMergedContent returned an error -- cannot post comment';
+			$this->getOutput()->addHTML("Sorry, your comment couldn't be posted, please try again later.");
 			return;
 		}
 
@@ -268,7 +303,7 @@ class PostComment extends UnlistedSpecialPage {
 		$pass_captcha = $fc->passCaptcha();
 
 		if(!$pass_captcha && $this->getUser()->getID() == 0) {
-			$this->getOutput()->addHTML("Sorry, please enter the correct word. Click <a onclick='window.location.reload(true);'>here</a> to get a new one.<br/><br/>");
+			$this->getOutput()->addHTML("Sorry, please enter the correct word.");
 			return;
 		}
 
@@ -286,38 +321,66 @@ class PostComment extends UnlistedSpecialPage {
 
 		$this->getOutput()->setStatusCode(200);
 
+		// Inject avatar into the comment for output, we've already edited the page
+		$avatar = '<img src="' . Avatar::getAvatarURL( $this->getUser()->getName() ) . '">';
+
+		// Context title must be set in order to properly transform some templates
+		$this->getContext()->setTitle($t);
+
+		$commentHTML =  $this->getOutput()->parse( "\n" . $wgParser->preSaveTransform( $formattedComment, $t, $this->getUser(), new ParserOptions() ) );
+		$newComment = preg_replace( '@de_user\"><a@', 'de_user">' . $avatar . "<a", $commentHTML );
+
 		if ($this->getRequest()->getVal('fromajax') == 'true') {
 			$this->getOutput()->redirect('');
-			$this->getContext()->setTitle($t);
-			$formattedComment = $wgParser->preSaveTransform($formattedComment, $t, $this->getUser(), new ParserOptions() );
-			$this->getOutput()->addHTML($this->getOutput()->parse("\n" . $formattedComment));
+			$this->getOutput()->addHTML( $newComment );
 
 			return;
 		}
 	}
+
+	public function isMobileCapable() {
+		return true;
+	}
 }
 
 class PostcommentPreview extends UnlistedSpecialPage {
-	function __construct() {
+	public function __construct() {
 		parent::__construct( 'PostcommentPreview' );
 	}
 
-	function execute($par) {
+	public function execute($par) {
 		global $wgLang;
 		global $wgParser;
 
-		$user = $this->getUser()->getName();
-		$dateStr = $wgLang->timeanddate(wfTimestampNow());
-		$real_name = User::whoIsReal($this->getUser()->getID());
-		if ($real_name == "") {
-			$real_name = $user;
-		}
+		$user = $this->getUser();
+
 		$comment = $this->getRequest()->getVal("comment");
 		$comment = preg_replace('/\n[ ]*/', "\n", trim($comment));
-		$formattedComment = wfMsg('postcomment_formatted_comment', $dateStr, $user, $real_name, $comment);
-		$formattedComment = $wgParser->preSaveTransform($formattedComment, $this->getTitle(), $this->getUser(), new ParserOptions() );
+
+		$formattedComment = TalkPageFormatter::createComment( $user, $comment );
+		$formattedComment = $wgParser->preSaveTransform($formattedComment, $this->getTitle(), $user, new ParserOptions() );
 		$result = $this->getOutput()->parse($formattedComment);
 		$this->getOutput()->setArticleBodyOnly(true);
 		$this->getOutput()->addHTML($result);
+	}
+
+	public function isMobileCapable() {
+		return true;
+	}
+}
+
+/**
+ * Return the HTML for a captcha. It is used to provide a new captcha on demand
+ * via AJAX when the user requests it.
+ */
+class PostCommentCaptcha extends UnlistedSpecialPage {
+	public function __construct() {
+		parent::__construct( 'PostCommentCaptcha' );
+	}
+
+	public function execute($par) {
+		$fc = new FancyCaptcha();
+		$this->getOutput()->setArticleBodyOnly(true);
+		$this->getOutput()->addHTML($fc->getForm());
 	}
 }

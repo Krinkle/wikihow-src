@@ -558,7 +558,12 @@ class Article implements Page {
 			$parserOptions->setIsPrintable( true );
 			$parserOptions->setEditSection( false );
 		} elseif ( !$this->isCurrent() || !$this->getTitle()->quickUserCan( 'edit', $user ) ) {
-			$parserOptions->setEditSection( false );
+			//XXCHANGEDXX - always show for mobile [sc]
+			$ctx = MobileContext::singleton();
+			$isMobileMode = $ctx->shouldDisplayMobileView();
+			if (!$isMobileMode) {
+				$parserOptions->setEditSection( false );
+			}
 		}
 
 		# Try client and file cache
@@ -635,6 +640,8 @@ class Article implements Page {
 							$cachedTimestamp = $this->mParserOutput->getTimestamp();
 							if ( $cachedTimestamp !== null ) {
 								$outputPage->setRevisionTimestamp( $cachedTimestamp );
+								// aaron wikihow we use this field to get the dateModified for the schema output
+								$outputPage->setFetchedRevisionTimestamp( $cachedTimestamp );
 								$this->mPage->setTimestamp( $cachedTimestamp );
 							}
 							$outputDone = true;
@@ -659,6 +666,11 @@ class Article implements Page {
 					# Ensure that UI elements requiring revision ID have
 					# the correct version information.
 					$outputPage->setRevisionId( $this->getRevIdFetched() );
+					if ( $this->mRevision ) {
+						// aaron wikihow we use this field to get the dateModified for the schema output
+						// aaron wikihow added this for the case the lastest good revision is not the most recent revision
+						$outputPage->setFetchedRevisionTimestamp( $this->mRevision->getTimestamp() );
+					}
 					# Preload timestamp to avoid a DB hit
 					$outputPage->setRevisionTimestamp( $this->getTimestamp() );
 

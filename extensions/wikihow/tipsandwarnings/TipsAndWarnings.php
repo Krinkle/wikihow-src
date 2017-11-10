@@ -14,3 +14,18 @@ $wgAutoloadClasses['TipsAndWarnings'] = dirname(__FILE__) . '/TipsAndWarnings.bo
 $wgLogTypes[] = 'newtips';
 $wgLogNames['newtips'] = 'newtips';
 $wgLogHeaders['newtips'] = 'newtips';
+
+$wgLogTypes[] = 'addedtip';
+$wgLogNames['addedtip'] = 'addedtip';
+$wgLogHeaders['addedtip'] = 'addedtip';
+
+$wgHooks["IsEligibleForMobileSpecial"][] = array("wfTipsIsEligibleForMobile");
+
+function wfTipsIsEligibleForMobile(&$isEligible) {
+	global $wgTitle;
+	if($wgTitle && strrpos($wgTitle->getText(), "TipsAndWarnings") === 0) {
+		$isEligible = true;
+	}
+
+	return true;
+}

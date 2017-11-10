@@ -118,15 +118,15 @@ $wgCaptchaTriggersOnNamespace = array();
  * 'CaptchaCacheStore' uses $wgMemc, which avoids the cookie dependency
  * but may be fragile depending on cache configuration.
  */
-$wgCaptchaStorageClass = 'CaptchaSessionStore';
+$wgCaptchaStorageClass = 'CaptchaCacheStore';
 
 /**
  * Number of seconds a captcha session should last in the data cache
  * before expiring when managing through CaptchaCacheStore class.
  *
- * Default is a half hour.
+ * Default is a half hour. => Changed to 24 hours to solve LH #2018 [Alberto]
  */
-$wgCaptchaSessionExpiration = 30 * 60;
+$wgCaptchaSessionExpiration = 86400;
 
 /**
  * Number of seconds after a bad login that a captcha will be shown to

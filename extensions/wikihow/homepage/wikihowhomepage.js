@@ -1,10 +1,11 @@
-var nextNum;
-var interval;
-var desiredText;
-var elementNumber;
-var typeInterval;
+(function($, mw) {
 
-var inputActive = false;
+var nextNum,
+	interval,
+	desiredText,
+	elementNumber,
+	typeInterval,
+	inputActive = false;
 
 $(document).ready(function(){
 
@@ -13,16 +14,16 @@ $(document).ready(function(){
 
 	$(".hp_nav").click(function(){
 		if(!$(this).hasClass("on")) {
-			window.nextNum = parseInt($(this).attr("id").substr(4));
-			window.clearTimeout(window.interval);
-			window.clearInterval(window.typeInterval);
+			nextNum = parseInt($(this).attr("id").substr(4));
+			clearTimeout(interval);
+			clearInterval(typeInterval);
 			rotateImage();
 		}
 	});
 
 	$("#cse-search-hp input").click(function(){
-		window.inputActive = true;
-		window.clearInterval(window.typeInterval);
+		inputActive = true;
+		clearInterval(typeInterval);
 		$("#hp_container .hp_title").html("");
 	});
 
@@ -30,38 +31,36 @@ $(document).ready(function(){
 });
 
 function rotateImage() {
-	var currentElement;
-	var currentNum;
-	var nextElement;
+	var currentElement, currentNum, nextElement;
 
 	currentElement = $(".hp_top:visible");
 	currentNum = parseInt($(currentElement).attr("id").substr(7));
-	if(window.nextNum == null) {
+	if(nextNum == null) {
 		if($("#hp_top_"+ (currentNum+1)).length != 0)
-			window.nextNum = currentNum + 1;
+			nextNum = currentNum + 1;
 		else
-			window.nextNum = 1;
+			nextNum = 1;
 	}
 	nextElement = $("#hp_top_" + nextNum);
 
 	$(nextElement).fadeIn(800);
 	$(currentElement).fadeOut(800);
 	$("#nav_" + currentNum).removeClass("on");
-	$("#nav_" + window.nextNum).addClass("on");
+	$("#nav_" + nextNum).addClass("on");
 
-	if(!window.inputActive)
-		typewriter(window.nextNum);
+	if(!inputActive)
+		typewriter(nextNum);
 
-	window.nextNum = null;
+	nextNum = null;
 }
 
-function typewriter(elementNumber) {
-	window.elementNumber = elementNumber;
-	window.desiredText = $("#hp_top_" + elementNumber + " .hp_text").attr("title");
+function typewriter(en) {
+	elementNumber = en;
+	desiredText = $("#hp_top_" + elementNumber + " .hp_text").attr("title");
 
 	$("#hp_container .hp_title").html("");
 
-	window.typeInterval = window.setInterval(type, 150); //how fast the typing happens
+	typeInterval = setInterval(typeText, 150); //how fast the typing happens
 }
 
 /***
@@ -69,34 +68,15 @@ function typewriter(elementNumber) {
  * Adds one letter to the text being typed
  *
  ***/
-function type() {
+function typeText() {
 	var currentString = $("#hp_container .hp_title").html();
 	var currentLength = currentString.length;
-	var newChar = window.desiredText.charAt(currentLength);
+	var newChar = desiredText.charAt(currentLength);
 	$("#hp_container .hp_title").html(currentString + newChar);
-	if(currentLength + 1 == window.desiredText.length) {
-		window.clearInterval(window.typeInterval);
-		window.interval = window.setTimeout(rotateImage, 3000);
+	if(currentLength + 1 == desiredText.length) {
+		clearInterval(typeInterval);
+		interval = setTimeout(rotateImage, 3000);
 	}
 }
 
-/*$.fn.teletype = function(opts){
-	var $this = this,
-		defaults = {
-			animDelay: 50
-		},
-		settings = $.extend(defaults, opts);
-
-	$.each(settings.text.split(''), function(i, letter){
-		setTimeout(function(){
-			$this.html($this.html() + letter);
-		}, settings.animDelay * i);
-	});
-};
-
-$(function(){
-	$('#container').teletype({
-		animDelay: 100,
-		text: 'Now is the time for all good men to come to the aid of their country...'
-	});
-});*/
+})(jQuery, mw);

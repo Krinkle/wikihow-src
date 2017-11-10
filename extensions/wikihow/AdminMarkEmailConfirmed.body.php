@@ -1,6 +1,4 @@
-<?
-
-if (!defined('MEDIAWIKI')) die();
+<?php
 
 class AdminMarkEmailConfirmed extends UnlistedSpecialPage {
 
@@ -28,7 +26,7 @@ class AdminMarkEmailConfirmed extends UnlistedSpecialPage {
 	/**
 	 * Execute special page.  Only available to wikihow staff.
 	 */
-	function execute() {
+	public function execute($par) {
 		global $wgRequest, $wgOut, $wgUser, $wgLang;
 
 		$userGroups = $wgUser->getGroups();

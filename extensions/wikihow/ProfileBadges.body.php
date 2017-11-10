@@ -10,14 +10,10 @@ class ProfileBadges extends SpecialPage {
 		parent::__construct( 'ProfileBadges' );
 	}
 
-	function execute($par){
+	function execute($par) {
 		global $wgOut;
 
-		wfLoadExtensionMessages('ProfileBadges');
-
-		if (class_exists('WikihowCSSDisplay'))
-			WikihowCSSDisplay::setSpecialBackground(true);
-		$wgOut->addHTML(HtmlSnips::makeUrlTags('css', array('ProfileBadges.css'), 'extensions/wikihow', false));
+		$wgOut->addHTML(HtmlSnips::makeUrlTag('/extensions/wikihow/ProfileBadges.css'));
 
 		$wgOut->setPageTitle(wfMsg('ab-title'));
 
@@ -29,7 +25,7 @@ class ProfileBadges extends SpecialPage {
 		$wgOut->addHTML("</div>");
 	}
 
-	function getBadge($badgeName){
+	function getBadge($badgeName) {
 		$html = "<div class='ab-box'>";
 		$html .= "<div class='ab-badge ab-" . $badgeName . "'></div>";
 		$html .= "<h3>" . wfMsg("ab-" . $badgeName . "-title") . "</h3>";

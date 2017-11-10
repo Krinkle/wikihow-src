@@ -158,7 +158,6 @@ class BitmapHandler extends ImageHandler {
 			$scalerParams['physicalWidth'] == $scalerParams['srcWidth']
 			&& $scalerParams['physicalHeight'] == $scalerParams['srcHeight']
 		) {
-
 			// ARG - added hook to prevent returning an unconverted image
 			if (wfRunHooks("ImageConvertNoScale", array($image, $scalerParams))) {
 				# normaliseParams (or the user) wants us to return the unscaled image
@@ -327,7 +326,7 @@ class BitmapHandler extends ImageHandler {
 		$animation_post = array();
 		$decoderHint = array();
 		if ( $params['mimeType'] == 'image/jpeg' ) {
-			$quality = array( '-quality', '80' ); // 80%
+			$quality = array( '-quality', '80' );
 			# Sharpening, see bug 6193
 			if ( ( $params['physicalWidth'] + $params['physicalHeight'] )
 				/ ( $params['srcWidth'] + $params['srcHeight'] )
@@ -338,6 +337,18 @@ class BitmapHandler extends ImageHandler {
 			if ( version_compare( $this->getMagickVersion(), "6.5.6" ) >= 0 ) {
 				// JPEG decoder hint to reduce memory, available since IM 6.5.6-2
 				$decoderHint = array( '-define', "jpeg:size={$params['physicalDimensions']}" );
+
+				// ARG - we need to alter the decoder hint if we are cropping the image.
+				// this is done because the dimensions of the image may be much different that
+				// the dimensions we are requesting.  For example, if the requested thumbnails physical dimensions are
+				// 128x80 but we are trying to make a cropped thumbnail at 128x140, this decoder hint
+				// will sample too small a portion of the original image and the thumbnail will be very blurry.
+				// therefore, we want the hint in this case to be 128x140
+				// testing this first on user completed images only then in the future we can apply to all cropped images
+				if ( $params['crop'] == 1 && strpos( $params['srcPath'], 'User-Completed-Image' ) !== FALSE ) {
+					$croppedDimensions = "{$params['originalWidth']}x{$params['originalHeight']}";
+					$decoderHint = array( '-define', "jpeg:size={$croppedDimensions}" );
+				}
 			}
 		} elseif ( $params['mimeType'] == 'image/png' ) {
 			$quality = array( '-quality', '95' ); // zlib 9, adaptive filtering
@@ -375,6 +386,14 @@ class BitmapHandler extends ImageHandler {
 		if ( $params['crop'] ) {
 			$originalWidth = $params['originalWidth'];
 			$originalHeight = $params['originalHeight'];
+
+			// If -1 or 0 is passed as height, we automatically give the
+			// thumbnail a height based on the thumbnail width specified
+			// and the source aspect ratio
+			if ($originalHeight <= 0) {
+				$originalHeight = $params['originalHeight'] = round(($width * $originalWidth) / $height, 0);
+			}
+
 			$thumbAspectRatio = $originalWidth / $originalHeight;
 			$sourceAspectRatio = $width / $height;
 
@@ -392,8 +411,20 @@ class BitmapHandler extends ImageHandler {
 			}
 		}
 
+		wfRunHooks(
+			'ConstructImageConvertCommand',
+			array($params, &$quality)
+		);
+
+		// WIKIHOW added the unsharp mask parameter for better sharpening of images
+		$unsharp = array();
+		if ( $params['sharpen'] ) {
+			$unsharp = array("-unsharp", "0.5x1.2+1.0+0.10");
+		}
+
 		$cmd = call_user_func_array( 'wfEscapeShellArg', array_merge(
 			array( $wgImageMagickConvertCommand ),
+			$unsharp,
 			$quality,
 			// Specify white background color, will be used for transparent images
 			// in Internet Explorer/Windows instead of default black.
@@ -417,6 +448,7 @@ class BitmapHandler extends ImageHandler {
 			$animation_post,
 			array( $this->escapeMagickOutput( $params['dstPath'] ) ) ) );
 
+		wfDebugLog('imageconvert', __METHOD__ . " [imagemagick] $cmd");
 		wfDebug( __METHOD__ . ": running ImageMagick: $cmd\n" );
 		wfProfileIn( 'convert' );
 		$retval = 0;

@@ -1,45 +1,32 @@
 <?php
 
-class OptimizelyPageSelector extends UnlistedSpecialPage {
-	public function  __construct() {
-		parent::__construct("OptimizelyPageSelector");	
-	}
-	// We will hash, and allow about this percent of articles
-	const ARTICLE_PCT = 1.0;
+class OptimizelyPageSelector {
 
+	// We will hash, and allow about this percent of articles
 	public static function getOptimizelyTag() {
-		$tag = "<script type=\"text/javascript\">if(window['optimizely'] == undefined) { window['optimizely'] = [] } window['optimizely'].push(['addToSegment', 'wikihow_user_name', wgUserName]);</script>"; 
-		if(IS_PROD_EN_SITE) {
-			$tag .= "<script src=\"//cdn.optimizely.com/js/526710254.js\"></script>";
+		global $wgIsDevServer, $wgIsAnswersDomain;
+
+		$tag = "<script>if (typeof window['optimizely'] == 'undefined') { window['optimizely'] = [] } window['optimizely'].push(['addToSegment', 'wikihow_user_name', wgUserName]);</script>";
+		if ( $wgIsAnswersDomain ) {
+			$tag .= "<script async src=\"//cdn.optimizely.com/js/8223773184.js\"></script>";
+		} elseif ( !$wgIsDevServer ) {
+			$tag .= "<script async src=\"//cdn.optimizely.com/js/526710254.js\"></script>";
+		} else {
+			$tag .= "<script async src=\"//cdn.optimizely.com/js/539020690.js\"></script>";
 		}
-		else {
-			$tag .= "<script src=\"//cdn.optimizely.com/js/539020690.js\"></script>";
-		}
-		return($tag);
+		return $tag;
 	}
 
 	/*
-	 * Check if we enable optimizely for a user. We disable 
+	 * Check if we enable optimizely for a user. We disable
 	 * old users.
 	 */
 	public static function isUserEnabled($user) {
-		// We enable Optimizely for anons	
-		$user->load();
-		if($user->getId() ==0) {
-			return(true);	
-		}
-		// Get registration date
-		$registration = $user->getRegistration();
-		// Users registered before registration was kept are old
-		if(!$registration) {
-			return(false);	
-		}
-		$registration = wfTimestamp(TS_UNIX, $registration);
-		$oldDate = wfTimestamp(TS_UNIX, "20131209000000");
-		return($registration > $oldDate);
+		// We enable Optimizely for anons and all users now
+		return true;
 	}
 
-	/* 
+	/*
 	 * Determine if we should show optimizely on this page
 	 * @param articleName Name of the article we want to determine whether to show
 	 */
@@ -47,74 +34,35 @@ class OptimizelyPageSelector extends UnlistedSpecialPage {
 		global $wgLanguageCode;
 
 		// Turn off optimizely if we didn't get an article name, or we aren't in English
-		if(!$title) {
-			return(false);	
+		if (!$title) {
+			return false;
 		}
-		if($wgLanguageCode != "en") {
-			return(false);	
+		if ($wgLanguageCode != 'en') {
+			return false;
 		}
-		
+
+		if ( class_exists( 'AlternateDomain' ) && AlternateDomain::onAlternateDomain() ) {
+			return false;
+		}
+
+		// Turning off Optimizely on this specific article because of weird indexation issue:
+		// https://dl.dropboxusercontent.com/s/lelzq6j1zfzqyb9/2016-09-14%20at%202.26%20PM%202x.png?dl=0
+		// - per Elizabeth and Reuben, Sept 2016
 		$articleName = $title->getText();
-		if(!$articleName) {
-			return(false);	
-		}
-		
-		//Put Optimizely on all non-mamespace pages
-		if($title->getNamespace() != NS_MAIN) {
-			return(true);	
-		}
-		$hash = crc32($articleName);
-		if( ((($hash % 1000)) / 999.0) <= self::ARTICLE_PCT) {
-			return(true);	
-		}
-	}
-
-	/*
-	 * Provide a tool to see which URLs are enabled for Optimizely
-	 */
-	public function execute() {
-		global $wgRequest, $wgUser, $wgOut;
-
-		$userGroups = $wgUser->getGroups();
-		if (!in_array('staff', $userGroups)) {                                             
-			$wgOut->setRobotpolicy('noindex,nofollow');
-			$wgOut->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
-			return;
+		if ($articleName == 'Gain Weight') {
+			return false;
 		}
 
-		$urls = $wgRequest->getVal('urls');
-
-		if($urls) {
-			header("Content-Type: text/tsv");
-			header('Content-Disposition: attachment; filename="output.xls"');
-
-			$urls = preg_split("@[\r\n]@",urldecode($urls)); 
-			foreach($urls as $url) {
-				print($url . "\t");
-				if(preg_match("@http://www.wikihow.com/([^?]+)(\?|$)@",$url,$matches)) {
-					$t = Title::newFromText($matches[1]);
-					if(!$t || !$t->exists()) {
-						$t = Title::newFromText(urldecode($matches[1]));
-					}
-					if(!$t || !$t->exists()) {
-						print("Not found");	
-					}
-					else {
-						print(self::isArticleEnabled($t) ? "1" : "0");	
-					}
-				}
-				else {
-					print("Not found");	
-				}
-				print("\n");
-			}
-			exit(0);
+		$isMobile = Misc::isMobileMode();
+		if(!$isMobile && !ArticleTagList::hasTag("opti_desktop", $title->getArticleId())) {
+			return false;
 		}
-		else {
-			$wgOut->addScript(HtmlSnips::makeUrlTags('js', array('download.jQuery.js'), 'extensions/wikihow/common', false));
-			$wgOut->addScript(HtmlSnips::makeUrlTags('js', array('jquery.sqlbuilder-0.06.js'), 'extensions/wikihow/titus', false));
-			EasyTemplate::set_path(dirname(__FILE__).'/');                                                                                                                
-			$wgOut->addHTML(EasyTemplate::html('optimizelytool.tmpl.php'));
+
+		if($isMobile && !ArticleTagList::hasTag("opti_mobile", $title->getArticleId())) {
+			return false;
 		}
+
+		// Put Optimizely on all article views -- main namespace and not
+		return true;
 	}
 }

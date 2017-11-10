@@ -1,7 +1,7 @@
 <?
 
 $messages = array();
-$messages['en'] = 
+$messages['en'] =
 		array (
 			'PatrolRC' => 'Patrol Recent Changes',
 			'categorize_articles' => 'Categorize Articles',
@@ -32,23 +32,6 @@ $messages['en'] =
 			'log_in_via' => 'Log in via',
 			'remember_me' => 'Remember me',
 			'forgot_pwd' => 'Forgot?',
-			'site_footer_owl' => '
-				<ul>
-					<li class="top">[[Main Page|Home]]</li>
-					<li>[[wikiHow:About-wikiHow|About wikiHow]]</li>
-					<li>[[wikiHow:Terms-of-Use|Terms of Use]]</li>
-					<li>[http://www.wikihow.com/feed.rss RSS]</li>
-					<li>[[Special:Sitemap|Site map]]</li>
-        		</ul>',
-			'site_footer_owl_anon' => '
-				<ul>
-					<li class="top">[[Main Page|Home]]</li>
-					<li>[[About wikiHow]]</li>
-					<li>[[Terms of Use]]</li>
-					<li>[http://www.wikihow.com/feed.rss RSS]</li>
-					<li>[[Special:Sitemap|Site map]]</li>
-					<li>[[Special:Userlogin|Log In]]</li>
-        		</ul>',
 			'community_dashboard' => 'Community Dashboard',
 			'mainpage_share_buttons' => '<div style="margin-left: 18px;">
   				    <div>

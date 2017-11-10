@@ -1,4 +1,5 @@
-<?
+<?php
+
 abstract class WAPUIController {
 	protected $config = null;
 	protected $dbType = null;
@@ -22,11 +23,11 @@ abstract class WAPUIController {
 		global $wgUser; 
 
 		$vars = array();
-		$vars['js'] = HtmlSnips::makeUrlTags('js', array('chosen.jquery.min.js'), '/extensions/wikihow/common/chosen', false);
-		$vars['js'] .= HtmlSnips::makeUrlTags('js', array('wap.js'), '/extensions/wikihow/wap', false);
-		$vars['js'] .= HtmlSnips::makeUrlTags('js', array('jquery-ui-1.9.2.core_datepicker.custom.min.js','jquery.tablesorter.min.js', 'download.jQuery.js'), '/extensions/wikihow/common', false);
-		$vars['css'] = HtmlSnips::makeUrlTags('css', array('chosen.css'), '/extensions/wikihow/common/chosen', false);
-		$vars['css'] .= HtmlSnips::makeUrlTags('css', array('wap.css'), '/extensions/wikihow/wap', false);
+		$vars['js'] = HtmlSnips::makeUrlTag('/extensions/wikihow/common/chosen/chosen.jquery.min.js');
+		$vars['js'] .= HtmlSnips::makeUrlTag('/extensions/wikihow/wap/wap.js');
+		$vars['js'] .= HtmlSnips::makeUrlTags('js', array('jquery-ui-1.9.2.core_datepicker.custom.min.js','jquery.tablesorter.min.js', 'download.jQuery.js'), 'extensions/wikihow/common');
+		$vars['css'] = HtmlSnips::makeUrlTag('/extensions/wikihow/common/chosen/chosen.css');
+		$vars['css'] .= HtmlSnips::makeUrlTag('/extensions/wikihow/wap/wap.css');
 		$vars['userPage'] = $this->config->getUserPageName();
 		$vars['adminPage'] = $this->config->getAdminPageName();
 		$vars['system'] = $this->config->getSystemName();

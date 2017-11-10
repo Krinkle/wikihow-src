@@ -46,9 +46,9 @@ class UCIPatrolWidget  extends DashboardWidget {
 	 */
 	public function getStartLink($showArrow, $widgetStatus){
 		if($widgetStatus == DashboardWidget::WIDGET_ENABLED)
-			$link = "<a href='/Special:UCIPatrol' class='comdash-start'>Start";
+			$link = "<a href='/Special:PicturePatrol' class='comdash-start'>Start";
 		else if($widgetStatus == DashboardWidget::WIDGET_LOGIN)
-			$link = "<a href='/Special:Userlogin?returnto=Special:UCIPatrol' class='comdash-login'>Login";
+			$link = "<a href='/Special:Userlogin?returnto=Special:PicturePatrol' class='comdash-login'>Login";
 		else if($widgetStatus == DashboardWidget::WIDGET_DISABLED)
 			$link = "<a href='/Become-a-New-Article-Booster-on-wikiHow' class='comdash-start'>Start";
 		if($showArrow)
@@ -95,7 +95,7 @@ class UCIPatrolWidget  extends DashboardWidget {
 	 * Gets data from the Leaderboard class for this widget
 	 */
 	public function getLeaderboardData(&$dbr, $starttimestamp){
-		$data = Leaderboard::getUCIAdded($starttimestamp);
+		$data = LeaderboardStats::getUCIAdded($starttimestamp);
 		arsort($data);
 
 		return $data;
@@ -107,9 +107,6 @@ class UCIPatrolWidget  extends DashboardWidget {
 	}
 
 	public function isAllowed($isLoggedIn, $userId=0){
-		if(!$isLoggedIn)
-			return false;
-		else
 			return true;
 	}
 

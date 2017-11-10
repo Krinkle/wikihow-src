@@ -13,5 +13,11 @@ if ( ! defined( 'MEDIAWIKI' ) )
  */
 
 $wgAutoloadClasses['WikihowHomepage'] = dirname( __FILE__ ) . '/WikihowHomepage.body.php';
+$wgAutoloadClasses['WikihowMobileHomepage'] = dirname( __FILE__ ) . '/WikihowMobileHomepage.body.php';
+$wgExtensionMessagesFiles['WikihowHomepage'] = dirname(__FILE__) . '/WikihowHomepage.i18n.php';
+$wgExtensionMessagesFiles['WikihowMobileHomepage'] = dirname(__FILE__) . '/WikihowMobileHomepage.i18n.php';
 
 $wgHooks['ArticleFromTitle'][] = array('WikihowHomepage::onArticleFromTitle');
+$wgHooks['ArticleJustBeforeBodyClose'][] = array('WikihowHomepage::onArticleJustBeforeBodyClose');
+$wgHooks['MobileEndOfPage'][] = array('WikihowHomepage::onArticleJustBeforeBodyClose');
+

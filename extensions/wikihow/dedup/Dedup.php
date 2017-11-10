@@ -11,3 +11,10 @@ $wgExtensionCredits['specialpage'][] = array(
 $wgSpecialPages['Dedup'] = 'Dedup';
 $wgAutoloadClasses['Dedup'] = dirname(__FILE__) . '/Dedup.body.php';
 
+$wgResourceModules['ext.wikihow.Dedup'] = array(
+	'scripts' => ['dedup.js'],
+	'localBasePath' => __DIR__ . '/' ,
+	'remoteExtPath' => 'wikihow/dedup',
+	'position' => 'top',
+	'targets' => [ 'desktop' ]
+);

@@ -10,6 +10,7 @@
 			<option value="Gersh">Gersh</option>
 			<option value="Vidbot">Vidbot</option>
 			<option value="AlfredoBot">AlfredoBot</option>
+			<option value="MiscBot">MiscBot</option>
 		</select>.<br/><br/> 	
 		<div style="font-size: 13px; margin: 20px 0 7px 0;"> 
 		<i>Please note, this may be slow for a lot of URLs. </i><br/>

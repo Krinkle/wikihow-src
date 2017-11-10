@@ -6,7 +6,7 @@ $statsToCalc = TitusConfig::getDailyEditStats();
 $titus = new TitusDB(true);
 /*
 $titus->calcStatsForAllPages($statsToCalc);*/
-$ids = array(163806);
+$ids = array(2053);
 $titus->calcStatsForPageIds($statsToCalc, $ids);
 
 /*$dailyEditStats = TitusConfig::getDailyEditStats();

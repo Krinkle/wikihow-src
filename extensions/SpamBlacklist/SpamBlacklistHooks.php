@@ -25,8 +25,11 @@ class SpamBlacklistHooks {
 		}
 
 		// get the link from the not-yet-saved page content.
-		$pout = $content->getParserOutput( $title );
-		$links = array_keys( $pout->getExternalLinks() );
+		$links = array();
+		if ($title) {
+			$pout = $content->getParserOutput( $title );
+			$links = array_keys( $pout->getExternalLinks() );
+		}
 
 		// HACK: treat the edit summary as a link
 		if ( $summary !== '' ) {

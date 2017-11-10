@@ -49,6 +49,25 @@ class MWEchoNotifUser {
 	}
 
 	/**
+	* Lojjik Braughler 11/23/2015
+	* Method to clear kudos notifications only
+	* Used when loading user's kudos page
+	*/
+	public function clearKudosNotification() {
+		if ( $this->notifCountHasReachedMax() ) {
+			return;
+		}
+
+		$this->markRead(
+			$this->storage->getUnreadNotifications(
+				$this->mUser,
+				'kudos'
+			)
+		);
+
+	}
+
+	/**
 	 * Clear talk page notification when users visit their talk pages.  This
 	 * only resets if the notification count is less than max notification
 	 * count. If the user has 99+ notifications, decrementing 1 bundled talk

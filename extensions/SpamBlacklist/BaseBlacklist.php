@@ -270,7 +270,9 @@ abstract class BaseBlacklist {
 			} elseif ( preg_match( '/^http:\/\//', $fileName ) ) {
 				$text = $this->getHttpText( $fileName );
 			} else {
-				$text = file_get_contents( $fileName );
+				// Reuben: added "@" so that we don't see an error if this file
+				// doesn't exist. It disrupts new development sites.
+				$text = @file_get_contents( $fileName );
 				wfDebugLog( 'SpamBlacklist', "got from file $fileName\n" );
 			}
 

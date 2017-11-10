@@ -30,7 +30,7 @@ class BounceHandler {
 		$url = "https://api.sendgrid.com/api/bounces.get.json";
 		$args = array();
 		$args["api_user"] = WH_SENDGRID_USER;
-		$args["api_key"] = WH_SENDGRID_PASSWD;
+		$args["api_key"] = WH_SENDGRID_PASSWORD;
 		$args["date"] = 1;
 		$args["days"] = $days;
 	

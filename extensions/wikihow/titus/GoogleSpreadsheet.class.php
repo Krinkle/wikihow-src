@@ -1,137 +1,190 @@
 <?php
 
-class GoogleSpreadsheet 
-{
-	// Authentication code
-	private $auth;
+class GoogleSpreadsheet {
+	private $mToken = null;
+	private $mService = null;
 
-	public function login($email, $password) {
+	const FEED_LINK = "https://spreadsheets.google.com/feeds/cells/";
+
+	public function __construct() {
+		$this->loadToken();
+	}
+
+	private function loadToken() {
+		global $IP;
+		$key = file_get_contents( WH_GOOGLE_DOCS_P12_PATH );
+		$cred = new Google_Auth_AssertionCredentials(
+			WH_GOOGLE_SERVICE_APP_EMAIL,
+			array( 'https://www.googleapis.com/auth/drive', 'https://spreadsheets.google.com/feeds'),
+			$key
+		);
+
+		$client = new Google_Client();
+		$client->setAssertionCredentials( $cred );
+
+		if ( $client->getAuth()->isAccessTokenExpired() ) {
+			  $client->getAuth()->refreshTokenWithAssertion();
+		}
+
+		$this->mService = new Google_Service_Drive($client);
+
+		$token = $client->getAccessToken();
+		$token = json_decode( $token );
+		$this->mToken = $token->access_token;
+	}
+
+	public function getToken() {
+		return $this->mToken;
+	}
+
+	public function getService() {
+		return $this->mService;
+	}
+
+	// this does a curl to get data of atom/xml content type
+	public function doAtomXmlRequest( $url, $params = '' ) {
+		$url = wfAppendQuery( $url, $params );
 		$ch = curl_init();
+		curl_setopt( $ch, CURLOPT_URL, $url );
+		curl_setopt( $ch, CURLOPT_HEADER, 0 );
+		curl_setopt( $ch, CURLOPT_RETURNTRANSFER, 1 );
+		curl_setopt( $ch, CURLOPT_TIMEOUT, 60 * 5 );
+		curl_setopt( $ch, CURLOPT_HTTPHEADER, array( "Content-type: application/atom+xml" ) );
+		$res = curl_exec( $ch );
+		return $res;
+	}
 
-		curl_setopt($ch, CURLOPT_URL, "https://www.google.com/accounts/ClientLogin");
-		curl_setopt($ch, CURLOPT_HEADER, 0);
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-		$data = array('accountType' => 'GOOGLE', 'Email' => $email, 'Passwd' => $password, 'service' => 'wise');
-		curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+	// this does a curl to get data of atom/xml content type
+	public function doJSONRequest( $url, $params ) {
+		$url = wfAppendQuery( $url, $params );
+		$sheetData = file_get_contents( $url );
+		$sheetData = json_decode( $sheetData );
+		$sheetData = $sheetData->{'feed'}->{'entry'};
+		return $sheetData;
+	}
+
+	// gets data from a google worksheet (including it's tab id) with given number of columns and start row
+	public function getColumnData( $worksheet, $startCol, $endCol, $startRow = 1 ) {
+		$requestUrl = self::FEED_LINK . $worksheet . "/private/full";
+		$query = array(
+			'access_token' => $this->getToken(),
+			'min-row' => $startRow,
+			'min-col' => $startCol,
+			'max-col' => $endCol,
+		);
+
+		$res = $this->doAtomXmlRequest( $requestUrl, $query );
 		
-		$res=curl_exec($ch);
-		curl_close($ch);
-		$auths=preg_split("/[\r\n]+/", $res);
-		$autha=array();
-		foreach($auths as $auth) {
-			$kv = preg_split("/=/", $auth);
-			$autha[ $kv[0] ] = $kv[1];
-		}
-		if(empty($autha['Auth'])) {
-			return false;
-		}
-		else {
-			$this->_auth = $autha['Auth'];
-		}
-	}
-	private function doRequest($url, $params=array()) {
-		if(!$this->_auth) {
-			return(false);	
-		}
-		$ch=curl_init();
-		if($params) {
-			$first=true;
-			foreach($params as $k=>$v) {
-				if($first) {
-					$url .= "?";
-					$first=false;
-				}
-				else {
-					$url .= "&";	
-				}
-				$url .= $k . "=" . $v;	
-			}
-		}
-		curl_setopt($ch, CURLOPT_URL, $url);
-		curl_setopt($ch, CURLOPT_HEADER, 0);
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-		curl_setopt($ch, CURLOPT_HTTPHEADER, array("Content-type: application/atom+xml", "Authorization: GoogleLogin auth=" . $this->_auth));
-		$res=curl_exec($ch);
-		return($res);
-	}
-	public function getSpreadsheets() {
+		$xml = simplexml_load_string( $res );
 		
-		$res=$this->doRequest("https://spreadsheets.google.com/feeds/spreadsheets/private/full");
-		$ret=array();
-		$xml=simplexml_load_string($res);
-		foreach($xml->entry as $e) {
-			$ret[(string)$e->content]=(string)$e->id;
-		}
-		return($ret);
-	}
-	public function getWorksheets($url) {
-		$res=$this->doRequest($url);
-		$ret=array();
-		$xml=simplexml_load_string($res);
-		foreach($xml->entry as $e) {
-			if(preg_match("https://spreadsheets.google.com/feeds/spreadsheets/private/full/(.+)",(string)$e->id,$matches )) {
-				$ret[(string)$e->content]=$matches[1];	
-			}
-		}
-		return($ret);
-	}
-	public function getCols($worksheet,$startCol,$endCol,$startRow=1) {
-		$url="https://spreadsheets.google.com/feeds/cells/" . $worksheet . "/private/full";
-		$res=$this->doRequest($url,array("min-row"=>$startRow,"min-col"=>$startCol,"max-col"=>$endCol));
-		$n=0;
-		$xml=simplexml_load_string($res);
 		$row = array();
-		$cols=array();
-		foreach($xml->entry as $e) {
-			if($n > ($endCol - $startCol)) {
+		$cols = array();
+		$n = 0;
+		$columnDiff = $endCol - $startCol;
+		foreach ( $xml->entry as $e ) {
+			if( $n > $columnDiff ) {
 				$cols[] = $row;
-				$n=0;	
+				$n = 0;
 			}
-			$row[$n] = (string)$e->content;
+			$row[$n] = ( string )$e->content;
 			$n++;
 		}
 		$cols[] = $row;
-		return($cols);
+
+		return $cols;
+	}
+
+	// gets data from a google worksheet (including it's tab id) with given number of columns and start row (JSON style)
+	public function getColumnDataJSON( $worksheet, $startCol, $endCol, $startRow = 1 ) {
+		$url = self::FEED_LINK . $worksheet . "/private/values";
+		$query = array(
+			'alt' => 'json',
+			'access_token' => $this->getToken(),
+			'min-row' => $startRow,
+			'min-col' => $startCol,
+			'max-col' => $endCol,
+		);
+
+		$cols = $this->doJSONRequest( $url, $query );
+		$res = $this->parseGoogleJSON($cols, $endCol);
+		return $res;
+	}
+
+	public function sheetExists($sheetId) {
+		$url = self::FEED_LINK . $sheetId . "/private/full";
+		$params = [
+			'alt' => 'json',
+			'access_token' => $this->getToken(),
+		];
+
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, wfAppendQuery($url, $params));
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+		curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+		curl_exec($ch);
+
+		if (curl_errno($ch)) {
+			$exists = false;
+		} else {
+			$exists = curl_getinfo($ch)['http_code'] == '200';
+		}
+
+		return $exists;
+	}
+
+	// gets data from a google worksheet (including it's tab id) with given number of columns and start row (JSON style)
+	public function getRawColumnDataJSON( $worksheet, $startCol, $endCol, $startRow = 1 ) {
+		$url = self::FEED_LINK . $worksheet . "/private/values";
+		$query = array(
+			'alt' => 'json',
+			'access_token' => $this->getToken(),
+			'min-row' => $startRow,
+			'min-col' => $startCol,
+			'max-col' => $endCol,
+		);
+
+		return $this->doJSONRequest( $url, $query );
 	}
 	
-	public function getColsWithSpaces($worksheet,$startCol,$endCol,$startRow=1) {
-		$url="https://spreadsheets.google.com/feeds/cells/" . $worksheet . "/private/full";
-		$res=$this->doRequest($url,array("min-row"=>$startRow,"min-col"=>$startCol,"max-col"=>$endCol));
-		$xml=simplexml_load_string($res);
-		$row = array();
-		$cols = array();
-		$last_pos = 'A';
-		foreach($xml->entry as $e) {
-			$pos = strtoupper((string)$e->title);
-			//new row?
-			if (substr($pos,-1,1) !== substr($last_pos,-1,1) && $pos != 'A2') {
-				$cols[] = $row;
-				$row = array();	
-			}
-			else {
-				//did we skip an empty cell?
-				$diff = (ord(substr($pos,0,1)) - ord(substr($last_pos,0,1)));
-				for ($i=1; $i < $diff; $i++) {
-					$row[] = '';
-				}
+	private function parseGoogleJSON( $data, $numCol ) {
+	
+		$result = array();
+		$temp = array();
+		foreach ($data as $d) {
+			$row = $d->{'gs$cell'}->{'row'};
+			$col = $d->{'gs$cell'}->{'col'};
+			//brand new row?
+			if ($last_row && $last_row != $row) {
+				//first, we need to fill in the rest of the cols (if need be)
+				$this->addEmpty($temp, ($numCol +1) - $last_col);
+				$result[] = $temp;
+				unset($temp);
+				$last_col = false;
 			}
 			
-			$row[] = (string)$e->content;
-			$last_pos = $pos;
+			//did we skip a column?
+			if ($last_col) {
+				$col_diff = $col - ($last_col+1);
+				if ($col_diff > 0) $this->addEmpty($temp, $col_diff);
+			}
+			
+			//THIS IS WHAT WE WANT!
+			$temp[] = $d->{'content'}->{'$t'};
+			
+			//for next loop reference
+			$last_row = $row;
+			$last_col = $col;
 		}
-		$cols[] = $row;
-		return($cols);
+		//and add the final one
+		$result[] = $temp;
+		
+		return $result;
 	}
 	
-	public function getHeaders($worksheet) {
-		$url="https://spreadsheets.google.com/feeds/cells/" . $worksheet . "/private/full";
-		$res=$this->doRequest($url,array("max-row"=>1));
-		$n=0;
-		$xml=simplexml_load_string($res);
-		$cols = array();
-		foreach($xml->entry as $e) {
-			$cols[] = trim((string)$e->content);
+	private function addEmpty(&$temp, $num) {
+		for ($i=1; $i < $num; $i++) {
+			$temp[] = '';
 		}
-		return($cols);
 	}
+
 }

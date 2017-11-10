@@ -117,7 +117,8 @@ class SpecialNotifications extends SpecialPage {
 		$out->addExtensionStyle( "$wgExtensionAssetsPath/Echo/modules/base/ext.echo.base.css" );
 		// Mark items as read
 		if ( $unread ) {
-			MWEchoNotifUser::newFromUser( $user )->markRead( $unread );
+			// Lojjik Braughler - mark all notifications read instead of just those loaded
+			MWEchoNotifUser::newFromUser( $user )->markAllRead();
 		}
 	}
 
@@ -153,5 +154,9 @@ class SpecialNotifications extends SpecialPage {
 			$this->msg( 'preferences' )->text()
 		);
 		return $lang->pipeList( $subtitleLinks );
+	}
+
+	public function isMobileCapable() {
+		return true;
 	}
 }

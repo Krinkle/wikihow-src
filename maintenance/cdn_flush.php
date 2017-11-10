@@ -11,7 +11,7 @@ require_once('commandLine.inc');
 require_once( __DIR__ . '/wikihow/cdnetworkssupport/CDNetworksSupport.php' );
 
 function main($params) {
-	$params = parseParams($argv);
+	$params = parseParams($params);
 
 	if ($params['file']) {
 		$locations = file($params['file']);

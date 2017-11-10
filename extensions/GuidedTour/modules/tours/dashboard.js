@@ -35,7 +35,7 @@
 			descriptionmsg: 'guidedtour-tour-dashboard-description',
 
 			overlay: true,
-
+			xButton: true,
 			buttons: [ {
 				action: 'next'
 			} ]
@@ -47,36 +47,11 @@
 			attachTo: 'div.comdash-widget-TipsPatrolWidget',
 			position: 'top',
 			offset: {'top': 20, 'left': 0},
-
+			xButton: true,
 			buttons: [ {
 				action: 'next'
 			} ]
 		}, {
-			titlemsg: 'guidedtour-tour-dashboard-methodguardian-title',
-			descriptionmsg: 'guidedtour-tour-dashboard-methodguardian-description',
-
-			// attachment
-			attachTo: 'div.comdash-widget-MethodGuardianAppWidget',
-			position: 'top',
-			offset: {'top': 20, 'left': 0},
-
-			buttons: [ {
-				action: 'next'
-			} ]
-		}, /*{
-			titlemsg: 'guidedtour-tour-dashboard-spelling-title',
-			descriptionmsg: 'guidedtour-tour-dashboard-spelling-description',
-
-			// attachment
-			attachTo: 'div.comdash-widget-SpellcheckerAppWidget > div.comdash-widget-body',
-			position: 'left',
-
-			offset: {'top': 0, 'left': -20},
-
-			buttons: [ {
-				action: 'next'
-			} ]
-		},*/ {
 			titlemsg: 'guidedtour-tour-dashboard-answerrequests-title',
 			descriptionmsg: 'guidedtour-tour-dashboard-answerrequests-description',
 
@@ -84,7 +59,7 @@
 			attachTo: 'div.comdash-widget-WriteAppWidget',
 			position: 'top',
 			offset: {'top': 20, 'left': 0},
-
+			xButton: true,
 			buttons: [ {
 				action: 'next'
 			} ]
@@ -93,7 +68,7 @@
 			descriptionmsg: 'guidedtour-tour-dashboard-end-description',
 
 			overlay: true,
-
+			xButton: true,
 			buttons: [ {
 				action: 'end'
 			} ]

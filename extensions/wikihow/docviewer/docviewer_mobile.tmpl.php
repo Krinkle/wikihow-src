@@ -1,6 +1,8 @@
-<h1><?=$doc_title?></h1>
 
-<img src="<?=$dv_fallback_img?>" id="sample_img" />
+<div id="docviewer_sample">
+	<div class="preview_head"><?=wfMessage('dv-preview')?></div>
+	<img src="<?=$dv_fallback_img?>" id="sample_img" />
+</div>
 
 <div id="docviewer_choices" class="dv_mobile">
 	<h4><?=$header_get?></h4>
@@ -29,10 +31,10 @@
 			<p><a href="<?=$dv_dl_file_txt?>" id="gatSampleTxt2" target="_blank" rel="nofollow"><?=$dv_download?><br /><span><?=$dv_dl_text_txt?></span></a></p>
 		</li>
 		<? } ?>
-		<? if ($dv_dl_file_gdoc != '') { ?>
-		<li class="dv_dl_gdoc">
-			<a href="http://docs.google.com/viewer?url=<?=$dv_dl_file_gdoc?>" target="_blank" class="dv_dl_block" id="gatSampleGdoc1" rel="nofollow"></a>
-			<p><a href="http://docs.google.com/viewer?url=<?=$dv_dl_file_gdoc?>" id="gatSampleGdoc2" rel="nofollow"><?=$dv_open_in?><br /><span><?=$dv_dl_text_gdoc?></span></a></p>
+		<? if ($dv_dl_file_ext != '') { ?>
+		<li class="dv_dl_ext">
+			<a href="<?=$dv_dl_ext_prefix.$dv_dl_file_ext?>" target="_blank" class="dv_dl_block" id="gatSampleExtLink1" rel="nofollow"></a>
+			<p><a href="<?=$dv_dl_ext_prefix.$dv_dl_file_ext?>" id="gatSampleExtLink2" rel="nofollow"><?=$dv_open_in?><br /><span><?=$dv_dl_text_ext?></span></a></p>
 		</li>
 		<? } ?>
 	</ul>

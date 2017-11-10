@@ -9,4 +9,7 @@ $wgExtensionCredits['specialpage'][] = array(
 );
 
 $wgSpecialPages['AdminImageRemoval'] = 'AdminImageRemoval';
-$wgAutoloadClasses['AdminImageRemoval'] = dirname(__FILE__) . '/AdminImageRemoval.body.php';
+$wgAutoloadClasses['AdminImageRemoval'] = __DIR__ . '/AdminImageRemoval.body.php';
+
+$wgResourceModules['ext.wikihow.image_removal'] = $wgResourceModulesDesktopBoiler + [
+	'scripts' => [ 'adminimageremoval.js' ] ];

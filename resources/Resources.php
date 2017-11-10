@@ -248,6 +248,7 @@ return array(
 	'jquery.footHovzer' => array(
 		'scripts' => 'resources/jquery/jquery.footHovzer.js',
 		'styles' => 'resources/jquery/jquery.footHovzer.css',
+		'targets' => array( 'desktop', 'mobile' ),
 	),
 	'jquery.form' => array(
 		'scripts' => 'resources/jquery/jquery.form.js',
@@ -341,6 +342,8 @@ return array(
 	),
 	'jquery.throttle-debounce' => array(
 		'scripts' => 'resources/jquery/jquery.ba-throttle-debounce.js',
+		// 20151022 Jordan Added targets for mobile and desktop so we can use on mobile
+		'targets' => array( 'desktop', 'mobile' ),
 	),
 	'jquery.validate' => array(
 		'scripts' => 'resources/jquery/jquery.validate.js',
@@ -365,6 +368,7 @@ return array(
 			'default' => array(
 				'resources/jquery.ui/themes/default/jquery.ui.core.css',
 				'resources/jquery.ui/themes/default/jquery.ui.theme.css',
+				'extensions/wikihow/common/jquery-ui-themes/jquery-ui.css',
 			),
 			'vector' => array(
 				'resources/jquery.ui/themes/vector/jquery.ui.core.css',
@@ -535,7 +539,8 @@ return array(
 			'jquery.ui.resizable',
 		),
 		'skinStyles' => array(
-			'default' => 'resources/jquery.ui/themes/default/jquery.ui.dialog.css',
+			//[sc] added wikihow ui dialog css 10/2015
+			'default' => array('resources/jquery.ui/themes/default/jquery.ui.dialog.css','extensions/wikihow/wikihow_jquery_ui_dialog.css'),
 			'vector' => 'resources/jquery.ui/themes/vector/jquery.ui.dialog.css',
 		),
 		'group' => 'jquery.ui',
@@ -763,6 +768,7 @@ return array(
 		'styles' => 'resources/mediawiki/mediawiki.debug.css',
 		'dependencies' => 'jquery.footHovzer',
 		'position' => 'bottom',
+		'targets' => array( 'desktop', 'mobile' ),
 	),
 	'mediawiki.debug.init' => array(
 		'scripts' => 'resources/mediawiki/mediawiki.debug.init.js',
@@ -770,6 +776,7 @@ return array(
 		// Uses a custom mw.config variable that is set in debughtml,
 		// must be loaded on the bottom
 		'position' => 'bottom',
+		'targets' => array( 'desktop', 'mobile' ),
 	),
 	'mediawiki.feedback' => array(
 		'scripts' => 'resources/mediawiki/mediawiki.feedback.js',
@@ -896,6 +903,12 @@ return array(
 		'position' => 'top', // For $wgPreloadJavaScriptMwUtil
 		'targets' => array( 'desktop', 'mobile' ),
 	),
+	'mediawiki.cookie' => array(
+		'scripts' => 'resources/src/mediawiki/mediawiki.cookie.js',
+		'dependencies' => array(
+			'jquery.cookie',
+		),
+	),
 
 	/* MediaWiki Action */
 
@@ -956,7 +969,7 @@ return array(
 		'scripts' => 'resources/mediawiki.action/mediawiki.action.view.postEdit.js',
 		'styles' => 'resources/mediawiki.action/mediawiki.action.view.postEdit.css',
 		'dependencies' => array(
-			'jquery.cookie',
+			'mediawiki.cookie',
 			'mediawiki.jqueryMsg'
 		),
 		'messages' => array(

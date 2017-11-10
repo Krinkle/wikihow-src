@@ -16,3 +16,13 @@ $wgAutoloadClasses['WelcomeWagon'] = dirname( __FILE__ ) . '/WelcomeWagon.body.p
 $wgLogTypes[] = 'welcomewag';
 $wgLogNames['welcomewag'] = 'welcomewag';
 $wgLogHeaders['welcomewag'] = 'welcomewag_log';
+
+$wgResourceModules['ext.wikihow.welcome_wagon'] = [
+    'styles' => ['welcomewagon.css'],
+    'scripts' => ['welcomewagon.js'],
+    'localBasePath' => __DIR__,
+    'remoteExtPath' => 'wikihow/WelcomeWagon',
+    'position' => 'top',
+    'targets' => ['desktop', 'mobile'],
+    'dependencies' => ['ext.wikihow.common_top'],
+];

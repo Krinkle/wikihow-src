@@ -1,4 +1,5 @@
 <?php
+
 class FeaturedContributor extends UnlistedSpecialPage {
 
 	function __construct() {

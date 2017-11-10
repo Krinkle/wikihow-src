@@ -1,19 +1,31 @@
-<?
-
-if (!defined('MEDIAWIKI')) die();
+<?php
 
 class S3Images {
 
 	/**
 	 * Hook called when a new file is uploaded.
 	 */
-// Reuben note to self: test when new file uploaded via wikiphoto
 	public static function onFileUpload( $localFile, $reupload, $titleExists ) {
 		global $wgLanguageCode;
 		$jobTitle = $localFile->getTitle();
-		$buckets = array(WH_AWS_BUCKET_IMAGE_STORAGE, WH_AWS_BUCKET_IMAGE_BACKUPS);
+		$buckets = array(WH_AWS_IMAGE_BUCKET, WH_AWS_IMAGE_BACKUPS_BUCKET);
+		$localIP = null;
+		if ( array_key_exists( 'SERVER_ADDR', $_SERVER ) ) {
+			$localIP = $_SERVER['SERVER_ADDR'];
+		}
+
+		if (!$localIP) {
+			$localIP = `/sbin/ifconfig |grep 'addr:10\.' |awk '{print $2}' |cut -d : -f 2`;
+			$localIP = trim($localIP);
+			if (!preg_match('@^10\.([0-9]{1,3}\.){2}[0-9]{1,3}$@', $localIP)) {
+				$localIP = '127.0.0.1';
+			}
+		}
 		foreach ($buckets as $bucket) {
+			$localUrl = 'http://' . $localIP  . '/images/' . $localFile->getRel();
 			$jobParams = array(
+				'fetchUrl' => $localUrl,
+				'fetchHost' => Misc::getLangDomain($wgLanguageCode),
 				'file' => $localFile->getLocalRefPath(),
 				'bucket' => $bucket,
 				'uploadPath' => "/images_$wgLanguageCode/" . $localFile->getRel(),
@@ -25,27 +37,6 @@ class S3Images {
 
 		return true;
 	}
-
-/*
-	// Called when a previously non-existent image thumbnail is created/transformed
-	// Still called even when transform via 404 is on??
-	public static function onFileTransformed( $file, $thumb, $tmpThumbPath, $thumbPath ) {
-		return true;
-	}
-
-	// Called when the image file is moved on doh
-	// Called on image delete
-	// should we do thumbnail purge of S3 here?
-	public static function onLocalFilePurgeThumbnails( $localFile, $archiveName ) {
-		return true;
-	}
-
-	// Called on image file move
-	// Called when image is uploaded
-	public static function onNewRevisionFromEditComplete( $wikiPage, $nullRevision, $latest, $user ) {
-		return true;
-	}
-*/
 
 }
 

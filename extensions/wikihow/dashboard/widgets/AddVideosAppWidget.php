@@ -91,7 +91,7 @@ class AddVideosAppWidget extends DashboardWidget {
 	 * Gets data from the Leaderboard class for this widget
 	 */
 	public function getLeaderboardData(&$dbr, $starttimestamp){
-		$data = Leaderboard::getVideosReviewed($starttimestamp);
+		$data = LeaderboardStats::getVideosReviewed($starttimestamp);
 		arsort($data);
 
 		return $data;

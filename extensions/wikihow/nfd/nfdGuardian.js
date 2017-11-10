@@ -1,3 +1,4 @@
+( function($, mw) {
 
 var nfd_vote = 0;
 var nfd_skip = 0;
@@ -5,23 +6,24 @@ var nfd_id   = 0;
 var NFD_STANDINGS_TABLE_REFRESH = 600;
 var show_delete_confirmation = true;
 
-$("document").ready(function() {
-	initToolTitle();
-	addOptions();
-	getNextNFD();
-	jQuery('#nfd_delete_confirm .no').click(function(e){
-		e.preventDefault();
-		jQuery('#nfd_delete_confirm').dialog('close');
-	});
-	jQuery('#nfd_delete_confirm .yes').click(function(e){
-		e.preventDefault();
-		jQuery('#nfd_delete_confirm').dialog('close');
-		nfdVote(true);
-	});
-});
-
 function initToolTitle() {
 	$(".firstHeading").before("<h5>" + $(".firstHeading").html() + "</h5>")
+}
+
+function addOptions() {
+    $('.firstHeading').before('<span class="tool_options_link">(<a href="#">Change Options</a>)</span>');
+    $('.firstHeading').after('<div class="tool_options"></div>');
+
+    $('.tool_options_link').click(function(){
+        if ($('.tool_options').css('display') == 'none') {
+            //show it!
+            $('.tool_options').slideDown();
+        } else {
+            //hide it!
+            $('.tool_options').slideUp();
+        }
+		return false;
+    });
 }
 
 // asks the backend for a new article
@@ -29,7 +31,7 @@ function initToolTitle() {
 function getNextNFD() {
 	$.get('/Special:NFDGuardian',
 		{fetchInnards: true,
-		  nfd_type: getCookie('nfdrule_choices'),
+		  nfd_type: $.cookie('nfdrule_choices'),
 		},
 		function (result) {
 			loadResult(result);
@@ -45,7 +47,7 @@ function updateChoices() {
 	$("#nfd_reasons select option:selected").each(function() {
 		choices.push($(this).text());
 	});
-	setCookie('nfdrule_choices',choices.join());
+	$.cookie('nfdrule_choices',choices.join(), { expires: 7 });
 }
 
 function loadResult(result) {
@@ -90,6 +92,9 @@ function loadResult(result) {
 	
 	nfd_id	= result['nfd_id'];
 	nfd_page = result['nfd_page'];
+	$('body').data({
+		article_id: nfd_id
+	});
 
 	$("#tab_article").click(function(e){
 		e.preventDefault();
@@ -123,6 +128,11 @@ function loadResult(result) {
 		getHistory('/Special:NFDGuardian?history=true&articleId=' + nfd_page);
 	});
 	
+	$("#tab_helpful").click(function(e){
+		e.preventDefault();
+		getHelpfulness(nfd_page);
+	});
+
 	//keep button
 	$('#nfd_keep').click( function(e) {
 		e.preventDefault();
@@ -132,19 +142,19 @@ function loadResult(result) {
 	//delete button
 	$('#nfd_delete').click( function(e) {
 		e.preventDefault();
-		if(show_delete_confirmation){
+		if (show_delete_confirmation) {
 			$('#nfd_delete_confirm').dialog({
 			   width: 450,
 			   modal: true,
 			   title: 'NFD Guardian Confirmation',
 			   show: 'slide',
-			   closeText: 'Close',
+			   closeText: 'x',
 			   closeOnEscape: true,
 				position: 'center'
 			});
-		}
-		else
+		} else {
 			nfdVote(true);
+		}
 
 	});
 
@@ -162,10 +172,10 @@ function loadResult(result) {
 
 	$('#nfd_article_info a.tooltip').hover(
 		function() {
-			getToolTip(this,true);
+			WH.getToolTip(this,true);
 		},
 		function() {
-			getToolTip(this,false);
+			WH.getToolTip(this,false);
 		}
 	);
 }
@@ -177,7 +187,7 @@ function submitResponse() {
 		{ 
 		  nfd_vote: nfd_vote,
 		  nfd_skip: nfd_skip,
-		  nfd_type: getCookie('nfdrule_choices'),
+		  nfd_type: $.cookie('nfdrule_choices'),
 		  nfd_id: nfd_id
 		},
 		function (result) {
@@ -191,11 +201,10 @@ function submitResponse() {
 }
 
 function nfdVote(vote) {
-	(vote) ? (nfd_vote = 1) :(nfd_vote = 0);
+	nfd_vote = (vote ? 1 : 0);
 	nfd_skip = 0;
 	incCounters(); 
 	submitResponse();
-	window.oTrackUserAction();
 }
 
 function nfdSkip() {
@@ -203,27 +212,25 @@ function nfdSkip() {
 	submitResponse();
 }
 
-updateStandingsTable = function() {
+function updateStandingsTable() {
     var url = '/Special:Standings/nfdStandingsGroup';
-    jQuery.get(url, function (data) {
-        jQuery('#iia_standings_table').html(data['html']);
-    },
-	'json'
+    $.get(url,
+		function (data) {
+			$('#iia_standings_table').html(data['html']);
+		},
+		'json'
 	);
 	$("#stup").html(NFD_STANDINGS_TABLE_REFRESH / 60);
 	//reset timer
 	window.setTimeout(updateStandingsTable, 1000 * NFD_STANDINGS_TABLE_REFRESH);
 }
 
-window.setTimeout(updateWidgetTimer, 60*1000);
-window.setTimeout(updateStandingsTable, 1000 * NFD_STANDINGS_TABLE_REFRESH);
-
 function updateWidgetTimer() {
-    updateTimer('stup');
+    WH.updateTimer('stup');
     window.setTimeout(updateWidgetTimer, 60*1000);
 }
 
-function getEditor(){
+function getEditor() {
 	$('.nfd_tabs_content').hide();
 	$('.waiting').show();
 	$.get('/Special:NFDGuardian', {
@@ -238,33 +245,35 @@ function getEditor(){
 			$('#articleEdit').show();
 			$('.waiting').hide();
 			document.getElementById('articleEdit').innerHTML = result;
-			restoreToolbarButtons();
-			jQuery('#wpSummary').val("Edit from NFD Guardian");
-			jQuery('#wpPreview').click(function() {
+			WH.Editor.restoreToolbarButtons();
+			$('#wpSummary').val("Edit from NFD Guardian");
+			$('#wpPreview').click(function() {
 				nfd_preview = true;
 			});
 			//Publish button
-			jQuery('#wpSave').click(function() {
+			$('#wpSave').click(function() {
 				nfd_preview = false;
-				window.oTrackUserAction();
+				WH.usageLogs.log({
+					event_action: 'publish',
+				});
 			});
-			jQuery('#editform').submit(function(e) {
+			$('#editform').submit(function(e) {
 				e.preventDefault();
 				if(nfd_preview){
-					var editform = jQuery('#wpTextbox1').val();
+					var editform = $('#wpTextbox1').val();
 					var url = '/index.php?action=submit&wpPreview=true&live=true';
 
-					jQuery.ajax({
+					$.ajax({
 						url: url,
 						type: 'POST',
 						data: 'wpTextbox1='+editform,
 						success: function(data) {
 
 							var XMLObject = data;
-							var previewElement = jQuery(data).find('preview').first();
+							var previewElement = $(data).find('preview').first();
 
-							/* Inject preview */
-							var previewContainer = jQuery('#articleBody');
+							// Inject preview 
+							var previewContainer = $('#articleBody');
 							if ( previewContainer && previewElement ) {
 								previewContainer.html(previewElement.first().text());
 								previewContainer.slideDown('slow');
@@ -281,38 +290,37 @@ function getEditor(){
 	);
 }
 
-
 function displayConfirmation() {
 	var url = '/Special:NFDGuardian?confirmation=1&articleId='+nfd_page;
 
-	jQuery('#dialog-box').load(url, function() {
-		jQuery('#dialog-box').dialog({
+	$('#dialog-box').load(url, function() {
+		$('#dialog-box').dialog({
 		   width: 450,
 		   modal: true,
-		   title: 'NFG Guardian Confirmation',
-			closeText: 'Close',
+		   title: 'NFD Guardian Confirmation',
+			closeText: 'x',
 			closeOnEscape: true,
 			position: 'center'
 		});
 	});
 }
 
-function closeConfirmation( bRemoveTemplate ) {
+function closeConfirmation(bRemoveTemplate) {
 
 	//close modal window
-	jQuery('#dialog-box').dialog('close');
+	$('#dialog-box').dialog('close');
 
 	$(".waiting").show();
 	$("#articleEdit").hide();
 	$(window).scrollTop(0);
 	$.post('/Special:NFDGuardian', {
 		submitEditForm: true,
-		url: jQuery('#editform').attr('action'),
-		wpTextbox1: jQuery("#editform #wpTextbox1").val(),
-		wpSummary: jQuery("#editform #wpSummary").val(),
-		//data: jQuery('#editform').serialize(),
+		url: $('#editform').attr('action'),
+		wpTextbox1: $("#editform #wpTextbox1").val(),
+		wpSummary: $("#editform #wpSummary").val(),
+		//data: $('#editform').serialize(),
 		removeTemplate: bRemoveTemplate,
-		nfd_type: getCookie('nfdrule_choices'),
+		nfd_type: $.cookie('nfdrule_choices'),
 		nfd_id: nfd_id,
 		articleId: nfd_page
 		},
@@ -324,12 +332,12 @@ function closeConfirmation( bRemoveTemplate ) {
 		'json'
 	);
 
-	if(bRemoveTemplate){
+	if (bRemoveTemplate){
 		incCounters();
 	}
 }
 
-function getArticle(){
+function getArticle() {
 	$('.nfd_tabs_content').hide();
 	$('.waiting').show();
 	$.get('/Special:NFDGuardian', {
@@ -347,9 +355,9 @@ function getArticle(){
 	);
 }
 
-function getDiscussion(){
+function getDiscussion() {
 	show_delete_confirmation = false;
-	if($("#articleDiscussion").is(':empty')){
+	if ($("#articleDiscussion").is(':empty')) {
 		$('.nfd_tabs_content').hide();
 		$('.waiting').show();
 		$.get('/Special:NFDGuardian', {
@@ -365,8 +373,7 @@ function getDiscussion(){
 				$('.waiting').hide();
 			}
 		);
-	}
-	else{
+	} else {
 		$('#article_tabs a').removeClass('on');
 		$('#tab_discuss').addClass('on');
 		$('.nfd_tabs_content').hide();
@@ -374,11 +381,11 @@ function getDiscussion(){
 	}
 }
 
-function getHistory(url){
+function getHistory(url) {
 	$('.nfd_tabs_content').hide();
 	$('.waiting').show();
 	$.get(url,
-		function (result) {
+		function(result) {
 			$('#article_tabs a').removeClass('on');
 			$('#tab_history').addClass('on');
 			$('.nfd_tabs_content').hide();
@@ -392,7 +399,7 @@ function getHistory(url){
 				e.preventDefault();
 				getHistory($(this).attr("href"));
 			});
-			jQuery('#mw-history-compare').submit(function(e) {
+			$('#mw-history-compare').submit(function(e) {
 				e.preventDefault();
 				//just a preview?
 
@@ -415,6 +422,23 @@ function getHistory(url){
 					}
 				);
 			});
+		}
+	);
+}
+
+function getHelpfulness(articleId) {
+	// set a global that is used by the page helpfulness Javascript
+	wgPageHelpfulnessArticleId = articleId;
+	$('.nfd_tabs_content').hide();
+	$('.waiting').show();
+	$.get('/Special:NFDGuardian?helpful=true&articleId=' + articleId,
+		function (result) {
+			$('#article_tabs a').removeClass('on');
+			$('#tab_helpful').addClass('on');
+			$('.nfd_tabs_content').hide();
+			$('#articleHelpfulness').show();
+			$('#page_helpfulness_box').html(result);
+			$('.waiting').hide();
 		}
 	);
 }
@@ -453,10 +477,10 @@ function getVoteBlock() {
 			//tooltip for changed by
 			$('.nfd_avatar a.tooltip').hover(
 				function() {
-					getToolTip(this,true);
+					WH.getToolTip(this,true);
 				},
 				function() {
-					getToolTip(this,false);
+					WH.getToolTip(this,false);
 				}
 			);
 		}
@@ -477,3 +501,73 @@ function displayNFDOptions() {
 	}
 }
 
+// Used exclusively by NFD guardian; moved from wikihowbits.js
+function button_click(obj) {
+	if ((navigator.appName == "Microsoft Internet Explorer") && (navigator.appVersion < 7)) {
+		return false;
+	}
+	jobj = $(obj);
+
+	background = jobj.css('background-position');
+	if(background == undefined || background == null)
+		background_x_position = jobj.css('background-position-x');
+	else
+		background_x_position = background.split(" ")[0];
+
+	//article tabs
+	if (obj.id.indexOf("tab_") >= 0) {
+		obj.style.color = "#514239";
+		obj.style.backgroundPosition = background_x_position + " -111px";
+	}
+
+	if (obj.id == "play_pause_button") {
+		if (jobj.hasClass("play")) {
+			obj.style.backgroundPosition = "0 -130px";
+		}
+		else {
+			obj.style.backgroundPosition = "0 -52px";
+		}
+	}
+
+
+	if (jobj.hasClass("search_button")) {
+		obj.style.backgroundPosition = "0 -29px";
+	}
+}
+
+$("document").ready(function() {
+	window.setTimeout(updateWidgetTimer, 60*1000);
+	window.setTimeout(updateStandingsTable, 1000 * NFD_STANDINGS_TABLE_REFRESH);
+
+	$('#article_shell').on( 'click', '.nfdg_tab',
+		function() {
+			button_click(this);
+		} );
+
+	$('body').on( 'click', '.nfdg_confirm_action',
+		function() {
+			var action = $(this).data('event_action');
+			// No button == keep template, Yes == remove
+			var removeTemplate = (action == 'template_remove');
+			closeConfirmation(removeTemplate);
+			return false;
+		} );
+
+	initToolTitle();
+	addOptions();
+	getNextNFD();
+	$('#nfd_delete_confirm .no').click(function(e){
+		e.preventDefault();
+		$('#nfd_delete_confirm').dialog('close');
+	});
+	$('#nfd_delete_confirm .yes').click(function(e){
+		e.preventDefault();
+		$('#nfd_delete_confirm').dialog('close');
+		nfdVote(true);
+	});
+	$('body').data({
+		event_type: 'nfd_guardian',
+	});
+});
+
+}(jQuery, mediaWiki) );

@@ -129,7 +129,6 @@ class Milestones {
 	}
 	
 	function sendMilestoneEmails($datestamp) {
-		wfLoadExtensionMessages('Milestones');
 		
 		$dbw = wfGetDB(DB_MASTER);
 		$dbr = wfGetDB(DB_SLAVE);

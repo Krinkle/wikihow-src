@@ -6,6 +6,7 @@
 		<th>Url</th>
 		<th>Categories</th>
 		<th>Action</th>
+		<th>Notes</th>
 	</thead>
 	<?=$rows?>
 	</table>

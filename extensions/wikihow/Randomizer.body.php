@@ -1,4 +1,5 @@
-<?
+<?php
+
 /**
  * A class to access the page_randomizer table, which selects and lists
  * which articles are displayed when users press the prominent "Random
@@ -6,17 +7,11 @@
  */
 class Randomizer extends SpecialPage {
 
-	// change this to false if we don't want the reasons -- we don't once
-	// rolled out. debug_page_randomizer_reason table needs to be created
-	// (see schema below) before this functionality will work.
-	const DEBUG = false; 
-
 	/**
 	 * Special page constructor
 	 */
 	public function __construct() {
 		parent::__construct('Randomizer');
-		//$wgHooks['ArticleSaveComplete'][] = array('Randomizer', 'onArticleSave');
 	}
 
 	/**
@@ -199,19 +194,6 @@ class Randomizer extends SpecialPage {
 		return $articles;
 	}
 
-	/**
-	 * Callback is called whenever an article is saved.  Might be too slow,
-	 * so we're leaving this out for now.
-	 */
-	/*public static function onArticleSave(&$article, &$user, $text, $summary) {
-		$title = $article->getTitle();
-		if (!$title) return;
-		$id = $title->getID();
-		$namespace = $title->getNamespace();
-		$dbKey = $title->getDBkey();
-		//TODO
-	}*/
-
 /*
  * database schema:
  *
@@ -225,15 +207,6 @@ CREATE TABLE page_randomizer (
 	pr_updated VARCHAR(14) NOT NULL DEFAULT '',
 	PRIMARY KEY(pr_id),
 	INDEX(pr_random)
-) Engine=InnoDB;
-
--- this table has been removed now
-CREATE TABLE debug_page_randomizer_reason (
-	dprr_id INT UNSIGNED NOT NULL,
-	dprr_namespace INT UNSIGNED NOT NULL DEFAULT 0,
-	dprr_title VARCHAR(255) NOT NULL,
-	dprr_reasons VARCHAR(255) NOT NULL,
-	PRIMARY KEY(dprr_id)
 ) Engine=InnoDB;
 
  *
@@ -263,34 +236,6 @@ CREATE TABLE debug_page_randomizer_reason (
 	private static function dbClearRandomizer(&$dbw) {
 		$sql = 'DELETE FROM page_randomizer';
 		$dbw->query($sql, __METHOD__);
-	}
-
-	/**
-	 * Debugging function to give reasons why an article was added to the
-	 * randomizer set.
-	 */
-	private static function dbReplaceReasons(&$dbw, $reasons) {
-		if (!self::DEBUG) return;
-
-		$dbw->replace('debug_page_randomizer_reason', 'dprr_id', $reasons, __METHOD__);
-	}
-
-	/**
-	 * Get the reason why an article was added to the randomizer set.
-	 */
-	public static function getReason($title) {
-		if (self::DEBUG) {
-			$dbr = wfGetDB(DB_SLAVE);
-			$id = $title->getArticleID();
-			$reason = $dbr->selectField(
-				'debug_page_randomizer_reason',
-				'dprr_reasons',
-				array("dprr_id={$id}", "dprr_namespace=" . NS_MAIN),
-				__METHOD__);
-			return 'reason: ' . $reason . '<br>';
-		} else {
-			return '';
-		}
 	}
 
 	/**
@@ -423,7 +368,6 @@ CREATE TABLE debug_page_randomizer_reason (
 			self::dbSaveRandom($dbw, $remove, false);
 		}
 		self::dbSaveRandom($dbw, $add, true);
-		self::dbReplaceReasons($dbw, $reasons);
 	}
 
 	/**
@@ -453,6 +397,8 @@ CREATE TABLE debug_page_randomizer_reason (
 			if ($title && $title->exists()) break;
 		}
 
+		wfRunHooks( 'RandomizerGetRandomTitle', array( &$title ) );
+
 		wfProfileOut($fname); 
 		return $title;
 	}
@@ -461,11 +407,10 @@ CREATE TABLE debug_page_randomizer_reason (
 	 * Special:Randomizer redirects to a random URL in the set of URLs
 	 * we've defined.
 	 */
-	public function execute() {
+	public function execute($par) {
 		global $wgOut, $wgLanguageCode, $wgRequest;
 
-		$fname = 'Randomizer::execute';
-		wfProfileIn($fname);
+		wfProfileIn(__METHOD__);
 
 		if ($wgLanguageCode != 'en') {
 			$rp = new RandomPage();
@@ -482,8 +427,11 @@ CREATE TABLE debug_page_randomizer_reason (
 
 		$wgOut->redirect($url);
 
-		wfProfileOut($fname); 
+		wfProfileOut(__METHOD__);
 	}
 
+	public function isMobileCapable() {
+		return true;
+	}
 }
 

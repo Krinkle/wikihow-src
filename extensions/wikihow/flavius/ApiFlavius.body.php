@@ -1,10 +1,7 @@
 <?php
 
-if (!defined('MEDIAWIKI')) die();
-
 global $IP;
-
-require_once('Flavius.class.php');
+require_once("$IP/extensions/wikihow/flavius/Flavius.class.php");
 
 class ApiFlavius extends ApiBase {
 	/**

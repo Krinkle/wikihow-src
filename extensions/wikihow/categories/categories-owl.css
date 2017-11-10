@@ -1,0 +1,38 @@
+.minor_section {
+	padding: 0px;
+	background-color: transparent;
+}
+
+.wh_block {
+	margin-right: 9px;
+	margin-left: 4px;
+}
+
+.cat-spinner {
+	margin: 15px auto;
+	background: url(/extensions/wikihow/mobile/images/hillary_spin.gif) no-repeat center center;
+	height: 30px;
+}
+
+.pagination { 
+	text-align: center;
+	margin: 10px 0;
+}
+
+.pagination li {
+	list-style: none;
+	display: inline-block;
+	margin-bottom: 5px;
+	width: 1.8em;
+	padding: .2em 0;
+}
+.pag_prev {
+	margin: 0 0 10px 3px;
+	border-radius: 0;
+	font-size: 1em;
+}
+.pag_next {
+	margin: 0 15px 10px 0;
+	border-radius: 0;
+	font-size: 1em;
+}

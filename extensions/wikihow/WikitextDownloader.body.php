@@ -1,7 +1,5 @@
-<?
-/*
-* 
-*/
+<?php
+
 class WikitextDownloader extends UnlistedSpecialPage {
 
 	function __construct() {
@@ -27,7 +25,7 @@ class WikitextDownloader extends UnlistedSpecialPage {
 	}
 
 	public static function isAuthorized() {
-		global $wgUser, $isDevServer;
+		global $wgUser;
 		$user = $wgUser->getName();
 		$userGroups = $wgUser->getGroups();
 		if ($wgUser->isBlocked() || !in_array('translator', $userGroups)) {

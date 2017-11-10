@@ -579,6 +579,7 @@ class Linker {
 		$isLarge = false;
 		$sourceWidth = $file->getWidth();
 		$sourceHeight = $file->getHeight();
+		$isNotSummaryOrSteps = $section != "summary" && $section != "steps";
 
 		if ($sourceHeight > $sourceWidth) {
 			if ($sourceWidth > 200) {
@@ -591,10 +592,6 @@ class Linker {
 			if ($sourceWidth > 400) {
 				$isLarge = true;
 			}
-		}
-
-		if($section != "summary" && $section != "steps") {
-			$isLarge = false;
 		}
 
 		if ($section == "summary") {
@@ -640,7 +637,7 @@ class Linker {
 		}
 
 		// WIKIHOW - ARG changed to add is Large condition
-		if ( !$isLarge && isset( $fp['thumbnail'] ) || isset( $fp['manualthumb'] ) || isset( $fp['framed'] ) ) {
+		if ((!$isLarge || $isNotSummaryOrSteps) && isset($fp['thumbnail']) || isset($fp['manualthumb']) || isset($fp['framed'])) {
 			# Create a thumbnail. Alignment depends on the writing direction of
 			# the page content language (right-aligned for LTR languages,
 			# left-aligned for RTL languages)
@@ -671,36 +668,60 @@ class Linker {
 			}
 		}
 
+		$maxWidth = 728;
+		$maxHeight = 560;
+
 		if ( $file && isset( $hp['width'] ) ) {
 			# Create a resized image, without the additional thumbnail features
 			// WIKIHOW - added the entire islarge condition below for setting image class
-			if($isLarge) {
-				if($isPortrait) {
+			if ($isLarge) {
+				if ($isPortrait) {
 					//it's a portrait image
-					$height = min(550, $sourceHeight);
-					$hp['width'] = $sourceWidth*$height/$sourceHeight;
-					$imageClass .= " largeimage portrait";
+					if ( isset( $fp['tall']) ) {
+						//CHANGED: Bebeth 1/20/2015
+						//special case where the "tall" parameter is set
+						//force it to be full width in this case so it will be as tall as possible
+						$hp['width'] = $maxWidth;
+						$hp['height'] = $sourceHeight*$hp['width']/$sourceWidth;
+						$imageClass .= " largeimage tallportrait";
+					} else {
+						$height = min($maxHeight, $sourceHeight);
+						$hp['width'] = $sourceWidth*$height/$sourceHeight;
+						$imageClass .= " largeimage portrait";
+					}
 				} else {
-					//this is our low threshold, so show it as big as possible
-					$hp['width'] = min(670, $sourceWidth);
+					// This is our low threshold, so show it as big as possible,
+					// except for substep (bulletpoint) images, which can be smaller and floated
+					$hp['width'] = $isNotSummaryOrSteps
+						? min($maxWidth, $sourceWidth, $hp['width'])
+						: min($maxWidth, $sourceWidth);
 					//now make sure it's not too tall.
 					$newHeight = $sourceHeight*$hp['width']/$sourceWidth;
-					if($newHeight > 550) //limit all images to 550
-						$hp['width'] = $sourceWidth*525/$sourceHeight;
+					if ($newHeight > $maxHeight) //limit all images to maxheight
+						$hp['width'] = $sourceWidth*$maxHeight/$sourceHeight;
 					$imageClass .= " largeimage ";
+
+					// ARG adding mArticleID for use in watermarking
+					if ( $parser->mTitle && $parser->mTitle->getNamespace() == NS_MAIN ) {
+						$hp['mArticleID'] = $parser->mTitle->getArticleID();
+					}
 				}
-				if($hp['width'] < 670) {
+				if ($hp['width'] < $maxWidth) {
 					$imageClass .= " underwidth ";
 				}
 			}
+
 			$thumb = $file->transform( $hp );
 		} else {
 			$thumb = false;
 		}
 
 		// WIKIHOW - this section added for image class addition
-		if(!$isLarge) {
+		if (!$isLarge || ($isNotSummaryOrSteps && $hp['width'] < 670)) {
 			$imageClass .= " t{$fp['align']}";
+		}
+		if(isset($fp['techicon'])) {
+			$imageClass .= " techicon";
 		}
 
 		if ( !$thumb ) {
@@ -726,7 +747,7 @@ class Linker {
 		}
 		// WIKIHOW - ARG added more image class conditions
 		$imageClass .= " float{$fp['align']} ";
-		if( isset($fp['thumbnail']) ) {
+		if ( isset($fp['thumbnail']) ) {
 			$imageClass .= " mthumb "; //for mobile thumb
 		}
 
@@ -744,7 +765,7 @@ class Linker {
 
 	/**
 	 * See makeImageLink()
-	 * When this function is removed, remove if( $parser instanceof Parser ) check there too
+	 * When this function is removed, remove if ( $parser instanceof Parser ) check there too
 	 * @deprecated since 1.20
 	 */
 	public static function makeImageLink2( Title $title, $file, $frameParams = array(),
@@ -885,7 +906,7 @@ class Linker {
 					$hp['width'] = $srcWidth;
 				}
 				// WIKIHOW - ARG added for MW upgrade to 1.21 to set image class
-				if ( $sourceWidth >= 400 ) {
+				if ( $srcWidth >= 400 ) {
 					//this is our low threshold, so show it as big as possible
 					$hp['width'] = min(700, $srcWidth);
 					$maxWidth = 1100;

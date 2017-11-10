@@ -71,7 +71,9 @@ div.video_comment_text {
 }
 
 #winpop_outer {
-	left: 15%
+	margin: 0 auto;
+	position: absolute;
+	z-index: 1002;
 }
 
 

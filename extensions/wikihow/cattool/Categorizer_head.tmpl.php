@@ -1,6 +1,6 @@
 <div id="cat_head_outer" class="tool_header">
 	<h1><?= wfMessage('cat_can_you_help')->text() ?></h1>
-	<p id="cat_help" class='tool_help'><?= wfMessage('cat_need_help')->text()?><a href="<?=$cat_help_url?>" target="_blank"><?= wfMessage('cat_learn_to_categorize')->text()?></a>.</p>
+	<p id="cat_help" class='tool_help'><?= wfMessage('cat_need_help')->text()?>&nbsp;<a href="<?=$cat_help_url?>" target="_blank"><?= wfMessage('cat_learn_to_categorize')->text()?></a>.</p>
 	<div id="cat_spinner">
 		<img src="/extensions/wikihow/rotate.gif" alt="" />
 	</div>

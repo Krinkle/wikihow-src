@@ -1,27 +1,27 @@
-<?
+<?php
 
 class Videoadder extends SpecialPage {
 
-	function __construct() {
+	public function __construct() {
 		global $wgHooks;
 		parent::__construct( 'Videoadder' );
-		$wgHooks['getToolStatus'][] = array('Misc::defineAsTool');
+		$wgHooks['getToolStatus'][] = array('SpecialPagesHooks::defineAsTool');
 	}
 
 	// returns the HTML for the category drop down
-	function getCategoryDropDown() {
-		global $wgRequest;
+	private function getCategoryDropDown() {
+		$req = $this->getRequest();
 		$cats = Categoryhelper::getTopLevelCategoriesForDropDown();
-		$selected = $wgRequest->getVal('cat');
-		$html = '<select id="va_category" onchange="chooseCat();"><OPTION value="">All</OPTION>';
+		$selected = $req->getVal('cat');
+		$html = '<select id="va_category" onchange="WH.VideoAdder.chooseCat();"><option value="">All</option>';
 		foreach ($cats as $c) {
 			$c = trim($c);
 			if ($c == "" || $c == "WikiHow" || $c == "Other")
 				continue;
 			if ($c == $selected)
-				$html .= '<OPTION value="' . $c . '" SELECTED>' . $c . '</OPTION>';
+				$html .= '<option value="' . $c . '" selected>' . $c . '</option>';
 			else
-				$html .= '<OPTION value="' . $c . '">' . $c . '</OPTION>';
+				$html .= '<option value="' . $c . '">' . $c . '</option>';
 		}
 		$html .= '</select>';
 		return $html;
@@ -29,7 +29,7 @@ class Videoadder extends SpecialPage {
 
 	// to be used when we allow a user to skip a video more than once
 	// basically filters out previously skipped videos
-	// NOT CURRENTLY USED - FOR FUTURE
+	/*
 	function getSkipVal($title, $src = 'youtube') {
 		$dbr = wfGetDB(DB_SLAVE);
 		$ids = array();
@@ -39,9 +39,10 @@ class Videoadder extends SpecialPage {
 		}
 		return implode("", $ids);
 	}
+	*/
 
 	// handles the coookie settings for skipping a video
-	function skipArticle($id) {
+	private static function skipArticle($id) {
 		global $wgCookiePrefix, $wgCookiePath, $wgCookieDomain, $wgCookieSecure;
 		// skip the article for now
 		$cookiename = "VAskip";
@@ -54,35 +55,35 @@ class Videoadder extends SpecialPage {
 	}
 
 	/**
-	 *
 	 * Returns the total number of articles waiting to
 	 * have images added to the Intro
+	 * NOTE: Used by CommunityDashboard widget
 	 */
-	function getArticleCount(&$dbr){
+	public static function getArticleCount(&$dbr) {
 		$ts = wfTimestamp(TS_MW, time() - 10 * 60);
 
-		$res = $dbr->select('videoadder', array('count(*) as C'), array ("va_inuse IS NULL or va_inuse < '{$ts}'", "va_skipped_accepted IS NULL", "va_page NOT In (5, 5791)", "va_template_ns IS NULL"), 'VideoAdder::getArticleCount');
+		$res = $dbr->select('videoadder', array('count(*) as C'), array ("va_inuse IS NULL or va_inuse < '{$ts}'", "va_skipped_accepted IS NULL", "va_page NOT In (5, 5791)", "va_template_ns IS NULL"), __METHOD__);
 		$row = $dbr->fetchObject($res);
 
 		return $row->C;
 	}
 
 	/**
-	 *
 	 * Returns the id/date of the last VAdder.
+	 * NOTE: Used by CommunityDashboard widget
 	 */
-	function getLastVA(&$dbr){
+	public static function getLastVA(&$dbr) {
 		$sql = "";
 		$bots = WikihowUser::getBotIDs();
 
-		if(sizeof($bots) > 0) {
+		if (sizeof($bots) > 0) {
 			$sql = "va_user NOT IN (" . $dbr->makeList($bots) . ")";
 		}
 
-		if($sql != "")
-			$res = $dbr->select('videoadder', array('va_user', 'va_timestamp'), array('va_skipped_accepted' => 0, $sql), 'Videoadder::getLastVA', array("ORDER BY"=>"va_timestamp DESC", "LIMIT"=>1));
+		if ($sql != "")
+			$res = $dbr->select('videoadder', array('va_user', 'va_timestamp'), array('va_skipped_accepted' => 0, $sql), __METHOD__, array("ORDER BY"=>"va_timestamp DESC", "LIMIT"=>1));
 		else
-			$res = $dbr->select('videoadder', array('va_user', 'va_timestamp'), array('va_skipped_accepted' => 0), 'Videoadder::getLastVA', array("ORDER BY"=>"va_timestamp DESC", "LIMIT"=>1));
+			$res = $dbr->select('videoadder', array('va_user', 'va_timestamp'), array('va_skipped_accepted' => 0), __METHOD__, array("ORDER BY"=>"va_timestamp DESC", "LIMIT"=>1));
 
 		$row = $dbr->fetchObject($res);
 		$vauser = array();
@@ -95,15 +96,16 @@ class Videoadder extends SpecialPage {
 	/**
 	 *
 	 * Returns the id/date of the highest VAdder
+	 * NOTE: Used by CommunityDashboard widget
 	 */
-	function getHighestVA(&$dbr, $period='7 days ago'){
+	public static function getHighestVA(&$dbr, $period='7 days ago') {
 		$startdate = strtotime($period);
 		$starttimestamp = date('YmdG',$startdate) . floor(date('i',$startdate)/10) . '00000';
 
 		$sql = "";
 		$bots = WikihowUser::getBotIDs();
 
-		if(sizeof($bots) > 0) {
+		if (sizeof($bots) > 0) {
 			$sql = " AND va_user NOT IN (" . $dbr->makeList($bots) . ") ";
 		}
 
@@ -120,18 +122,19 @@ class Videoadder extends SpecialPage {
 
 	// performs all of the logic of getting the next video, returns an array
 	// array ( title object of the article to work on, video array the video returned from the api )
-	function getNext() {
-		global $wgRequest, $wgCookiePrefix, $wgCategoryNames, $wgUser;
+	private function getNext() {
+		global $wgCookiePrefix, $wgCategoryNames;
+		$req = $this->getRequest();
 		$iv = new ImportvideoYoutube();
 		$dbw = wfGetDB(DB_MASTER);
 		$dbr = wfGetDB(DB_SLAVE);
-		$cat = $wgRequest->getVal('va_cat') ? Title::makeTitleSafe(NS_CATEGORY, $wgRequest->getVal('va_cat')) : null;
+		$cat = $req->getVal('va_cat') ? Title::makeTitleSafe(NS_CATEGORY, $req->getVal('va_cat')) : null;
 
 		// get a list
 		$cookiename = $wgCookiePrefix."VAskip";
 		$skipids = "";
 		if (isset($_COOKIE[$cookiename])) {
-			$ids = array_unique(split(",", $_COOKIE[$cookiename]));
+			$ids = array_unique(explode(",", $_COOKIE[$cookiename]));
 			$good = array(); //safety first
 			foreach ($ids as $id) {
 				if (preg_match("@[^0-9]@", $id))
@@ -169,10 +172,10 @@ class Videoadder extends SpecialPage {
 				// get the mostly recently edited page that has no video
 				$sql .= " ORDER BY va_page_touched DESC LIMIT 1";
 			}
-			$res = $dbr->query($sql);
+			$res = $dbr->query($sql, __METHOD__);
 			if ($row = $dbr->fetchObject($res)) {
 				$title = Title::newFromID($row->va_page);
-				if ($title && !$this->hasProblems( $title, $dbr )) {
+				if ($title && !self::hasProblems( $title, $dbr )) {
 					$iv->getTopResults($title, 1, wfMsg("howto", $title->getText()));
 				}
 			}
@@ -190,11 +193,12 @@ class Videoadder extends SpecialPage {
 
 	// widget settings for getting the weekly rankings
 	// caches the rankings for 1 hour, no sense in thrashing the DB for 1 value here
-	function getWeekRankings() {
-		global $wgMemc, $wgRequest;
+	private function getWeekRankings() {
+		global $wgMemc;
+		$req = $this->getRequest();
 		$rankings = null;
 		$key = wfMemcKey("videoadder_rankings");
-		if ($wgMemc->get($key) && !$wgRequest->getVal('flushrankings')) {
+		if ($wgMemc->get($key) && !$req->getVal('flushrankings')) {
 			$rankings = $wgMemc->get($key);
 		}
 		if (!$rankings) {
@@ -209,14 +213,15 @@ class Videoadder extends SpecialPage {
 		return $rankings;
 	}
 
+/* UNUSED? - Reuben 2015/09/15
 	// gets the ranking  of the user for this week, returns "N/A" if they haven't added videos
 	function getRankThisWeek() {
-		global $wgUser;
-		$rankings = self::getWeekRankings();
+		$user = $this->getUser();
+		$rankings = $this->getWeekRankings();
 		$i = 0;
-		if(isset($rankings) && is_array($rankings)){
+		if (isset($rankings) && is_array($rankings)){
 			foreach ($rankings as $u=>$c) {
-				if ($u == $wgUser->getID()) {
+				if ($u == $user->getID()) {
 					return $i + 1;
 				}
 				$i++;
@@ -224,9 +229,10 @@ class Videoadder extends SpecialPage {
 		}
 		return "N/A";
 	}
+*/
 
 	// sets all of the side widgets for the page
-	function setSideWidgets() {
+	private static function setSideWidgets() {
 		$indi = new VideoStandingsIndividual();
 		$indi->addStatsWidget();
 
@@ -236,12 +242,11 @@ class Videoadder extends SpecialPage {
 	}
 
 	// gets the top 5 reviewers for the side widget
-	//NOT USED ANYMORE
-	function getReviewersTable(){
-		$rankings = self::getWeekRankings();
+	private function getReviewersTable() {
+		$rankings = $this->getWeekRankings();
 		$table = "<table>";
 		$index = 0;
-		if(isset($rankings) && is_array($rankings)){
+		if (isset($rankings) && is_array($rankings)) {
 			foreach ($rankings as $u=>$c) {
 				$u = User::newFromID($u);
 				$u->load();
@@ -266,7 +271,7 @@ class Videoadder extends SpecialPage {
 	 * - Makes sure an article has been NABbed
 	 * - Makes sure last edit has been patrolled
 	 **/
-	function hasProblems($t,$dbr) {
+	private static function hasProblems($t, $dbr) {
 		$r = Revision::newFromTitle($t);
 		if ($r) {
 			$intro = Article::getSection($r->getText(), 0);
@@ -286,115 +291,120 @@ class Videoadder extends SpecialPage {
 		return false;
 	}
 
-	function execute ($par) {
-		global $wgOut, $wgRequest, $wgUser, $wgParser;
+	public function execute($par) {
+		$out = $this->getOutput();
+		$out->setRobotpolicy( 'noindex,nofollow' );
+		$this->showPage($par);
+	}
 
-		if ($wgUser->isBlocked()) {
-			$wgOut->blockedPage();
+	private function showPage($par) {
+		$req = $this->getRequest();
+		$out = $this->getOutput();
+		$user = $this->getUser();
+
+		if ($user->isBlocked()) {
+			$out->blockedPage();
 			return;
 		}
 
-		if ($wgUser->getID() == 0) {
-			$wgOut->setRobotpolicy( 'noindex,nofollow' );
-			$wgOut->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
+		if ($user->getID() == 0) {
+			$out->setRobotpolicy( 'noindex,nofollow' );
+			$out->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
 			return;
 		}
 
-		if (class_exists('WikihowCSSDisplay'))
-			WikihowCSSDisplay::setSpecialBackground(true);
-
-		if ($wgRequest->getVal( 'fetchReviewersTable' )) {
-			$wgOut->setArticleBodyOnly(true);
-			echo $this->getReviewersTable();
+		if ($req->getVal( 'fetchReviewersTable' )) {
+			$out->setArticleBodyOnly(true);
+			print $this->getReviewersTable();
 			return;
 		}
 
-		wfLoadExtensionMessages('Importvideo');
-		wfLoadExtensionMessages("Videoadder");
-
-		$target = isset( $par ) ? $par : $wgRequest->getVal( 'target' );
-		$cat = htmlspecialchars($wgRequest->getVal( 'cat' ));
+		$target = isset( $par ) ? $par : $req->getVal( 'target' );
+		$cat = htmlspecialchars($req->getVal( 'cat' ));
 
 		// get just the HTML for the Ajax call for the next video
 		// used even on the initial page load
 		if ($target == 'getnext') {
-			$wgOut->setArticleBodyOnly(true);
+			$out->setArticleBodyOnly(true);
 
 			// process any skipped videos
-			if ($wgRequest->getVal('va_page_id') && !preg_match("@[^0-9]@",$wgRequest->getVal('va_page_id'))) {
+			if ($req->getVal('va_page_id') && !preg_match("@[^0-9]@",$req->getVal('va_page_id'))) {
 				$dbw = wfGetDB(DB_MASTER);
 
 				$vals = array(
-					'va_vid_id'		=>$wgRequest->getVal('va_vid_id'),
-					'va_user'		=>$wgUser->getID(),
-					'va_user_text'	=> $wgUser->getName(),
-					'va_timestamp'	=>wfTimestampNow(),
+					'va_vid_id'		=> $req->getVal('va_vid_id'),
+					'va_user'		=> $user->getID(),
+					'va_user_text'	=> $user->getName(),
+					'va_timestamp'	=> wfTimestampNow(),
 					'va_inuse'		=> null,
 					'va_src'		=> 'youtube',
 				);
 
-				$va_skip = $wgRequest->getVal('va_skip');
+				$va_skip = $req->getVal('va_skip');
 				if ($va_skip < 2)
 					$vals['va_skipped_accepted']	= $va_skip;
 
 				$dbw->update('videoadder', $vals,
 					array(
-						'va_page'		=>$wgRequest->getVal('va_page_id'),
+						'va_page' => $req->getVal('va_page_id'),
 					)
 				);
 
-				if ($wgRequest->getVal('va_skip') == 0 ) {
+				if ($req->getVal('va_skip') == 0 ) {
 					// import the video
-					$tx = Title::newFromID($wgRequest->getVal('va_page_id'));
+					$tx = Title::newFromID($req->getVal('va_page_id'));
 					$ipv = new ImportvideoYoutube();
-					$text = $ipv->loadVideoText($wgRequest->getVal('va_vid_id'));
-					$vid = Title::makeTitle(NS_VIDEO, $tx->getText());
-					Importvideo::updateVideoArticle($vid, $text, wfMessage('va_addingvideo')->text());
-					Importvideo::updateMainArticle($tx, wfMessage('va_addingvideo')->text());
+
+					if ( !empty( $req->getVal('va_vid_id') ) ) {
+						$text = $ipv->loadVideoText($req->getVal('va_vid_id'));
+						$vid = Title::makeTitle(NS_VIDEO, $tx->getText());
+						Importvideo::updateVideoArticle($vid, $text, wfMessage('va_addingvideo')->text());
+						Importvideo::updateMainArticle($tx, wfMessage('va_addingvideo')->text());
+					}
 					wfRunHooks("VAdone", array());
-					$wgOut->redirect('');
-				} else if ($wgRequest->getVal('va_skip') == 2) {
+					$out->redirect('');
+				} elseif ($req->getVal('va_skip') == 2) {
 					// the user has skipped it and not rejected this one, don't show it to them again
-					self::skipArticle($wgRequest->getVal('va_page_id'));
+					self::skipArticle($req->getVal('va_page_id'));
 					wfRunHooks("VAskipped", array());
 				}
 			}
-			$results = self::getNext();
+			$results = $this->getNext();
 
 			if (empty($results)) {
-				$wgOut->addHTML("Something went wrong. Refresh.");
+				$out->addHTML("Something went wrong. Refresh.");
 				return;
 			}
 
 			$title 	= $results[0];
 			$vid	= $results[1];
-			$id 	= str_replace("http://gdata.youtube.com/feeds/api/videos/", "", $vid['ID']);
+			$id 	= $results[1]->id;
 
 			if (!$title) {
-				$wgOut->addHTML("Something went wrong. Refresh.");
+				$out->addHTML("Something went wrong. Refresh.");
 				return;
 			}
 
 			$revision = Revision::newFromTitle($title);
-			$popts = $wgOut->parserOptions();
+			$popts = $out->parserOptions();
 			$popts->setTidy(true);
-			$parserOutput = $wgOut->parse($revision->getText(), $title, $popts);
+			$parserOutput = $out->parse($revision->getText(), $title, $popts);
 			$magic = WikihowArticleHTML::grabTheMagic($revision->getText());
 			$html = WikihowArticleHTML::processArticleHTML($parserOutput, array('no-ads' => true, 'ns' => NS_MAIN, 'magic-word' => $magic));
 
 
-			$result['guts'] = ("<div id='va_buttons'><a href='#' onclick='va_skip(); return false;' class='button secondary ' style='float:left;'>Skip</a>
-<a id='va_yes' href='#' class='button primary disabled buttonright'>Yes, it does</a>
-<a id='va_no' href='#' class='button secondary buttonright'>No, it doesn't</a><div class='clearall'></div></div>
+			$result['guts'] = ("<div id='va_buttons'><a href='#' onclick='WH.VideoAdder.skip(); return false;' class='button secondary ' style='float:left;'>Skip</a>
+<a id='va_yes' href='#' class='button primary disabled buttonright op-action'>Yes, it does</a>
+<a id='va_no' href='#' class='button secondary buttonright op-action'>No, it doesn't</a><div class='clearall'></div></div>
 <div id='va_title'><a href='{$title->getFullURL()}' target='new'>" .  wfMsg("howto", $title->getText()) . "</a></div>
 					<div id='va_video' class='section_text'>
 	<p id='va_notice'>" . wfMsg('va_notice') . "</p>
-<object width='480' height='385'><param name='movie' value='http://www.youtube.com/v/{$id}&amp;hl=en_US&amp;fs=1'></param><param name='allowFullScreen' value='true'></param><param name='allowscriptaccess' value='always'></param><embed src='http://www.youtube.com/v/{$id}&amp;hl=en_US&amp;fs=1' type='application/x-shockwave-flash' allowscriptaccess='always' allowfullscreen='true' width='480' height='385'></embed></object>
-					<input type='hidden' id='va_vid_id' value='{$id}'/>
+					<iframe src='https://www.youtube.com/embed/{$id}' width='480' height='385'></iframe>
 					<input type='hidden' id='va_page_id' value='{$title->getArticleID()}'/>
 					<input type='hidden' id='va_page_title' value='" . htmlspecialchars($title->getText()) . "'/>
 					<input type='hidden' id='va_page_url' value='" . htmlspecialchars($title->getFullURL()) . "'/>
 					<input type='hidden' id='va_skip' value='0'/>
+					<input type='hidden' id='va_vid_id' value='{$id}'/>
 					<input type='hidden' id='va_src' value='youtube'/>
 					</div>
 
@@ -402,33 +412,31 @@ class Videoadder extends SpecialPage {
 			");
 			$result['article'] = $html;
 
-			$dropdown = wfMsg('va_browsemsg')  . " " . self::getCategoryDropDown();
+			$dropdown = wfMsg('va_browsemsg')  . " " . $this->getCategoryDropDown();
 			$result['options'] = "<div id='va_browsecat'>" . $dropdown . "</div>";
 			$result['cat'] = $cat;
-			print_r(json_encode($result));
+			print json_encode($result);
 			return;
 		}
 
 
 		// add the layer of the page
 		$this->setHeaders();
-		$this->setSideWidgets();
-		$wgOut->addJScode('vcooj');
-		$wgOut->addJScode('vaddj');
-		$wgOut->addCSScode('vaddc');
-		$wgOut->addHTML("<div class='tool_header tool'><h1>" . wfMessage('va_question') . "<span id='va_instructions'>" . wfMessage('va_instructions') . "</span></h1>");
-		$wgOut->addHTML("<div id='va_guts'>
+		self::setSideWidgets();
+		$out->addModules('jquery.ui.dialog');
+		$out->addModules('ext.wikihow.videoadder');
+		$out->addModules('ext.wikihow.videoadder_styles');
+		$out->addHTML("<div class='tool_header tool'><h1>" . wfMessage('va_question') . "<span id='va_instructions'>" . wfMessage('va_instructions') . "</span></h1>");
+		$out->addHTML("<div id='va_guts'>
 					<center><img src='/extensions/wikihow/rotate.gif'/></center>
 				</div>");
 
-		$wgOut->addHTML("</div>");
-		$wgOut->addHTML("<input type='hidden' id='va_cat' value='{$cat}' />");
-		$wgOut->addHTML("<div id='va_article'></div>");
+		$out->addHTML("</div>");
+		$out->addHTML("<input type='hidden' id='va_cat' value='{$cat}' />");
+		$out->addHTML("<div id='va_article'></div>");
 
-		$langKeys = array('va_congrats', 'va_check');
-		$js = Wikihow_i18n::genJSMsgs($langKeys);
-		$wgOut->addHTML($js);
-
-		return;
+		//$langKeys = array('va_congrats', 'va_check');
+		//$js = Wikihow_i18n::genJSMsgs($langKeys);
+		$out->addHTML($js);
 	}
 }

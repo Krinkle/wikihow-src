@@ -1,13 +1,11 @@
-<?
-
-if (!defined('MEDIAWIKI')) die();
+<?php
 
 class RCPatrol extends SpecialPage {
 	function __construct() {
 		global $wgHooks;
 		parent::__construct( 'RCPatrol' );
 		$wgHooks['OutputPageBeforeHTML'][] = array('RCPatrol::postParserCallback');
-		$wgHooks['getToolStatus'][] = array('Misc::defineAsTool');
+		$wgHooks['getToolStatus'][] = array('SpecialPagesHooks::defineAsTool');
 	}
 
 	// the way the difference engine works now, you need to pass the oldid in as false
@@ -34,13 +32,24 @@ class RCPatrol extends SpecialPage {
 		$standings->addStandingsWidget();
 	}
 
-	function execute() {
-		global $wgServer, $wgRequest, $wgOut, $wgUser, $wgLanguageCode;
-		wfLoadExtensionMessages('RCPatrol');
-		
-		$userGroups = $wgUser->getGroups();
-		if (!$wgUser->isAllowed('patrol') || in_array('patrolblock', $userGroups)) {
-			$wgOut->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
+	function execute($par) {
+		global $wgServer, $wgRequest, $wgOut, $wgUser, $wgLanguageCode, $wgReadOnly;
+		$this->setHeaders();
+
+		if ( $this->getUser()->isBlocked() ) {
+			$this->getOutput()->blockedPage();
+			return;
+		}
+
+		if ( $wgReadOnly ) {
+			$this->getOutput()->prepareErrorPage("RC Patrol Disabled Temporarily");
+			$this->getOutput()->addHTML("Site is currently in read-only mode. RCPatrol is unavailable");
+			return;
+		}
+
+		$userGroups = $this->getUser()->getGroups();
+		if ( !$this->getUser()->isAllowed('patrol') ) {
+			$this->getOutput()->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
 			return;
 		}
 
@@ -49,16 +58,32 @@ class RCPatrol extends SpecialPage {
 			return;
 		}
 
+		// Lojjik Braughler
+		// Checks if the user has a throttle in a place and if they reached their limit for the day
+		// Requires PatrolThrottle extension
+		if ( class_exists( 'PatrolUser' ) ) { // you can safely disable this extension by simply commenting it out of imports.php
+			$patroller = PatrolUser::newFromUser( $wgUser );
+			if ( !$patroller->canUseRCPatrol( false ) ) {
+				$this->getOutput()->addHTML( PatrolUser::getThrottleMessageHTML() );
+				return;
+			}
+		}
+		// End Patrol Throttle feature
+
 		self::setActiveWidget();
 		// INTL: Leaderboard is across the user database so we'll just enable for English at the moment
 		if ($wgLanguageCode == 'en') {
 			self::setLeaderboard();
 		}
 
-		$wgOut->addJScode('rcpj');
-		$wgOut->addCSScode('rcpc');
+		$wgOut->addModules('common.mousetrap');
+		$wgOut->addModules('ext.wikihow.UsageLogs');
+		$wgOut->addModules('jquery.ui.dialog');
+		$wgOut->addModules('ext.wikihow.rcpatrol');
+		$wgOut->addModules('ext.wikihow.editor_script');
 
 		$wgOut->addHTML(QuickNoteEdit::displayQuickEdit() . QuickNoteEdit::displayQuickNote());
+		$wgOut->addHTML(self::getErrorBoxHtml());
 		$result = self::getNextArticleToPatrol();
 		if ($result) {
 			$rcTest = null;
@@ -92,6 +117,19 @@ class RCPatrol extends SpecialPage {
 		$wgOut->setPageTitle("RC Patrol");
 	}
 
+	private static function getErrorBoxHtml() {
+		$html = <<<EOHTML
+	<div style="display:none" class="rcp_err">
+		<div style="display:none" class="rcp_err_dump">
+		</div>
+		<div class="rcp_err_msg">
+			RC Patrol encountered an error. You can <a href="#" class="rcp_err_reload">reload RC Patrol</a> or <a href="#" class="rcp_err_show">show any available technical information</a>.
+		</div>
+	</div>
+EOHTML;
+		return $html;
+	}
+
 	static function getNextArticleToPatrol($rcid = null) {
 		global $wgUser;
 		while ($result = RCPatrolData::getNextArticleToPatrolInner($rcid)) {
@@ -111,13 +149,14 @@ class RCPatrol extends SpecialPage {
 	static function skipArticle($id) {
 		global $wgCookiePrefix, $wgCookiePath, $wgCookieDomain, $wgCookieSecure;
 		// skip the article for now
-		$cookiename = "Rcskip";
+		$cookiename = $wgCookiePrefix . "Rcskip";
 		$cookie = $id;
-		if (isset($_COOKIE[$wgCookiePrefix.$cookiename]))
-			$cookie .= "," . $_COOKIE[$wgCookiePrefix.$cookiename];
+		if (isset($_COOKIE[$cookiename])) {
+			$cookie .= "," . $_COOKIE[$cookiename];
+		}
 		$exp = time() + 2*60*60; // expire after 2 hours
-		setcookie( $wgCookiePrefix.$cookiename, $cookie, $exp, $wgCookiePath, $wgCookieDomain, $wgCookieSecure );
-		$_COOKIE[$wgCookiePrefix.$cookiename] = $cookie;
+		setcookie( $cookiename, $cookie, $exp, $wgCookiePath, $wgCookieDomain, $wgCookieSecure );
+		$_COOKIE[$cookiename] = $cookie;
 	}
 
 	private static function getMarkAsPatrolledLink($title, $rcid, $hi, $low, $count, $setonload, $new, $old, $vandal) {
@@ -127,25 +166,25 @@ class RCPatrol extends SpecialPage {
 		$fea	= $wgRequest->getVal('featured');
 		$rev 	= $wgRequest->getVal('reverse');
 		$token  = $wgUser->getEditToken($rcid);
+		$articleId = $title->mArticleID;
 
 		$url = "/Special:RCPatrolGuts?target=" . urlencode($title->getFullText())
 			. "&action=markpatrolled&rcid={$rcid}"
 			. "&invert=$inv&reverse=$rev&featured=$fea&show_namespace=$sns"
-			. "&rchi={$hi}&rclow={$low}&new={$new}&old={$old}&vandal={$vandal}&token=" . urlencode($token)
-		;
+			. "&rchi={$hi}&rclow={$low}&new={$new}&old={$old}&vandal={$vandal}&token=" . urlencode($token);
 
 		$class1 = "class='button primary' style='float: right;' ";
 		$class2 = "class='button secondary' style='float: left;' ";
-		$link =  " <input type='button' $class2 id='skippatrolurl' onclick=\"return skip();\" title='" . wfMsg('rcpatrol_skip_title') .
-			"' value='" . wfMsg('rcpatrol_skip_button') . "'/>";
-		$link .=  "<input type='button' $class1 id='markpatrolurl' onclick=\"return markPatrolled();\" title='" . wfMsg('rcpatrol_patrolled_title') .
-			"' value='" . wfMsg('rcpatrol_patrolled_button') . "'/>";
+		$link =  " <input type='button' $class2 id='skippatrolurl' onclick=\"return WH.RCPatrol.skip();\" title='" . wfMsg('rcpatrol_skip_title') .
+			"' value='" . wfMsg('rcpatrol_skip_button') . "' data-event_action='skip' data-article_id='$articleId' data-assoc_id='$rcid'/>";
+		$link .=  "<input type='button' $class1 id='markpatrolurl' class='op-action' onclick=\"return WH.RCPatrol.markPatrolled();\" title='" . wfMsg('rcpatrol_patrolled_title') .
+			"' value='" . wfMsg('rcpatrol_patrolled_button') . "' data-event_action='mark_patrolled' data-article_id='$articleId' data-assoc_id='$rcid'/>";
 		if ($setonload) {
 			$link .= "<script type='text/javascript'>marklink = '$url';
 				skiplink = '$url&skip=1';
 				$(document).ready(function() {
-					setupTabs();
-					preloadNext('$url&grabnext=true');
+					WH.RCPatrol.setupTabs();
+					WH.RCPatrol.preloadNext('$url&grabnext=true');
 				});
 				</script>";
 
@@ -158,8 +197,12 @@ class RCPatrol extends SpecialPage {
 	}
 
 	private static function doRollback() {
-		global $wgRequest, $wgOut, $wgContLang;
-		
+		global $wgRequest, $wgOut, $wgContLang, $wgUser;
+
+		if ( $wgUser->isBlocked() ) {
+			return false;
+		}
+
 		$wgOut->setArticleBodyOnly(true);
 		$response = "";
 
@@ -195,13 +238,22 @@ class RCPatrol extends SpecialPage {
 
 
 
-				$a = new Article($t);	
+				$a = new Article($t);
 				$newRev = Revision::newFromTitle( $t );
 				$old = Linker::revUserTools( Revision::newFromId( $oldid ) );
 				$new = Linker::revUserTools( $newRev );
  				$revision = 'r' . htmlspecialchars($wgContLang->formatNum( $oldid, true ));
             	$revlink = Linker::link( $t, $revision, array(), array('oldid' => $oldid, 'diff' => 'prev') );
 				$response = WfMessage( 'rcp-rollback-success' )->rawParams( $new, $old, $revlink );
+
+				$aTitle = $a->getTitle()->getPrefixedText();
+				$rTitle = $r->getTitle()->getPrefixedText();
+
+				if ( $aTitle != $rTitle ) {
+						wfDebugLog( 'rcpatrol', "Error: Article/revision mismatch - Article title: $aTitle (id $aid) | Revision title: $rTitle (r$oldid)\n"  );
+						return;
+				}
+
 				$status = $a->doEditContent($r->getContent(), $summary);
 
 				if ( !$status->isOK() ) {
@@ -248,22 +300,22 @@ class RCPatrol extends SpecialPage {
 
 		$class = "class='button secondary' style='float: right;'";
 
-		// Genrate an RC Patrol rollback url. Different than the normal mediawiki rollback 
+		// Genrate an RC Patrol rollback url. Different than the normal mediawiki rollback
 		// to handle multiple intermediate revisions (if they exist)
-		$url =  self::generateRollbackUrl($rev, $oldid, &$rcTest);
-		
-		$s = HtmlSnips::makeUrlTags('js', array('rollback.js'), 'extensions/wikihow', false);
-		// useful in debugging:
-		//$s = '<script src="/extensions/wikihow/rollback.js"></script>';
-		$s .= "
+		$url =  self::generateRollbackUrl($rev, $oldid, $rcTest);
+
+		$rcid = $rev->getId();
+		$articleId = $rev->getParentId();
+
+		$s = "
 			<script type='text/javascript'>
-				var gRollbackurl = \"{$url}\";
+				WH.RCPatrol.setRollbackURL(\"{$url}\");
 				var msg_rollback_complete = \"" . htmlspecialchars(wfMsg('rollback_complete')) . "\";
 				var msg_rollback_fail = \"" . htmlspecialchars(wfMsg('rollback_fail')) . "\";
 				var msg_rollback_inprogress = \"" . htmlspecialchars(wfMsg('rollback_inprogress')) . "\";
 				var msg_rollback_confirm= \"" . htmlspecialchars(wfMsg('rollback_confirm')) . "\";
 			</script>
-				<a id='rb_button' $class href='' onclick='return rollback();' title='" . wfMsg('rcpatrol_rollback_title') . "'>" . wfMsg('rcpatrol_rollback_button') . "</a>
+				<a id='rb_button' $class href='' onclick='return WH.RCPatrol.rollback();' title='" . wfMsg('rcpatrol_rollback_title') . "' data-event_action='rollback' data-article_id='$articleId' data-assoc_id='$rcid'>" . wfMsg('rcpatrol_rollback_button') . "</a>
 			</span>";
 		$s .= "<div id='newrollbackurl' style='display:none;'>{$url}</div>";
 		return $s;
@@ -273,7 +325,7 @@ class RCPatrol extends SpecialPage {
 	private static function getQuickEdit($title, $result) {
 		global $wgServer;
 
-		// build the array of users for the quick note link sorted by 
+		// build the array of users for the quick note link sorted by
 		// the # of bytes changed descending, i.e. more is better
 		$users = array();
 		$sorted = $result['users_len'];
@@ -291,26 +343,26 @@ class RCPatrol extends SpecialPage {
 			$users[] = $u;
 		}
 
+		$rcid = $result['new'];
+		$articleId = $result['title']->mArticleID;
+
 		$editURL = Title::makeTitle(NS_SPECIAL, "QuickEdit")->getFullURL() . '?type=editform&target=' . urlencode($title->getFullText());
 		$class = "class='button secondary' style='float: left;'";
 		$link = "<script type='text/javascript'>var gQuickEditUrl = \"{$editURL}\";</script>";
-		$link .=  "<a id='qe_button' title='" . wfMsg("rcpatrol_quick_edit_title") . "' href='' $class onclick=\"return initPopupEdit(gQuickEditUrl) ;\">" .
+		$link .=  "<a id='qe_button' title='" . wfMsg("rcpatrol_quick_edit_title") . "' href='' $class onclick=\"return initPopupEdit(gQuickEditUrl) ;\" data-event_action='quick_edit' data-article_id='$articleId' data-assoc_id='$rcid'>" .
 			htmlspecialchars( wfMsg( 'rcpatrol_quick_edit_button' ) ) . "</a> ";
 
 		$qn = str_replace("href", " title='" . wfMsg("rcpatrol_quick_note_title") . "' $class href", QuickNoteEdit::getQuickNoteLinkMultiple($title, $users));
 		$link = $qn . $link;
-		//make sure we load the clientscript here so we can post load those buttons
-		$link .= HtmlSnips::makeUrlTags('js', array('clientscript.js'), 'skins/common', false);
 		return $link;
 	}
 
 	static function getButtons($result, $rev, $rcTest = null) {
-		wfLoadExtensionMessages('RCPatrol');
 		$t = $result['title'];
 		$s = "<table cellspacing='0' cellpadding='0' style='width:100%;'><tr><td style='vertical-align: middle; xborder: 1px solid #999;' class='rc_header'>";
 		$u = new User();
 		$u->setName($result['user']);
-		$s .= "<a id='gb_button' href='' onclick='return goback();' title='" . wfMsg('rcpatrol_go_back_title') . "' class='button button_arrow secondary'></a>";
+		$s .= "<a id='gb_button' href='' onclick='return WH.RCPatrol.goback();' title='" . wfMsg('rcpatrol_go_back_title') . "' class='button button_arrow secondary'></a>";
 		$s .= self::getQuickEdit($t, $result);
 		$s .= RCTestStub::getThumbsUpButton($result, $rcTest);
 		$s .= self::getMarkAsPatrolledLink($result['title'], $result['rcid'], $result['rchi'], $result['rclo'], $result['count'], true, $result['new'], $result['old'], $result['vandal']);
@@ -335,8 +387,8 @@ class RCPatrol extends SpecialPage {
 		$s .= self::getAdvancedTab($t, $result);
 		$s .= self::getOrderingTab();
 		$s .= self::getUserTab();
-		$s .= self::getHelpTab();
 		$s .= "</table>";
+		$s .= self::getHelpTab();
 		$s .= "<div id='rollback-status' style='background-color: #FFFF00;'></div>";
 		$s .= "<div id='thumbsup-status' style='background-color: #FFA;display:none;padding:2px;'></div>";
 		$s .= "<div id='numrcusers' style='display:none;'>" . sizeof($result['users']) . "</div>";
@@ -367,9 +419,9 @@ class RCPatrol extends SpecialPage {
 		$reverse = $wgRequest->getVal('reverse', 0);
 		$tab = "<tr class='rc_submenu' id='rc_ordering'><td>
 			<div id='controls' style='text-align:center'>
-			<input type='radio' id='reverse_newest' name='reverse' value='0' " . (!$reverse? "checked" : "") . " style='height: 10px;' onchange='changeReverse();'> <label for='reverse_newest'>" . wfMsg('rcpatrol_newest_oldest') . "</label>
-			<input type='radio' id='reverse_oldest' name='reverse' value='1' id='reverse' " . ($reverse? "checked" : "") . " style='height: 10px; margin-left:10px;' onchange='changeReverse();'> <label for='reverse_oldest'>" .  wfMsg('rcpatrol_oldest_newest') . "</label>
-			&nbsp; &nbsp; - &nbsp; &nbsp; " . wfMsg('rcpatrol_namespace') . ": " .  Html::namespaceselector(array($namespace)) . " <script>     $('#namespace').change(function() { ns = $('#namespace').val(); nextrev = null; }); </script>
+			<input type='radio' id='reverse_newest' name='reverse' value='0' " . (!$reverse? "checked" : "") . " style='height: 10px;' onchange='WH.RCPatrol.changeReverse();'> <label for='reverse_newest'>" . wfMsg('rcpatrol_newest_oldest') . "</label>
+			<input type='radio' id='reverse_oldest' name='reverse' value='1' id='reverse' " . ($reverse? "checked" : "") . " style='height: 10px; margin-left:10px;' onchange='WH.RCPatrol.changeReverse();'> <label for='reverse_oldest'>" .  wfMsg('rcpatrol_oldest_newest') . "</label>
+			&nbsp; &nbsp; - &nbsp; &nbsp; " . wfMsg('rcpatrol_namespace') . ": " .  Html::namespaceselector(array($namespace)) . "
 			</div></td></tr>";
 		return $tab;
 	}
@@ -377,10 +429,10 @@ class RCPatrol extends SpecialPage {
 	private static function getUserTab() {
 		$tab = "<tr class='rc_submenu' id='rc_user'><td>
 			<div id='controls' style='text-align:center'>
-				" . wfMsg('rcpatrol_username') . ": <input type='text' name='rc_user_filter' id='rc_user_filter' size='30' onchange='changeUserFilter();'/> <script> $('#rc_user_filter').keypress(function(e) { if (e.which == 13) { $('#rc_user_filter_go').click(); return false; } }); </script>
-				<input type='button' id='rc_user_filter_go' value='" . wfMsg('rcpatrol_go') . "' onclick='changeUser(true);'/>
+				" . wfMsg('rcpatrol_username') . ": <input type='text' name='rc_user_filter' id='rc_user_filter' size='30' onchange='WH.RCPatrol.changeUserFilter();'/> <script> $('#rc_user_filter').keypress(function(e) { if (e.which == 13) { $('#rc_user_filter_go').click(); return false; } }); </script>
+				<input type='button' id='rc_user_filter_go' value='" . wfMsg('rcpatrol_go') . "' onclick='WH.RCPatrol.changeUser(true);'/>
 				-
-				<a href='#' onclick='changeUser(false);'>" . wfMsg('rcpatrol_off') . "</a>
+				<a href='#' onclick='WH.RCPatrol.changeUser(false);'>" . wfMsg('rcpatrol_off') . "</a>
 			</div></td></tr>";
 		return $tab;
 	}
@@ -394,7 +446,7 @@ class RCPatrol extends SpecialPage {
 			$helpTop = wfMsgWikiHtml('rcpatrolhelp_top');
 		}
 
-		$tab = "<tr class='rc_submenu' id='rc_help'><td>" . $helpTop . wfMsg('rcpatrolhelp_bottom') . "</td></tr>";
+		$tab = "<div id='rc_help'>" . $helpTop . wfMsg('rcpatrolhelp_bottom') . "</div>";
 		return $tab;
 	}
 
@@ -413,20 +465,20 @@ class RCPatrol extends SpecialPage {
 		$featured = $wgRequest->getInt('featured');
 		$associated = $wgRequest->getInt('associated');
 		$fromrc = $wgRequest->getVal('fromrc') ? 'fromrc=1' : '';
- 
+
 		//TODO: shorten this to a selectRow call
 		$dbw = wfGetDB( DB_MASTER );
-		$sql = "SELECT rc_id, rc_cur_id, rc_new, rc_namespace, rc_title, rc_last_oldid, rc_this_oldid FROM recentchanges " . 
+		$sql = "SELECT rc_id, rc_cur_id, rc_new, rc_namespace, rc_title, rc_last_oldid, rc_this_oldid FROM recentchanges " .
 			($featured ? " LEFT OUTER JOIN page on page_title = rc_title and page_namespace = rc_namespace " : "") .
-			" WHERE rc_id " . ($reverse == 1 ? " > " : " < ")  . " $rcid and rc_patrolled = 0  " . 
-			($featured ? " AND page_is_featured = 1 " : "") 
+			" WHERE rc_id " . ($reverse == 1 ? " > " : " < ")  . " $rcid and rc_patrolled = 0  " .
+			($featured ? " AND page_is_featured = 1 " : "")
 			. " AND rc_user_text != " . $dbw->addQuotes($username) . " ";
 
 		if ($show_namespace != null && $show_namespace != '') {
 			$sql .= " AND rc_namespace " . ($invert ? '!=' : '=') . $show_namespace;
 		} else  {
 			// avoid the delete logs, etc
-			$sql .= " AND rc_namespace NOT IN ( " . NS_VIDEO . ") ";
+			$sql .= " AND rc_namespace NOT IN ( " . NS_VIDEO . ", " . NS_MEDIAWIKI . ") ";
 		}
 		$sql .= " ORDER by rc_id " . ($reverse == 1 ? " ASC " : " DESC ") . " LIMIT 1";
 //error_log("$sql\n", 3, '/tmp/qs.txt');
@@ -434,14 +486,16 @@ class RCPatrol extends SpecialPage {
 		if ( $row = $dbw->fetchObject( $res ) ) {
 			$xx = Title::makeTitle($row->rc_namespace, $row->rc_title);
 			//we got one, right?
-			if (!$xx) return null;
+			if (!$xx || !RCPatrolData::userCanEdit($xx)) {
+				return null;
+			}
 
 			$url = $xx->getFullURL() . "?rcid=" . $row->rc_id;
 			if ($xx->isRedirect() || $row->rc_new == 1) {
 				$url .= '&redirect=no';
 			}
 			if ($row->rc_new != 1) {
-				$url .= "&curid=" . $row->rc_cur_id . "&diff=" 
+				$url .= "&curid=" . $row->rc_cur_id . "&diff="
 					. $row->rc_this_oldid . "&oldid=" . $row->rc_last_oldid;
 			}
 			$url .= "&namespace=$show_namespace&invert=$invert&reverse=$reverse&associated=$associated&$fromrc";
@@ -532,7 +586,7 @@ class RCPatrolData {
 		// like: "Reverted edits by ...", so MediaWiki:rollback_comment_prefix
 		// is set to "Reverted" in English wikiHow.
 		$rollbackCommentPrefix = wfMessage('rollback_comment_prefix')->plain();
-		
+
 		if (empty($rollbackCommentPrefix) || strpos($rollbackCommentPrefix, '&') === 0) {
 			die("Cannot use RCPatrol feature until MediaWiki:rollback_comment_prefix is set up properly");
 		}
@@ -546,14 +600,14 @@ class RCPatrolData {
 
 		$dbr = wfGetDB(DB_MASTER);
 		/*	DEPRECATED rc_moved_to_ns & rc_moved_to_title columns
-			$sql = "SELECT rc_id, rc_cur_id, rc_moved_to_ns, rc_moved_to_title, rc_new, 
-			  rc_namespace, rc_title, rc_last_oldid, rc_this_oldid 
-			FROM recentchanges 
-			LEFT OUTER JOIN page ON rc_cur_id = page_id AND rc_namespace = page_namespace 
+			$sql = "SELECT rc_id, rc_cur_id, rc_moved_to_ns, rc_moved_to_title, rc_new,
+			  rc_namespace, rc_title, rc_last_oldid, rc_this_oldid
+			FROM recentchanges
+			LEFT OUTER JOIN page ON rc_cur_id = page_id AND rc_namespace = page_namespace
 			WHERE ";*/
-		$sql = "SELECT rc_id, rc_cur_id, rc_new, rc_namespace, rc_title, rc_last_oldid, rc_this_oldid 
-			FROM recentchanges 
-			LEFT OUTER JOIN page ON rc_cur_id = page_id AND rc_namespace = page_namespace 
+		$sql = "SELECT rc_id, rc_cur_id, rc_new, rc_namespace, rc_title, rc_last_oldid, rc_this_oldid
+			FROM recentchanges
+			LEFT OUTER JOIN page ON rc_cur_id = page_id AND rc_namespace = page_namespace
 			WHERE ";
 
 		if (!$wgRequest->getVal('ignore_rcid') && $rcid)
@@ -578,8 +632,9 @@ class RCPatrolData {
 		if ($show_namespace)  {
 			$sql .= " AND rc_namespace " . ($invert ? '<>' : '=') . $show_namespace;
 		} else  {
-			// always ignore video
+			// always ignore video and Mediawiki
 			$sql .= " AND rc_namespace <> " . NS_VIDEO;
+			$sql .= " AND rc_namespace <> " . NS_MEDIAWIKI;
 		}
 
 		// log entries have namespace = -1, we don't want to show those, hide bots too
@@ -602,7 +657,7 @@ class RCPatrolData {
 		$cookiename = $wgCookiePrefix."Rcskip";
 		$skipids = "";
 		if (isset($_COOKIE[$cookiename])) {
-			$cookie_ids = array_unique(split(",", $_COOKIE[$cookiename]));
+			$cookie_ids = array_unique(explode(",", $_COOKIE[$cookiename]));
 			$ids = array(); //safety first
 			foreach ($cookie_ids as $id) {
 				$id = intval($id);
@@ -616,14 +671,6 @@ class RCPatrolData {
 
 		$res = $dbr->query($sql, __METHOD__);
 		$row = $res->fetchObject();
-/*$show=true;
-if ($show){
-var_dump($_GET);
-var_dump($_POST);
-echo $sql;
-var_dump($row);
-exit;
-}*/
 
 		if ($row) {
 			$result = array();
@@ -636,6 +683,10 @@ exit;
 			// if title has been deleted set $t to null so we will skip it
 			if (!$t->exists()) {
 				MWDebug::log("$t does not exist");
+				$t = null;
+			}
+
+			if (!self::userCanEdit($t)) {
 				$t = null;
 			}
 
@@ -658,7 +709,7 @@ exit;
 				if ($hi) {
 					$reverted_id = $dbr->selectField('recentchanges',
 						array('min(rc_id)'),
-						array('rc_comment like ' . $dbr->addQuotes($rollbackCommentPrefix . '%'), 
+						array('rc_comment like ' . $dbr->addQuotes($rollbackCommentPrefix . '%'),
 							"rc_id < $hi" ,
 							"rc_id >= {$result['rclo']}",
 							"rc_cur_id"=>$row->rc_cur_id));
@@ -717,6 +768,16 @@ exit;
 			return null;
 		}
 	}
+
+	public static function userCanEdit($article) {
+		global $wgUser;
+		if (!$article || !is_object($article)) {
+			return false;
+		}
+		return !$article->isProtected()
+			|| ($article->getRestrictions('edit')[0] != 'sysop')
+			|| in_array('sysop', $wgUser->getGroups());
+	}
 }
 
 class RCPatrolGuts extends UnlistedSpecialPage {
@@ -741,7 +802,7 @@ class RCPatrolGuts extends UnlistedSpecialPage {
 	}
 
 	function execute($par) {
-		global $wgRequest, $wgOut;
+		global $wgRequest, $wgOut, $wgUser;
 
 		$t = Title::newFromText($wgRequest->getVal('target'));
 
@@ -786,6 +847,8 @@ class RCPatrolGuts extends UnlistedSpecialPage {
 			}
 		}
 
+		// Reuben note: should we be clearing the existing html here, or is
+		// there a better way?
 		$wgOut->clearHTML();
 		$wgOut->redirect('');
 		$result = RCPatrol::getNextArticleToPatrol($wgRequest->getVal('rcid'));
@@ -828,15 +891,46 @@ class RCPatrolGuts extends UnlistedSpecialPage {
 			$wgOut->addWikiMsg( 'markedaspatrolledtext' );
 			$response['unpatrolled'] = self::getUnpatrolledCount();
 		}
-		$wgOut->disable();
-		header('Vary: Cookie');
-		$response['html'] = $wgOut->getHTML();
-		print_r(json_encode($response));
+
+		// Lojjik Braughler - Start of Patrol Throttle feature
+		// If we're already in RC patrol, then we need to check if they hit their
+		// limit before giving them a diff. Note: Pass true to canUseRCPatrol()
+		// since we're already in RCP and it knows to subtract one.
+		$patroller = null;
+		if ( class_exists( 'PatrolUser' ) ) {
+			$patroller = PatrolUser::newFromUser( $wgUser );
+		}
+
+		if ( is_object( $patroller ) && !$patroller->canUseRCPatrol( true ) ) {
+			$response['html'] = PatrolUser::getThrottleMessageHTML();
+		} else {
+			// Include next title for debugging
+			$response['title'] = (string)$result['title'];
+			$response['html'] = $wgOut->getHTML();
+			$response['rc_id'] = (integer)$result['new'];
+			$response['article_id'] = $result['title']->mArticleID;
+		}
+
+		// Try to json_encode output and deal with any UTF8 encoding errors
+		$jsonResponse = json_encode($response);
+		if (json_last_error() == JSON_ERROR_UTF8) {
+			$response['html'] = utf8_encode( $response['html'] );
+			$jsonResponse = json_encode($response);
+		}
+		if (json_last_error() != JSON_ERROR_NONE) {
+			$response['html'] = 'Could not encode article';
+			$response['err'] = json_last_error_msg();
+			$jsonResponse = json_encode($response);
+		}
+
+		$wgOut->clearHTML();
+		$wgOut->addHTML( $jsonResponse );
 		return;
 	}
 
 	function markRevisionsPatrolled($article) {
-		global $wgOut;
+
+		$user = $this->getUser();
 		$request = $this->getRequest();
 
 		// some sanity checks
@@ -846,7 +940,6 @@ class RCPatrolGuts extends UnlistedSpecialPage {
 			throw new ErrorPageError( 'markedaspatrollederror', 'markedaspatrollederrortext' );
 		}
 
-		$user = $this->getUser();
 		if ( !$user->matchEditToken( $request->getVal( 'token' ), $rcid ) ) {
 			throw new ErrorPageError( 'sessionfailure-title', 'sessionfailure' );
 		}
@@ -864,6 +957,7 @@ class RCPatrolGuts extends UnlistedSpecialPage {
 			foreach ($rcids as $id) {
 				RecentChange::markPatrolled( $id, false);
 			}
+
 			wfRunHooks( 'MarkPatrolledBatchComplete', array(&$article, &$rcids, &$user));
 		} else {
 			RCPatrol::skipPatrolled($article);
@@ -877,8 +971,8 @@ class RCTestStub {
 		if (class_exists('RCTest') && RCTest::isEnabled()) {
 			if ($rcTest && $rcTest->isTestTime()) {
 				$result = $rcTest->getResultParams();
-				
-				// okay, so let's blow away this cookie so that if 
+
+				// okay, so let's blow away this cookie so that if
 				// the test fails to load (RC Patrol bug) the user
 				// isn't cut off from another test
 				$rcTest->setTestActive(false);

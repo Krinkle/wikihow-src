@@ -25,5 +25,3 @@ $wgExtensionCredits['specialpage'][] = array(
 $wgSpecialPages['MWMessages'] = 'MWMessages';
 $wgAutoloadClasses['MWMessages'] = dirname( __FILE__ ) . '/MWMessages.body.php';
 
-$wgSpecialPages['MWMessagesDecode'] = 'MWMessagesDecode';
-$wgAutoloadClasses['MWMessagesDecode'] = dirname( __FILE__ ) . '/MWMessages.body.php';

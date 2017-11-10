@@ -1,6 +1,4 @@
-if (!WH) var WH = {};
-
-jQuery.extend(WH, (function($) {
+( function($, mw) {
 
 	function WelcomeWagon() {
 		var selected_tab = 'contributions';
@@ -35,7 +33,11 @@ jQuery.extend(WH, (function($) {
 		}
 
 		function loadTab(tab, data) {
+			var cacheOrigVal = $.ajaxSetup()['cache'];
+			$.ajaxSetup({ cache: true });
 			$('#welcome-wagon-content').append(data);
+			$.ajaxSetup({ cache: cacheOrigVal });
+
 			//make the prev next arrows open in a new page
 			$("body #differences-prevlink").each(function() {
 				$(this).attr("target", "new");
@@ -80,17 +82,22 @@ jQuery.extend(WH, (function($) {
 					} else {
 						$('#content-loading').show();
 						$.post(toolURL, {
-							action: 'switchTab',
-							userName: userName,
-							userId: userId,
-							tabName: tabs[i]
+								action: 'switchTab',
+								userName: userName,
+								userId: userId,
+								tabName: tabs[i]
 							},
-							function (result) {
+							function (result) { // called on success
 								$('#content-loading').hide();
 								loadTab(tab, result['html']);
 							},
-							'json'
-						);
+							'json')
+							.fail( function(xhrResult) {
+								alert('There was a problem loading the response from the server.');
+								if (typeof console != 'undefined' && typeof console.log != 'undefined') {
+									console.log(toolURL + ' failed! xhrResult:', xhrResult);
+								}
+							} );
 					}
 				} else {
 					$('#tab-'+tabs[i]).removeClass("on");
@@ -159,15 +166,6 @@ jQuery.extend(WH, (function($) {
 			);
 		}
 
-		$('#skip-user').click(function(e) {
-			e.preventDefault();
-			var skip = true;
-			nextUser(userId, skip, function () {
-				$('#message-box').focus();
-				$('#message-box').val("");
-			});
-		});
-
 		function updateStats(data) {
 			$('#iia_individual_table_welcomewagon_indiv1').html(data['stats']);
 		}
@@ -223,30 +221,6 @@ jQuery.extend(WH, (function($) {
 			$('#ww_error').html(error);
 		}
 
-		$('#preview-message').click(function (e) {
-			e.preventDefault();
-			if ($(this).text() === "Edit") {
-				resetMessageArea(userMessage);
-				error = false;
-			} else {
-				$(this).text('Edit');
-				userMessage = $('textarea#message-box').val();
-				if (hasTemplate(userMessage)) {
-					error = true;
-					showError('Sorry, no templates allowed.');
-					return;
-				}
-				$('#message-text').html('<div class="testclass">Generating Preview...</div>');
-				$.post(postCommentPreview, {
-					comment: userMessage
-					},
-					function (result) {
-						$('#message-text').html(result);
-					}
-				);
-			}
-		});
-
 		function hasTemplate(message) {
 			var reg = /{{.*?}}/;
 			if (reg.test(message)) {
@@ -255,52 +229,106 @@ jQuery.extend(WH, (function($) {
 			return false;
 		}
 
-		$('#send-message').click(function (e) {
-			e.preventDefault();
-
-			if (error == true) {
-				return;
-			}
-
-			var message = $('textarea#message-box').val();
-
-			// message may be hidden due to preview
-			if ( message === undefined) {
-				message = userMessage;
-			}
-
-			if (hasTemplate(message)) {
-				error = true;
-				showError('Sorry, no templates allowed.');
-				return;
-			}
-
-			if (message.length < 1) {
-				error = true;
-				showError("please enter a message");
-				return;
-			}
-
-			$('#welcome-wagon :input').attr("disabled", true);
-
-			$.post(postComment, {
-				fromajax: true,
-				jsonresponse: true,
-				target: 'User_talk:'+userName,
-				comment_text: message
-				},
-				function (result) {
-					logMessageSent(userId, result['revId'], message);
-
-					//clear the text box
-					$('textarea#message-box').val('');
-					var skip = false;
-					nextUser(userId, skip);
-				}
-			).fail(function(xhr) {
-				showError(xhr.responseText);
+		function initHandlers() {
+			$('#skip-user').click(function(e) {
+				e.preventDefault();
+				var skip = true;
+				nextUser(userId, skip, function () {
+					$('#message-box').focus();
+					$('#message-box').val("");
+				});
 			});
-		});
+
+			$('#send-message').click(function (e) {
+				e.preventDefault();
+
+				if (error == true) {
+					return;
+				}
+
+				var message = $('textarea#message-box').val();
+
+				// message may be hidden due to preview
+				if ( message === undefined) {
+					message = userMessage;
+				}
+
+				if (hasTemplate(message)) {
+					error = true;
+					showError('Sorry, no templates allowed.');
+					return;
+				}
+
+				if (message.length < 1) {
+					error = true;
+					showError("please enter a message");
+					return;
+				}
+
+				$('#welcome-wagon :input').attr("disabled", true);
+
+				$.post(postComment, {
+					fromajax: true,
+					jsonresponse: true,
+					target: 'User_talk:'+userName,
+					comment_text: message
+					},
+					function (result) {
+						logMessageSent(userId, result['revId'], message);
+
+						//clear the text box
+						$('textarea#message-box').val('');
+						var skip = false;
+						nextUser(userId, skip);
+					}
+				).fail(function(xhr) {
+					showError(xhr.responseText);
+				});
+			});
+
+			$('#preview-message').click(function (e) {
+				e.preventDefault();
+				if ($(this).text() === "Edit") {
+					resetMessageArea(userMessage);
+					error = false;
+				} else {
+					$(this).text('Edit');
+					userMessage = $('textarea#message-box').val();
+					if (hasTemplate(userMessage)) {
+						error = true;
+						showError('Sorry, no templates allowed.');
+						return;
+					}
+					$('#message-text').html('<div class="testclass">Generating Preview...</div>');
+					$.post(postCommentPreview, {
+						comment: userMessage
+						},
+						function (result) {
+							$('#message-text').html(result);
+						}
+					);
+				}
+			});
+
+			$('#insert_last_article').click(function(e) {
+				e.preventDefault();
+				var input = $('#message-box').val() + lastArticleLink;
+				$('#message-box').focus();
+				insertAtCaret('message-box', lastArticleLink);
+			});
+
+			$('#insert_user_name').click(function(e) {
+				e.preventDefault();
+				var userNameLink = userName;
+				$('#message-box').focus();
+				insertAtCaret('message-box', userNameLink);
+			});
+
+			$('.welcome-tab').click(function(e) {
+				e.preventDefault();
+				selectTab($(this).attr('title'));
+			});
+		}
 
 		function insertAtCaret(areaId, text) {
 			var txtarea = document.getElementById(areaId);
@@ -336,26 +364,9 @@ jQuery.extend(WH, (function($) {
 			txtarea.scrollTop = scrollPos;
 		}
 
-		$('#insert_last_article').click(function(e) {
-			e.preventDefault();
-			var input = $('#message-box').val() + lastArticleLink;
-			$('#message-box').focus();
-			insertAtCaret('message-box', lastArticleLink);
-		});
-
-		$('#insert_user_name').click(function(e) {
-			e.preventDefault();
-			var userNameLink = userName;
-			$('#message-box').focus();
-			insertAtCaret('message-box', userNameLink);
-		});
-
-		$('.welcome-tab').click(function(e) {
-			e.preventDefault();
-			selectTab($(this).attr('title'));
-		});
-
 		this.init = function() {
+			initHandlers();
+
 			$("#article").prepend("<div id='users_count' class='tool_count'><h3></h3><span>users remaining</span></div>");
 			window.setTimeout(updateStandingsTable, 100);
 			window.setTimeout(updateWidgetTimer, 60*1000);
@@ -363,7 +374,7 @@ jQuery.extend(WH, (function($) {
 			messageAreaHTML = $('#message-text').html();
 
 			$('.ww_topmessage').html(topMessage);
-			
+
 			if (typeof userName != 'undefined') {
 				updateCount(null);
 				loadUser(userName, userRealName, userId, userLink, lastArticleLink);
@@ -376,7 +387,7 @@ jQuery.extend(WH, (function($) {
 		}
 
 		function updateWidgetTimer() {
-			updateTimer('stup');
+			WH.updateTimer('stup');
 			window.setTimeout(updateWidgetTimer, 60*1000);
 		}
 	}
@@ -387,5 +398,4 @@ jQuery.extend(WH, (function($) {
 		initToolTitle();
 	});
 
-})(jQuery));
-
+}(jQuery, mediaWiki) );

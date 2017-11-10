@@ -1,39 +1,39 @@
-<?
+<?php
 
 class ThumbsUp extends UnlistedSpecialPage {
 
-	function __construct() { 
+	function __construct() {
 		parent::__construct( 'ThumbsUp' );
 	}
-	
-	function execute($par) {
-		global $wgOut, $wgRequest;
 
+	function execute($par) {
 		$fname = 'ThumbsUp::execute';
 		wfProfileIn( $fname );
 
-		$revOld = $wgRequest->getVal('revold');
-		$revNew = $wgRequest->getVal('revnew');
-		$pageId = $wgRequest->getVal('pageid');
-		
+		$out = $this->getOutput();
+		$user = $this->getUser();
+		$req = $this->getRequest();
+
+		$revOld = $req->getInt('revold');
+		$revNew = $req->getInt('revnew');
+		$pageId = $req->getInt('pageid');
+
 		$retVal = false;
-		if (intval($revOld) && intval($revNew) && intval($pageId)) {
+		if ($revOld && $revNew && $pageId && !$user->isAnon() && !$user->isBlocked()) {
 			self::thumbMultiple($revOld, $revNew, $pageId);
 			$retVal = true;
 		}
-		
-		$wgOut->setArticleBodyOnly(true);
-		echo json_encode($retVal);
+
+		$out->setArticleBodyOnly(true);
+		print json_encode($retVal);
 
 		wfProfileOut( $fname );
 	}
 
 	static function quickNoteThumb($revOld, $revNew, $pageId, $recipientText) {
-		global $wgUser; 
-
 		$fname = 'ThumbsUp::quickNoteThumb';
 		wfProfileIn( $fname );
-		
+
 		$u = User::newFromName($recipientText);
 		$recipientId = (is_object($u)) ? $u->getId() : 0;
 
@@ -51,23 +51,21 @@ class ThumbsUp extends UnlistedSpecialPage {
 	}
 
 	function thumbMultiple($revOld, $revNew, $pageId) {
-		global $wgUser; 
-
 		$fname = 'ThumbsUp::thumbMultiple';
 		wfProfileIn( $fname );
 
 		$dbr = wfGetDB(DB_SLAVE);
 		$res = $dbr->select('revision',
-			array('rev_id, rev_user, rev_user_text'),
-			array("rev_id>" . $revOld, "rev_id<=" . $revNew, "rev_page" => $pageId),
-			array("ORDER BY"=>"rev_id"));
+			array('rev_user, rev_user_text'),
+			array('rev_id' => $revNew, 'rev_page' => $pageId),
+			__METHOD__);
 
 		$recipients  = array();
 		$recipient = $row->rev_user_text;
-		while ($row = $dbr->fetchObject($res)) {
+		foreach ($res as $row) {
 			// Only give one thumb up in the case of multiple intermediary revisions for RC Patrol
 			if (!in_array($recipient, $recipients)) {
-				self::thumb($row->rev_id, $row->rev_user, $row->rev_user_text, $pageId, true);
+				self::thumb($revNew, $row->rev_user, $row->rev_user_text, $pageId, true);
 			}
 			$recipients[] = $recipient;
 		}
@@ -88,7 +86,6 @@ class ThumbsUp extends UnlistedSpecialPage {
 
 		wfProfileOut( $fname );
 	}
-
 
 	function getFirstArticleRevision($pageId) {
 		$fname = 'ThumbsUp::getFirstArticleRevision';
@@ -116,14 +113,14 @@ class ThumbsUp extends UnlistedSpecialPage {
 		- thumb givers that are logged in
 		- revisions that are not already thumbed by the current giver/user
 		- revisions that aren't authored by the giver/user
-		*/ 
-		if($wgUser->isLoggedIn() && !self::isThumbedByCurrentUser($revisionId) && $wgUser->getID() != $thumbRecipientId && self::isThumbableTitle($pageId)) {
-			$wgUserName = $wgUser->getName();
+		*/
+		if ($wgUser->isLoggedIn() && !self::isThumbedByCurrentUser($revisionId) && $wgUser->getID() != $thumbRecipientId && self::isThumbableTitle($pageId)) {
+			$userName = $wgUser->getName();
 			$dbw = wfGetDB(DB_MASTER);
 			$now = wfTimestamp(TS_DB);
 
 			// Add a row to the thumbs table for detailed info on who gave thumb, who received, etc
-			$dbw->insert('thumbs', array('thumb_giver_id' => $wgUser->getID(), 'thumb_giver_text' => $wgUserName, 
+			$dbw->insert('thumbs', array('thumb_giver_id' => $wgUser->getID(), 'thumb_giver_text' => $userName,
 					'thumb_recipient_id'=>$thumbRecipientId, 'thumb_recipient_text'=>$thumbRecipientText, 'thumb_rev_id'=>$revisionId,
 					'thumb_page_id'=>$pageId, 'thumb_timestamp'=>$now));
 
@@ -132,18 +129,17 @@ class ThumbsUp extends UnlistedSpecialPage {
 			if ($thumbRecipientId > 0) {
 				$sql = "INSERT INTO profilebox (pb_user, pb_thumbs_given) VALUES (" . $wgUser->getID() .", 1) ";
 				$sql .= "ON DUPLICATE KEY UPDATE pb_thumbs_given=pb_thumbs_given + 1";
-				$res = $dbw->query($sql);
-				$sql = "INSERT INTO profilebox (pb_user, pb_thumbs_received) VALUES (" . mysql_real_escape_string($thumbRecipientId) . ", 1) ";
+				$res = $dbw->query($sql, __METHOD__);
+				$sql = "INSERT INTO profilebox (pb_user, pb_thumbs_received) VALUES (" . $dbw->addQuotes($thumbRecipientId) . ", 1) ";
 				$sql .= "ON DUPLICATE KEY UPDATE pb_thumbs_received=pb_thumbs_received + 1";
-				$res = $dbw->query($sql);
+				$res = $dbw->query($sql, __METHOD__);
 			}
 
 			$t = Title::newFromID($pageId);
 			if (is_object($t)) {
 				// Add a log entry
-				wfLoadExtensionMessages('ThumbsUp');
 				$revisionLinkName = "r$revisionId";
-				$revisionLink = $t->getFullURL() . "?oldid=$revisionId&diff=prev";
+				$revisionLink = $t->getCanonicalURL() . "?oldid=$revisionId&diff=prev";
 				$log = new LogPage('thumbsup', false);
 				$log->addEntry('', $t, wfMsgHtml('thumbslogentry', $thumbRecipientText, $revisionLink, $revisionLinkName, $t->getFullText()));
 
@@ -151,9 +147,9 @@ class ThumbsUp extends UnlistedSpecialPage {
 				// only send a single talk page and email message per recipient
 				$thumbsTalkOption = self::getThumbsTalkOption($thumbRecipientId);
 				if ($sendNotification && $thumbsTalkOption === 0) {
-					self::notifyUserOfThumbsUp($t, $thumbRecipientId, $revisionLink, $revisionId, $thumbRecipientText); 
+					self::notifyUserOfThumbsUp($t, $thumbRecipientId, $revisionLink, $revisionId, $thumbRecipientText);
 				}
-				
+
 				//updated. clear the memcache key
 				global $wgMemc;
 				$memkey = wfMemcKey('notification_box_'.$wgUser->getID());
@@ -212,10 +208,10 @@ class ThumbsUp extends UnlistedSpecialPage {
 
 		wfProfileOut( $fname );
 
-		return $thumb_rev_id > 0; 
+		return $thumb_rev_id > 0;
 	}
 
-	
+
 	function notifyUserOfThumbsUp($t, $recipientId, $diffUrl, $revisionId, $recipientText) {
 		global $wgUser, $wgLang;
 
@@ -315,47 +311,46 @@ class ThumbsUp extends UnlistedSpecialPage {
 
 		wfProfileOut( $fname );
 	}
-	
+
 	function autoPatrolTalkMessage($talkPageArticleId) {
-		global $wgUser; 
+		global $wgUser;
 
 		$fname = 'ThumbsUp::autoPatrolTalkMessage';
 		wfProfileIn( $fname );
 
 
 		$dbw = wfGetDB(DB_MASTER);
-		$dbw->update('recentchanges', 
-			array('rc_patrolled'=>1), 
-			array('rc_user'=>$wgUser->getID(), 'rc_cur_id'=>$talkPageArticleId, 'rc_comment'=>wfMsg('thumbs-up-usertalk-editsummary')), 
-			"autoPatrolTalkMessage", 
+		$dbw->update('recentchanges',
+			array('rc_patrolled'=>1),
+			array('rc_user'=>$wgUser->getID(), 'rc_cur_id'=>$talkPageArticleId, 'rc_comment'=>wfMsg('thumbs-up-usertalk-editsummary')),
+			"autoPatrolTalkMessage",
 			array("ORDER BY" => "rc_id DESC", "LIMIT"=>1));
 
 		wfProfileOut( $fname );
 	}
-	
+
 	function isThumbableTitle($articleId) {
 		$t = Title::newFromID($articleId);
 		return $t->getNamespace() == NS_MAIN;
 	}
-	
+
 	/*****************************
 	** getThumbsUpButton()
 	**
 	** required results values:
 	** - $result['new'] = the revision id
 	** - $result['old'] = previous id [$r->getPrevious()->getID()];
-	** - $result['title'] = title object;		
+	** - $result['title'] = title object;
 	********************************/
 	function getThumbsUpButton(&$result, $diffPage = false) {
 		global $wgUser;
-		wfLoadExtensionMessages('RCPatrol');
 		$link = "";
 		$r = Revision::newFromId($result['new']);
 		$t = $result['title'];
 		$diffClass = $diffPage ? ' th_diff' : '';
 		if (class_exists('ThumbsUp') && wfMsg('thumbs_feature') == 'on') {
 			// Don't show a thumbs up if the user has already given a thumb to the most recent revision
-			if (ThumbsUp::isThumbedByCurrentUser($result['new'])) {
+			if (self::isThumbedByCurrentUser($result['new'])) {
 				$link = "<input type='button' class='button thumbbutton alreadyThumbed $diffClass'/>";
 			}
 			else if ($r && $result['vandal'] != 1 && $wgUser->getID() != $r->getUser() && $t->getNamespace() == NS_MAIN) {
@@ -367,7 +362,7 @@ class ThumbsUp extends UnlistedSpecialPage {
 				- revisions that are not already thumbed by the current giver/user
 				- revisions that aren't authored by the current giver/user
 				- revisions that don't appear to be vandalism
-				*/ 
+				*/
 				$link = "<input type='button' title='" . wfMsg('rcpatrol_thumb_title') . "' class='button secondary thumbbutton $diffClass'/>";
 				$link  .= "<script type='text/javascript' src='" . wfGetPad('/extensions/min/f/extensions/wikihow/thumbsup/thumbsup.js?') . WH_SITEREV . "'></script>";
 				$link .= "<div id='thumbUp'>/Special:ThumbsUp?revold=" . $result['old'] . "&revnew=" . $result['new'] .  "&pageid=" . $t->getArticleID() . "</div>";

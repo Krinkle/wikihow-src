@@ -1,4 +1,4 @@
-<?
+<?php
 
 class TPCoachAdmin extends UnlistedSpecialPage {
 	var $ts = null;
@@ -6,11 +6,11 @@ class TPCoachAdmin extends UnlistedSpecialPage {
 	const DIFFICULTY_MEDIUM = 2;
 	const DIFFICULTY_HARD = 3;
 
-	function __construct() {
+	public function __construct() {
 		parent::__construct( 'TPCoachAdmin' );
 	}
 
-	function execute($par) {
+	public function execute($par) {
 		global $wgUser, $wgOut, $wgRequest;
 
 		$userGroups = $wgUser->getGroups();
@@ -24,17 +24,17 @@ class TPCoachAdmin extends UnlistedSpecialPage {
 			$result = array();
 			$result['debug'][] = "posted to tpcoachadmin";
 			if ($wgRequest->getVal("action") == "newtest") {
-				$this->addNewTest(&$result);
+				$this->addNewTest($result);
 			} else if ($wgRequest->getVal("action") == "unblockuser") {
-				$this->unBlockUser(&$result);
+				$this->unBlockUser($result);
 			} else if ($wgRequest->getVal("action") == "blockuser") {
-				$this->blockUser(&$result);
+				$this->blockUser($result);
 			} else if ($wgRequest->getVal("action") == "reset") {
-				$this->resetState(&$result);
-			} else if ($wgRequest->getVal("action") == "tpc_toggle") {
-				$this->toggleTPCoach(&$result);
+				$this->resetState($result);
+			//} else if ($wgRequest->getVal("action") == "tpc_toggle") {
+			//	$this->toggleTPCoach($result);
 			} else if ($wgRequest->getVal("action") == "delete_test") {
-				$this->deleteTest(&$result);
+				$this->deleteTest($result);
 			}
 			echo json_encode($result);
 			return;
@@ -46,7 +46,8 @@ class TPCoachAdmin extends UnlistedSpecialPage {
 		$this->printData();
 	}
 
-	private function toggleTPCoach($result) {
+	/* disabled functionality because changed ConfigStorage to MW message - Reuben 2016
+	private function toggleTPCoach(&$result) {
 		global $wgRequest;
 		$setting = $wgRequest->getVal("setting");
 		if ($setting == "on") {
@@ -58,27 +59,28 @@ class TPCoachAdmin extends UnlistedSpecialPage {
 		$result['debug'][] = 'last query: '.$dbw->lastQuery();
 		$result['success'] = true;
 	}
+	*/
 
-	private function unBlockUser($result) {
+	private function unBlockUser(&$result) {
 		global $wgRequest;
 		$userId = $wgRequest->getVal("userId");
-		TipsPatrol::setUserBlocked($userId, false, &$result);
+		TipsPatrol::setUserBlocked($userId, false, $result);
 	}
 
-	private function blockUser($result) {
+	private function blockUser(&$result) {
 		global $wgRequest;
 		$userId = $wgRequest->getVal("userId");
-		TipsPatrol::setUserBlocked($userId, true, &$result);
+		TipsPatrol::setUserBlocked($userId, true, $result);
 	}
 
-	private function resetState($result) {
+	private function resetState(&$result) {
 		global $wgRequest;
 		$result['debug'][] = "will reset user view state";
 		$userId = $wgRequest->getVal("userId");
-		TipsPatrol::resetUserViews($userId, &$result);
+		TipsPatrol::resetUserViews($userId, $result);
 	}
 
-	private function deleteTest($result) {
+	private function deleteTest(&$result) {
 		global $wgRequest;
 		$result['debug'][] = "will delete test";
 		$testId = $wgRequest->getVal("testId");
@@ -86,7 +88,7 @@ class TPCoachAdmin extends UnlistedSpecialPage {
 		$result['success'] = true;
 	}
 
-	private function addNewTest($result) {
+	private function addNewTest(&$result) {
 		global $wgRequest;
 		$result['debug'][] = "will addNewTest";
 		$tip = $wgRequest->getVal("tip");
@@ -95,7 +97,7 @@ class TPCoachAdmin extends UnlistedSpecialPage {
 		$successMessage = $wgRequest->getVal("successMessage");
 		$difficulty = $wgRequest->getVal("difficulty");
 		$answer = $wgRequest->getVal("answer");
-		TipsPatrol::addTest($tip, $page, $failMessage, $successMessage, $answer, $difficulty, &$result);
+		TipsPatrol::addTest($tip, $page, $failMessage, $successMessage, $answer, $difficulty, $result);
 	}
 
 	function printData() {
@@ -107,8 +109,8 @@ class TPCoachAdmin extends UnlistedSpecialPage {
 		$vars['scores'] = $this->getScores();
 		$vars['tests'] = $this->getTests();
 		$vars['days'] = $wgRequest->getVal("days", 7);
-		$vars['css'] = HtmlSnips::makeUrlTags('css', array('tpcoachadmin.css'), 'extensions/wikihow/tipsandwarnings', true);
-		$wgOut->addScript(HtmlSnips::makeUrlTags('js', array('tpcoachadmin.js'), 'extensions/wikihow/tipsandwarnings', true));
+		$vars['css'] = HtmlSnips::makeUrlTag('/extensions/wikihow/tipsandwarnings/tpcoachadmin.css', true);
+		$wgOut->addScript( HtmlSnips::makeUrlTag('/extensions/wikihow/tipsandwarnings/tpcoachadmin.js', true) );
 		$html = EasyTemplate::html('TPCoachAdmin', $vars);
 		$wgOut->addHTML($html);
 	}

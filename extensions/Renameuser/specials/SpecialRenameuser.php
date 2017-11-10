@@ -245,6 +245,22 @@ class SpecialRenameuser extends SpecialPage {
 					$oldusername = Title::makeTitleSafe( NS_USER, $olduser->getName() );
 				}
 			}
+		}
+		elseif ($olduser->idForName() == 0 && stripos($oldusername->getText(),' ') !== false) {
+			// FIX for hyphens in usernames
+			// if there is no user and there are spaces in it, we gotta check for related names w/ hyphens and spaces
+			$dbr = wfGetDB( DB_SLAVE );
+			$uid = $dbr->selectField( 'user', 'user_id',
+				array( 'user_name REGEXP ' . $dbr->addQuotes('^'.str_replace(' ','[- ]',$oldusername->getText()).'$') ),
+				__METHOD__ );
+			if ( $uid === false ) {
+				$uid = $olduser->idForName();
+				$oldusername = Title::makeTitleSafe( NS_USER, $olduser->getName() );
+			}
+			else {
+				//oh, THIS is the old user
+				$olduser = User::newFromId( $uid );
+			}
 		} else {
 			// oldusername was entered as upperase -> standard procedure
 			$uid = $olduser->idForName();
@@ -252,7 +268,7 @@ class SpecialRenameuser extends SpecialPage {
 
 		if ( $uid == 0 ) {
 			$out->wrapWikiMsg( "<div class=\"errorbox\">$1</div>",
-				array( 'renameusererrordoesnotexist', $oldusername->getText() ) );
+				array( 'renameusererrordoesnotexist', $olduser->getName() ) );
 			return;
 		}
 
@@ -261,17 +277,17 @@ class SpecialRenameuser extends SpecialPage {
 				array( 'renameusererrorexists', $newusername->getText() ) );
 			return;
 		}
-
+		
 		// Always get the edits count, it will be used for the log message
 		$contribs = $olduser->getEditCount();
 
 		// Give other affected extensions a chance to validate or abort
-		if ( !wfRunHooks( 'RenameUserAbort', array( $uid, $oldusername->getText(), $newusername->getText() ) ) ) {
+		if ( !wfRunHooks( 'RenameUserAbort', array( $uid, $olduser->getName(), $newusername->getText() ) ) ) {
 			return;
 		}
 
 		// Do the heavy lifting...
-		$rename = new RenameuserSQL( $oldusername->getText(), $newusername->getText(), $uid );
+		$rename = new RenameuserSQL( $olduser->getName(), $newusername->getText(), $uid );
 		if ( !$rename->rename() ) {
 			return;
 		}
@@ -289,7 +305,7 @@ class SpecialRenameuser extends SpecialPage {
 		$logEntry->setTarget( $oldusername );
 		$logEntry->setComment( $reason );
 		$logEntry->setParameters( array(
-			'4::olduser' => $oldusername->getText(),
+			'4::olduser' => $olduser->getName(),
 			'5::newuser' => $newusername->getText(),
 			'6::edits' => $contribs
 		) );
@@ -336,7 +352,7 @@ class SpecialRenameuser extends SpecialPage {
 								false,
 								wfMessage(
 									'renameuser-move-log',
-									$oldusername->getText(),
+									$olduser->getName(),
 									$newusername->getText() )->inContentLanguage()->text(),
 								!$suppressRedirect
 							);
@@ -369,7 +385,7 @@ class SpecialRenameuser extends SpecialPage {
 
 		// Output success message stuff :)
 		$out->wrapWikiMsg( "<div class=\"successbox\">$1</div><br style=\"clear:both\" />",
-			array( 'renameusersuccess', $oldusername->getText(), $newusername->getText() ) );
+			array( 'renameusersuccess', $olduser->getName(), $newusername->getText() ) );
 	}
 
 	/**

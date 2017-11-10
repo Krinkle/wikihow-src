@@ -5257,13 +5257,17 @@ class Parser {
 		}
 		if ( !isset( $this->mImageParams[$handlerClass] ) ) {
 			# Initialise static lists
+
+			//CHANGED: BEBETH 1/26/2015
+			//Added tall parameter to the frame options
 			static $internalParamNames = array(
 				'horizAlign' => array( 'left', 'right', 'center', 'none' ),
 				'vertAlign' => array( 'baseline', 'sub', 'super', 'top', 'text-top', 'middle',
 					'bottom', 'text-bottom' ),
 				'frame' => array( 'thumbnail', 'manualthumb', 'framed', 'frameless',
-					'upright', 'border', 'link', 'alt', 'class' ),
+					'upright', 'border', 'link', 'alt', 'class', 'tall', 'techicon' ),
 			);
+
 			static $internalParamMap;
 			if ( !$internalParamMap ) {
 				$internalParamMap = array();

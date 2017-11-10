@@ -350,12 +350,9 @@ class SpecialMassMessage extends SpecialPage {
 	function FormatMessage($msg) {
 		global $wgLang;
 		
-		$dateStr = $wgLang->timeanddate(wfTimestampNow());
-		$user = $this->getUser()->getName();
-		$real_name = $this->getUser()->getRealName();
-		if (!$real_name) $real_name = $user;
+		$user = $this->getUser();
 		
-		$msg = wfMsg('postcomment_formatted_comment', $dateStr, $user, $real_name, $msg);
+		$msg = TalkPageFormatter::createComment( $user, $msg );
 		//add a hidden variable to id mass message notifications for echo
 		$msg .= '<!--massmessage-->';
 		

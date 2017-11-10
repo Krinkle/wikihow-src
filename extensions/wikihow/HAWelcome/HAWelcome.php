@@ -33,8 +33,9 @@ $wgExtensionCredits['other'][] = array(
 //$wgHooks[ "ArticleSaveComplete" ][]	= "HAWelcomeJob::revisionInsertComplete";
 $wgHooks[ "ArticleSaveComplete" ][]	= "HAWelcomeJob::revisionInsertComplete";
 $wgHooks[ "UserLoginComplete" ][]	= "HAWelcomeJob::signUpComplete";
-$wgHooks[ "FBLoginComplete" ][]		= "HAWelcomeJob::signUpComplete";
-$wgHooks[ "GPlusLoginComplete" ][]	= "HAWelcomeJob::signUpComplete";
+$wgHooks[ "FacebookSignupComplete" ][] = "HAWelcomeJob::signUpComplete";
+$wgHooks[ "GoogleSignupComplete" ][] = "HAWelcomeJob::signUpComplete";
+$wgHooks[ "CivicSignupComplete" ][] = "HAWelcomeJob::signUpComplete";
 
 
 /**
@@ -60,7 +61,7 @@ class HAWelcomeJob extends Job {
 		$mSysop;
 
 	const WELCOMEUSER = "WelcomeBot";
-	const DEFAULTUSER = "Krystle";
+	const DEFAULTUSER = "TuckerB"; //ANNA HAVING A BABY CURRENTLY "Anna";
 
 	/**
 	 * Construct a job
@@ -70,7 +71,6 @@ class HAWelcomeJob extends Job {
 	 * @param integer $id job_id
 	 */
 /*	public function __construct( $title, $params, $id = 0 ) {
-		wfLoadExtensionMessages( "HAWelcome" );
 		parent::__construct( "HAWelcome", $title, $params, $id );
 
 		$this->mUserId   = $params[ "user_id" ];
@@ -93,7 +93,7 @@ class HAWelcomeJob extends Job {
 			$this->mUser = User::newFromName( $this->mUserName );
 		}
 	}
-*/	
+*/
 
 	public function run() {
 		return;
@@ -107,7 +107,7 @@ class HAWelcomeJob extends Job {
 		global $wgUser, $wgTitle, $wgErrorLog;
 
 		wfProfileIn( __METHOD__ );
-		
+
 		//set the variables (used to be in __construct() )
 		$mUserId   = $wgUser->getID();
 		$mUserIP   = wfGetIp();
@@ -130,7 +130,7 @@ class HAWelcomeJob extends Job {
 		if( !$mUser ) {
 			$mUser = User::newFromName( $mUserName );
 		}
-		
+
 
 		$oldValue = $wgErrorLog;
 		$wgErrorLog = true;
@@ -181,7 +181,7 @@ class HAWelcomeJob extends Job {
 					$talkArticle = new Article( $talkPage, 0 );
 
 //					if( ! $talkArticle->exists() ) {
-						if( $mAnon ) {				
+						if( $mAnon ) {
 							if( self::isEnabled( "message-anon" ) ) {
 								if( $isStaff && !$isSysop ) {
 									$key = "welcome-message-anon-staff";
@@ -202,7 +202,7 @@ class HAWelcomeJob extends Job {
 							/**
 							 * now create user page (if not exists of course)
 							 */
-							
+
 							if(self::isEnabled( "page-user" )) {
 								$userPage = $mUser->getUserPage();
 
@@ -234,7 +234,7 @@ class HAWelcomeJob extends Job {
 						}
 						if( $welcomeMsg ) {
 							global $wgLang;
-							
+
 							$wgTitle = $talkPage; /** is it necessary there? **/
 							$dateStr = $wgLang->timeanddate(wfTimestampNow());
 							$real_name = User::whoIsReal($mSysop->getID());
@@ -242,11 +242,11 @@ class HAWelcomeJob extends Job {
 							$comment = $welcomeMsg;
 							//add a hidden variable to id welcome user notifications for echo
 							$comment .= '<!--welcomeuser-->';
-							
-							$formattedComment = wfMsg('postcomment_formatted_comment', $dateStr, $mSysop->getName(), $real_name, $comment);
+
+							$formattedComment = TalkPageFormatter::createComment( $mSysop, $comment );
 
 							$talkArticle->doEdit( $formattedComment, wfMsgForContent( "welcome-message-log" ), $flags );
-							
+
 							//notify via the echo notification system
 							if (class_exists('EchoEvent')) {
 								EchoEvent::create( array(
@@ -274,7 +274,7 @@ class HAWelcomeJob extends Job {
 		global $wgUser;
 
 		wfProfileIn( __METHOD__ );
-		
+
 		//set the variables (used to be in __construct() )
 		$mUserId   = $wgUser->getID();
 		$mUserIP   = wfGetIp();
@@ -285,7 +285,7 @@ class HAWelcomeJob extends Job {
 		if( $mAnon ) {
 			return false;
 		}
-			
+
 		$mUser = User::newFromId( $mUserId );
 
 		/**
@@ -294,7 +294,7 @@ class HAWelcomeJob extends Job {
 		if( !$mUser ) {
 			$mUser = User::newFromName( $mUserName );
 		}
-		
+
 
 		$oldValue = $wgErrorLog;
 		$wgErrorLog = true;
@@ -339,7 +339,7 @@ class HAWelcomeJob extends Job {
 						/**
 						 * now create user page (if not exists of course)
 						 */
-						
+
 						if(self::isEnabled( "page-user" )) {
 							$userPage = $mUser->getUserPage();
 
@@ -364,18 +364,18 @@ class HAWelcomeJob extends Job {
 						}
 						if( $welcomeMsg ) {
 							global $wgLang;
-							
+
 							$dateStr = $wgLang->timeanddate(wfTimestampNow());
 							$real_name = User::whoIsReal($mSysop->getID());
 							if ($real_name == "") { $real_name = $mSysop->getName(); }
 							$comment = $welcomeMsg;
 							//add a hidden variable to id welcome user notifications for echo
 							$comment .= '<!--welcomeuser-->';
-							
-							$formattedComment = wfMsg('postcomment_formatted_comment', $dateStr, $mSysop->getName(), $real_name, $comment);
+
+							$formattedComment = TalkPageFormatter::createComment( $mSysop, $comment );
 
 							$talkArticle->doEdit( $formattedComment, wfMsgForContent( "welcome-message-log" ), $flags );
-							
+
 							//notify via the echo notification system
 							if (class_exists('EchoEvent')) {
 								EchoEvent::create( array(
@@ -402,7 +402,7 @@ class HAWelcomeJob extends Job {
 	//tests if the user has opted out of the welcoming tool
 	public function IsUserWelcoming($uid) {
 		$user = User::newFromId( $uid );
-		
+
 		if ($user->getOption('welcomer') == 0) {
 			return true;
 		}
@@ -421,8 +421,8 @@ class HAWelcomeJob extends Job {
 		$user = User::newFromName( $peoples[$num] );
 		return $user;
 	}
-	
-	
+
+
 	/**
 	 * get last active sysop for this wiki, use local user database
 	 *
@@ -434,11 +434,11 @@ class HAWelcomeJob extends Job {
 		global $wgCityId, $wgMemc, $wgLanguageCode;
 
 		wfProfileIn( __METHOD__ );
-		
-		if (rand(1, 10) <= 4) {
-			//40% of the time grab the user from our custom list
-			$mSysop = self::getRandomStaff();
-		}
+
+		// if (rand(1, 10) <= 4) {
+			// //40% of the time grab the user from our custom list
+			// $mSysop = self::getRandomStaff();
+		// }
 
 		/**
 		 * maybe already loaded?
@@ -453,11 +453,11 @@ class HAWelcomeJob extends Job {
 					 * first: check memcache, maybe we have already stored id of sysop
 					 */
 					$sysopId = $wgMemc->get( wfMemcKey( "last-sysop-id" ) );
-					
+
 					if (!self::IsUserWelcoming($sysopId)) {
 						$sysopId = '';
 					}
-					
+
 					if( $sysopId ) {
 						$mSysop = User::newFromId( $sysopId );
 					}
@@ -488,7 +488,7 @@ class HAWelcomeJob extends Job {
 						while( $row = $dbr->fetchObject( $res ) ) {
 							if( $row->ug_group == "bot" ) {
 								$bots[] = $row->ug_user;
-							} 
+							}
 							else {
 								$admins[] = $row->ug_user;
 							}
@@ -552,17 +552,17 @@ class HAWelcomeJob extends Job {
 	public static function revisionInsertComplete( &$revision, $url, $flags ) {
 		global $wgUser, $wgCityId, $wgCommandLineMode, $wgSharedDB,
 			$wgErrorLog, $wgMemc, $wgRequest;
-		
+
 		//do nothing if the user clicked 'undo'
 		if ($wgRequest->getVal( 'wpUndoEdit' )) {
 			return true;
 		}
-		
+
 		wfProfileIn( __METHOD__ );
-		
+
 		/* first edit? */
 		//if (User::edits($wgUser->getID()) == 1) {
-			
+
 			/**
 			 * Do not create task when DB is locked (rt#12229)
 			 * Do not create task when we are in $wgCommandLineMode
@@ -570,7 +570,6 @@ class HAWelcomeJob extends Job {
 			$oldValue = $wgErrorLog;
 			$wgErrorLog = true;
 			if( !wfReadOnly() && ! $wgCommandLineMode ) {
-				wfLoadExtensionMessages( "HAWelcome" );
 
 				/**
 				 * Revision has valid Title field but sometimes not filled
@@ -656,10 +655,10 @@ class HAWelcomeJob extends Job {
 	public static function signUpComplete() {
 		global $wgUser, $wgCityId, $wgCommandLineMode, $wgSharedDB,
 			$wgErrorLog, $wgMemc;
-		
+
 		wfProfileIn( __METHOD__ );
-		
-		
+
+
 		/**
 		 * Do not create task when DB is locked (rt#12229)
 		 * Do not create task when we are in $wgCommandLineMode
@@ -667,7 +666,6 @@ class HAWelcomeJob extends Job {
 		$oldValue = $wgErrorLog;
 		$wgErrorLog = true;
 		if( !wfReadOnly() && ! $wgCommandLineMode ) {
-			wfLoadExtensionMessages( "HAWelcome" );
 
 			/**
 			 * get groups for user rt#12215
@@ -700,7 +698,7 @@ class HAWelcomeJob extends Job {
 			if($canWelcome && !empty( $wgSharedDB ) ) {
 
 				$welcomer = trim( wfMsgForContent( "welcome-user" ) );
-				
+
 				if( $welcomer !== "@disabled" && $welcomer !== "-" ) {
 
 					/**
@@ -724,8 +722,8 @@ class HAWelcomeJob extends Job {
 
 		return true;
 	}
-	
-	
+
+
 
 	/**
 	 * expandSig -- hack, expand signature from message for sysop

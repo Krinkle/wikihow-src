@@ -28,4 +28,12 @@ $messages['en'] = array (
 	'editfinder_no_title'			=>	"no [ctrl+alt n]",
 	'editfinder_yes_title'			=>	"yes [ctrl+alt y]",
 	'help_copyedit'					=>	"Copyedit-Articles",
+	'change_topics'					=>	'Change topics',
+	'gh_interests'					=>	'<b>Interests:</b> ',
+	'gh_topic_desc'					=>	"What do you know a lot about? Choose your favorite topics, and we'll find articles that need your help.",
+	'gh_topic_subdesc'			=> 	'Or perhaps you know about: ',
+	'gs_topic_done'				=>	'Done for now',
+	'gs_topic_suggest'			=>	"<b>Some examples to get you thinking:</b><ul><li>Window cleaning</li><li>Feeding cats</li><li>Duct tape crafts</li><li>Happiness &amp; optimism</li><li>Bicycles</li><li>Pumpkin pie</li></ul>",
+	'gh_topic_ph'					=>	'Search for topics here...',
+	'gh_topic_chosen'				=>	'Because you know about <b>$1</b>.',
 );

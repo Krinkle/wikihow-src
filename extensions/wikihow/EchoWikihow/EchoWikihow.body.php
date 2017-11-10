@@ -1,7 +1,5 @@
 <?php
 
-if ( !defined('MEDIAWIKI') ) exit;
-
 class EchoWikiHowFormatter extends EchoBasicFormatter {
    /**
     * @param $event EchoEvent
@@ -36,7 +34,7 @@ class EchoWikiHowFormatter extends EchoBasicFormatter {
 
 class EchoWikihowHooks {
 
-	function onBeforeCreateEchoEvent( &$notifications, &$notificationCategories, &$icons ) {
+	public static function onBeforeCreateEchoEvent( &$notifications, &$notificationCategories, &$icons ) {
 		/******************* THUMBS UP ***/
 		$notificationCategories['thumbs-up'] = array(
 			'priority' => 1,
@@ -89,10 +87,10 @@ class EchoWikihowHooks {
 		$notifications['welcome']['icon'] = 'star';
 
 		//redefine icons we use here
-		$icons['chat'] = array('path' => "wikihow/EchoWikihow/images/conversation_x2.png");
-		$icons['linked'] = array('path' => "wikihow/EchoWikihow/images/crossed_x2.png");
-		$icons['placeholder'] = array('path' => "wikihow/EchoWikihow/images/notification_x2.png");
-		$icons['star'] = array('path' => "wikihow/EchoWikihow/images/featured_x2.png");
+		$icons['chat'] = array( 'path' => wfGetPad("/extensions/wikihow/EchoWikihow/images/conversation_x2.png") );
+		$icons['linked'] = array( 'path' => wfGetPad("/extensions/wikihow/EchoWikihow/images/crossed_x2.png") );
+		$icons['placeholder'] = array( 'path' => wfGetPad("/extensions/wikihow/EchoWikihow/images/notification_x2.png") );
+		$icons['star'] = array( 'path' => wfGetPad("/extensions/wikihow/EchoWikihow/images/featured_x2.png") );
 
 		//disable the revert notification option
 		unset($notificationCategories['reverted']);
@@ -101,7 +99,7 @@ class EchoWikihowHooks {
 	   return true;
 	}
 
-	function onEchoGetDefaultNotifiedUsers( $event, &$users ) {
+	public static function onEchoGetDefaultNotifiedUsers( $event, &$users ) {
 		switch ( $event->getType() ) {
 			case 'kudos':
 				$extra = $event->getExtra();
@@ -120,6 +118,14 @@ class EchoWikihowHooks {
 				}
 				$recipientId = $extra['thumbed-user-id'];
 				$recipient = User::newFromId( $recipientId );
+
+				if ($recipientId == 0) {
+					if ( !isset( $extra['thumbed-user-text'] ) ) {
+						break;
+					}
+					$recipient = User::newFromName($extra['thumbed-user-text'], false );
+				}
+
 				$users[$recipientId] = $recipient;
 				break;
 
@@ -149,22 +155,47 @@ class EchoWikihowHooks {
 		return true;
 	}
 
-	function onGetPreferences( $user, &$preferences ) {
+	// Global email optout preference by Lojjik Braughler
+	public static function onCreateEmailPreferences($user, &$preferences) {
+		$optout = $user->getIntOption( 'globalemailoptout' );
+		// refers to the email status, not the preference option
+		$optout_text = $optout ? wfMessage( 'prefs-globalemailoptout-off' ) : wfMessage( 'prefs-globalemailoptout-on' );
+		$ut = new UnsubscribeToken();
+		$token = $ut->generateToken( $user->getId() );
+		$link = Linker::link( SpecialPage::getTitleFor( 'SubscriptionManager' ),
+			wfMessage( $optout ? 'prefs-optin' : 'prefs-optout')->escaped(), array(),
+			array(
+					'optin' => $optout,
+					'uid'   => $user->getId(),
+					'token' => $token
+			));
+		
+		$optout_text .= wfMessage( 'word-separator' )->escaped() .
+		wfMessage( 'parentheses' )->rawParams($link)->escaped();
+		
+		$preferences['globalemailoptout'] = array(
+				'type' => 'info',
+				'raw' => true,
+				'default' => $optout_text,
+				'section' => 'echo/emailsettings',
+				'label-message' => 'prefs-globalemailoptout',
+				'id' => 'wpGlobalEmailOptout'
+		);
+		
+		wfRunHooks('EchoPreferencesStart', array($user, &$preferences));
+	}
+	
+	public static function onGetPreferences( $user, &$preferences ) {
 		unset($preferences['echo-show-alert']);
-
+		
 		if(array_key_exists('emailauthentication', $preferences)) {
 			$preferences['emailauthentication']['section'] = 'echo/emailsettings';
-
-			//move it to the proper place in the array
-			$ema = $preferences['emailauthentication'];
-			unset($preferences['emailauthentication']);
-			$preferences['emailauthentication'] = $ema;
 		}
-
+		
 		return true;
 	}
 
-	function onAccountCreated( $user, $byEmail ) {
+	public static function onAccountCreated( $user, $byEmail ) {
 		//default settings for new users that are different than default
 		// $user->setOption( 'echo-subscriptions-web-kudos', true );
 		// $user->saveSettings();
@@ -178,9 +209,15 @@ class EchoWikihowHooks {
 		return true;
 	}
 
+	public static function onUserClearNewKudosNotification($user) {
+		$notifUser = MWEchoNotifUser::newFromUser($user);
+		$notifUser->clearKudosNotification();
+		return true;
+	}
+
 	//DON'T SEND EMAIL THROUGH ECHO
 	//we can do this ourselves...
-	function onEchoAbortEmailNotification( $user, $event ) {
+	public static function onEchoAbortEmailNotification( $user, $event ) {
 		return false;
 	}
 

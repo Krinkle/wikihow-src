@@ -883,6 +883,18 @@ class Message {
 		return $this->message;
 	}
 
+	/**
+	 * Added by wikiHow to display an empty message as a blank string easily.
+	 * - Reuben, 11/24/2015
+	 */
+	public function showIfExists() {
+		if ( $this->exists() ) {
+			return $this->text();
+		} else {
+			return '';
+		}
+	}
+
 }
 
 /**

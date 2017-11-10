@@ -1,6 +1,4 @@
-<?
-
-if (!defined('MEDIAWIKI')) die();
+<?php
 
 class PageStatCheck extends UnlistedSpecialPage {
 
@@ -8,7 +6,7 @@ class PageStatCheck extends UnlistedSpecialPage {
 		parent::__construct('PageStatCheck');
 	}
 
-	public function execute() {
+	public function execute($par) {
 		global $wgOut, $wgRequest;
 	
 	

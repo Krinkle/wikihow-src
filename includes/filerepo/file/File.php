@@ -956,6 +956,8 @@ abstract class File {
 	 * @param integer $height	maximum height of the image (optional)
 	 * @param boolean $render	True to render the thumbnail if it doesn't exist,
 	 *                       	false to just return the URL
+	 * @param int $pageId	optional - the id this article is found on
+	 * @param int $quality  optional - image quality for compression
 	 *
 	 * @return ThumbnailImage or null on failure
 	 *
@@ -963,8 +965,10 @@ abstract class File {
 	 */
 	// JRS added adapter to support existing getthumnail calls throughout our mw codebase
 	// RDS deprecated the heightPreference param and made it no longer function
-	public function getThumbnail( $width, $height=-1, $render = true, $crop = false, $heightPreference = false ) {
-		return ImageHelper::getThumbnail( $width, $height, $render, $crop, $heightPreference );
+	// GBB added quality param
+
+	public function getThumbnail( $width, $height=-1, $render = true, $crop = false, $heightPreference = false, $pageId=null, $quality=null ) {
+		return ImageHelper::getThumbnail( $this, $width, $height, $render, $crop, $heightPreference, $pageId, $quality );
 	}
 
 	/**
@@ -1046,8 +1050,12 @@ abstract class File {
 				break;
 			}
 
+			// Reuben, wikiHow, March 2016: remove extra webp extension because it can
+			// mess up ImageMagick's convert command to have webp extension.
+			$tmpThumbPath = preg_replace('@(\.[^.]+)\.webp$@', '$1', $thumbPath);
+
 			// Create a temp FS file with the same extension and the thumbnail
-			$thumbExt = FileBackend::extensionFromPath( $thumbPath );
+			$thumbExt = FileBackend::extensionFromPath( $tmpThumbPath );
 			$tmpFile = TempFSFile::factory( 'transform_', $thumbExt );
 			if ( !$tmpFile ) {
 				$thumb = $this->transformErrorOutput( $thumbPath, $thumbUrl, $params, $flags );

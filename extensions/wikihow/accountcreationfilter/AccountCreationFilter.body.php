@@ -1,4 +1,5 @@
 <?php
+
 class AccountCreationFilter {
 	public function abortNewAccount($user, $message) {
 		if(preg_match("@\s\s@",$user->getName())) {

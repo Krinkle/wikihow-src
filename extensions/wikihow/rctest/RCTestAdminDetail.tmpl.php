@@ -1,4 +1,3 @@
-<?=$css?>
 <table class="rct_scores">
 	<tr>
 		<th>Test</th>

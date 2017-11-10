@@ -20,6 +20,13 @@
  * @defgroup Maintenance Maintenance
  */
 
+// Added by wikiHow to solve include issues of other class definitions dying
+// without MEDIAWIKI defined
+define( 'MEDIAWIKI', true );
+if (!isset($IP)) {
+	$IP = realpath( __DIR__ . '/..' );
+}
+
 // Make sure we're on PHP5.3.2 or better
 if ( !function_exists( 'version_compare' ) || version_compare( PHP_VERSION, '5.3.2' ) < 0 ) {
 	// We need to use dirname( __FILE__ ) here cause __DIR__ is PHP5.3+

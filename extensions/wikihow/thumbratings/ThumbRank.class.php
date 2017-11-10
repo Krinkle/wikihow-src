@@ -16,22 +16,24 @@ class ThumbRank {
 		$rankMap = $this->getRankMap();
 		$newOrder = array();
 		$sectionReplaced = false;
-		
+
 		// Iterate through the ranking by type (tips or warnings)
 		foreach ($rankMap as $type => $map) {
 			if (!empty($map)) {
 				// Get corresponding wikitext from articleMap
 				foreach ($map as $item) {
-					$itemWikitext = $articleMap[$type][$item]['wikitext']; 
+					$itemWikitext = @$articleMap[$type][$item]['wikitext'];
 					if ($itemWikitext) {
-						$newOrder[] = $articleMap[$type][$item]['wikitext'];
+						$newOrder[] = $itemWikitext;
 						unset($articleMap[$type][$item]);
 					}
 				}
 
 				// Add remaining unrated items (ie tips/warnings without votes)
-				foreach ($articleMap[$type] as $item) {
-					$newOrder[] = $item['wikitext'];
+				if (isset($articleMap[$type])) {
+					foreach ($articleMap[$type] as $item) {
+						$newOrder[] = $item['wikitext'];
+					}
 				}
 
 				// No point in replacing the section if only one tip or warning
@@ -50,16 +52,18 @@ class ThumbRank {
 	}
 
 	private function saveArticle() {
-		$t = $this->r->getTitle();	
+		$t = $this->r->getTitle();
 		$a = new Article($t);
 		$a->doEdit($this->wikitext, 'reordering tips and warnings based on votes', EDIT_UPDATE | EDIT_MINOR);
 	}
 
+	// Algorithm from modified Wilson score, used on Reddit:
+	// https://possiblywrong.wordpress.com/2011/06/05/reddits-comment-ranking-algorithm/
 	private function getRankMap() {
 		$id = $this->r->getTitle()->getArticleId();
-		$sql = "SELECT tr_hash, ((tr_up + 1.9208) / (tr_up + tr_down) - 
-                   1.96 * SQRT((tr_up * tr_down) / (tr_up + tr_down) + 0.9604) / 
-                   (tr_up + tr_down)) / (1 + 3.8416 / (tr_up + tr_down)) 
+		$sql = "SELECT tr_hash, ((tr_up + 1.9208) / (tr_up + tr_down) -
+                   1.96 * SQRT((tr_up * tr_down) / (tr_up + tr_down) + 0.9604) /
+                   (tr_up + tr_down)) / (1 + 3.8416 / (tr_up + tr_down))
        				AS rank, tr_type FROM thumb_ratings WHERE tr_page_id = $id
        				ORDER BY tr_type,rank DESC;";
 		$dbr = wfGetDB(DB_SLAVE);
@@ -74,8 +78,8 @@ class ThumbRank {
 	}
 
 	private function getArticleMap() {
-		$html = $this->getNonMobileHtml($this->r);
-		$xpath = $this->getXPath($html, $this->r);
+		$html = self::getNonMobileHtml($this->r);
+		$xpath = self::getXPath($html, $this->r);
 
 		$types = array(ThumbRatings::RATING_TIP => wfMsg("tips"), ThumbRatings::RATING_WARNING => wfMsg("warnings"));
 		$hashes = array();
@@ -93,24 +97,22 @@ class ThumbRank {
 		return $hashes;
 	}
 
+	// Used by the ThumbRank maintenance script
 	public static function getXPath(&$bodyHtml, &$r) {
-		global $wgWikiHowSections, $IP, $wgTitle;
+		global $wgWikiHowSections, $wgTitle, $wgLanguageCode;
 
-		$lang = MobileWikihow::getSiteLanguage();
 		// munge steps first
 		$opts = array(
 			'no-ads' => true,
 		);
-		require_once("$IP/skins/WikiHowSkin.php");
 		$oldTitle = $wgTitle;
 		$wgTitle = $r->getTitle();
 
 		$vars['bodyHtml'] = WikihowArticleHTML::postProcess($bodyHtml, $opts);
-		$vars['lang'] = $lang;
+		$vars['lang'] = $wgLanguageCode;
 		EasyTemplate::set_path(dirname(__FILE__).'/');
 		$html = EasyTemplate::html('thumb_html.tmpl.php', $vars);
 
-		require_once("$IP/extensions/wikihow/mobile/JSLikeHTMLElement.php");
 		$doc = new DOMDocument('1.0', 'utf-8');
 		$doc->registerNodeClass('DOMElement', 'JSLikeHTMLElement');
 		$doc->strictErrorChecking = false;
@@ -136,46 +138,23 @@ class ThumbRank {
 		}
 	}
 
+	// Used by the ThumbRank maintenance script
 	public static function getNonMobileHtml(&$r) {
 		global $wgOut, $wgParser, $wgTitle, $wgUser;
 
 		$oldTitle = $wgTitle;
 		$wgTitle = $r->getTitle();
-	
+
 		$popts = $wgOut->parserOptions();
 		$popts->setTidy(true);
-		$t = $r->getTitle();		
+		$t = $r->getTitle();
 		$parser = new Parser;
 		$html = $parser->parse($r->getText(), $t, $popts, true, true, $r->getId());
 		$popts->setTidy(false);
-	
+
 		$wgTitle = $oldTitle;
 
 		return $html->mText;
-	}
-
-	public function getMobileHtml() {
-		global $wgOut, $wgParser, $IP, $wgTitle;
-		require_once("$IP/extensions/wikihow/mobile/MobileHtmlBuilder.class.php");
-
-		$r = $this->r;
-		$t = $r->getTitle();
-		$oldTitle = $wgTitle;
-		$wgTitle = $t;
-
-		$popts = $wgOut->parserOptions();
-		$popts->setTidy(true);
-		$wgParser->disableCache();
-		$parser = new Parser;
-		$html = $parser->parse($this->wikitext, $t, $popts, true, true, $r->getId());
-		$html = $html->mText;
-		$popts->setTidy(false);
-		$m = new MobileArticleBuilder();
-		$html = $m->createByHtml($r->getTitle(), $html);
-		
-		$wgTitle = $oldTitle;
-
-		return $html;
 	}
 
 	private function replaceSection($sectionName, $wikitext) {

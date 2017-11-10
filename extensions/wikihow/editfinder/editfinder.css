@@ -7,6 +7,27 @@
 	display: none;
 }
 
+#editfinder_tool_title {
+	background-color: #F6F5F4;
+	border-radius: 4px 4px 0 0;
+	padding: 15px;
+	font-weight: bold;
+}
+
+.wh_block { 
+	border-radius: 0; 
+	border: none;
+	padding: 15px 15px 20px 15px;
+}
+
+#editfinder_head {
+	border: none;
+	border-radius: 0 0 4px 4px;
+	padding: 15px;
+}
+
+#editfinder_skip { margin: 0; }
+
 #editfinder_upper {
 	background: url(eraser.jpg) no-repeat top right;
 	height: 82px;
@@ -14,6 +35,19 @@
 	padding-left: 20px;
 }
 
+#editfinder_hdr_choose { 
+	position: relative;
+	float: right; 
+	font-weight: normal;
+	cursor: pointer;
+}
+
+#editfinder_interests {
+	display: none;
+	background-color: #FFF;
+	margin-bottom: 3em;
+	padding: 15px;
+}
 
 #editfinder_options {
 	font-size: 1em;
@@ -151,6 +185,7 @@ a.clickfail:hover {
 }
 
 #editfinder_cat_header {
+	display: none;
 	font-size: .75em;
 	padding-top: .5em;
 }
@@ -158,5 +193,8 @@ a.clickfail:hover {
 #edit_keys {
     float: right;
 	font-size: 10px;
-	margin-top: -45px;
+	margin-top: -37px;
+	margin-right: 2px;
 }
+
+#mw-anon-edit-warning { padding-top: 1em; }

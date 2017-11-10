@@ -57,6 +57,7 @@
 			titlemsg: 'guidedtour-tour-rc-initial-title',
 			descriptionmsg: 'guidedtour-tour-rc-initial-description',
 			overlay: true,
+			xButton: true,
 			buttons: [ {
 				action: 'next'
 			} ]
@@ -64,6 +65,7 @@
 			titlemsg: 'guidedtour-tour-rc-review-title',
 			descriptionmsg: 'guidedtour-tour-rc-review-description',
 			attachTo: 'td.diff-addedline',
+			xButton: true,
 			/*shouldSkip: function() { return $('#rb_button.gt52').length <= 0;},*/
 			position: 'top',
 			offset: {'top': 20, 'left': 0},
@@ -73,7 +75,8 @@
 		}, {
 			titlemsg: 'guidedtour-tour-rc-rollback-title',
 			descriptionmsg: 'guidedtour-tour-rc-rollback-description',
-
+			xButton: true,
+			
 			// attachment
 			attachTo: '#rb_button.gt52',
 			position: 'bottom',
@@ -88,6 +91,7 @@
 		}, {
 			titlemsg: 'guidedtour-tour-rc-patrolled-first-title',
 			descriptionmsg: 'guidedtour-tour-rc-patrolled-first-description',
+			xButton: true,
 
 			// attachment
 			attachTo: 'td.diff-addedline',
@@ -101,7 +105,7 @@
 		}, {
 			titlemsg: 'guidedtour-tour-rc-patrolled-title',
 			descriptionmsg: 'guidedtour-tour-rc-patrolled-description',
-
+			xButton:true,
 			attachTo: '#markpatrolurl.gt11',
 			position: 'bottom',
 			offset: {'top': -20, 'left': 0},
@@ -116,6 +120,7 @@
 		}, {
 			titlemsg: 'guidedtour-tour-rc-talk-first-title',
 			descriptionmsg: 'guidedtour-tour-rc-talk-first-description',
+			xButton: true,
 			attachTo: 'h1.firstHeading',
 			position: '11',
 			offset: {'top': -20, 'left': 0},
@@ -127,6 +132,7 @@
 		}, {
 			titlemsg: 'guidedtour-tour-rc-talk-title',
 			descriptionmsg: 'guidedtour-tour-rc-talk-description',
+			xButton: true,
 			attachTo: '#markpatrolurl.gt16',
 			position: 'bottom',
 			offset: {'top': -20, 'left': 0},
@@ -141,6 +147,7 @@
 		}, {
 			titlemsg: 'guidedtour-tour-rc-driveby-first-title',
 			descriptionmsg: 'guidedtour-tour-rc-driveby-first-description',
+			xButton: true,
 			attachTo: 'td.diff-addedline',
 			position: 'top',
 			offset: {'top': -20, 'left': 0},
@@ -151,6 +158,7 @@
 		}, {
 			titlemsg: 'guidedtour-tour-rc-driveby-title',
 			descriptionmsg: 'guidedtour-tour-rc-driveby-description',
+			xButton: true,
 			attachTo: '#rb_button.gt15',
 			position: 'bottom',
 			offset: {'top': -20, 'left': 0},
@@ -167,7 +175,7 @@
 			 */
 			titlemsg: 'guidedtour-tour-rc-end-title',
 			descriptionmsg: 'guidedtour-tour-rc-end-description',
-
+			xButton: true,
 			overlay: true,
 			closeOnClickOutside: false,
 

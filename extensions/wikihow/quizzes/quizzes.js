@@ -1,4 +1,4 @@
-
+// quiz functions
 function processQuestion() {
 	//grab a whole buncha data
 	var quiz = $.parseJSON($('#full_quiz').html());
@@ -71,7 +71,7 @@ function getNextQuestion(last_question, quiz) {
 	if (next_question == 2 && $('.wh_ad_interstitial').length) {
 		$('.wh_ad_interstitial').show();
 		//set the interstitial cookie as per interstitialCookie.js
-		setCookie("adSenseInterstitial","adSenseInterstitialValue",1);
+		$.cookie('adSenseInterstitial', "adSenseInterstitialValue", {expires: 1, path: '/'});
 		window.setTimeout(closeInterstitial,30000);
 	}
 	
@@ -127,10 +127,10 @@ function getResultsPage(quiz) {
 	if (percent == 1) {
 		quip = quips['perfect'];
 	}
-	else if (percent >= .6) {
+	else if (percent >= 0.6) {
 		quip = quips['good'];
 	}
-	else if (percent >= .3) {
+	else if (percent >= 0.3) {
 		quip = quips['okay'];
 	}
 	else {
@@ -162,7 +162,7 @@ function getResultsPage(quiz) {
 			window.location.href = $('#the_article_url').attr('href');
 		}
 		return false;
-	})
+	});
 }
 
 function getOtherQuizzes(box) {
@@ -210,7 +210,7 @@ function addAnswerClickHandlers() {
 
 function getReferrer() {
 	var ref = document.referrer;
-	if (ref.match(/wikihow.com|wikidiy.com|wikiknowhow.com/)) {
+	if (ref.match(/(wikihow.com|wikiknowhow.com|wikidiy.com|wikidogs.com)/)) {
 		return ref;
 	}
 	else {
@@ -229,7 +229,7 @@ $(document).ready(function() {
  * circling function 
  * based on pie timer by http://blakek.us/
 */
-(function( $ ){
+(function( $ ) {
 
     $.fn.pietimer = function( method ) {
         // Method calling logic

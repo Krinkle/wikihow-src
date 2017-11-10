@@ -4,7 +4,7 @@ if ( ! defined( 'MEDIAWIKI' ) )
 
 /**#@+
  * Allows users to post comments directly to discussion pages.'
- * 
+ *
  * @addtogroup Extensions
  *
  * @link http://www.mediawiki.org/wiki/Extension:PostComment
@@ -27,6 +27,8 @@ $wgExtensionMessagesFiles['PostComment'] = dirname(__FILE__) . '/SpecialPostComm
 
 $wgSpecialPages['PostComment'] = 'PostComment';
 $wgSpecialPages['PostCommentPreview'] = 'PostCommentPreview';
+$wgSpecialPages['PostCommentCaptcha'] = 'PostCommentCaptcha';
+
 $wgAutoloadClasses['PostComment'] = dirname( __FILE__ ) . '/SpecialPostComment.body.php';
 $wgAutoloadClasses['PostCommentPreview'] = dirname( __FILE__ ) . '/SpecialPostComment.body.php';
-
+$wgAutoloadClasses['PostCommentCaptcha'] = dirname( __FILE__ ) . '/SpecialPostComment.body.php';

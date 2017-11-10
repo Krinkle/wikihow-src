@@ -129,20 +129,24 @@ function getDocData($row, $dbr, $printIntro = false) {
 	$intro = str_replace('<br>', '', $intro);
 
 	//if (contains($intro, "Here's how:")) {
-	if (stripos($intro, "here's how") !== FALSE || ":" == substr($intro, -1)) {
+	$regex = "@\bfollow\b|this guide|\bguide\b|this article|step by step instructions|step-by-step instructions@i";
+	$splitRegex = "@(?<=[.!?])\s+@";
+	$sentences = preg_split($splitRegex, $intro, -1, PREG_SPLIT_NO_EMPTY);
+	$sentence = end($sentences);
+	if (preg_match($regex, $sentence) || ":" == substr($sentence, -1)) {
 		//check the number of monthly page views...
-		$data = getTitusData($row->page_id);
-		if ($data->titus) {
-			$ti30 = $data->titus->ti_30day_views;
-		}
+//		$data = getTitusData($row->page_id);
+//		if ($data->titus) {
+//			$ti30 = $data->titus->ti_30day_views;
+//		}
 
-		if ($ti30 >= 5000 && $ti30 <= 6000) {
-			echo $ti30 ." http://www.wikihow.com/".$row->page_title." ";
+//		if ($ti30 >= 5000 && $ti30 <= 6000) {
+			echo "http://www.wikihow.com/" . $row->page_title . "\t";
 			if ($printIntro) {
-				echo $intro;
+				echo $sentence;
 			}
 			echo "\n";
-		}
+//		}
 	}
 
 
@@ -172,7 +176,7 @@ function contains($haystack, $needle)
 
 function getTitusData($pageId) {
 	global $IP, $wgLanguageCode;
-	$titusHost = "https://cloud.wikiknowhow.com";
+	$titusHost = "https://titus.wikiknowhow.com";
 	$url = $titusHost."/api.php?action=titus&subcmd=article&page_id=$pageId&language_code=$wgLanguageCode&format=json";
 	$ch = curl_init($url);
 	curl_setopt($ch, CURLOPT_HEADER, false);

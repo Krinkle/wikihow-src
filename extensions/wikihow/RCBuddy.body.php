@@ -75,7 +75,7 @@ class RCBuddy extends UnlistedSpecialPage {
 
 	// The following is just used by the wikihow toolbar
 	function execute($par) {
-		global $wgOut, $wgUser, $wgRequest, $wgServer, $wgCookiePrefix;
+		global $wgOut, $wgUser, $wgRequest, $wgCookiePrefix;
 
 		wfProfileIn(__METHOD__);
 		$wgOut->disable(true);
@@ -85,33 +85,37 @@ class RCBuddy extends UnlistedSpecialPage {
 		$skip = array();
 		foreach ($_COOKIE as $key=>$value) {
 			if (strpos($key, $wgCookiePrefix . "WsSkip_") === 0) {
-				$skip[] = $value;
+				$value = (int)$value;
+				if ($value) {
+					$skip[] = $value;
+				}
 			}
 		}
+
 		$delay = $wgRequest->getInt('delay');
 		$count = $this->getFeaturedUnpatrolCount($delay, $skip);
 		$results = array('unpatrolled_fa' => $count);
 
 		$results = self::getPageWideStats($results);
 
-		if( $wgUser->getNewtalk())
+		if ($wgUser->hasCookies() && $wgUser->getNewtalk()) {
 			$results['new_talk'] = 1;
-		else
+		} else {
 			$results['new_talk'] = 0;
+		}
 
-		$window = Patrolcount::getPatrolcountWindow();
+		$window = PatrolCount::getPatrolcountWindow();
 		$dbr = wfGetDB( DB_SLAVE );
 		$count = $dbr->selectField('logging',
 			array('count(*)'),
 			array("log_user" => $wgUser->getId(),
 				"log_type" => 'patrol',
-				"log_timestamp > " . $dbr->addQuotes($window[0]),
-				"log_timestamp < " . $dbr->addQuotes($window[1]) ),
+				"log_timestamp BETWEEN " . $dbr->addQuotes($window[0]) . " AND " . $dbr->addQuotes($window[1]) ),
 			__METHOD__);
 		$results['patrolledtoday'] = $count;
 
 		foreach ($results as $k=>$v) {
-			echo "$k=$v\n";
+			print "$k=$v\n";
 		}
 		wfProfileOut(__METHOD__);
 		return;

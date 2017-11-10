@@ -138,6 +138,13 @@ class UploadStash {
 			}
 		}
 
+		// Reuben, wikiHow (May 21, 2015): get the stashed temp file from S3
+		// since it might not exist on local app server. This is needed because
+		// we're removing dependence on NFS.
+		if ( ! $this->files[$key]->exists() ) {
+			wfRunHooks('UploadStashGetFile', [ $this->files[$key] ]);
+		}
+
 		if ( ! $this->files[$key]->exists() ) {
 			wfDebug( __METHOD__ . " tried to get file at $key, but it doesn't exist\n" );
 			throw new UploadStashBadPathException( "path doesn't exist" );
@@ -284,6 +291,10 @@ class UploadStash {
 
 		# create the UploadStashFile object for this file.
 		$this->initFile( $key );
+
+		// Reuben, wikiHow (May 21, 2015): upload stashed temp files to S3 so they
+		// are available on other app servers without needing NFS
+		wfRunHooks('UploadStashProcessFile', [ $this->files[$key] ]);
 
 		return $this->getFile( $key );
 	}
@@ -584,7 +595,7 @@ class UploadStashFile extends UnregisteredLocalFile {
 	 * @param $flags integer Bitfield that supports THUMB_* constants
 	 * @return String: base name for URL, like '120px-12345.jpg', or null if there is no handler
 	 */
-	function thumbName( $params, $flags = 0 ) {
+	function thumbName( $params, $clientParams = array(), $flags = 0 ) {
 		return $this->generateThumbName( $this->getUrlName(), $params );
 	}
 

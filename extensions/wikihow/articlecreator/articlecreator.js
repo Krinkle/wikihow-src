@@ -58,8 +58,8 @@ WH.ArticleCreator = function() {
 	
 	// Configuration for the tinymce rich text editors
 	var tinymceConfig = {
-		skin_url: '/extensions/wikihow/common/tinymce_4.0.20_jquery/js/tinymce/skins/wikihow', // Don't use pad here to prevent cross-site font issue in Firefox - Bug #563
-		content_css : wfGetPad('/extensions/wikihow/articlecreator/tinymce_content.css?' + wgWikihowSiteRev),
+		skin_url: '/extensions/wikihow/articlecreator/skins/wikihow', // Don't use pad here to prevent cross-site font issue in Firefox - Bug #563
+		content_css : '/extensions/wikihow/articlecreator/tinymce_content.css?' + wgWikihowSiteRev,
 		skin: 'wikihow',
 	    plugins: ["lists"],
 	    toolbar: "bullist",
@@ -94,35 +94,35 @@ WH.ArticleCreator = function() {
 		      .on('keydown', function() {
 		        // replace the default content if the same as original placeholder
 		        if (editor.getContent() == wrappedPlaceholder) {
-		        	editor.setContent('');  
-		        }  
+		        	editor.setContent('');
+		        }
 		      })
 		      .on('keyup', function() {
 			        // replace the default content if the same as original placeholder
 			        if (editor.getContent() == wrappedPlaceholder) {
-			        	editor.setContent('');  
+			        	editor.setContent('');
 			        } else if (editor.getContent().length == 0){
 			        	editor.setContent(wrappedPlaceholder);
 			        } else if (editor.getContent().length > 0){
 			        	var domMethod = $(editor.getContainer()).closest('li.ac_method');
 			        	Util.glowButton($('.ac_add_li', domMethod));
-			        } 
+			        }
 		      })
 		      .on('BeforeExecCommand', function(e){
 		    	  if (e.command == "InsertUnorderedList" && editor.getContent() == wrappedPlaceholder) {
-			          editor.setContent('');     
-			      } 
+			          editor.setContent('');
+			      }
 		      })
-		      .on('blur', function() {	
+		      .on('blur', function() {
 		        if (editor.getContent().length === 0) {
-		        	editor.setContent(wrappedPlaceholder);		     
+		        	editor.setContent(wrappedPlaceholder);
 		        }
 		      });
 		    }
 		}
 	};
-	tinymce.baseURL = wfGetPad('/extensions/wikihow/common/tinymce_4.0.20_jquery/js/tinymce');
-	
+	tinymce.suffix = '.min';
+	tinymce.baseURL = '/extensions/wikihow/common/tinymce_4.5.3/js/tinymce';
 	/*
 	 * Object that builds wikitext given an Article object
 	 */
@@ -467,7 +467,7 @@ WH.ArticleCreator = function() {
 				var builder = new WikitextBuilder();	
 				var wikitext = builder.buildArticle(a);
 				
-				var postData = {t: mw.util.getParamValue('t'), wikitext: wikitext, ac_token: $('#ac_token').text()};
+				var postData = {t: mw.util.getParamValue('t'), wikitext: wikitext, ac_token: $('#ac_token').text(), overwrite: $("#overwrite").val()};
 				$.post(mw.util.wikiGetlink(), postData, function(data) {
 					var result = $.parseJSON(data);
 					if (result.error) {
@@ -480,10 +480,12 @@ WH.ArticleCreator = function() {
 				               dialogClass: 'ac_no_close ac_publishing_error',
 				               resizable: false,
 				               title: 'Publishing Error',
-				               position: 'center'	
+				               position: 'center',
+							   closeText: 'x'
 						});
 					} else {
 						// If successful, redirect to published article
+						$('body').trigger('trackCreate');
 						window.location.replace(result.url);
 					}
 				});
@@ -776,7 +778,7 @@ WH.ArticleCreator = function() {
 			}
 			
 			articleMethod.moveLI(oldPos, newPos);
-			
+
 			if (editorOpen) {
 				view.showEditForm($('li', this).eq(editorPos), articleMethod.getLI(editorPos));
 				$('#ac_edit_text').val(editTxt);
@@ -786,9 +788,10 @@ WH.ArticleCreator = function() {
 		// Init sortable for tips and warnings sections
 		$( ".ac_other_section .ac_lis" ).sortable({
 			 start: function(e, ui) {
-			        // creates a temporary attribute on the element with the old index
-			        $(this).attr('data-previndex', ui.item.index());
-			 }	   
+				// creates a temporary attribute on the element with the old index
+				$(this).attr('data-previndex', ui.item.index());
+			},
+			distance: 10
 		});	
 
 		$(document).on('click', '.ac_other_section .ac_add_li', function(e) {
@@ -805,18 +808,14 @@ WH.ArticleCreator = function() {
 			a[sectionId].moveLI(oldPos, newPos);
 		});	
 		
-		$(document).on('click', '.introduction .ac_add_li', function(e) {
-			var textarea = $(this).siblings('.ac_new_li');
-			addIntroLI(textarea);
+		$('#intro_text').blur(function() {
+			addIntroLI($(this));
 		});
 		
 		function addIntroLI(textarea) {
 			var txt = Util.strip(textarea.val());
 			if (txt.length > 0) {
 				a.setIntro(txt);
-				$('#introduction .ac_li_adder').hide();
-			} else {
-				$('#introduction .ac_li_adder').show();
 			}
 		}
 
@@ -893,15 +892,13 @@ WH.ArticleCreator = function() {
 			redrawMethodInfo(data.methodType, data.method);
 		});
 		
-		$(dispatcher).bind('/Article/setIntro', function(e, data) {
-			redrawIntro(data.intro);
-		});
-		
 		function updateStepNum(domMethod) {
 			var numSteps = $('.ac_lis > li', domMethod).size();
 			$('.ac_li_adder .step_num', domMethod).html(numSteps + 1);
 			var editorMarginLeft = numSteps + 1 < 10 ? '40px' : '57px';
 			$('#steps .ac_li_adder div.mce-tinymce').css('margin-left', editorMarginLeft);
+			var editorStepWidth = numSteps + 1 < 10 ? '29px' : '46px';
+			$('#steps .ac_li_adder .step_num').css('width', editorStepWidth);
 		}
 		
 		function redrawIntro(txt) {
@@ -1152,8 +1149,9 @@ WH.ArticleCreator = function() {
 		$('#ac_edit_form').hide();
 		if ($('textarea#ac_edit_text').tinymce()) {
 			$('textarea#ac_edit_text').tinymce().remove();
-			$('#ac_edit_form').remove();
+
 		}
+		$('#ac_edit_form').remove();
 	};
 	
 	View.prototype.showIntroEditForm  = function() {	
@@ -1185,7 +1183,8 @@ WH.ArticleCreator = function() {
            dialogClass: 'method_reordering_dialog',
            title: 'Reorder ' + methodTypeLabel,
            closeOnEscape: true,
-           position: 'center'
+           position: 'center',
+		   closeText: 'x'
         });
 		
 		$( ".ac_ordered_methods" ).sortable({
@@ -1205,7 +1204,8 @@ WH.ArticleCreator = function() {
             dialogClass: 'ac_abstract_confirm_dialog ' + dialogClasses,
             resizable: false,
             title: title,
-            position:'center'
+            position:'center',
+			closeText: 'x'
 		};
 	};
 	

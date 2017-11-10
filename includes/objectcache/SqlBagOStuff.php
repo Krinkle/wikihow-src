@@ -229,10 +229,12 @@ class SqlBagOStuff extends BagOStuff {
 						array( 'keyname', 'value', 'exptime' ),
 						array( 'keyname' => $tableKeys ),
 						__METHOD__ );
-					foreach ( $res as $row ) {
-						$row->serverIndex = $serverIndex;
-						$row->tableName = $tableName;
-						$dataRows[$row->keyname] = $row;
+					if ($res) {
+						foreach ( $res as $row ) {
+							$row->serverIndex = $serverIndex;
+							$row->tableName = $tableName;
+							$dataRows[$row->keyname] = $row;
+						}
 					}
 				}
 			} catch ( DBError $e ) {
@@ -509,7 +511,7 @@ class SqlBagOStuff extends BagOStuff {
 							$conds,
 							__METHOD__,
 							array( 'LIMIT' => 100, 'ORDER BY' => 'exptime' ) );
-						if ( !$rows->numRows() ) {
+						if ( !$rows || !$rows->numRows() ) {
 							break;
 						}
 						$keys = array();

@@ -1,8 +1,4 @@
-if (!WH) var WH = {};
-WH.ManageRelated = {};
-
-// jQuery closure
-(function ($) {
+(function ($, mw) {
 
 var SCROLL_SPEED_MS = 500;
 
@@ -37,7 +33,7 @@ function preview(key, title) {
 		title = key.replace(/-/g, ' ');
 	}
 
-	WH.ManageRelated.titleToOpen = wgServer + '/' + key;
+	WH.ManageRelated.titleToOpen = mw.config.get('wgCanonicalServer') + '/' + key;
 	WH.ManageRelated.titleToAdd = key;
 
 	$.get(
@@ -72,7 +68,7 @@ function alertContentsCallback(data) {
 	var html = '<p><i>Related wikiHows</i></p><ol first="2"><li>Click on a link to preview the article. To add the article as a related wikiHow, click the + symbol in the list or the "add this" link in the preview. When you are finished, hit the "Save" button.</li></ol><ul id="results">';
 	var target = $("input[name='target']").val();
 	for (var i = 0; i < arr.length; i++) {
-		var key = arr[i];
+		var key = decodeURIComponent(arr[i]);
 
 		// don't include categories
 		if (key.indexOf("Category:") >= 0) {
@@ -80,7 +76,7 @@ function alertContentsCallback(data) {
 		}
 
 		// remove hostname if it exists
-		key = $.trim(key).replace(/^http:\/\//, '');
+		key = $.trim(key).replace(/^(https?:)?\/\//, '');
 		var idx = key.indexOf('/');
 		if (idx > 0) {
 			key = key.substr(idx + 1);
@@ -139,6 +135,8 @@ function moveRelated(dir) {
 }
 
 // module exports
+WH.ManageRelated = {};
+
 WH.ManageRelated.add = add;
 WH.ManageRelated.moveRelated = moveRelated;
 WH.ManageRelated.viewRelated = viewRelated;
@@ -151,4 +149,4 @@ WH.ManageRelated.submitForm = submitForm;
 WH.ManageRelated.titleToOpen = '';
 WH.ManageRelated.titleToAdd = '';
 
-})(jQuery);
+})(jQuery, mw);

@@ -684,6 +684,11 @@ class MWExceptionHandler {
 	public static function handle( $e ) {
 		global $wgFullyInitialised;
 
+		// Reuben, wikiHow, Apr 12 2016: added type conversion for PHP 7.0, which
+		// has the new Error class that is throwable
+		if ($e instanceof Error) {
+			$e = new MWException($e);
+		}
 		self::report( $e );
 
 		// Final cleanup

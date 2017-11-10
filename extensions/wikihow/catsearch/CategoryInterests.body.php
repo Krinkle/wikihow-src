@@ -1,4 +1,4 @@
-<?
+<?php
 
 /*
 * A utility class that assists in storing and retreiving category interests for users.
@@ -7,8 +7,10 @@
 *
 *	CREATE TABLE `category_interests` (
 *	  `ci_user_id` mediumint(8) unsigned NOT NULL default '0',
+*	  `ci_visitor_id` varbinary(20) NOT NULL default '',
 *	  `ci_category` varchar(255) NOT NULL default '',
-*	  PRIMARY KEY  (`ci_user_id`,`ci_category`),
+*	  `ci_timestamp` varchar(14) NOT NULL default '',
+*	  PRIMARY KEY  (`ci_user_id`,`ci_visitor_id`,`ci_category`),
 *	  KEY `ci_category` (`ci_category`)
 *	) ENGINE=InnoDB DEFAULT CHARSET=latin1
 */
@@ -20,19 +22,23 @@ class CategoryInterests extends UnlistedSpecialPage {
 	
 
 	function execute($par) {
-		global $wgOut, $wgRequest, $wgUser;
-
+		$out = $this->getOutput();
+		$request = $out->getRequest();
+		$user = $this->getUser();
+		
 		$fname = 'CategoryInterests::execute';
 		wfProfileIn( $fname );
 
-		$wgOut->setRobotpolicy( 'noindex,nofollow' );
-		if ($wgUser->getId() == 0) {
-			$wgOut->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
-		}
+		$out->setRobotpolicy( 'noindex,nofollow' );
 
 		$retVal = false;
-		$action = $wgRequest->getVal('a');
-		$category = $wgRequest->getVal('cat');
+		$action = $request->getVal('a');
+		
+		if ($user->getId() == 0 && $action != 'suggnew' && $action != 'add') {
+			$out->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
+		}
+		
+		$category = $request->getVal('cat');
 		switch ($action) {
 			case 'hier':
 				$retVal = $this->getCatPath($category);
@@ -43,8 +49,11 @@ class CategoryInterests extends UnlistedSpecialPage {
 			case 'sugg':
 				$retVal = array('suggestions' => $this->suggestCategoryInterests());
 				break;
+			case 'suggnew':
+				$retVal = array('suggestions' => $this->suggestNewCategories($category));
+				break;
 			case 'get':
-				$retVal = array('interests' => $this->getCategoryInterests());
+				$retVal = array('interests' => $this->getUsedCat());
 				break;
 			case 'sub':
 				$arr = array($category);
@@ -57,12 +66,12 @@ class CategoryInterests extends UnlistedSpecialPage {
 				$retVal = $this->removeCategoryInterest($category);
 				break;
 			default: 
-				// Oops. Didn't understad the action
+				// Oops. Didn't understand the action
 				$retVal = false;
 		}
 
-		$wgOut->setArticleBodyOnly(true);
-		$wgOut->addHtml(json_encode($retVal));
+		$out->setArticleBodyOnly(true);
+		$out->addHtml(json_encode($retVal));
 		return;
 
 		wfProfileOut( $fname );
@@ -75,12 +84,36 @@ class CategoryInterests extends UnlistedSpecialPage {
 		global $wgUser, $wgCategoryNames;
 		
 		$catInterests = array();
+		$cond = array();
+		$cond['ci_user_id'] = $wgUser->getId() ? $wgUser->getId() : 0;
+		
+		if ($wgUser->isAnon()) {
+			$cond['ci_visitor_id'] = WikihowUser::getVisitorId();
+			//can't be anonymous AND have no visitor id...
+			if ($cond['ci_visitor_id'] == '') return array();
+		}
 
 		$dbr = wfGetDB(DB_SLAVE);
-		$res = $dbr->select('category_interests', array('ci_category'), array('ci_user_id' => $wgUser->getId()));
+		$res = $dbr->select('category_interests', array('ci_category',), $cond,__METHOD__);
 		while ($row = $dbr->fetchObject($res)) {
-			$catInterests[] = stripslashes($row->ci_category);
+			$catInterests[] = str_replace('-', ' ', stripslashes($row->ci_category));
 		}
+		
+		$cond = array();
+		$cond['ce_user_id'] = $wgUser->getId() ? $wgUser->getId() : 0;
+		
+		if ($wgUser->isAnon()) {
+			$cond['ce_visitor_id'] = WikihowUser::getVisitorId();
+		}
+		
+		//let's now add the categories entered on sign-up
+		$res = $dbr->select('category_expertise', array('ce_category',), $cond,__METHOD__);
+		while ($row = $dbr->fetchObject($res)) {
+			$catInterests[] = str_replace('-', ' ', stripslashes($row->ce_category));
+		}
+		
+		//only one of each...
+		$catInterests = array_unique($catInterests);
 
 		return $catInterests;
 	}
@@ -232,13 +265,18 @@ class CategoryInterests extends UnlistedSpecialPage {
 			return false;
 		}
 
-		if ($wgUser->getId() == 0) {
-			return false;
-		}
-
 		$dbw = wfGetDB(DB_MASTER);
-		$category = $dbw->strencode($category);
-		return $dbw->insert('category_interests', array('ci_user_id' => $wgUser->getId(), 'ci_category' => $category), 'CategoryInterests::addCategoryInterest', array('IGNORE'));
+		$category = str_replace(' ','-', $dbw->strencode($t->getText()));
+		$cond = array('ci_category' => $category, 'ci_timestamp' => wfTimestampNow());
+		$cond['ci_user_id'] = $wgUser->getId() ? $wgUser->getId() : 0;
+		
+		if ($wgUser->isAnon()) {
+			$cond['ci_visitor_id'] = WikihowUser::getVisitorId();
+			//can't be anon AND w/o a visitor id...
+			if ($cond['ci_visitor_id'] == '') return false;
+		}
+		
+		return $dbw->insert('category_interests', $cond, __METHOD__, array('IGNORE'));
 	}
 
 	/*
@@ -248,13 +286,24 @@ class CategoryInterests extends UnlistedSpecialPage {
 	public static function removeCategoryInterest($category) {
 		global $wgUser;
 
-		if ($wgUser->getId() == 0) {
-			return false;
-		}
-
 		$dbw = wfGetDB(DB_MASTER);
-		$category = $dbw->strencode($category);
-		return $dbw->delete('category_interests', array('ci_user_id' => $wgUser->getId(), 'ci_category' => $category));
+		$category = str_replace(' ','-', $dbw->strencode($category));
+		$cond = array('ci_category' => $category);
+		$cond['ci_user_id'] = $wgUser->getId() ?  $wgUser->getId() : 0;
+		if ($wgUser->isAnon()) {
+			$cond['ci_visitor_id'] = WikihowUser::getVisitorId();
+		}
+		$res = $dbw->delete('category_interests', $cond, __METHOD__);
+		
+		$cond = array('ce_category' => $category);
+		if ($wgUser->isLoggedIn()) {
+			$cond['ce_user_id'] = $wgUser->getId();
+		}
+		else {
+			$cond['ce_visitor_id'] = WikihowUser::getVisitorId();
+		}
+		$res = $dbw->delete('category_expertise', $cond, __METHOD__);
+		return $res;
 	}
 
 	/*
@@ -285,16 +334,47 @@ class CategoryInterests extends UnlistedSpecialPage {
 		}
 		// Give them some random top-level categories if they haven't done any edits yet
 		if (!sizeof($interests)) {
-			global $wgCategoryNames;
-			$topCats = array_values($wgCategoryNames);
-			$rnd = rand(1, 6);
-			for ($i = 1; $i < 4; $i++) {
-				$interests[] = str_replace(" ", "-", $topCats[$i * $rnd]);
-			}
+			$interests = self::getGenericSuggestions();
 		}
 
 		return array_slice(array_values($interests), 0, 3);
 	}
+	
+	private static function suggestNewCategories($category) {
+		$limit = 6; //we only need 3, but we remove used ones in javascipt so let's grab more
+		
+		if ($category) {
+			$ary = array($category);
+			$interests = self::getSubCategoryInterests($ary);
+			
+			if (count($interests) < $limit) {
+				$t = Title::newFromText($category, NS_CATEGORY);
+				$peer_interests = self::getPeerCategories($t);
+				$interests = $interests ? array_merge($interests, $peer_interests) : $peer_interests;
+			};
+		}
+		
+		if (count($interests) < $limit) {
+			$gen_interests = self::getGenericSuggestions();
+			$interests = $interests ? array_merge($interests, $gen_interests) : $gen_interests;
+		}
+		
+		//dedup
+		$interests = array_unique($interests);
+		
+		return array_slice(array_values($interests), 0, $limit);
+	}
+	
+	private static function getGenericSuggestions() {
+		global $wgCategoryNames;
+		$topCats = array_values($wgCategoryNames);
+		$rnd = rand(1, 6);
+		for ($i = 1; $i < 4; $i++) {
+			$interests[] = str_replace(" ", "-", $topCats[$i * $rnd]);
+		}
+		return $interests;
+	}
+	
 
 	public static function getSubcategoriesTruncated($category, $depth = 1) {
 		$t = Title::newFromText($category, NS_CATEGORY);
@@ -349,5 +429,91 @@ class CategoryInterests extends UnlistedSpecialPage {
 	public static function getCategoryTreeArray() {
 		$ch = new Categoryhelper();
 		return $ch->getCategoryTreeArray();
+	}
+	
+	public function getUsedCat($t = null) {
+		$used_cat = '';
+		
+		if ($t) {
+			$user_cats = CategoryInterests::getCategoryInterests();
+			$parenttree = $t->getParentCategoryTree();
+			$page_cats = Categoryhelper::cleanCurrentParentCategoryTree($parenttree);
+			
+			//find the match
+			if ($user_cats && $page_cats) {
+				$same_cats = array_intersect($user_cats, $page_cats);
+				if ($same_cats) {
+					$used_cat = array_shift($same_cats);
+				}
+			}
+		}
+		
+		return $used_cat;
+	}
+}
+
+
+/*
+Categories in which a user claims to be an expert
+
+CREATE TABLE category_expertise (
+	ce_user_id INT(10) UNSIGNED NOT NULL DEFAULT 0,
+	ce_visitor_id VARBINARY(20) NOT NULL DEFAULT '',
+	ce_email  VARBINARY(255) NOT NULL DEFAULT '',
+	ce_category VARCHAR(255) NOT NULL DEFAULT '',
+	ce_creatdate TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+create index ce_user_index on category_expertise (ce_user_id);
+*/
+
+class CategoryExpertise extends UnlistedSpecialPage {
+
+	function __construct() { 
+		parent::__construct( 'CategoryExpertise' );
+	}
+	
+	function execute($par) {
+		$out = $this->getOutput();
+		$request = $this->getRequest();
+		
+		$out->setRobotpolicy( 'noindex,nofollow' );
+		
+		if ($request->wasPosted()) {
+			$out->setArticleBodyOnly(true);
+			$cats = explode(',', $request->getVal('cats'));
+			$email = $request->getVal('email');
+			
+			//add these cats to the category_expertise table
+			foreach ($cats as $cat) {
+				$this->addExpertiseCategory($cat, $email);
+			}
+			
+			return;
+		}
+		else {
+			$out->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
+		}
+	}
+	
+	function addExpertiseCategory($cat, $email = '') {
+		if (empty($cat)) return;
+		
+		$user = $this->getUser();
+		if (!$user) return;
+		
+		$cond = array('ce_category' => $cat);
+		if ($user->isLoggedIn()) {
+			$cond['ce_user_id'] = $user->getId();
+		}
+		else {
+			$cond['ce_visitor_id'] = WikihowUser::getVisitorId();
+			$cond['ce_email'] = $email;
+		}
+		
+		$dbw = wfGetDB(DB_MASTER);
+		$count = $dbw->selectField('category_expertise', array('count(*)'), $cond, __METHOD__);
+		if ($count > 0) return;
+		
+		$res = $dbw->insert('category_expertise',$cond, __METHOD__, array('IGNORE'));
 	}
 }

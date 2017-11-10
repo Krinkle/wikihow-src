@@ -1,0 +1,25 @@
+{
+    "@metadata": {
+        "authors": []
+    },
+    "Reverification": "Reverification",
+    "rv_tool_title": "Reverification Tool",
+    "rv_btn_verified": "Mark as verified",
+    "rv_btn_skip": "Skip",
+    "rv_btn_quick_feedback": "Send quick feedback",
+    "rv_quick_feedback_placeholder": "Please enter your short feedback here. If you need to give more extensive feedback, please request a document.",
+    "rv_btn_extensive_feedback": "Request doc for extensive feedback",
+    "rv_status_loading": "Loading next article...",
+    "rv_btn_send_quick_feedback": "Submit Feedback",
+    "rv_btn_cancel_quick_feedback": "Cancel",
+    "rv_status_eoq": "You've reached the end of your reverification queue.",
+    "rv_logged_in_as": "Logged in as: $1",
+    "rv_override_username": "Replacing Verifications from: $1",
+    "rv_invalid_overrider": "You don't have permission to reverify articles previously verified by another expert.",
+    "rv_override_error_not_found": "The reverification by this id was not found",
+    "rv_override_error_reverified": "The reverification by this id is already reverified",
+    "rv_override_error_no_edits": "The reverification by this id has been processed in the Special:ReverificationQuickFeedback tool",
+    "rv_status_reset_complete": "The reverification is updated.",
+    "rv_status": "Status: $1",
+    "rv_throttled": "Too many submissions. Please try again later."
+}

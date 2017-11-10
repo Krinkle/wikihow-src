@@ -1,6 +1,4 @@
-<?
-
-if (!defined('MEDIAWIKI')) die();
+<?php
 
 class AdminRemoveAvatar extends UnlistedSpecialPage {
 
@@ -34,7 +32,7 @@ class AdminRemoveAvatar extends UnlistedSpecialPage {
 	/**
 	 * Execute special page, but only for staff group members
 	 */
-	function execute() {
+	function execute($par) {
 		global $wgRequest, $wgOut, $wgUser, $wgLang, $wgSquidMaxage;
 
 		$userGroups = $wgUser->getGroups();

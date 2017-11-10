@@ -310,7 +310,10 @@ class Preferences {
 			);
 		}
 		// Only show preferhttps if secure login is turned on
-		if ( $wgSecureLogin && wfCanIPUseHTTPS( $context->getRequest()->getIP() ) ) {
+		// Reuben, wikiHow, Dec 12 2016: Turned off this preference in production
+		// because we want this set "on" for every logged in user.
+		global $wgIsDevServer;
+		if ( $wgIsDevServer && $wgSecureLogin && wfCanIPUseHTTPS( $context->getRequest()->getIP() ) ) {
 			$defaultPreferences['prefershttps'] = array(
 				'type' => 'toggle',
 				'label-message' => 'tog-prefershttps',
@@ -440,6 +443,17 @@ class Preferences {
 			'section' => 'personal/signature'
 		);
 
+		// Lojjik Braughler, 7/1/2014
+		// This hook was created in order to set our info prefs (globalemail-optout, email, auth time)
+		// in the email settings tab above everything else but keep the tab in the same place
+		// (we restructured the echo prefs page so that individual email settings would be in the same fieldset as the others)
+		// if these MediaWiki core prefs are created before ours, then the preference checkboxes appear above our info stuff
+		// if we were to unset them and set them again at the end, then we would lose our tab spot
+		// Thus, to claim our tab spot, we need to load our preferences *early* (after personal tab prefs are loaded)
+		// this hook runs EchoWikihowHooks::onCreateEmailPreferences()
+		// that sets ours first, then core gets loaded, then WikihowPreferences (contains more email prefs & code for disabling checkboxes)
+
+		wfRunHooks('CreateEmailPreferences', array(&$user, &$defaultPreferences));
 		## Email stuff
 
 		if ( $wgEnableEmail ) {
@@ -1419,8 +1433,12 @@ class Preferences {
 		// Fortunately, the realname field is MUCH simpler
 		// (not really "private", but still shouldn't be edited without permission)
 		if ( !in_array( 'realname', $wgHiddenPrefs ) && $user->isAllowed( 'editmyprivateinfo' ) ) {
-			$realName = $formData['realname'];
-			$user->setRealName( $realName );
+			//XXCHANGEDXX - Remove illegal characters from the real name
+			$realName = User::getCanonicalName($formData['realname'], 'creatable');
+			if ($realName === false) {
+				$realName = '';
+			}
+			$user->setRealName($realName);
 		}
 
 		if ( $user->isAllowed( 'editmyoptions' ) ) {

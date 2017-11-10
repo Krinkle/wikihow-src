@@ -1,29 +1,32 @@
 <?php
 
 if ( !defined( 'MEDIAWIKI' ) ) {
-    exit(1);
+	die();
 }
 
 $wgExtensionCredits['specialpage'][] = array(
-    'name' => 'NFDGuardian',
-    'author' => 'Bebeth <bebeth.com>',
-    'description' => 'Provides a way of reviewing NFD templates',
+	'name' => 'NFDGuardian',
+	'author' => 'Bebeth <bebeth.com>',
+	'description' => 'Provides a way of reviewing NFD templates',
 );
 
 $wgSpecialPages['NFDGuardian'] = 'NFDGuardian';
 $wgSpecialPages['NFDAdvanced'] = 'NFDAdvanced';
 $wgSpecialPages['NFDDup'] = 'NFDDup';
 
-$wgAutoloadClasses['NFDGuardian'] = dirname(__FILE__) . '/NFDGuardian.body.php';
-$wgAutoloadClasses["NFDProcessor"] = dirname(__FILE__) . '/NFDGuardian.body.php';
-$wgAutoloadClasses["NFDAdvanced"] = dirname(__FILE__) . '/NFDGuardian.body.php';
-$wgAutoloadClasses["NFDDup"] = dirname(__FILE__) . '/NFDGuardian.body.php';
-$wgExtensionMessagesFiles['NFDGuardian'] = dirname(__FILE__) .'/NFDGuardian.i18n.php';
-$wgExtensionMessagesFiles['NFDGuardianAliases'] = dirname(__FILE__) .'/NFDGuardian.alias.php';
+$wgAutoloadClasses['NFDGuardian'] = __DIR__ . '/NFDGuardian.body.php';
+$wgAutoloadClasses["NFDProcessor"] = __DIR__ . '/NFDGuardian.body.php';
+$wgAutoloadClasses["NFDAdvanced"] = __DIR__ . '/NFDGuardian.body.php';
+$wgAutoloadClasses["NFDDup"] = __DIR__ . '/NFDGuardian.body.php';
+$wgExtensionMessagesFiles['NFDGuardian'] = __DIR__ .'/NFDGuardian.i18n.php';
+$wgExtensionMessagesFiles['NFDGuardianAliases'] = __DIR__ .'/NFDGuardian.alias.php';
 
 $wgLogTypes[] = 'nfd';
 $wgLogNames['nfd'] = 'nfd';
 $wgLogHeaders['nfd'] = 'nfd_log';
+
+$wgAvailableRights[] = 'nfd';
+$wgGroupPermissions['nfd']['nfd'] = true;
 
 $wgNfdVotesRequired = array("delete"=>3, "keep"=>3, "admin_delete" => 1, "admin_keep" => 0, "advanced_delete" => 6);
 //advanced_delete is number required to delete once a keep vote has been logged
@@ -33,16 +36,28 @@ $wgHooks["ArticleDelete"][] = "wfRemoveNFD";
 $wgHooks["ArticleUndelete"][] = "wfUndeleteNFD";
 $wgHooks['wgQueryPages'][] = 'wfNFDAddQueryPages';
 
-function wfNFDAddQueryPages($wgQueryPages) {
+$wgResourceModules['ext.wikihow.nfd_guardian'] = [
+	'styles' => ['nfdGuardian.css'],
+	'scripts' => ['nfdGuardian.js'],
+	'localBasePath' => __DIR__,
+	'remoteExtPath' => 'wikihow/nfd',
+	'position' => 'top',
+	'targets' => ['desktop', 'mobile'],
+	'dependencies' => ['ext.wikihow.common_top'],
+];
+
+
+function wfNFDAddQueryPages(&$wgQueryPages) {
 	$wgQueryPages[] = array('NFDAdvanced','NFDAdvanced');
 	$wgQueryPages[] = array('NFDDup','NFDDup');
-	return(true);
+	return true;
 }
 
 function wfCheckNFD(&$article, &$user, $text, $summary, $minoredit, $watchthis, $sectionanchor, &$flags, $revision) {
 	//we only do NFD Guardian for articles
-	if($article->getTitle()->getNamespace() != NS_MAIN)
+	if (!$article->getTitle()->inNamespace(NS_MAIN)) {
 		return true;
+	}
 
 	// if an article becomes a redirect, vanquish all previous nfd entries
 	if (preg_match("@^#REDIRECT@", $text)) {
@@ -52,7 +67,7 @@ function wfCheckNFD(&$article, &$user, $text, $summary, $minoredit, $watchthis, 
 
 	// check for bots
 	$bots = WikihowUser::getBotIDs();
-	if (in_array($user->getID(),$bots)) {
+	if (in_array($user->getID(), $bots)) {
 		return true;
 	}
 
@@ -68,8 +83,9 @@ function wfCheckNFD(&$article, &$user, $text, $summary, $minoredit, $watchthis, 
 
 function wfUndeleteNFD(&$title, $create) {
 
-	if($title->getNamespace() != NS_MAIN)
+	if (!$title->inNamespace(NS_MAIN)) {
 		return true;
+	}
 
 	$article = new Article($title);
 	$revision = Revision::newFromTitle($title);

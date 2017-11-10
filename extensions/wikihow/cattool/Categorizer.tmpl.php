@@ -22,7 +22,7 @@
 		</div>
 		<div id="cat_options">
 			<a id="cat_skip" href="#" class="button secondary"><?= wfMessage('skip')->text()?></a>
-			<a href="#" class="button primary disabled" id="cat_save"><?= wfMessage('save')->text() ?></a>
+			<a href="#" class="button primary disabled op-action" id="cat_save"><?= wfMessage('save')->text() ?></a>
 		</div>
 		<div class="clearall"></div>
 	</div>

@@ -1,4 +1,4 @@
-<?
+<?php
 
 /*
 * Class that is used to inject test patrols into the RC Patrol tool.
@@ -65,7 +65,7 @@ class RCTest {
 			$this->userInfo = get_object_vars($row);
 		}
 		else {
-			throw new Exception("Couldn't retrieve test user");
+			throw new MWException("Couldn't retrieve test user");
 		}
 	}
 
@@ -438,11 +438,16 @@ class RCTest {
 	* Returns true if a test should be displayed, false otherwise
 	*/
 	public function isTestTime() {
-		global $wgRequest;
+		global $wgRequest, $wgReadOnly;
 
 		// RCPatrol Test doesn't work for IE 7 and IE 6 beecause of use of negative margins in the css.
 		// Don't allow RC Test to show for users of these browsers.
 		if (!$this->isCompatibleBrowser()) {
+			return false;
+		}
+
+		// Don't run this if site is in read-only mode
+		if ($wgReadOnly) {
 			return false;
 		}
 
@@ -517,8 +522,8 @@ class RCTest {
 
 		$testInfo = $this->getTestInfo();
 		$html = "<div id='rct_data'>" . $testInfo['rq_id'] . "</div>";
-		$html .= HtmlSnips::makeUrlTags('js', array('rctest.js'), 'extensions/wikihow/rctest', false);
-		$html .= HtmlSnips::makeUrlTags('css', array('rctest.css'), 'extensions/wikihow/rctest', false);
+		$html .= HtmlSnips::makeUrlTag('/extensions/wikihow/rctest/rctest.js');
+		$html .= HtmlSnips::makeUrlTag('/extensions/wikihow/rctest/rctest.css');
 		return $html;
 	}
 

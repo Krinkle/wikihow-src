@@ -82,6 +82,13 @@ class SpecialSearch extends SpecialPage {
 	 * @param string $par or null
 	 */
 	public function execute( $par ) {
+		// George 2015-05-26: Disable Special:Search for anons.
+		// Ref Lighthouse ticket #1195
+		if ($this->getUser()->isAnon()) {
+			$this->getOutput()->loginToUse();
+			return;
+		}
+
 		$this->setHeaders();
 		$this->outputHeader();
 		$out = $this->getOutput();
@@ -89,6 +96,11 @@ class SpecialSearch extends SpecialPage {
 		$out->addModuleStyles( array(
 			'mediawiki.special', 'mediawiki.special.search', 'mediawiki.ui', 'mediawiki.ui.button'
 		) );
+
+		// George 2015-04-10: Let hooks add some styles and scripts
+		wfRunHooks('SpecialSearchAddModules', array(
+			$this, $out
+		));
 
 		// Strip underscores from title parameter; most of the time we'll want
 		// text form here. But don't strip underscores from actual text params!
@@ -98,7 +110,9 @@ class SpecialSearch extends SpecialPage {
 
 		// Fetch the search term
 		$search = str_replace( "\n", " ", $request->getText( 'search', $titleParam ) );
-
+		// Lojjik, 1/30/2015: Fix a reported XSS attack in Firefox when visiting the URL 
+		// http://www.wikihow.com/?search=%22%3E%3C/title%3E%3Cbody/onload=alert%28%27XSS%27%29//
+		$search = htmlspecialchars( $search, ENT_NOQUOTES, 'UTF-8');
 		$this->load();
 
 		$this->searchEngineType = $request->getVal( 'srbackend' );
@@ -647,7 +661,13 @@ class SpecialSearch extends SpecialPage {
 		if ( is_null( $result->getScore() ) ) {
 			// Search engine doesn't report scoring info
 			$score = '';
-		} else {
+		}
+		// George 2015-04-10: Sometimes $result->getScore returns array(???)
+		elseif (is_array($result->getScore())) {
+			// wtf?
+			$score = print_r($result->getScore(), true);
+		}
+		else {
 			$percent = sprintf( '%2.1f', $result->getScore() * 100 );
 			$score = $this->msg( 'search-result-score' )->numParams( $percent )->text()
 				. ' - ';
@@ -949,8 +969,16 @@ class SpecialSearch extends SpecialPage {
 
 		wfRunHooks( 'SpecialSearchPowerBox', array( &$showSections, $term, $opts ) );
 
+		// George 2015-04-10
+		// Context and sort opts get added to opts in Finner for use in its
+		// hooks. Might be an ugly hack, but is a useful way to pass the context,
+		// sort options and filters.
+		// Let hooks unset the opts here.
+		wfRunHooks('SpecialSearchPowerBoxOpts', array(&$opts));
+
 		$hidden = '';
 		unset( $opts['redirs'] );
+
 		foreach ( $opts as $key => $value ) {
 			$hidden .= Html::hidden( $key, $value );
 		}

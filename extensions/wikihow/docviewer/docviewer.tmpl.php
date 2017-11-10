@@ -42,13 +42,13 @@
 			</div>
 		</li>
 		<? } ?>
-		<? if ($dv_dl_file_gdoc != '') { ?>
-		<li class="dv_dl_gdoc">
-			<a href="http://docs.google.com/viewer?url=<?=$dv_dl_file_gdoc?>" target="_blank" class="dv_dl_block" id="gatSampleGdoc1" rel="nofollow"></a>
+		<? if ($dv_dl_file_ext != '') { ?>
+		<li class="dv_dl_ext">
+			<a href="<?=$dv_dl_ext_prefix.$dv_dl_file_ext?>" target="_blank" class="dv_dl_block" id="gatSampleExtLink1" rel="nofollow"></a>
 			<div class="sample_hover">
 				<div class="sidebar_carrot"></div>
-				<a href="http://docs.google.com/viewer?url=<?=$dv_dl_file_gdoc?>" target="_blank" id="gatSampleGdoc2" rel="nofollow"><?=$dv_open_in?><br />
-				<span><?=$dv_dl_text_gdoc?></span></a>
+				<a href="<?=$dv_dl_ext_prefix.$dv_dl_file_ext?>" target="_blank" id="gatSampleExtLink2" rel="nofollow"><?=$dv_open_in?><br />
+				<span><?=$dv_dl_text_ext?></span></a>
 			</div>
 		</li>
 		<? } ?>
@@ -61,5 +61,4 @@
 var wgSampleName = "<?= $doc_name ?>";
 //-->
 </script>
-<?= $dv_ads3 ?>
 <br class="clearall" />

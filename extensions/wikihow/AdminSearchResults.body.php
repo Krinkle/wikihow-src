@@ -1,6 +1,4 @@
-<?
-
-if (!defined('MEDIAWIKI')) die();
+<?php
 
 class AdminSearchResults extends UnlistedSpecialPage {
 
@@ -30,7 +28,7 @@ class AdminSearchResults extends UnlistedSpecialPage {
 		$search = new LSearch();
 
 		foreach ($queries as &$query) {
-			$titles = $search->googleSearchResultTitles($query['query'], 0, 10);
+			$titles = $search->externalSearchResultTitles($query['query'], 0, 10);
 			foreach ($titles as $title) {
 				$query['results'][] = ($title ? 'http://www.wikihow.com/' . $title->getPartialURL() : '');
 			}
@@ -63,7 +61,7 @@ class AdminSearchResults extends UnlistedSpecialPage {
 	/**
 	 * Execute special page.  Only available to wikihow staff.
 	 */
-	public function execute() {
+	public function execute($par) {
 		global $wgRequest, $wgOut, $wgUser, $wgLang;
 
 		$user = $wgUser->getName();

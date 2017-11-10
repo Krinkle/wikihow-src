@@ -17,10 +17,14 @@ class ToolSkip {
 	const DEFAULT_VALUE = "default";
 	const ONE_WEEK = 604800;
 	
-	function ToolSkip($toolName = DEFAULT_VALUE, $toolTable = DEFAULT_VALUE, $checkoutTimeField = DEFAULT_VALUE, $checkoutUserField = DEFAULT_VALUE, $checkoutItemField = DEFAULT_VALUE) {
+	function ToolSkip($toolName = self::DEFAULT_VALUE, $toolTable = self::DEFAULT_VALUE, $checkoutTimeField = self::DEFAULT_VALUE, $checkoutUserField = self::DEFAULT_VALUE, $checkoutItemField = self::DEFAULT_VALUE) {
 		global $wgUser;
-		
-		$id = $wgUser->getID();
+
+		if($wgUser->getId() == 0) {
+			$id = WikihowUser::getVisitorId();
+		} else {
+			$id = $wgUser->getID();
+		}
 		$this->skippedKey = $toolName . "_" . $id . "_skipped";
 		$this->inUseKey = $toolName . "_inUse";
 		$this->toolTable = $toolTable;

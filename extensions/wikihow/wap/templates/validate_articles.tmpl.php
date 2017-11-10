@@ -21,7 +21,7 @@
 <ul class='url_list'>
 <?
 	foreach ($urls['excluded'] as $url) {
-		$aid = $url['a']->getArticleId();
+		$aid = $url['aid'];
 		$langCode = $url['lang'];
 		$url = $url['url'];
 		echo "<li><input type='checkbox' value='$aid' langcode='$langCode' class='checked_article v_check_excluded' $checked/> $url</li>";

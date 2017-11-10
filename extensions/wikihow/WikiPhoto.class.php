@@ -8,8 +8,6 @@ if (!defined('MEDIAWIKI')) exit;
  */
 class WikiPhoto {
 
-	const BASE_URL = 'http://www.wikihow.com/';
-
 	/**
 	 * Retrieve all pages from a category.
 	 */
@@ -57,7 +55,7 @@ class WikiPhoto {
 
 	/**
 	 * Split the article text based on sections.
-	 * 
+	 *
 	 * Note: a better way to do this is to get all sections with $wgParser
 	 * then extract the section heading.  See ArticleMetaInfo.class.php for
 	 * an example of this.
@@ -157,17 +155,18 @@ class WikiPhoto {
 	 * be found, return null.
 	 */
 	public static function getArticleTitle($url) {
-		$count = preg_match('@^' . self::BASE_URL . '@', $url);
+		$match_regex = '@^((https?:)?//)?www.wikihow.com/@';
+		$count = preg_match($match_regex, $url);
 		if (!$count) return null;
 
-		$partialUrl = preg_replace('@^' . self::BASE_URL . '@', '', $url);
+		$partialUrl = preg_replace($match_regex, '', $url);
 		$title = Title::newFromURL($partialUrl);
 		return $title;
 	}
 
 	/**
-	 * Given a URL (partial or at any host), look up the Title 
-	 * object. If line is a number, lookup by article ID. If title 
+	 * Given a URL (partial or at any host), look up the Title
+	 * object. If line is a number, lookup by article ID. If title
 	 * couldn't be found, return null.
 	 */
 	public static function getArticleTitleNoCheck($url) {
@@ -175,7 +174,7 @@ class WikiPhoto {
 		if (preg_match('@^[0-9]+$@', $url)) {
 			$title = Title::newFromID($url);
 		} else {
-			$partialUrl = preg_replace('@^(http://[^/]+/|/)@', '', $url);
+			$partialUrl = preg_replace('@^(https?://[^/]+/|/)@', '', $url);
 			$title = Title::newFromURL($partialUrl);
 		}
 		return $title;
@@ -195,7 +194,7 @@ class WikiPhoto {
 		}
 	}
 
-	/** 
+	/**
 	 * Wikiphoto has an exclude list so that important community member articles
 	 * can't have their photos overwritten. This is done by never uploading
 	 * new photos for a given articleID.
@@ -229,8 +228,12 @@ class WikiPhoto {
 	 * Read EXIF colour profile tags (only if exiftool external binary is available).
 	 */
 	public static function getExifColourProfile($filename) {
+		global $wgExiftoolCommand;
+		if ( !$wgExiftoolCommand ) {
+			return "";
+		}
 		$escaped = escapeshellarg($filename);
-		$output = `[ "$(type -t exiftool)" != "" ] && exiftool $escaped | grep '^Profile Description' | sed 's/^[^:]\+://' 2>&1`;
+		$output = `$wgExiftoolCommand $escaped | grep '^Profile Description' | sed 's/^[^:]\+://' 2>&1`;
 		return trim($output);
 	}
 

@@ -186,7 +186,7 @@ class DraftHooks {
 	 * EditPageBeforeEditButtons hook
 	 * Add draft saving controls
 	 */
-	public static function onEditPageBeforeEditButtons( EditPage $editpage, $buttons, &$tabindex ) {
+	public static function onEditPageBeforeEditButtons( EditPage &$editpage, &$buttons, &$tabindex ) {
 		global $egDraftsAutoSaveWait, $egDraftsAutoSaveTimeout, $egDraftsAutoSaveInputBased;
 
 		$context = $editpage->getArticle()->getContext();
@@ -217,7 +217,7 @@ class DraftHooks {
 			if ( isset( $attribs['accesskey'] ) ) {
 				$buttonAttribs['accesskey'] = $attribs['accesskey'];
 			}
-			if ( isset( $attribs['tooltip'] ) ) {
+			if ( isset( $attribs['title'] ) ) {
 				$buttonAttribs['title'] = $attribs['title'];
 			}
 			$ajaxButton = Xml::escapeJsString(

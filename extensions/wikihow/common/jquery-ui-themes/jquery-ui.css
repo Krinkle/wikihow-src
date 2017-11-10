@@ -177,7 +177,7 @@ button.ui-button::-moz-focus-inner { border: 0; padding: 0; } /* reset extra pad
     height: 200px; /*must have*/
 }/* Dialog
 ----------------------------------*/
-.ui-dialog { position: absolute; padding: 10px; width: 300px; overflow: hidden; background-color: #f6f5f4 !important; border:1px solid #e5e5e5; }
+.ui-dialog { position: absolute; padding: 10px; width: 300px; overflow: hidden; background-color: #f6f5f4; border:1px solid #e5e5e5; }
 .ui-dialog .ui-dialog-titlebar { padding: 0; position: relative; height:40px; /* border-bottom: 1px dotted #cccccc;*/ }
 .ui-dialog .ui-dialog-title { float: left; margin: 0 16px; line-height: 40px; font-size:20px; }
 .ui-dialog .ui-dialog-titlebar-close { position: absolute; right: 10px; top: 10px; }

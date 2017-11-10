@@ -4,7 +4,7 @@ $(function() {
 	var catSearchUrl = '/Special:CatSearch';
 	var relatedSearch = false;
 	var breadcrumbs = [];
-	var sorryLabel = wfMsg('cat_sorry_label');
+	var sorryLabel = mw.message('cat_sorry_label');
 	var catTree = undefined;
 	var LEADERBOARD_REFRESH = 10 * 60;
 
@@ -15,7 +15,7 @@ $(function() {
 
 		// No valid articles or JSON object. Turn off all the buttons that do anything
 		if (typeof(JSON) == 'undefined' || $('#cat_aid').html() == -1) {
-			$('#cat_search_outer, #cat_options, #cat_list_header').hide();	
+			$('#cat_ui, #cat_list_header').hide();	
 		}
 		// build the category tree
 		if (typeof(JSON) == 'object') {
@@ -256,7 +256,6 @@ $(function() {
 			$('#cat_search_outer').fadeIn('fast');
 			$("#cat_article").html(result['article']);
 		}, 'json');
-		window.oTrackUserAction();
 	}
 
 	function getSelectedCategories() {
@@ -344,7 +343,7 @@ $(function() {
 	window.setTimeout(updateStandingsTable, 100);
 
 	function updateWidgetTimer() {
-		updateTimer('stup');
+		WH.updateTimer('stup');
 		window.setTimeout(updateWidgetTimer, 60*1000);
 	}
 

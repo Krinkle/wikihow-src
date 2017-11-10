@@ -216,10 +216,11 @@ class S3
 	*/
 	private static function __triggerError($message, $file, $line, $code = 0)
 	{
-		if (self::$useExceptions)
+		if (self::$useExceptions) {
 			throw new S3Exception($message, $file, $line, $code);
-		else
+		} else {
 			trigger_error($message, E_USER_WARNING);
+		}
 	}
 
 
@@ -1665,6 +1666,8 @@ final class S3Request
 
 		$this->response = new STDClass;
 		$this->response->error = false;
+		$this->response->body = null;
+		$this->response->headers = array();
 	}
 
 

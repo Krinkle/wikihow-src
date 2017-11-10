@@ -1,29 +1,31 @@
-<?
+<?php
+
 /*
-* 
-*/
+ *
+ */
 class ThumbRatings extends UnlistedSpecialPage {
 	var $cookieName = 'wiki_thr';
 	const RATING_TIP = 1;
 	const RATING_WARNING = 2;
 
-	function __construct() {
+	public function __construct() {
 		parent::__construct('ThumbRatings');
 	}
 
-	function execute($par) {
-		global $wgRequest, $wgUser, $wgOut;
+	public function execute($par) {
+		$out = $this->getOutput();
+		$user = $this->getUser();
+		$req = $this->getRequest();
 
-		$wgOut->setArticleBodyOnly(true);
-		$aid = intVal($wgRequest->getVal('aid'));
+		$out->setArticleBodyOnly(true);
+		$aid = $req->getInt('aid');
 		$dbw = wfGetDB(DB_MASTER);
-		$hash = $dbw->strencode($wgRequest->getVal('hash'));
-		$vote = $wgRequest->getVal('vote');
-		$type = $wgRequest->getVal('type');
+		$hash = $dbw->strencode($req->getVal('hash'));
+		$vote = $req->getVal('vote');
+		$type = $req->getInt('type');
 
-		if (!empty($aid) && !empty($hash) && ($vote == 'up' || $vote == 'down') && !$this->hasRated($hash)) {
+		if (!empty($aid) && !empty($hash) && in_array($vote, ['up', 'down']) && !$user->isBlocked() && !$this->hasRated($hash)) {
 			$voteField = $vote == 'up' ? 'tr_up' : 'tr_down';
-			$type = intVal($type);
 
 			// Insert/Update thumb_ratings
 			$sql = "INSERT INTO thumb_ratings
@@ -32,15 +34,13 @@ class ThumbRatings extends UnlistedSpecialPage {
 				ON DUPLICATE KEY UPDATE $voteField = $voteField + 1";
 			$dbw->query($sql, __METHOD__);
 
-			$ts = wfTimestampNow();
-			$vote = $vote == 'up' ? 1 : 0;
-			$uname = $dbw->strencode($wgUser->getName());
-			$uid = $wgUser->getId();
-			$sql = "INSERT INTO thumb_ratings_log VALUES ($aid, '$hash', '$uid', '$uname', '$ts', $vote, $type)";
-			$dbw->query($sql, __METHOD__);
-
 			$this->addThumbRating($hash);
+
+			$out->addHTML("recv: $vote\n");
+		} else {
+			$out->addHTML("recv\n");
 		}
+
 	}
 
 	// Returns the array of votes (stored in a cookie) .  Used to prevent duplicate ratings for a tip/warning in same session
@@ -59,6 +59,65 @@ class ThumbRatings extends UnlistedSpecialPage {
 		setCookie($this->cookieName, implode(",", $ratings));
 	}
 
+	public static function addMobileThumbRatingsHtml(&$doc, &$t) {
+		if (self::isValidTitle($t)) {
+			$tipsWarnings = self::getTipsWarningsMap($t);
+			$types = array(self::RATING_TIP => "tips", self::RATING_WARNING => "warnings");
+			foreach ($types as $k => $type) {
+				foreach(pq("div#{$type} > ul > li") as $node) {
+					// IMPORTANT: Hash on raw html - prior to mod by feature. This will
+					// allow for the same hash to be created for www tips/warnings when implemented
+					$html = pq($node)->html();
+					$hash = md5($html);
+					$html = "<div>$html<div class='clearall'></div></div>";
+					$data = isset($tipsWarnings[$hash]) ? $tipsWarnings[$hash] : '';
+					if (!empty($data)) {
+						$up = $data['tr_up'];
+						$down = $data['tr_down'];
+						$nodisplay = "";
+					} else {
+						$up = $down = 0;
+						$nodisplay = "nodisplay";
+					}
+
+					$className = '';
+					if ($down >= 10000) {
+						$className = 'tr_vote tr_vote_vsmall';
+					} elseif ($up >= 1000 || $down >= 1000) {
+						$className = 'tr_vote tr_vote_small';
+					} else {
+						$className = 'tr_vote';
+					}
+					if ($up >= 100000 || $down >= 100000) {
+						if ($up >= 100000)
+							$up = '9999+';
+						if ($down >= 100000)
+							$down = '9999+';
+					}
+
+					$prompt = "Helpful?";
+
+					$html .= "<div class='trvote_box'>
+								<a href='#' class='trvote_up_{$hash}_{$k} vote_up tr_box'><span class='$className $nodisplay'>$up</span><span class='thumb up_$nodisplay' role='button' aria-label='" . wfMessage('aria_thumbs_up')->showIfExists() . "' /></a>
+								<span id='tr_prompt_$hash' class='tr_box tr_prompt'>$prompt</span>
+								<a href='#' class='trvote_down_{$hash}_{$k} vote_down tr_box'>&nbsp;<span class='thumb down_$nodisplay' role='button' aria-label='" . wfMessage('aria_thumbs_down')->showIfExists() . "' /><span class='$className $nodisplay'>$down</span></a>
+							</div>";
+					/*
+										$upImgSrc = wfGetPad('/skins/WikiHow/images/thr_up.png');
+										$downImgSrc = wfGetPad('/skins/WikiHow/images/thr_down.png');
+
+										$html .= "<div>";
+										$html .= "<a href='#' class='trvote_up_{$hash}_{$k} vote_up'><span class='tr_box'>&#8204;<img src='$upImgSrc'/><span class='tr_vote $nodisplay'>$up</span></span></a>";
+										$html .= "<span id='tr_prompt_$hash' class='tr_box tr_prompt'>$prompt</span>";
+										$html .= "<a href='#' class='trvote_down_{$hash}_{$k} vote_down'><span class='tr_box'>&#8204;<span class='tr_vote $nodisplay'>$down</span><img src='$downImgSrc'/></span></a>";
+										$html .= "</div>";
+					*/
+					pq($node)->html($html);
+				}
+			}
+		}
+	}
+
 	public static function injectMobileThumbRatingsHtml(&$xpath, &$t) {
 		if (self::isValidTitle($t)) {
 			$tipsWarnings = self::getTipsWarningsMap($t);
@@ -66,7 +125,7 @@ class ThumbRatings extends UnlistedSpecialPage {
 			foreach ($types as $k => $type) {
 				$nodes = $xpath->query('//div[@id="' . $type . '"]/ul/li');
 				foreach ($nodes as $node) {
-					// IMPORTANT: Hash on raw html - prior to mod by feature. This will 
+					// IMPORTANT: Hash on raw html - prior to mod by feature. This will
 					// allow for the same hash to be created for www tips/warnings when implemented
 					$html = $node->innerHTML;
 					$hash = md5($html);
@@ -89,7 +148,7 @@ class ThumbRatings extends UnlistedSpecialPage {
 					} else {
 						$className = 'tr_vote';
 					}
-					if ($up >= 100000 || $down >= 100000) {                                                                                                                                               
+					if ($up >= 100000 || $down >= 100000) {
 						if ($up >= 100000)
 					 		$up = '9999+';
 						if ($down >= 100000)
@@ -132,5 +191,9 @@ class ThumbRatings extends UnlistedSpecialPage {
 			$tipsWarnings[$row->tr_hash] = get_object_vars($row);
 		}
 		return $tipsWarnings;
+	}
+
+	public function isMobileCapable() {
+		return true;
 	}
 }

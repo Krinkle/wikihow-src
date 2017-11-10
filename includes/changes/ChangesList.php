@@ -304,7 +304,7 @@ class ChangesList extends ContextSource {
 			// insertDiffHist is ever called outside the context of RecentChanges,
 			// we need a way to only add these params if arriving via RC call path.
 			$req = $this->getContext()->getRequest();
-			$query += Misc::getRecentChangesBrowseParams($req, $rc);
+			$query += DiffHooks::getRecentChangesBrowseParams($req, $rc);
 
 			$diffLink = Linker::linkKnown(
 				$rc->getTitle(),
@@ -342,7 +342,7 @@ class ChangesList extends ContextSource {
 		// patrolled via RC
 		if ( $rc->mAttribs['rc_type'] == RC_NEW ) {
 			$req = $this->getContext()->getRequest();
-			$params += Misc::getRecentChangesBrowseParams($req, $rc);
+			$params += DiffHooks::getRecentChangesBrowseParams($req, $rc);
 		}
 
 		$articlelink = Linker::linkKnown(

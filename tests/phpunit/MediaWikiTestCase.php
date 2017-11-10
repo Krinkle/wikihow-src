@@ -516,7 +516,12 @@ abstract class MediaWikiTestCase extends PHPUnit_Framework_TestCase {
 					if ( $tbl == 'interwiki' || $tbl == 'user' ) {
 						continue;
 					}
-					$this->db->delete( $tbl, '*', __METHOD__ );
+					try {
+						$this->db->delete( $tbl, '*', __METHOD__ );
+					} catch (MWException $e) {
+						// Reuben, wikiHow: catch exception for missing table
+						print "Got exception in " . __METHOD__ . ": " . $e->getMessage();
+					}
 				}
 			}
 		}

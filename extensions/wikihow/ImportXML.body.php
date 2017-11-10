@@ -1,4 +1,18 @@
-<?
+<?php
+
+/*
+CREATE TABLE `import_articles` (
+  `ia_id` int(8) unsigned NOT NULL AUTO_INCREMENT,
+  `ia_title` varchar(255) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL DEFAULT '',
+  `ia_text` text,
+  `ia_timestamp` varchar(14) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL DEFAULT '',
+  `ia_published` tinyint(3) unsigned DEFAULT '0',
+  `ia_published_timestamp` varchar(14) DEFAULT '',
+  `ia_publish_err` tinyint(3) unsigned DEFAULT '0',
+  UNIQUE KEY `ia_title` (`ia_title`),
+  KEY `ia_id` (`ia_id`)
+);
+ */
 
 class ImportXML extends UnlistedSpecialPage {
 
@@ -462,7 +476,7 @@ END
 			return;
 		}
 		$dbr = wfGetDB(DB_SLAVE);
-		$urls = split("\n", $wgRequest->getVal('xml'));
+		$urls = explode("\n", $wgRequest->getVal('xml'));
 		$valid_sections = array("steps", "tips", "warnings", "things", "sources", "videos");
 
 		$dom = new DOMDocument("1.0");
@@ -474,18 +488,18 @@ END
 		foreach ($_FILES as $f) {
 			if (trim($f['tmp_name']) == "") continue;
 			$text = preg_replace('@\r@', "\n", file_get_contents($f['tmp_name']));
-			$lines = split("\n", $text);
+			$lines = explode("\n", $text);
 			foreach ($lines as $l) {
-				$tokens = split(",", $l);
+				$tokens = explode(",", $l);
 				$url = array_shift($tokens);
 				$key = urldecode(preg_replace("@http://www.wikihow.com/@im", "", $url));
 				if (preg_match("@index.php?@", $url)) {
 					$parts = parse_url($url);
 					$query = $parts['query'];
 					$params = array();
-					$tx = split("&", $query); 
+					$tx = explode("&", $query); 
 					foreach($tx as $v) {
-						$xx = split("=", $v);
+						$xx = explode("=", $v);
 						if ($xx[0] == "title") {
 							$key = urldecode($xx[1]);
 							break;
@@ -506,12 +520,12 @@ END
 			$url = trim($url);
 			$url = str_replace("http://www.wikihow.com/", "", $url);
 			$url = preg_replace('@^\s*index\.php\?@', '', $url);
-			$kv = split('&', $url);
+			$kv = explode('&', $url);
 			$urlParams = array();
 			# decode URLs that look like this:
 			#   http://www.wikihow.com/index.php?title=Sing&oldid=4956082
 			foreach ($kv as $pair) {
-				$a = split('=', $pair);
+				$a = explode('=', $pair);
 				if (count($a) < 2) {
 					$urlParams['title'] = $a[0];
 				} else {
@@ -640,7 +654,7 @@ END
 						$vid_r = Revision::newFromTitle($vid_t);
 						if ($vid_r) {
 							$vid_text = $vid_r->getText();
-							$tokens = split("\|", $vid_text);
+							$tokens = explode('|', $vid_text);
 							if (preg_match('@^{{video:([^|}]*)@i', $tokens[0], $m)) {
 								$title = $m[1];
 								if (!empty($title)) continue;
@@ -710,7 +724,7 @@ END
 			$attr = $dom->createElement("attribution");
 			$num = $dom->createElement("numeditors");
 			$users = array();
-			$res = $dbr->select("revision", array("distinct(rev_user_text)"), array("rev_page"=>$t->getArticleID(), "rev_user != 0"), "generate_xml.php", array("ORDER BY" => "rev_timestamp DESC"));
+			$res = $dbr->select("revision", array("distinct(rev_user_text)"), array("rev_page"=>$t->getArticleID(), "rev_user != 0"), __FILE__, array("ORDER BY" => "rev_timestamp DESC"));
 			$num->appendChild($dom->createTextNode($dbr->numRows($res)));
 			$attr->appendChild($num);
 			while ($row = $dbr->fetchObject($res)) {

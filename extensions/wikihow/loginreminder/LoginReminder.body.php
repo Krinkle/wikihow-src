@@ -1,6 +1,6 @@
 <?php
 
-/* 
+/*
  * To change this template, choose Tools | Templates
  * and open the template in the editor.
  */
@@ -34,10 +34,6 @@ class LoginReminder extends UnlistedSpecialPage {
 
 	function displayForm($template) {
 		global $wgOut, $wgRequest;
-		wfLoadExtensionMessages('LoginReminder');
-		
-		//add the css in case we're calling from the header on an article page
-		$wgOut->addHTML("<link type='text/css' rel='stylesheet' href='".wfGetPad('/extensions/wikihow/common/jquery-ui-themes/jquery-ui.css?rev='. WH_SITEREV)."' />");
 
 		if( $this->data['message'] ) {
 		?>
@@ -52,14 +48,14 @@ class LoginReminder extends UnlistedSpecialPage {
 
 		<div class="modal_form">
 
-		<form name="userlogin" method="post" action="#" onSubmit="return checkSubmit('wpName2', 'wpCaptchaWord', 'wpCaptchaId');">
+		<form name="userlogin" method="post" action="#" onSubmit="return WH.LoginReminder.checkSubmit('wpName2', 'wpCaptchaWord', 'wpCaptchaId');">
 			<div id="userloginprompt"><?php wfMsg('loginprompt') ?></div>
 			<table>
 				<tr>
 					<td class="mw-label"><label for='wpName2'><?php echo wfMsg('username_or_email_html') ?></label></td>
 					<td class="mw-input">
 						<div style="position:relative">
-							<input type='text' class='loginText input_med' name="wpName" id="wpName2" value="<?php echo $wgRequest->getVal('name') ?>" size='20' />
+							<input type='text' class='loginText input_med' name="wpName" id="wpName2" value="<?php echo urldecode($wgRequest->getVal('name')) ?>" size='20' />
 							<div class="mw-error-bottom mw-error" id="wpName2_error" style="display:none;">
 								<div class="mw-error-top">
 								</div>
@@ -101,7 +97,7 @@ class LoginReminder extends UnlistedSpecialPage {
 
 		</div>
 		<div id="loginend"><?php wfMsg( 'loginend' ); ?></div>
-		<div id="password-reset-dialog" style="display:none" title="Password Reset">
+		<div id="password-reset-dialog" style="display:none" title="<?= wfMessage('lr_password_reset')->text() ?>">
 			<div style="font-size:14px">
 				<?=wfMsg('loginreminder_password_reset')?><br/>
 			</div>
@@ -116,7 +112,7 @@ class LoginReminder extends UnlistedSpecialPage {
 		global $wgUser, $wgOut, $wgAuth, $wgRequest;
 
 		$result = array();
-		
+
 		if( !$wgAuth->allowPasswordChange() ) {
 			$result['error_general'] = wfMsg( 'resetpass_forbidden' );
 			return $result;
@@ -131,7 +127,7 @@ class LoginReminder extends UnlistedSpecialPage {
 		# Check against the rate limiter
 		if( $wgUser->pingLimiter( 'mailpassword' ) ) {
 			// Commented out By Gershon Bialer on 12/9/2013
-			// because they prevented error from showing in the upgrade 
+			// because they prevented error from showing in the upgrade
 			//$wgOut->disable();
 			//$wgOut->rateLimited();
 			$result['error_general'] = "<h4>" . wfMsg('actionthrottled') . "</h4>";
@@ -188,14 +184,14 @@ class LoginReminder extends UnlistedSpecialPage {
 			$template = new QuickTemplateWrapper();
 			$template->set('header', '');
 			wfRunHooks('AccountReminderNewCaptcha', array( &$template ));
-			
+
 			//hack since templates ECHO the data you want
 			ob_start();
 			$template->html('header');
 			$var = ob_get_contents();
 			ob_end_clean();
 			//end hack
-			
+
 			$result['newCaptcha'] = $var;
 			return $result;
 		}
@@ -220,7 +216,7 @@ class LoginReminder extends UnlistedSpecialPage {
 
 	function mailPasswordInternal( $u, $throttle = true, $emailTitle = 'passwordremindertitle', $emailText = 'passwordremindertext' ) {
 		global $wgCookiePath, $wgCookieDomain, $wgCookiePrefix, $wgCookieSecure;
-		global $wgServer, $wgScript;
+		global $wgCanonicalServer, $wgScript;
 
 		if ( '' == $u->getEmail() ) {
 			return new WikiError( wfMsg( 'noemail', $u->getName() ) );
@@ -236,7 +232,7 @@ class LoginReminder extends UnlistedSpecialPage {
 		$ip = wfGetIP();
 		if ( '' == $ip ) { $ip = '(Unknown)'; }
 
-		$m = wfMsg( $emailText, $ip, $u->getName(), $np, $wgServer . $wgScript );
+		$m = wfMsg( $emailText, $ip, $u->getName(), $np, $wgCanonicalServer . $wgScript );
 		$result = $u->sendMail( wfMsg( $emailTitle ), $m, null, null, false );
 
 		return $result;
@@ -251,11 +247,9 @@ class LoginFacebook extends UnlistedSpecialPage {
 
 	function execute($par) {
 		global $wgRequest, $wgUser, $wgOut, $wgHooks;
-		
+
 		$wgOut->setHTMLTitle('Login Via Facebook - wikiHow');
 		$wgHooks['BeforeTabsLine'][] = array('LoginFacebook::topContent');
-		if (class_exists('WikihowCSSDisplay'))
-			WikihowCSSDisplay::setSpecialBackground(true);
 
 		$titleObj = SpecialPage::getTitleFor( 'Userlogin' );
 		$link = '<a href="' . htmlspecialchars ( $titleObj->getLocalUrl( 'type=signup' ) ) . '">';
@@ -263,9 +257,9 @@ class LoginFacebook extends UnlistedSpecialPage {
 		$link .= '</a>';
 
 		$linkLogin = '<a href="' . htmlspecialchars ( $titleObj->getLocalUrl('type=login' ) ) . '">';
-		$linkLogin .= wfMsgHtml( 'gotaccountlink' ); 
+		$linkLogin .= wfMsgHtml( 'gotaccountlink' );
 		$linkLogin .= '</a>';
-		
+
 		$form = "<div id='userloginForm'>
 
 			<table border='0' width='100%'>
@@ -285,7 +279,7 @@ class LoginFacebook extends UnlistedSpecialPage {
 		$link .= wfMsgHtml( 'nologinlink' );
 		$link .= '</a>';
 		echo '<p style="padding:0 27px 15px 23px"><span style="font-size: 28px">' . wfMsg( 'Loginfacebook' ) . '</span> <span style="float:right;">' . wfMsgHtml( 'nologin', $link ) . '</span></p>';
-		
+
 		return true;
 	}
 }
@@ -302,21 +296,28 @@ class LoginCheck extends UnlistedSpecialPage {
 		$wgOut->setArticleBodyOnly(true);
 
 		$username = $wgRequest->getVal('username');
-		if(isset($username))
+		if (empty($username)) {
+			echo json_encode(array('error' => wfMsg('mandatory_field_is_empty')));
+		} elseif (isset($username)) {
 			echo json_encode(self::checkUsername($username));
+		}
 	}
 
 	function checkUsername($username) {
 		$dbr = wfGetDB(DB_SLAVE);
+		if (WikihowUser::usernameTaken($dbr, $username)) {
+			$pad = function($text) {
+				return "<a class='username-suggestion'>$text</a>";
+			};
+			$suggestions = array_map($pad, WikihowUser::getUsernameSuggestions($dbr, $username));
 
-		$result = $dbr->selectField('user', 'count(*)', array('user_name' => $username));
-		if($result > 0) {
-			return array('error' => wfMsg('userexists'));
+			$msg = empty($suggestions)
+				? wfMsg('userexists')
+				: wfMsg('userexists_with_suggestions', implode(' or ', $suggestions));
+			return array('error' => $msg);
 		}
-		else {
-			return array('success' => '1');
-		}
+		return array('success' => '1');
 	}
-	
+
 }
 

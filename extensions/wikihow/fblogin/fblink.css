@@ -9,12 +9,12 @@ table.fl_table td {
 }
 
 .fl_pic {
-	margin: 0 5px 0 0; 
+	margin: 0 5px 0 0;
 	float: left;
 }
 
 #fl_options {
-	margin: 0 20px 10px 505px;
+	margin: 0 20px 14px 20px;
 	font-size: .8em;
 }
 
@@ -34,7 +34,6 @@ table.fl_table td {
 
 .fl_button_cancel {
 	vertical-align: middle;
-	margin-left: 10px;
 }
 
 .fl_acct_name {
@@ -53,7 +52,7 @@ table.fl_table td {
 	color: #878787;
 	background: #F2F2F2;
 	width: 300px;
-	margin: 0 20px 20px 20px;
+	margin: 10px 20px 24px 20px;
 	zoom:1; *display: inline; _height: 100px;
 	vertical-align: top;
 	font-size: .8em;

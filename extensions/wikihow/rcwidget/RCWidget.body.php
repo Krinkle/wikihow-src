@@ -17,7 +17,7 @@ class RCWidget extends UnlistedSpecialPage {
 			if ($wgLanguageCode == "zh") {
 				$obj['text'] = $wgContLang->convert($obj['text']);
 				if (isset($obj['ts'])) {
-					$obj['ts'] = $wgContLang->convert($obj['ts']);		
+					$obj['ts'] = $wgContLang->convert($obj['ts']);
 				}
 			}
 			$widget[$count++] = $obj;
@@ -28,13 +28,13 @@ class RCWidget extends UnlistedSpecialPage {
 		if (!is_array(self::$mBots)) {
 			self::$mBots = WikihowUser::getBotIDs();
 		}
-		return self::$mBots; 
+		return self::$mBots;
 	}
 
 	private static function filterLog(&$widget, &$count, $row) {
 
 		$bots = self::getBotIDs();
- 		if (in_array($row->log_user, $bots)) {
+		if (in_array($row->log_user, $bots)) {
 			return;
 		}
 
@@ -79,7 +79,7 @@ class RCWidget extends UnlistedSpecialPage {
 				} else if ($row->log_namespace == NS_MAIN) {
 					$obj['type'] = 'patrol';
 					$obj['ts'] = Misc::getDTDifferenceString($row->log_timestamp);
-					$resourceLink = '<a href="/'.$row->log_title.'">'.preg_replace('/-/',' ',$destUser).'</a>';
+					$resourceLink = '<a href="/'.urlencode($row->log_title).'">'.preg_replace('/-/',' ',$destUser).'</a>';
 					$obj['text'] = wfMessage('action_patrolled', $userLink, $resourceLink)->text();
 				}
 				self::addRCElement($widget, $count, $obj);
@@ -121,10 +121,10 @@ class RCWidget extends UnlistedSpecialPage {
 
 	private static function filterRC(&$widget, &$count, $row) {
 		$bots = self::getBotIDs();
- 		if (isset($row->rc_user) && in_array($row->rc_user, $bots)) {
+		if (isset($row->rc_user) && in_array($row->rc_user, $bots)) {
 			return;
 		}
-	
+
 		$obj = array();
 		if (preg_match('/\d+\.\d+\.\d+\.\d+/',$row->rc_user_text)){
 			$wuser = wfMessage('rcwidget_anonymous_visitor')->text();;
@@ -238,45 +238,56 @@ class RCWidget extends UnlistedSpecialPage {
 
 
 	public static function showWidget() {
+		global $wgUser;
 ?>
 	<div id='rcwidget_divid'>
 		<a class="rc_help rcw-help-icon" title="<?php echo wfMessage('rc_help')->text();?>" href="/<?= wfMessage('rcchange-patrol-article')->text() ?>"></a>
-		<h3><span class="weather" onclick="location='/index.php?title=Special:Recentchanges&hidepatrolled=1';" style="cursor:pointer;"></span><span onclick="location='/Special:Recentchanges';" style="cursor:pointer;"><?= wfMessage('recentchanges')->text();?></span></h3>
+		<h3><span class="weather" id="rcwweather" onclick="location='/index.php?title=Special:Recentchanges&hidepatrolled=1';" style="cursor:pointer;"><span class='weather_unpatrolled'></span></span><span onclick="location='/Special:Recentchanges';" style="cursor:pointer;"><?= wfMessage('changes_to_patrol')->text();?></span></h3>
+		<?php if(Newarticleboost::isNewArticlePatrol($wgUser)): ?>
+			<h3 id="nabheader"><span class="weather" id="nabweather" onclick="location='/index.php?title=Special:Newarticleboost&hidepatrolled=1';" style="cursor:pointer;"><span class='weather_nab'></span></span><span onclick="location='/Special:Newarticleboost';" style="cursor:pointer;"><?= wfMessage('articles_to_boost')->text();?></span></h3>
+		<? endif; ?>
 		<div id='rcElement_list' class='widgetbox'>
 			<div id='IEdummy'></div>
 		</div>
 		<div id='rcwDebug' style='display:none'>
 			<input id='testbutton' type='button' onclick='rcTest();' value='test'>
-			<input id='stopbutton' type='button' onclick='rcTransport();' value='stop'>
+			<input id='stopbutton' type='button' onclick='WH.RCWidget.rcTransport();' value='stop'>
 			<span id='teststatus' ></span>
 		</div>
 	</div>
 <?php
 	}
 
+	/* Not used since at least October 2017 - Alberto
 	public static function getProfileWidget() {
 		$html = "<div id='rcwidget_divid'>
-		<h3>My Recent Activity</h3>
+		<h3>" . wfMessage('my_recent_activity')->plain() . "</h3>
 		<div id='rcElement_list' class='widgetbox'>
 			<div id='IEdummy'></div>
 		</div>
 		<div id='rcwDebug' style='display:none'>
 			<input id='testbutton' type='button' onclick='rcTest();' value='test'>
-			<input id='stopbutton' type='button' onclick='rcTransport();' value='stop'>
+			<input id='stopbutton' type='button' onclick='WH.RCWidget.rcTransport();' value='stop'>
 			<span id='teststatus' ></span>
 		</div>
 	</div>";
 
 		return $html;
 	}
+	*/
 
 	public static function showWidgetJS() {
+		$nab_RedThreshold = (int)(wfMessage('RCwidget-nab-red-threshold')->text());
+		$patrol_RedThreshold = (int)(wfMessage('RCwidget-unpatrolled-red-threshold')->text());
 ?>
 	<script type="text/javascript" >
-		var rc_URL = '/Special:RCWidget';
-		var rc_ReloadInterval = 60000;
-
-		$(window).load(rcwLoad);
+		WH.RCWidget.setParams({
+			'rc_URL': '/Special:RCWidget',
+			'rc_ReloadInterval': 60000,
+			'rc_nabRedThreshold': <?= json_encode($nab_RedThreshold) ?>,
+			'rc_patrolRedThreshold': <?= json_encode($patrol_RedThreshold) ?>
+		});
+		$(window).load(WH.RCWidget.rcwLoad);
 	</script>
 <?
 	}
@@ -284,7 +295,6 @@ class RCWidget extends UnlistedSpecialPage {
 	public function execute($par) {
 		global $wgOut, $wgRequest, $wgHooks;
 
-		wfLoadExtensionMessages('RCWidget');
 		$wgHooks['AllowMaxageHeaders'][] = array('RCWidget::allowMaxageHeadersCallback');
 
 		$maxAgeSecs = 60;
@@ -296,11 +306,26 @@ class RCWidget extends UnlistedSpecialPage {
 		$wgOut->setArticleBodyOnly(true);
 		$wgOut->sendCacheControl();
 
-		$userId = $wgRequest->getVal('userId');
+		// Enforce that this value is an int
+		$userId = $wgRequest->getInt('userId');
 
 		$data = self::pullData($userId);
+
+		// if we also wand nabdata then add it here
+		if ( $wgRequest->getBool( 'nabrequest' ) === true ) {
+			// get the nab data
+			$nabCount = self::getNabCount();
+			$data['NABcount'] = $nabCount;
+		}
 		$jsonData = json_encode($data);
+
+		// Error check input
 		$jsFunc = $wgRequest->getVal('function', '');
+		$allowedNames = array('rcwOnLoadData', 'rcwOnReloadData', 'WH.RCWidget.rcwOnLoadData', 'WH.RCWidget.rcwOnReloadData');
+		if ( !in_array($jsFunc, $allowedNames) ) {
+			$jsFunc = '';
+		}
+
 		if ($jsFunc) {
 			print $jsFunc . '( ' . $jsonData . ' );';
 		} else {
@@ -310,14 +335,14 @@ class RCWidget extends UnlistedSpecialPage {
 
 	/**
 	 *
-	 * 
+	 *
 	 */
-	public static function getLastPatroller(&$dbr){
+	public static function getLastPatroller(&$dbr, $period='7 days ago') {
 		$startdate = strtotime($period);
-		$starttimestamp = date('YmdG',$startdate) . floor(date('i',$startdate)/10) . '00000';
+		$starttimestamp = date('YmdG', $startdate) . floor(date('i', $startdate) / 10) . '00000';
 
 		$sql = "SELECT log_user, log_timestamp FROM logging FORCE INDEX (times) WHERE log_type='patrol' ORDER BY log_timestamp DESC LIMIT 1";
-		$res = $dbr->query($sql);
+		$res = $dbr->query($sql, __METHOD__);
 		$row = $res->fetchObject();
 
 		$rcuser = array();
@@ -327,14 +352,14 @@ class RCWidget extends UnlistedSpecialPage {
 		return $rcuser;
 	}
 
-	public static function getTopPatroller(&$dbr, $period='7 days ago'){
+	public static function getTopPatroller(&$dbr, $period='7 days ago') {
 		$startdate = strtotime($period);
-		$starttimestamp = date('YmdG',$startdate) . floor(date('i',$startdate)/10) . '00000';
+		$starttimestamp = date('YmdG', $startdate) . floor(date('i', $startdate) / 10) . '00000';
 		// fix Patrol Recent Changes Votebot showing bug.
 		$bots = self::getBotIDs();
 		$bot = " AND log_user NOT IN (" . $dbr->makeList($bots) . ")";
 		$sql = "SELECT log_user, count(log_user) as rc_count, MAX(log_timestamp) as recent_timestamp FROM logging FORCE INDEX (times) WHERE log_type='patrol' and log_timestamp >= '$starttimestamp' $bot GROUP BY log_user ORDER BY rc_count DESC";
-		$res = $dbr->query($sql);
+		$res = $dbr->query($sql, __METHOD__);
 		$row = $res->fetchObject();
 		$rcuser = array();
 		$rcuser['id'] = $row->log_user;
@@ -343,16 +368,34 @@ class RCWidget extends UnlistedSpecialPage {
 		return $rcuser;
 	}
 
+	public static function getNabCount() {
+		global $wgMemc, $wgUser;
+
+		$dbr = wfGetDB( DB_SLAVE );
+		$nabCount = null;
+
+		//check the cache for nabcount and cache if doesn't exist
+		$nabCacheKey = wfMemcKey( 'nabCount' );
+		$nabCount = $wgMemc->get( $nabCacheKey );
+		if ( $nabCount === false ) {
+			$nabCount = Newarticleboost::getNABCount( $dbr );
+			$cacheSecs = 30;
+			$wgMemc->set( $nabCacheKey, $nabCount, $cacheSecs );
+		}
+
+		return $nabCount;
+	}
+
 	public static function pullData($user = 0) {
-		global $wgMemc;
+		global $wgMemc, $wgUser;
+		$dbr = wfGetDB(DB_SLAVE);
 
 		$cachekey = wfMemcKey('rcwidget', $user);
-
-		//wfLoadExtensionMessages('RCWidget');
 
 		// for logged in users whose requests bypass varnish, this data is
 		// cached for $cacheSecs
 		$cacheSecs = 15;
+
 
 		$widget = $wgMemc->get($cachekey);
 		if (is_array($widget)) {
@@ -361,8 +404,6 @@ class RCWidget extends UnlistedSpecialPage {
 
 		$widget = array();
 
-		$dbr = wfGetDB(DB_SLAVE);
-
 		$cutoff_unixtime = time() - ( 30 * 86400 ); // 30 days
 		$cutoff = $dbr->timestamp( $cutoff_unixtime );
 		$currenttime = $dbr->timestamp( time() );
@@ -370,7 +411,7 @@ class RCWidget extends UnlistedSpecialPage {
 
 		// QUERY RECENT CHANGES TABLE
 		$sql = "SELECT rc_timestamp,rc_user_text,rc_namespace,rc_title,rc_comment,rc_patrolled FROM recentchanges";
-		if($user != 0 && $user != null) {
+		if ($user) {
 			$sql .= " WHERE rc_user = {$user} ";
 		}
 		else if (sizeof($bots) > 0) {
@@ -379,15 +420,15 @@ class RCWidget extends UnlistedSpecialPage {
 		$sql .= " ORDER BY rc_timestamp DESC";
 
 		// QUERY LOGGING TABLE
-		$logsql = "SELECT log_id,log_timestamp,log_user,log_user_text,log_namespace,log_title,log_comment,log_type,log_action 
+		$logsql = "SELECT log_id,log_timestamp,log_user,log_user_text,log_namespace,log_title,log_comment,log_type,log_action
 					FROM logging ";
-		if($user != 0 && $user != null) {
+		if ($user) {
 			$logsql .= " WHERE log_user = {$user} ";
 		}
 		$logsql .= "ORDER BY log_id DESC";
 
 
-		if($user == 0) {
+		if ($user == 0) {
 			$widget = self::processDataRCWidget($logsql, $sql, $currenttime);
 		}
 		else {
@@ -400,10 +441,11 @@ class RCWidget extends UnlistedSpecialPage {
 	}
 
 	private function processDataUserActivity($logsql, $sql, $currenttime) {
+		global $wgUser;
 		$dbr = wfGetDB(DB_SLAVE);
 
 		$sql = $dbr->limitResult($sql, 200, 0);
-		$res = $dbr->query( $sql, __METHOD__ );
+		$res = $dbr->query($sql, __METHOD__);
 
 		$logsql = $dbr->limitResult($logsql, 200, 0);
 		$logres = $dbr->query( $logsql, __METHOD__ );
@@ -464,8 +506,9 @@ class RCWidget extends UnlistedSpecialPage {
 				break;
 			}
 
-			if($count > $maxCount)
+			if ($count > $maxCount) {
 				break;
+			}
 		}
 		$res->free();
 		$logres->free();
@@ -477,6 +520,7 @@ class RCWidget extends UnlistedSpecialPage {
 	}
 
 	private function processDataRCWidget($logsql, $sql, $currenttime) {
+		global $wgUser;
 		$dbr = wfGetDB(DB_SLAVE);
 
 		$sql = $dbr->limitResult($sql, 200, 0);
@@ -559,21 +603,35 @@ class RCWidget extends UnlistedSpecialPage {
 		}
 		$res->free();
 		$logres->free();
-
 		$count = self::getUnpatrolledEdits($dbr);
 		$widget['unpatrolled'] = $count;
+		$dash_data = new DashboardData();
 
+		$staticData = $dash_data->loadStaticGlobalOpts();
+		$thresholds = @$staticData['cdo_thresholds_json'];
+
+		if ($thresholds) {
+			$thesholdsDecoded = json_decode($thresholds);
+			$nabThresholds = $thesholdsDecoded->NabAppWidget;
+			$rcThresholds = $thesholdsDecoded->RecentChangesAppWidget;
+		} else {
+			$nabThresholds = 0;
+			$rcThresholds = 0;
+		}
+		$widget['nabThresholds'] = $nabThresholds;
+		$widget['rcThresholds'] = $rcThresholds;
 		return $widget;
 	}
 
 	public static function getUnpatrolledEdits(&$dbr) {
 		// Query table for unpatrolled edits
 		$count = $dbr->selectField('recentchanges',
-                array('count(*)'),
-                array('rc_patrolled=0'));
+			array('count(*)'),
+			array('rc_patrolled' => 0),
+			__METHOD__);
 		return $count;
 	}
-		
+
 	public static function allowMaxageHeadersCallback() {
 		return false;
 	}

@@ -116,6 +116,14 @@ class SpecialEmailUser extends UnlistedSpecialPage {
 			$this->getRequest()->getVal( 'wpEditToken' )
 		);
 
+		// Reuben (wikiHow), Nov 6, 2014: make sure this page returns
+		// http code 404 if there was a permissions error viewing the
+		// page. This happens most commonly when anonymous users try
+		// to view this special page.
+		if ( $error ) {
+			$this->getContext()->getOutput()->setStatusCode('404');
+		}
+
 		switch ( $error ) {
 			case null:
 				# Wahey!
@@ -314,12 +322,15 @@ class SpecialEmailUser extends UnlistedSpecialPage {
 		$text = $data['Text'];
 
 		// Add a standard footer and trim up trailing newlines
-		$text = rtrim( $text ) . "\n\n-- \n";
-		$text .= $context->msg( 'emailuserfooter',
-			$from->name, $to->name )->inContentLanguage()->text();
+		$text = rtrim( $text );
+
+		// Lojjik, 2 July 2014
+		// We don't apply the footer to CC emails, only the originals,
+		// because FormatEmail (which runs off this hook) appends a unique unsubscribe link that must be kept secret
+		$text_for_recipient = $text;
 
 		$error = '';
-		if ( !wfRunHooks( 'EmailUser', array( &$to, &$from, &$subject, &$text, &$error ) ) ) {
+		if ( !wfRunHooks( 'EmailUser', array( &$to, &$from, &$subject, &$text_for_recipient, &$error ) ) ) {
 			return $error;
 		}
 
@@ -353,7 +364,7 @@ class SpecialEmailUser extends UnlistedSpecialPage {
 			$replyTo = null;
 		}
 
-		$status = UserMailer::send( $to, $mailFrom, $subject, $text, $replyTo );
+		$status = UserMailer::send( $to, $mailFrom, $subject, $text_for_recipient, $replyTo );
 
 		if ( !$status->isGood() ) {
 			return $status;

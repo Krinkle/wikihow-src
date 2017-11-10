@@ -8,7 +8,7 @@ $stats = TitusConfig::getDailyEditStats();
 $stats['RobotPolicy'] = 0;
 $stats['Social'] = 0;
 $dbr = DatabaseBase::factory('mysql');
-$dbr->open(TITUS_DB_HOST, WH_DATABASE_MAINTENANCE_USER, WH_DATABASE_MAINTENANCE_PASSWORD, TitusDB::TITUS_DB_NAME);
+$dbr->open(TitusDB::getDBHost(), WH_DATABASE_MAINTENANCE_USER, WH_DATABASE_MAINTENANCE_PASSWORD, TitusDB::TITUS_DB_NAME);
 
 $sql = "select ti_page_id from titus_intl where ti_language_code='$wgLanguageCode' AND ti_num_steps=0";
 $res = $dbr->query($sql);

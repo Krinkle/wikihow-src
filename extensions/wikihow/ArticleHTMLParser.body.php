@@ -33,7 +33,7 @@ class ArticleHTMLParser {
 		return $image;
 	}
 
-	public static function removeEmptyNodes($stepNode) {
+	public static function removeEmptyNodes(&$stepNode) {
 		foreach (pq('*', $stepNode) as $node) {
 			if ($node->nodeName == 'img' || pq('img', $node)->length) continue;
 			if ($node->nodeName == 'video' || pq('video', $node)->length) continue;
@@ -55,9 +55,6 @@ class ArticleHTMLParser {
 		if (!$thumb || $thumb->fileIsSource()) {
 			$result['width'] = 0;
 			$result['height'] = 0;
-		} else if (!$thumb->getStoragePath()) {
-			$result['width'] = intval($thumb->getFile()->getWidth());
-			$result['height'] = intval($thumb->getFile()->getHeight());
 		} else {
 			$result['width'] = intval($thumb->getWidth());
 			$result['height'] = intval($thumb->getHeight());
@@ -87,12 +84,18 @@ class ArticleHTMLParser {
 	}
 
 	public static function getImageDetails($image) {
+		global $wgIsDevServer;
+
+		$urlPrefix = "";
+		if ( $wgIsDevServer ) {
+		    $urlPrefix = "http://www.wikihow.com";
+		}
 		$result = array('obj' => '', 'url' => '');
 		if ($image) {
 			$result['obj'] = $image;
 			$thumb = WatermarkSupport::getUnwatermarkedThumbnail($image, self::INDEX_THUMB_MAX_WIDTH);
 			if ($thumb && !($thumb instanceof MediaTransformError)) {
-				$result['url'] = self::uriencode(wfGetPad($thumb->getUrl()));
+				$result['url'] = self::uriencode(wfGetPad($urlPrefix.$thumb->getUrl()));
 				$dim = self::getThumbnailDimensions($thumb);
 				$result['width'] = $dim['width'];
 				$result['height'] = $dim['height'];
@@ -102,7 +105,7 @@ class ArticleHTMLParser {
 			if ($thumb && !($thumb instanceof MediaTransformError)) {
 				$largeUrl = self::uriencode(wfGetPad($thumb->getUrl()));
 				if ($largeUrl != $result['url']) {
-					$result['large'] = self::uriencode(wfGetPad($thumb->getUrl()));
+					$result['large'] = self::uriencode(wfGetPad($urlPrefix.$thumb->getUrl()));
 					$dim = self::getThumbnailDimensions($thumb);
 					$result['large_width'] = $dim['width'];
 					$result['large_height'] = $dim['height'];
@@ -111,7 +114,7 @@ class ArticleHTMLParser {
 
 			$original = self::uriencode(wfGetPad($image->url));
 			if ($original != $largeUrl) {
-				$result['original'] = self::uriencode(wfGetPad($image->getUrl()));
+				$result['original'] = self::uriencode(wfGetPad($urlPrefix.$image->getUrl()));
 				$result['original_width'] = intval($image->getWidth());
 				$result['original_height'] = intval($image->getHeight());
 			}
@@ -125,16 +128,7 @@ class ArticleHTMLParser {
 		$imgName = preg_replace('@^/(Image|' . $imageNsText . '):@', '', $imgUrl);
 		$image = self::getImageObj($imgName);
 
-		global $wgLanguageCode;
-		if ($wgLanguageCode != 'en') {
-			$startTime = strtotime('March 19, 2014');
-			$twoWeeks = 2 * 7 * 24 * 60 * 60;
-			$rolloutArticle = Misc::percentileRollout($startTime, $twoWeeks);
-		} else {
-			$rolloutArticle = true;
-		}
-
-		if ($rolloutArticle && $image && $getImageDetails) {
+		if ($image && $getImageDetails) {
 			$image = self::getImageDetails($image);
 		}
 

@@ -20,12 +20,16 @@
 	margin-right:30px;
 }
 
-#articleEdit, #articleDiscussion, #articleHistory{display:none;}
+#articleEdit, #articleDiscussion, #articleHistory, #articleHelpfulness {
+	display: none
+}
+
+#page_helpfulness_box { background-color: #f6f5f4 }
 
 div.nfd_title {
 	background-color: #F5F5F5;
 	border-top: 1px dashed #111;
-	font-size: 2em; 
+	font-size: 2em;
 	padding-top: 10px;
 }
 
@@ -219,10 +223,6 @@ ul#tabs {
 
 #nfd_delete_confirm{display:none;}
 
-#articleBody .template_top{
-	display: none;
-}
-
 #wpDiff{display:none;}
 
 #nfd_reasons{
@@ -233,4 +233,10 @@ ul#tabs {
 
 #nfd_reasons span{
 	margin-right:10px;
+}
+
+/* Fixes #1522 */
+.tool textarea {
+	/* This width comes from .postcommentForm_textarea defined in owl/nonarticle.css */
+	width: 87%;
 }

@@ -306,7 +306,7 @@ class ImagePage extends Article {
 		//Bebeth: these numbers don't entirely make sense, but don't want to make
 		//new thumbnail sizes
 		if ($maxWidth > 679)
-			$maxWidth = 629;
+			$maxWidth = 670;
 		$maxHeight = $max[1];
 
 		if ( $this->displayImg->exists() ) {

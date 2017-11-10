@@ -1,4 +1,6 @@
-$(document).ready(function(){
+( function($, mw) {
+
+$(document).ready(function() {
 	showBalloonTip();
 });
 
@@ -11,7 +13,7 @@ function showBalloonTip() {
 	$('#'+bubble_target_id).before($('.tip_bubble_outer'));
 
 	if ($.cookie(cookieName) != '1') {
-		window.setTimeout(function(){
+		window.setTimeout(function() {
 			$('.tip_bubble_outer').fadeIn('slow');
 			$('.tip_bubble_outer').on('click', '.tip_x', function(e) {
 				$('.tip_bubble_outer').fadeOut('slow');
@@ -20,3 +22,5 @@ function showBalloonTip() {
 		}, 2000);
 	}
 }
+
+}(jQuery, mediaWiki) );

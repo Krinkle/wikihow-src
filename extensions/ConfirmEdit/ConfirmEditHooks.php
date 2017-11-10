@@ -93,4 +93,8 @@ class CaptchaSpecialPage extends UnlistedSpecialPage {
 				return $instance->showHelp();
 		}
 	}
+
+	public function isMobileCapable() {
+		return true;
+	}
 }

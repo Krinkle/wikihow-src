@@ -1,12 +1,10 @@
 <?php
+
 //
 // We don't really have a place to put random, small pieces of functionality.
 // This class addresses that.
 //
-
 class Misc {
-
-	private static $displayedLayout = '';
 
 	/*
 	 * adminPostTalkMessage
@@ -23,11 +21,7 @@ class Misc {
 		//make sure we have everything we need...
 		if (empty($to_user) || empty($from_user) || empty($comment)) return false;
 
-		$from = $from_user->getName();
-		if (!$from) return false; //whoops
-		$from_realname = $from_user->getRealName();
-		$dateStr = $wgLang->date(wfTimestampNow());
-		$formattedComment = wfMessage('postcomment_formatted_comment', $dateStr, $from, $from_realname, $comment)->text();
+		$formattedComment = TalkPageFormatter::createComment( $from_user, $comment );
 
 		$talkPage = $to_user->getUserPage()->getTalkPage();
 
@@ -46,7 +40,6 @@ class Misc {
 	}
 
 	public static function getDTDifferenceString($date, $isUnixTimestamp = false) {
-		wfLoadExtensionMessages('Misc');
 		if (empty($date)) {
 			return "No date provided";
 		}
@@ -92,15 +85,15 @@ class Misc {
 	}
 
 	// Format a binary number
-	public static function formatBinaryNum($n) {
+	/*public static function formatBinaryNum($n) {
 		return sprintf('%032b', $n);
-	}
+	}*/
 
 	// Check if an $ip address (string) is within an IP network
 	// and netmask, defined in $range (string).
 	//
 	// Note: $ip and $range need to be perfectly formatted!
-	public static function isIpInRange($ip, $range) {
+	/*public static function isIpInRange($ip, $range) {
 		list($range, $maskbits) = explode('/', $range);
 		list($i1, $i2, $i3, $i4) = explode('.', $ip);
 		list($r1, $r2, $r3, $r4) = explode('.', $range);
@@ -115,41 +108,7 @@ class Misc {
 		//	self::formatBinaryNum($numr) . ' ' .
 		//	self::formatBinaryNum($numi) . "\n";
 		return $masked === $numr;
-	}
-
-	/**
-	 * Add a check to see if the proxy we're going through is CloudFlare. See
-	 * ranges:
-	 *
-	 * https://www.cloudflare.com/wiki/What_are_the_CloudFlare_IP_address_ranges
-	 */
-	/*public static function checkCloudFlareProxy($ip, &$trusted) {
-		$ranges = array(
-			'204.93.240.0/24', '204.93.177.0/24', '199.27.128.0/21',
-			'173.245.48.0/20', '103.22.200.0/22', '141.101.64.0/18',
-			'108.162.192.0/18', '190.93.240.0/20',
-		);
-		if (!$trusted && preg_match('@^(\d{1,3}\.){3}\d{1,3}$@', $ip)) {
-			foreach ($ranges as $range) {
-				if (self::isIpInRange($ip, $range)) {
-					$trusted = true;
-					break;
-				}
-			}
-		}
-		return true;
 	}*/
-
-	/**
-	 * A callback check if the request is behind fastly, and if so, look for
-	 * the XFF header.
-	 */
-	public static function checkFastlyProxy($ip, &$trusted) {
-		if (!$trusted) {
-			$trusted = checkFastlyProxy();
-		}
-		return true;
-	}
 
 	/**
 	 * Send a file to the user that forces them to download it.
@@ -165,7 +124,7 @@ class Misc {
 	// Makes a url given a dbkey or page title string
 	public static function makeUrl($pageTitle, $domain = 'www.wikihow.com') {
 		$pageTitle = str_replace(' ', '-', $pageTitle);
-		return "http://$domain/" . urlencode($pageTitle);
+		return "https://$domain/" . urlencode($pageTitle);
 	}
 
 	// Url decode string data.  Decode it twice in the case where the user
@@ -185,159 +144,6 @@ class Misc {
 		return $decoded;
 	}
 
-	/* data schema
-	 *
-	 CREATE TABLE redirect_page (
-		rp_page_id int(8) unsigned NOT NULL,
-		rp_folded varchar(255) NOT NULL,
-		rp_redir varchar(255) NOT NULL,
-		PRIMARY KEY(rp_page_id),
-		INDEX(rp_folded)
-	 );
-	 */
-
-	/**
-	 * Make a lower case, punctuation-free form of the article title
-	 */
-	private static function redirectGetFolded($text) {
-		$text = strtolower($text);
-		$patterns = array('@[[:punct:]]@', '@\s+@');
-		$replace  = array('',              ' ');
-		$text = preg_replace($patterns, $replace, $text);
-		return substr( $text, 0, 255 );
-	}
-
-	/**
-	 * Callback to check for a case-folded redirect
-	 */
-	public static function check404Redirect($title) {
-		$redir = '';
-		if ($title && $title->getNamespace() == NS_MAIN) {
-			$dbr = wfGetDB(DB_SLAVE);
-			$text = self::redirectGetFolded( $title->getText() );
-			$redirPageID = $dbr->selectField('redirect_page', 'rp_page_id', array('rp_folded' => $text), __METHOD__);
-			$redirTitle = Title::newFromID($redirPageID);
-			if ($redirTitle && $redirTitle->exists()) {
-				$partial = $redirTitle->getPartialURL();
-				if ($partial != $title->getPartialURL()) {
-					$redir = $partial;
-				}
-			}
-		}
-		return $redir;
-	}
-
-	/**
-	 * Callback to create, modify or delete a case-folded redirect
-	 */
-	public static function modify404Redirect($pageid, $newTitle) {
-		static $dbw = null;
-		if (!$dbw) $dbw = wfGetDB(DB_MASTER);
-		$pageid = intval($pageid);
-
-		if ($pageid <= 0) {
-			return;
-		} elseif (!$newTitle
-				|| !$newTitle->exists()
-				|| $newTitle->getNamespace() != NS_MAIN)
-		{
-			$dbw->delete('redirect_page', array('rp_page_id' => $pageid), __METHOD__);
-		} else {
-			// debug:
-			//$field = $dbw->selectField('redirect_page', 'count(*)', array('rp_page_id'=>$pageid));
-			//if ($field > 0) { print "$pageid $newTitle\n"; }
-			$newrow = array(
-				'rp_page_id' => intval($pageid),
-				'rp_folded' => self::redirectGetFolded( $newTitle->getText() ),
-				'rp_redir' => substr( $newTitle->getText(), 0, 255 ),
-			);
-			$dbw->replace('redirect_page', 'rp_page_id', $newrow, __METHOD__);
-		}
-	}
-
-	/********
-	 *
-	 * Function returns true if the user is required to
-	 * be logged in to view the given title. False, if
-	 * no login is required.
-	 *
-	 *******/
-	public static function requiresLogin($title) {
-		if(!$title)
-			return false;
-
-		if($title->getNamespace() != NS_SPECIAL)
-			return false;
-
-		switch($title->getText()) {
-			case "Spellchecker":
-			case "Videoadder":
-			case "RCPatrol":
-			case "IntroImageAdder":
-			case "EditFinder/Topic":
-				return true;
-			default:
-				return false;
-		}
-	}
-
-	/*******
-	 *
-	 ******/
-	public static function allowRedirectFromLogin($title) {
-		if(!$title)
-			return false;
-
-		if($title->getNamespace() != NS_SPECIAL)
-			return false;
-
-		switch($title->getText()) {
-			case "Spellchecker":
-			case "Videoadder":
-			case "RCPatrol":
-			case "IntroImageAdder":
-			case "EditFinder/Topic":
-			case "ListRequestedTopics":
-			case "Categorizer":
-			case "EditFinder/Format":
-			case "EditFinder/Stub":
-			case "EditFinder/Copyedit":
-			case "EditFinder/Cleanup":
-			case "QG":
-			case "Newarticleboost":
-			case "NFDGuardian":
-			case "TweetItForward":
-			case "CreatePage":
-			case "Random":
-				return true;
-			default:
-				return false;
-		}
-	}
-
-	public static function addVarnishHeaders() {
-		global $wgTitle, $wgRequest;
-
-		if ($wgRequest && $wgTitle) {
-			$layoutStr = self::$displayedLayout ? self::$displayedLayout : 'dt';
-			$wgRequest->response()->header("X-Layout: $layoutStr");
-
-			$id = $wgTitle->getArticleID();
-			$cachePercent = ($id >= 0 ? $id % 10 : 0);
-			$rollingResetStr = 'roll' . $cachePercent;
-			$wgRequest->response()->header("Surrogate-Key: $layoutStr $rollingResetStr");
-		}
-
-		return true;
-	}
-
-	public static function setMobileLayoutHeader($caller) {
-		if ($caller && get_class($caller) == 'MobileWikihow') {
-			self::$displayedLayout = 'mb';
-		}
-		return true;
-	}
-
 	/**
 	  * Get database for a given language code
 	  */
@@ -346,13 +152,9 @@ class Misc {
 		if ($lang == "en") {
 			return WH_DATABASE_NAME_EN;
 		} elseif (in_array($lang, $wgWikiHowLanguages)) {
-			if ($lang == "es" && IS_TEST_INTL_SITE) {
-				return 'wikidb_es2';
-			} else {
-				return 'wikidb_' . $lang;
-			}
+			return 'wikidb_' . $lang;
 		} else {
-			throw new Exception("$lang is not a WikiHow language in getLangDB");
+			#throw new Exception("$lang is not a WikiHow language in getLangDB");
 			return '';
 		}
 	}
@@ -360,28 +162,33 @@ class Misc {
 	/**
 	 * Get a base URL for a given language code
 	 */
-	public static function getLangBaseURL($lang) {
-		global $wgActiveLanguages;
-		if ($lang == "en") {
-			return "http://www.wikihow.com";
-		} elseif (in_array($lang, $wgActiveLanguages)) {
-			return "http://" . $lang . ".wikihow.com";
-		} else {
-			return "";
-		}
+	public static function getLangBaseURL($lang, $mobile = false) {
+		return 'https://' . wfCanonicalDomain($lang, $mobile);
+	}
+
+	/**
+	 * Get a base URL for a given language code
+	 * Deprecated: use wfCanonicalDomain() function instead
+	 */
+	public static function getLangDomain($lang, $mobile = false) {
+		wfDeprecated( __METHOD__, '1.23' );
+		return wfCanonicalDomain($lang, $mobile);
 	}
 
 	/**
 	 * Get a language code and partial URL from a full URL
 	 */
-	public static function getLangFromFullURL($url) {
-		global $wgActiveLanguages;
-		if (preg_match('@^http://([a-zA-Z]+)\.wikihow\.com/([^?]+)@', $url, $matches)) {
-			if ($matches[1] == 'www') {
-				return array('en', $matches[2]);
-			} elseif (in_array($matches[1], $wgActiveLanguages)) {
-				return array($matches[1], $matches[2]);
-			}
+	public static function getLangFromFullURL($url, $mobile = false) {
+		$domainRegex = wfGetDomainRegex(
+			$mobile,
+			true, // includeEn?
+			true // capture?
+		);
+		if (preg_match('@^(https?:)?//' . $domainRegex . '/([^?]+)@', $url, $matches)) {
+			$domain = $matches[2];
+			$langCode = wfGetLangCodeFromDomain($domain);
+			$path = $matches[3];
+			return array($langCode, $path);
 		}
 		return array('', '');
 	}
@@ -396,36 +203,33 @@ class Misc {
 		foreach($langIds as $li) {
 			$ll[$li['lang']][] = $li['id'];
 		}
-		$dbh = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_SLAVE);
 
 		$startSQL = "";
-		if(empty($cols)) {
+		if (empty($cols)) {
 			$startSQL = "select * from ";
-		}
-		else {
+		} else {
 			$startSQL = "select " . implode(',', $cols) . " from ";
 		}
 		$pages = array();
-		foreach($ll as $l=>$ids) {
-
+		foreach ($ll as $l => $ids) {
 			$sql = $startSQL . Misc::getLangDB($l) . ".page where page_id in (" . implode(',',$ids) . ")";
-			$res = $dbh->query($sql, __METHOD__);
-			while($row = $dbh->fetchObject($res)) {
+			$res = $dbr->query($sql, __METHOD__);
+			foreach ($res as $row) {
 				$row = get_object_vars($row);
 				$pages[$l][$row['page_id'] ] = array_merge($row, array('lang'=>$l));
 			}
 		}
 		$rows = array();
-		foreach($langIds as $li) {
-			if(isset($pages[$li['lang']][$li['id']])) {
+		foreach ($langIds as $li) {
+			if (isset($pages[$li['lang']][$li['id']])) {
 				$rows[] = $pages[$li['lang']][$li['id']];
-			}
-			else {
+			} else {
 				$rows[] = array('page_id'=>$li['id'],'lang'=>$li['lang']);
 			}
 		}
 
-		return($rows);
+		return $rows;
 	}
 
 	/**
@@ -436,48 +240,92 @@ class Misc {
 	public static function getPagesFromURLs($urls, $cols=array(), $includeRedirects=false) {
 		global $wgActiveLanguages;
 		$urlsByLang = array();
-		$dbh = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_SLAVE);
 
-		foreach($urls as $url) {
+		foreach ($urls as $url) {
 			list($lang, $partial) = self::getLangFromFullURL($url);
 			if ($lang && $partial) {
-				$urlsByLang[$lang][] = $dbh->addQuotes($partial);
+				$urlsByLang[$lang][] = $dbr->addQuotes($partial);
 			}
 		}
 		$startSQL = "";
-		if(empty($cols)) {
+		if (empty($cols)) {
 			$startSQL = "select * from ";
-		}
-		else {
+		} else {
 			// page_title is required
 			if (!in_array('page_title', $cols)) $cols[] = 'page_title';
 			$startSQL = "select " . implode(',', $cols) . " from ";
 		}
 		$results = array();
 
-		foreach($urlsByLang as $lang => $titles) {
+		foreach ($urlsByLang as $lang => $titles) {
 			$db = self::getLangDB($lang);
 			$baseURL = self::getLangBaseURL($lang);
 			$redirectsSQL = !$includeRedirects ? ' AND page_is_redirect=0' : '';
 			$sql = $startSQL . $db . ".page WHERE page_title in (" . implode(',',$titles) . ") AND page_namespace=" . NS_MAIN . $redirectsSQL;
-			$res = $dbh->query($sql, __METHOD__);
-			while($row = $dbh->fetchObject($res)) {
+			$res = $dbr->query($sql, __METHOD__);
+			foreach ($res as $row) {
 				$row = get_object_vars($row);
 				$row['lang'] = $lang;
 				$results[$baseURL . '/' . $row['page_title']] = $row;
 			}
 		}
-		return($results);
+		return $results;
 	}
 
 	/**
 	 * Get just the page-name part of the url for any page on wikiHow.
 	 */
-	public function fullUrlToPartial($url) {
-		if (preg_match("/http:\/\/([a-zA-Z]+)\.wikihow\.com\/(.+)/", $url, $matches)) {
-			return($matches[2]);
+	public static function fullUrlToPartial($url) {
+		$domainRegex = wfGetDomainRegex(
+			false, // mobile?
+			true // includeEn?
+		);
+		if (preg_match('@https?://' . $domainRegex . '/(.+)@', $url, $matches)) {
+			return $matches[1];
+		} else {
+			return "";
 		}
-		return("");
+	}
+
+	/**
+	 * Rollout of a feature based on $pageId of article
+	 * @param int $startTime time in seconds since Jan 1, 1970 (unix time)
+	 * @param int $duration time in seconds that the rollout period should last
+	 * @param int $pageId the page id
+	 * @return int true if and only if article should be rolled out
+	 *
+	 * Example:
+	 *  $startTime = strtotime('March 20, 2013');
+	 *  $twoWeeks = 2 * 7 * 24 * 60 * 60;
+	 *  $pageId = 2053;
+	 *  $rolloutArticle = Misc::percentileRolloutByPageId($startTime, $twoWeeks, $pageId);
+	 */
+	public static function percentileRolloutByPageId( $startTime, $duration, $pageId, $currentTime = 0 ) {
+		$time = $currentTime ?: time();
+		if ( !$pageId ) {
+			global $wgTitle;
+			if ( !$wgTitle ) {
+				return true;
+			} else {
+				return self::percentileRollout($startTime, $duration, $wgTitle);
+			}
+		}
+
+		if ( $time < $startTime ) {
+			return false;
+		}
+
+		if ( $time > $startTime + $duration ) {
+			return true;
+		}
+
+		// we use a prime so that the numbers are more evenly distributed with
+		// modulo operator
+		$modulus = 100003;
+		$timeRank = ( $time - $startTime ) / $duration;
+		$articleRank = ($pageId % $modulus) / $modulus;
+		return $timeRank > $articleRank;
 	}
 
 	/**
@@ -491,26 +339,31 @@ class Misc {
 	 *  $twoWeeks = 2 * 7 * 24 * 60 * 60;
 	 *  $rolloutArticle = Misc::percentileRollout($startTime, $twoWeeks);
 	 */
-	function percentileRollout($startTime, $duration, $titleObj = null) {
+	public static function percentileRollout($startTime, $duration, $titleObj = null, $currentTime = 0) {
 		if (!$titleObj) {
 			global $wgTitle;
 			$title = $wgTitle ? $wgTitle->getText() : '';
+		} elseif (is_string($titleObj)) {
+			$title = $titleObj;
 		} else {
 			$title = $titleObj->getText();
 		}
 		$crc = crc32($title);
-		$time = time();
+		$time = $currentTime ?: time();
 		if ($time < $startTime) return false;
 		if ($time > $startTime + $duration) return true;
-		$percentTime = round( 100 * (($time - $startTime) / $duration) );
-		$percentArticle = $crc % 100;
-		return $percentTime > $percentArticle;
+		$timeRank = ($time - $startTime) / $duration;
+		// we use a prime so that the numbers are more evenly distributed with
+		// modulo operator
+		$modulus = 100003;
+		$articleRank = ($crc % $modulus) / $modulus;
+		return $timeRank > $articleRank;
 	}
 
 	/**
 	 * Generate a string of random characters
 	 */
-	static function genRandomString($chars = 20) {
+	public static function genRandomString($chars = 20) {
 		$str = '';
 		$set = array(
 			'0','1','2','3','4','5','6','7','8','9',
@@ -527,170 +380,17 @@ class Misc {
 	}
 
 	/**
-		* Get list of active languages with their names
-		*/
-	static function getActiveLanguageNames() {
+	 * Get list of active languages with their names
+	 */
+	public static function getActiveLanguageNames() {
 		global $wgActiveLanguages, $wgLanguageNames;
 
 		$languageInfo[] = array('languageCode' => 'en', 'languageName' => 'English');
-		foreach($wgActiveLanguages as $lang) {
+		foreach ($wgActiveLanguages as $lang) {
 			$languageInfo[] = array('languageCode' => $lang, 'languageName' => Language::fetchLanguageName($lang));
 		}
 
-		return($languageInfo);
-	}
-
-	static function defineAsTool(&$isTool) {
-		global $wgTitle;
-		$isTool = true;
-		return true;
-	}
-
-	static function removeGrayContainerCallback(&$showGrayContainer) {
-		$showGrayContainer = false;
-		return true;
-	}
-
-	static function removePostProcessing($title, &$processHTML) {
-		$processHTML = false;
-		return true;
-	}
-
-	static function getDeleteReasonFromCode($article, $outputPage, &$defaultReason) {
-
-		$whArticle = WikihowArticleEditor::newFromTitle($article->getTitle());
-		$intro = $whArticle->getSummary();
-		$matches = array();
-		preg_match('/{{nfd.*}}/i', $intro, $matches);
-
-		if (count($matches) && $matches[0] != null) {
-			$loc = stripos($matches[0], "|", 4);
-			if ($loc) { //there is a reason
-				$loc2 = stripos($matches[0], "|", $loc + 1);
-				if (!$loc2) {
-					$loc2 = stripos($matches[0], "}", $loc + 1);
-				}
-
-				//ok now grab the reason
-				$nfdreason = substr($matches[0], $loc + 1, $loc2 - $loc - 1);
-				switch ($nfdreason) {
-					case 'acc':
-						$defaultReason = "Accuracy";
-						break;
-					case 'adv':
-						$defaultReason = "Advertising";
-						break;
-					case 'cha':
-						$defaultReason = "Character";
-						break;
-					case 'dan':
-						$defaultReason = "Extremely Dangerous";
-						break;
-					case 'dru':
-						$defaultReason = "Drug focused";
-						break;
-					case 'hat':
-						$defaultReason = "Hate/racist";
-						break;
-					case 'imp':
-						$defaultReason = "Impossible";
-						break;
-					case 'inc':
-						$defaultReason = "Incomplete";
-						break;
-					case 'jok':
-						$defaultReason = "Joke";
-						break;
-					case 'mea':
-						$defaultReason = "Mean-spirited";
-						break;
-					case 'not':
-						$defaultReason = "Not a how-to";
-						break;
-					case 'pol':
-						$defaultReason = "Political opinion";
-						break;
-					case 'pot':
-						$defaultReason = "Potty humor";
-						break;
-					case 'sar':
-						$defaultReason = "Sarcastic";
-						break;
-					case 'sex':
-						$defaultReason = "Sexually explicit";
-						break;
-					case 'soc':
-						$defaultReason = "Societal Instructions";
-						break;
-					case 'ill':
-						$defaultReason = "Universally illegal";
-						break;
-					case 'van':
-						$defaultReason = "Vanity pages";
-						break;
-					case 'jok':
-						$defaultReason = "Joke";
-						break;
-					case 'dup':
-						$defaultReason = "Duplicate";
-						break;
-				}
-			}
-		}
-
-		return true;
-	}
-
-	/**
-	 * Add global variables
-	 */
-	public static function addGlobalVariables(&$vars, $outputPage) {
-		global $wgFBAppId;
-		$vars['wgWikihowSiteRev'] = WH_SITEREV;
-		$vars['wgFBAppId'] = $wgFBAppId;
-
-		return true;
-	}
-
-	/*
-	* Styling for the default EditForm
-	*/
-	public static function onShowEditFormFields(&$editform, &$wgOut) {
-		$editform->editFormTextBeforeContent = Html::openElement( 'div', array( 'class' => 'minor_section') );
-		$editform->editFormTextAfterContent = Html::closeElement( 'div' );
-		$editform->editFormTextAfterContent .= Html::openElement( 'div', array( 'class' => 'minor_section') );
-		$editform->editFormTextAfterTools = Html::closeElement( 'div' );
-		$editform->editFormTextAfterTools .= Html::closeElement( 'div' ); //Bebeth adding, not sure exactly why it's needed (seems like an extra </div> but it fixes it.
-		$editform->editFormTextAfterTools .= Html::openElement( 'div', array( 'class' => 'minor_section') );
-		$editform->editFormTextBottom = Html::closeElement( 'div' );
-
-		return true;
-	}
-
-	/*
-	* Plug in our logged in search Special Page in certain cases
-	*/
-	public static function onLanguageGetSpecialPageAliases(&$specialPageAliases, $langCode) {
-		global $wgUseGoogleMini, $wgRequest;
-
-		if ($wgRequest->getVal('advanced', null) == null && $wgUseGoogleMini) {
-			$specialPageAliases['Search'] = array('LSearch');
-		}
-		return true;
-	}
-
-	public static function onBeforeWelcomeCreation( &$welcome_creation_msg, &$injected_html ) {
-		global $wgRedirectOnLogin, $wgLanguageCode;
-
-		if($wgLanguageCode != "en") {
-			$dashboardPage = Title::makeTitle(NS_PROJECT, wfMessage("community")->text());
-			$wgRedirectOnLogin = $dashboardPage->getFullText();
-		}
-		else {
-			$wgRedirectOnLogin = 'Special:CommunityDashboard';
-		}
-
-		return true;
+		return $languageInfo;
 	}
 
 	/**
@@ -707,170 +407,20 @@ class Misc {
 		}
 	}
 
-	/**
-	 * Mediawiki 1.21 seems to redirect pages differently from 1.12, so we recreate
-	 * the 1.12 functionality from "redirect" articles that are present in the DB.
-	 */
-	public static function onInitializeArticleMaybeRedirect($title, $request, $ignoreRedirect, $target, $article) {
-		if ( !$ignoreRedirect && !$target && $article->isRedirect() ) {
-			$target = $article->followRedirect();
-			if($target instanceof Title)
-				$target = $target->getFullURL();
-		}
-		return true;
-	}
-
-	/**
-	 * Mediawiki 1.21 doesn't natively redirect immediately if your http Host header
-	 * isn't the same as $wgServer. We rely on this functionality so that domain names
-	 * like wiki.ehow.com redirect to www.wikihow.com.
-	 */
-	public static function onBeforeInitialize($title, $unused, $output, $user, $request, $page) {
-		global $wgServer, $wgURLprefix;
-		$hostname = (string)@$_SERVER['HOSTNAME'];
-		$httpHostHeader = (string)$request->getHeader('HOST');
-		if ((strpos($hostname, 'app') === 0 || IS_DEV_SITE)
-			&& $wgServer != $wgURLprefix . $httpHostHeader
-			&& !preg_match("@[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+@", $httpHostHeader) // check not an IP
-			&& !IS_SPARE_HOST
-			&& !IS_CLOUD_SITE)
-		{
-			header('HTTP/1.1 301 Moved Permanently');
-			header('Location: ' . $wgServer . $_SERVER['REQUEST_URI']);
-			exit;
-		}
-		return true;
-	}
-
-	/**
-	 * Provide the traditional Special:RecentChanges parameters that should
-	 * follow the user around as they are patrolling.
-	 */
-	public static function getRecentChangesBrowseParams($request, $rc=null) {
-		$query = array();
-		if ($rc) $query['rcid'] = $rc->getAttribute('rc_id');
-		$query += array(
-			'namespace' => $request->getVal('namespace', ''),
-			'invert' => $request->getInt('invert'),
-			'associated' => $request->getInt('associated'),
-			'reverse' => $request->getInt('reverse'),
-			'redirect' => 'no',
-			'fromrc' => 1,
-		);
-		return $query;
-	}
-
-	/**
-	 * Add 'reverse' option to traditional Special:RecentChanges page.
-	 */
-	public static function onSpecialRecentChangesPanel($extraOpts, $opts) {
-		global $wgRequest;
-		$reverse = $wgRequest->getInt('reverse');
-		$labelText = wfMessage('reverseorder')->text();
-		$description = 'Check this box to show recent changes in reverse order';
-		$extraOpts['reverse'] = array(
-			'<input name="reverse" type="checkbox" value="1" id="nsreverse" title="' . $description . '"' . ($reverse ? ' checked=""' : '') . '>', 
-			'<label for="nsreverse" title="' . $description . '">' . $labelText . '</label>');
-		return true;
-	}
-
-	/**
-	 * Use 'reverse' option in RecentChanges queries
-	 */
-	public static function onSpecialRecentChangesQuery($conds, $tables, $join_conds, $opts, $query_options, $fields, $reverse)
-	{
-		global $wgRequest;
-		$reverseOpt = $wgRequest->getInt('reverse');
-		if ($reverseOpt == 1) $reverse = 1;
-		return true;
-	}
-
+	// Used in WikihowSkin
 	public static function capitalize($str) {
-		if(mb_strlen($str) == 0) {
-			return($str);
+		if (mb_strlen($str) == 0) {
+			return $str;
 		}
 
 		$fc = mb_substr($str,0,1);
 		$fc = mb_strtoupper($fc);
-		if(mb_strlen($str) > 1) {
+		if (mb_strlen($str) > 1) {
 			$ros = mb_substr($str,1);
-			return($fc . $ros);
+			return $fc . $ros;
 		} else {
-			return($fc);
+			return $fc;
 		}
-	}
-
-	/**
-	 * Decide whether on not to autopatrol an edit
-	 */
-	public static function onMaybeAutoPatrol($page, $user, &$patrolled) {
-		// If this edit was already flagged autopatrol, only
-		// keep this flag if the user has the autopatrol preference on
-		if ( $patrolled && !$user->getOption('autopatrol') ) {
-			$patrolled = false;
-		}
-
-		// All edits from users in the bot group are autopatrolled
-		$noAutoPatrolBots = array('AnonLogBot');
-		if ( in_array('bot', $user->getGroups())
-			&& !in_array($user->getName(), $noAutoPatrolBots) )
-		{
-			$patrolled = true;
-		}
-
-		// All edits to User_kudos and User_kudos_talk namespace are autopatrolled
-		$pageNamespace = $page->mTitle->getNamespace();
-		if ( in_array( $pageNamespace, array(NS_USER_KUDOS, NS_USER_KUDOS_TALK) ) ) {
-			$patrolled = true;
-		}
-
-		// All edits to User namespace (if editing their own page page) are autopatrolled
-		if ($pageNamespace == NS_USER) {
-			$userName = $user->getName();
-			$pageUser = $page->mTitle->getBaseText();
-			if ($userName == $pageUser) {
-				$patrolled = true;
-			}
-		}
-
-		return true;
-	}
-
-	public static function onTitleSquidURLs($title, &$urls) {
-		global $wgContLang;
-
-		// Do we really need to purge the history of a video page? probably not
-		// anons don't care about video histories
-		if ($title->getNamespace() != NS_VIDEO) {
-			$historyUrl = $title->getInternalURL( 'action=history' );
-			if(IS_PROD_EN_SITE) {
-				$partialUrl = preg_replace("@^https?://[^/]+/@", "/", $historyUrl);
-				$historyUrl = 'http://www.wikihow.com' . $partialUrl;
-			}
-			$urls[] = $historyUrl;
-
-			// purge variant urls as well
-			if ($wgContLang->hasVariants()) {
-				$variants = $wgContLang->getVariants();
-				foreach ($variants as $vCode) {
-					if ($vCode == $wgContLang->getCode()) continue; // we don't want default variant
-					$urls[] = $title->getInternalURL('', $vCode);
-				}
-			}
-		}
-		return true;
-	}
-
-	// Reuben, upgrade 1.21: Special:Mostlinked is expensive, so we make the
-	// page contain at most 1000 cached results
-	public static function onPopulateWgQueryPages(&$wgQueryPages) {
-		foreach ($wgQueryPages as &$page) {
-			if ($page[0] == 'MostlinkedPage') {
-				$page[2] = 1000;
-				break;
-			}
-		}
-		return true;
 	}
 
 	//quick and dirty function to change numbers to words
@@ -880,12 +430,12 @@ class Misc {
 	//- $upbound for upper end boundary (in case we only want smaller numbers translated)
 	public static function numToWord($num,$upbound = 0) {
 		global $wgLanguageCode;
-		
+
 		$num = (int)$num;
 		if (!is_int($num)) return $num; //really a number, right?
 		if ($wgLanguageCode != 'en') return $num; //English only...for now
 		if ($upbound > 0 && $num > $upbound) return $num; //boundary check
-	
+
 		switch ($num) {
 			case 0: return 'zero';
 			case 1: return 'one';
@@ -931,5 +481,458 @@ class Misc {
 		}
 		return $num;
 	}
-	
+
+	/**
+	 *
+	 *	 d888b  d88888b d888888b d88888b .88b  d88. d8888b. d88888b d8888b. d88888b d888888b db      d88888b
+	 *	88' Y8b 88'     `~~88~~' 88'     88'YbdP`88 88  `8D 88'     88  `8D 88'       `88'   88      88'
+	 *	88      88ooooo    88    88ooooo 88  88  88 88oooY' 88ooooo 88   88 88ooo      88    88      88ooooo s
+	 *	88  ooo 88~~~~~    88    88~~~~~ 88  88  88 88~~~b. 88~~~~~ 88   88 88~~~      88    88      88~~~~~
+	 *	88. ~8~ 88.        88    88.     88  88  88 88   8D 88.     88  .8D 88        .88.   88booo. 88.
+	 *	 Y888P  Y88888P    YP    Y88888P YP  YP  YP Y8888P' Y88888P Y8888D' YP      Y888888P Y88888P Y88888P
+	 *
+	 * Use this to get a compressed string of css or javascript from multiple
+	 * files on the local file system. The files will be concatenated into a
+	 * single string.
+	 *
+	 * @param string $scriptType 'css' or 'js'
+	 * @param array $filenames filenames of local files. Note: for security, never
+	 *   generate this variable from user input! Always pass in static strings.
+	 * @param mixed some sort of cache invalidator. Uses WH_SITEREV in production
+	 *   by default, and WH_SITEREV . max(filemtime($filenames)) in developement.
+	 * @param boolean $flipCss Transform the CSS for right-to-left languages
+	 *
+	 * @example <code>
+	 * $embedStr = Misc::getEmbedFiles('css', [__DIR__ . "/foo.css", __DIR__ . "/bar.css"]);
+	 * $outputPage->addHTML('<style>' . $embedStr . '</style>');
+	 * </code>
+	 */
+	public static function getEmbedFiles($scriptType, $filenames, $cacheInvalidator = null, $flipCss = false) {
+		global $wgIsDevServer;
+		if ($scriptType == 'css') {
+			$filter = 'minify-css';
+		} elseif ($scriptType == 'js') {
+			$filter = 'minify-js';
+		} else {
+			throw new Exception("Unrecognized scriptType '$scriptType' in " . __METHOD__);
+		}
+
+		if (!$filenames || !is_array($filenames)) {
+			throw new Exception("No array of filenames provided in " . __METHOD__);
+		}
+
+		if ($cacheInvalidator === null) {
+			if ($wgIsDevServer) {
+				// Attach the latest modified file timestamp to the invalidator
+				$cacheInvalidator = WH_SITEREV
+					. array_reduce(
+						$filenames,
+						function ($max, $filename) {
+							return max($max, filemtime($filename));
+						},
+						-PHP_INT_MAX
+					);
+
+				// Check if any JS files ending in ".compiled.js" need to be
+				// compiled still, and throw an error on dev. If you see this
+				// error, you should make sure that the file you've edited
+				// has been compiled to its final form. If you haven't done
+				// this step, your changes won't be reflected in testing or
+				// after being pushed to production.
+				if ($scriptType == 'js') {
+					foreach ($filenames as $filename) {
+						$origFilename = preg_replace('@\.compiled\.js$@', '.js', $filename, -1, $count);
+						if ($count > 0
+							&& file_exists($origFilename)
+							&& filemtime($origFilename) > filemtime($filename)
+						) {
+							// Original has been modified more recently than compiled
+							// so we raise an exception.
+							throw new MWException("ERROR: it appears that the file '$origFilename' needs to be " .
+								"compiled into '$filename'. This error occurs on dev only to help ensure JS " .
+								"files that should be compiled by hand are compiled before reaching production.");
+						}
+					}
+				}
+			} else {
+				$cacheInvalidator = WH_SITEREV;
+			}
+		}
+
+		// NOTE: make sure $filename is passed in a static string. Could cause
+		// big security issues if it's derived from user input.
+		$cache = null;
+		if (function_exists('apc_fetch')) {
+			$cache = wfGetCache(CACHE_ACCEL);
+		} else {
+			$cache = wfGetCache(CACHE_MEMCACHED);
+		}
+
+		$filesKey = md5(implode(':', $filenames));
+		$cachekey = wfMemcKey('embedf', $filesKey, $cacheInvalidator);
+		$res = $cache->get($cachekey);
+		if (!is_string($res)) {
+			$res = '';
+			foreach ($filenames as $filename) {
+				$contents = file_get_contents($filename);
+				if ($contents !== false) {
+					$res .= $contents;
+				} elseif ($wgIsDevServer) {
+					// Your friendly neighbourhood missing file detection service
+					throw new MWException("ERROR: embed JS file '$filename' could not be loaded. " .
+						"We show this error on dev only so that you can correct the problem before " .
+						"the problem gets to production.");
+				}
+			}
+
+			// set cache regardless of whether file was found, but give it
+			// a lower expiry if it wasn't found or is empty
+			$expiry = 86400; // 24 hours
+			if (!$res) {
+				$res = '';
+				$expiry = 300; // 5 minutes
+			}
+
+			if ($flipCss && $scriptType == 'css') {
+				$res = CSSJanus::transform($res, true, false);
+			}
+
+			$res = ResourceLoader::filter($filter, $res);
+			$cache->set($cachekey, $res, $expiry);
+		}
+		return $res;
+	}
+
+	/*
+	 * Use this to get a compressed string of css or javascript from a file
+	 * on the local file system.
+	 *
+	 * @param string $scriptType 'css' or 'js'
+	 * @param string $filename filename of local file. Note: for security, never
+	 *   generate this variable from user input! Always pass in a static string.
+	 * @param mixed some sort of cache invalidator. Uses WH_SITEREV in production
+	 *   by default, and WH_SITEREV . filemtime($filename) in developement.
+	 * @param boolean $flipCss Transform the CSS for right-to-left languages
+	 *
+	 * @example <code>
+	 * $embedStr = Misc::getEmbedFile('css', dirname(__FILE__) . "/startingcss.css");
+	 * $outputPage->addHTML('<style>' . $embedStr . '</style>');
+	 * </code>
+	 */
+	public static function getEmbedFile($scriptType, $filename, $cacheInvalidator = null, $flipCss = false) {
+		return self::getEmbedFiles($scriptType, [$filename], $cacheInvalidator, $flipCss);
+	}
+
+	/**
+	 * Detect if we are displaying mobile skin or desktop.
+	 * @return bool true if mobile skin, false if desktop
+	 */
+	public static function isMobileMode() {
+		$ctx = MobileContext::singleton();
+		$isMobileMode = $ctx->shouldDisplayMobileView();
+		return $isMobileMode;
+	}
+
+	// Uses raw headers rather than trying to instantiate a mobile
+	// context object, which might not be possible. Use this
+	// version of the function only when it's not possible to use
+	// the normal isMobileMode() method above.
+	public static function isMobileModeLite() {
+		global $wgServer, $wgNoMobileRedirectTest, $wgIsAnswersDomain;
+		if ( $wgServer && preg_match('@\bm\.@', $wgServer) > 0 ) {
+			return true;
+		}
+		if ( $wgIsAnswersDomain ) {
+			return true;
+		}
+		if ( $wgNoMobileRedirectTest && @$_SERVER['HTTP_X_BROWSER'] == 'mb' ) {
+			$cookieName = MobileContext::USEFORMAT_COOKIE_NAME;
+			if ( @$_COOKIE[$cookieName] != 'dt' && @$_COOKIE[$cookieName . 'tmp'] != 'dt' ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	public static function isUserInGroups($user, $groups) {
+		foreach ($groups as $group) {
+			if (in_array($group, $user->getGroups())) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	public static function reportTimeMS() {
+		global $wgRequestTime;
+		$elapsed = microtime( true ) - $wgRequestTime;
+		return sprintf('%d', $elapsed * 1000);
+	}
+
+	/**
+	 * Add a Google Analytics event to a cookie, which will be processed and cleared via
+	 * JavaScript on the next page load.
+	 *
+	 * @param String  $category   The name you supply for the group of objects you want to track.
+	 * @param String  $action     Commonly used to define the type of user interaction for the web object.
+	 * @param String  $label      An optional string to provide additional dimensions to the event data.
+	 * @param String  $value      An integer that you can use to provide numerical data about the user event.
+	 * @param boolean $nonInter   When true, the event hit will not be used in bounce-rate calculation.
+	 */
+	public static function addAnalyticsEventToCookie($category, $action, $label = null,
+													 $value = null, $nonInter = true) {
+		global $wgCookieDomain, $wgCookiePath, $wgCookiePrefix, $wgCookieSecure;
+		$events = json_decode($_COOKIE['wiki_ga_pending']);
+		if (json_last_error() !== JSON_ERROR_NONE) {
+			$events = array();
+		}
+		$events[] = compact('category', 'action', 'label', 'value', 'nonInter');
+		$name = $wgCookiePrefix . 'GAPendingEvents';
+		$value = json_encode($events);
+		setcookie($name, $value, time() + 3600, $wgCookiePath, '.' . $wgCookieDomain, $wgCookieSecure);
+
+	}
+
+	/**
+	 * Map extra GA trackers to tracker names.
+	 *
+	 * Does not include the main tracker.
+	 */
+	public static function getExtraGoogleAnalyticsCodes() {
+		global $wgLanguageCode;
+
+		$codes = [];
+
+		if ($wgLanguageCode == 'es') {
+			$codes['UA-2375655-10'] = 'es';
+		} elseif ($wgLanguageCode == 'ja') {
+			$codes['UA-2375655-11'] = 'ja';
+		} elseif ($wgLanguageCode == 'vi') {
+			$codes['UA-2375655-14'] = 'vi';
+		} elseif ($wgLanguageCode == 'it') {
+			$codes['UA-2375655-18'] = 'it';
+		} elseif ($wgLanguageCode == 'cs') {
+			$codes['UA-2375655-19'] = 'cs';
+		} elseif (class_exists('QADomain') && QADomain::isQADomain()) {
+			$codes[QADomain::getGACode()] = 'qa';
+		}
+
+		wfRunHooks( 'MiscGetExtraGoogleAnalyticsCodes', array( &$codes ) );
+
+		return $codes;
+	}
+
+	/**
+	 * @param array   $data      To be serialized and rendered in the response body
+	 * @param int     $code      HTTP status code
+	 * @param string  $callback  An optional function name for JSONP
+	 */
+	public static function jsonResponse(array $data, int $code=200, string $callback='') {
+		global $wgOut, $wgRequest;
+
+		$contentType = empty($callback) ? 'application/json' : 'application/javascript';
+
+		$wgRequest->response()->header("Content-type: $contentType");
+		$wgOut->disable();
+
+		if ($code != 200) {
+			$message = HttpStatus::getMessage($code);
+			if ($message) {
+				$wgRequest->response()->header("HTTP/1.1 $code $message");
+			}
+		}
+
+		if (empty($callback)) {
+			echo json_encode($data);
+		} else {
+			echo htmlspecialchars($callback) . '(' . json_encode($data) . ')';
+		}
+
+	}
+
+	// try a few different ways to get a title from a string of text
+	// which may be a page id or may be a url on our main or dev site
+	// or may just be the name of the title
+	// this is useful for admin pages where the input is a bunch of
+	// title strings which often are urls but sometimes are not
+	public static function getTitleFromText( $text ) {
+		$title = null;
+		$partial = '';
+
+		// try to strip out our main or dev domain name
+		if ( !$title || !$title->exists() ) {
+			$domainRegex = wfGetDomainRegex(
+				false, // mobile?
+				true // includeEn?
+			);
+			if (preg_match('@' . $domainRegex . '/(.+)@', $text, $matches)) {
+				$partial = $matches[1];
+			} elseif (preg_match("/([a-zA-Z]+)\.(wikiknowhow|wikidiy|wikidogs)\.com\/(.+)/", $text, $matches)) {
+				$partial = $matches[3];
+			} else {
+				$domainRegex = wfGetDomainRegex(
+					true, // mobile?
+					true // includeEn?
+				);
+				if (preg_match('@' . $domainRegex . '/(.+)@', $text, $matches)) {
+					$partial = $matches[1];
+				}
+			}
+			$title = Title::newFromText( $partial );
+		}
+		// try url decoding the partial/text
+		if ( !$title || !$title->exists() && $partial ) {
+			$title = Title::newFromText( urldecode($partial) );
+		}
+		// try page id
+		if ( !$title || !$title->exists() && is_numeric( $text ) ) {
+			$title = Title::newFromID( $text );
+		}
+		// try to just get title from the text
+		if ( !$title || !$title->exists() ) {
+			$title = Title::newFromText( $text );
+		}
+		if ( !$title || !$title->exists() ) {
+			return null;
+		}
+
+		return $title;
+	}
+
+	// Remove all non-alphanumeric characters
+	public static function getSectionName($name) {
+		global $wgLanguageCode;
+		$pattern = $wgLanguageCode == 'en'
+			? "/[^A-Za-z0-9]/u"
+			: "/[^\p{L}\p{N}\p{M}]/u";
+		return preg_replace($pattern, '', mb_strtolower($name));
+	}
+
+	// Returns all combinations of booleans in an array of given length
+	public static function getBoolCombinations($length) {
+		$combos = pow(2, $length);
+		$seq = array();
+		for ($x = 0; $x < $combos; $x++) {
+			$seq[$x] = array_map('boolval', str_split(str_pad(decbin($x), $length, 0, STR_PAD_LEFT)));
+		}
+		return $seq;
+	}
+
+	public static function onUnitTestsList(&$files) {
+		$files = array_merge($files, glob(__DIR__ . '/tests/*Test.php'));
+		return true;
+	}
+
+	public static function escapeJQuerySelector($selector) {
+		return preg_replace('/(:|\.|\[|\]|,)/', '\\\\${1}', $selector);
+	}
+
+	// http://stackoverflow.com/questions/945724/cosine-similarity-vs-hamming-distance/1290286#1290286
+	public static function cosineSimilarity($sentenceA, $sentenceB) {
+		$tokensA = explode(' ',$sentenceA);
+		$tokensB = explode(' ',$sentenceB);
+
+		if (empty($tokensA) || empty($tokensB)) return 0;
+
+		$a = $b = $c = 0;
+		$uniqueTokensA = $uniqueTokensB = array();
+
+		$uniqueMergedTokens = array_unique(array_merge($tokensA, $tokensB));
+
+		foreach ($tokensA as $token) $uniqueTokensA[$token] = 0;
+		foreach ($tokensB as $token) $uniqueTokensB[$token] = 0;
+
+		foreach ($uniqueMergedTokens as $token) {
+			$x = isset($uniqueTokensA[$token]) ? 1 : 0;
+			$y = isset($uniqueTokensB[$token]) ? 1 : 0;
+			$a += $x * $y;
+			$b += $x;
+			$c += $y;
+		}
+		return $b * $c != 0 ? $a / sqrt($b * $c) : 0;
+	}
+
+	/**
+	 * Make a lower case, punctuation-free form of the article title
+	 */
+	public static function redirectGetFolded($text) {
+		$text = strtolower($text);
+		$patterns = array('@[[:punct:]]@', '@\s+@');
+		$replace  = array('', ' ');
+		$text = preg_replace($patterns, $replace, $text);
+		return substr( $text, 0, 255 );
+	}
+
+	/**
+	 * check for a redirect based on alternate case of title
+	 * returns null if it is not a case redirect
+	 * returns the redirect target title otherwise
+	 */
+	public static function getCaseRedirect( $title ) {
+		global $wgRequest;
+		$redir = null;
+		if ($title && $title->getNamespace() == NS_MAIN
+			&& $wgRequest && $wgRequest->getVal('redirect') !== 'no'
+		) {
+			$dbr = wfGetDB(DB_SLAVE);
+			$text = Misc::redirectGetFolded( $title->getText() );
+			$redirPageID = $dbr->selectField('redirect_page', 'rp_page_id', array('rp_folded' => $text), __METHOD__);
+			$redirTitle = Title::newFromID($redirPageID);
+			if ($redirTitle && $redirTitle->exists()) {
+				$partial = $redirTitle->getPartialURL();
+				if ($partial != $title->getPartialURL()) {
+					$redir = $redirTitle;
+				}
+			}
+		}
+		return $redir;
+	}
+
+	/*
+	 * get a scroll defer html element and the script tag to enable it
+	 *
+	 * @param string $element either img or video
+	 * @param array $attributes the attributes to create a video or img element
+	 * @return Title: The corresponding Title
+	 */
+	public static function getMediaScrollLoadHtml( $element, $attributes ) {
+		$noScriptElement = Html::rawElement( $element, $attributes );
+
+		if ( $element == 'video' ) {
+			$attributes['playsinline'] = '';
+			$attributes['webkit-playsinline'] = '';
+			$attributes['muted'] = '';
+			$attributes['loop'] = '';
+			$poster = $attributes['poster'];
+			if ( $poster ) {
+				$attributes['data-poster'] = $poster;
+			}
+			unset( $attributes['poster'] );
+			// fall back to img if no js available
+			$noScriptElement = Html::rawElement( 'img', ['src'=>$attributes['data-poster']] );
+		}
+
+		$noScriptElement = '<noscript>'.$noScriptElement.'</noscript>';
+
+		$src = $attributes['src'];
+		$attributes['data-src'] = $src;
+		unset( $attributes['src'] );
+
+		// get the id
+		if ( !isset( $attributes['id'] ) ) {
+			$id = uniqid();
+			$attributes['id'] = $id;
+		}
+
+		$element = Html::rawElement( $element, $attributes );
+
+		$script = Html::inlineScript( "WH.shared.addScrollLoadItem('$id')" );
+		return $element . $script . $noScriptElement;
+	}
+
+	public static function isIntl(): bool {
+		global $wgLanguageCode;
+		return $wgLanguageCode != 'en';
+	}
+
 }

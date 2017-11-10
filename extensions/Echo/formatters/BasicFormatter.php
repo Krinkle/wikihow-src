@@ -203,7 +203,11 @@ class EchoBasicFormatter extends EchoNotificationFormatter {
 			} else {
 				$path = $iconInfo['path'];
 			}
-			$iconUrl = "$wgExtensionAssetsPath/$path";
+			if (preg_match('@^(http|/)@', $path)) { // added by wikiHow for our CDN
+				$iconUrl = $path;
+			} else {
+				$iconUrl = "$wgExtensionAssetsPath/$path";
+			}
 		}
 
 		// Assume html as the format for the notification
@@ -211,6 +215,9 @@ class EchoBasicFormatter extends EchoNotificationFormatter {
 			'img',
 			array(
 				'class' => "mw-echo-icon",
+				// wikiHow, Mar 2017: added so that icons on Special:Notifications aren't
+				// width: 100%. (see bug #1913.)
+				'style' => 'width: auto',
 				'src' => $iconUrl,
 			)
 		);

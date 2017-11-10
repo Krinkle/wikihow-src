@@ -29,7 +29,7 @@ class CategorizerAppWidget extends DashboardWidget {
 	 * for the top contributor to this widget
 	 */
 	public function getTopContributor(&$dbr){
-		
+
 		$startdate = strtotime("7 days ago");
 		$starttimestamp = date('YmdG',$startdate) . floor(date('i',$startdate)/10) . '00000';
 		$res = $dbr->select('recentchanges', array('*', 'count(*) as C', 'MAX(rc_timestamp) as recent_timestamp'), array('rc_comment like "categorization"', 'rc_timestamp > "' . $starttimestamp . '"', 'rc_user_text != "WRM"'), 'CategorizationAppWidget::getTopContributor', array("GROUP BY" => 'rc_user', "ORDER BY"=>"C DESC", "LIMIT"=>1));
@@ -73,22 +73,17 @@ class CategorizerAppWidget extends DashboardWidget {
 	/*
 	 * Returns the number of changes left to be patrolled.
 	 */
-	public function getCount(&$dbr){
-		$sql = "select count(*) as C from page where page_namespace=0 and page_is_redirect=0 and page_catinfo=0;";
-		$res = $dbr->query($sql);
-
-		$row = $dbr->fetchRow($res);
-		$res->free();
-		return $row['C'];
+	public function getCount(&$dbr = null) {
+		return CategorizerUtil::getUncategorizedPagesCount();
 	}
 
-	public function getUserCount(&$dbr){
+	public function getUserCount(&$dbr) {
 		$standings = new CategorizationStandingsIndividual();
 		$data = $standings->fetchStats();
 		return $data['week'];
 	}
 
-	public function getAverageCount(&$dbr){
+	public function getAverageCount(&$dbr) {
 		$standings = new CategorizationStandingsGroup();
 		return $standings->getStandingByIndex(self::GLOBAL_WIDGET_MEDIAN);
 	}
@@ -98,7 +93,7 @@ class CategorizerAppWidget extends DashboardWidget {
 	 * Gets data from the Leaderboard class for this widget
 	 */
 	public function getLeaderboardData(&$dbr, $starttimestamp){
-		$data = Leaderboard::getArticlesCategorized($starttimestamp);
+		$data = LeaderboardStats::getArticlesCategorized($starttimestamp);
 		arsort($data);
 
 		return $data;

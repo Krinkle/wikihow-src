@@ -102,7 +102,7 @@ class QcAppWidget extends DashboardWidget {
 	 */
 	public function getLeaderboardData(&$dbr, $starttimestamp){
 
-		$data = Leaderboard::getQCPatrols($starttimestamp);
+		$data = LeaderboardStats::getQCPatrols($starttimestamp);
 		arsort($data);
 
 		return $data;

@@ -903,6 +903,7 @@ class Cite {
 		global $wgContLang;
 		$label = is_null( $label ) ? ++$this->mGroupCnt[$group] : $label;
 
+		// Reuben, wikiHow 2015/11/30: aria_reference message added for screen readers
 		return
 			$this->parse(
 				wfMessage(
@@ -910,7 +911,8 @@ class Cite {
 					$this->refKey( $key, $count ),
 					$this->referencesKey( $key . $subkey ),
 					$this->getLinkLabel( $label, $group,
-						( ( $group == CITE_DEFAULT_GROUP ) ? '' : "$group " ) . $wgContLang->formatNum( $label ) )
+						( ( $group == CITE_DEFAULT_GROUP ) ? '' : "$group " ) . $wgContLang->formatNum( $label ) ),
+					wfMessage( 'aria_reference', $key )->showIfExists()
 				)->inContentLanguage()->plain()
 			);
 	}

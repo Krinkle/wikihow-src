@@ -1,4 +1,5 @@
-<?
+<?php
+
 class StatsList extends UnlistedSpecialPage {
 
 	function __construct() {

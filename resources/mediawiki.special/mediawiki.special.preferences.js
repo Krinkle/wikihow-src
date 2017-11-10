@@ -60,6 +60,13 @@ jQuery( function ( $ ) {
 		}
 		$( window ).scrollTop( scrollTop );
 
+		// Lojjik Braughler 12/1/2015
+		// Add a timeout method for $(window).scrollTop() to make this work in Chrome
+		// Chrome populates the page offset properties only after rendering page & js
+		window.setTimeout(function() {
+				$( window ).scrollTop( scrollTop );
+			}, 0);
+
 		$preftoc.find( 'li' ).removeClass( 'selected' )
 			.find( 'a' ).attr( {
 				tabIndex: -1,

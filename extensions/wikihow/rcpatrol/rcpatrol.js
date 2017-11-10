@@ -1,3 +1,5 @@
+( function($, mw) {
+
 var nextrev = null;
 var marklink = null;
 var skiplink = null;
@@ -24,17 +26,19 @@ for (i = 0; i < parts.length; i++) {
 	}
 }
 
-(function($) {
+var rollbackUrl = '', readyForRollback = false;
+//var previousHTML = 'none';
 
 // Init shortcut key bindings
-$(document).ready(function() {
-	initToolTitle();
+function initKeyBindings() {
+	initToolTitle(); // from wikihowbits.js
 
 	var title = $('#articletitle').html();
 	if (!title) return;
 	$(".firstHeading").html(title);
 
 	var mod = Mousetrap.defaultModifierKeys;
+
 	Mousetrap.bind(mod + 'm', function() {$('#markpatrolurl').click();});
 	Mousetrap.bind(mod + 's', function() {$('#skippatrolurl').click();});
 	Mousetrap.bind(mod + 'e', function() {$('#qe_button').click();});
@@ -43,8 +47,23 @@ $(document).ready(function() {
 	Mousetrap.bind(mod + 't', function() {$('.thumbbutton').click();});
 	Mousetrap.bind(mod + 'q', function() {$('#qn_button').click();});
 
-});
-})(jQuery);
+	$(document).bind('rcdataloaded', function () {
+		setupTracking();
+	});
+
+	setupTracking();
+}
+
+function setupTracking() {
+	$('body').data({
+		event_type: 'rc_patrol'
+	});
+
+	$('#markpatrolurl').addClass('op-action');
+	$('#rb_button').addClass('op-action');
+	$('#qe_button').addClass('op-action');
+	$('#skippatrolurl');
+}
 
 function setRCLinks() {
 	var e = document.getElementById('bodycontents2');
@@ -53,21 +72,10 @@ function setRCLinks() {
 		if (links[i].href != wgServer + "/" + wgPageName) {
 			links[i].setAttribute('target','new');
 		}
-		/*
-		if (links[i].getAttribute('accesskey')) {
-			if (links[i].getAttribute('accesskey') == 'p'
-				&& links[i].id != 'markpatrolurl') {
-				links[i].setAttribute('accesskey',null);
-			} else if (links[i].getAttribute('accesskey') == 's'
-				&& links[i].id != 'skippatrolurl') {
-				links[i].setAttribute('accesskey',null);
-		}
-		}
-		*/
 	}
 
 	if ($('#numrcusers') && $('#numrcusers').html() != "1") {
-		var e = $("#mw-diff-ntitle2 #mw-diff-oinfo");
+		e = $("#mw-diff-ntitle2 #mw-diff-oinfo");
 		var ehtml = e.html();
 		if (ehtml && ehtml.indexOf("and others") < 0) {
 			$( "#mw-diff-ntitle2 #mw-diff-oinfo #mw-diff-ndaysago" ).before( "<b>and others</b>." );
@@ -75,29 +83,46 @@ function setRCLinks() {
 	}
 
 	$('.button').each( function() {
-			if ($(this).html() == "quick edit") {
-				$(this).click(function () {
-					hookSaveButton();
-				});
-				return;
-			}
+		if ($(this).html() == "quick edit") {
+			$(this).click(function () {
+				hookSaveButton();
+			});
+			return;
 		}
-	);
+	});
+}
+
+function parseIntWH(num) {
+	if (!num) {
+		return 0;
+	}
+	return parseInt(num.replace(/,/, ''), 10);
+}
+
+function addCommas(nStr) {
+	nStr += '';
+	x = nStr.split('.');
+	x1 = x[0];
+	x2 = x.length > 1 ? '.' + x[1] : '';
+	var rgx = /(\d+)(\d{3})/;
+	while (rgx.test(x1)) {
+		x1 = x1.replace(rgx, '$1' + ',' + '$2');
+	}
+	return x1 + x2;
 }
 
 function incQuickEditCount() {
 	// increment the active widget
 	$("#iia_stats_group, #iia_stats_today_rc_quick_edits, #iia_stats_week_rc_quick_edits").each(function() {
-			$(this).fadeOut();
-			var cur = parseIntWH($(this).html());
-			$(this).html(addCommas(cur + 1));
-			$(this).fadeIn();
-		}
-	);
+		$(this).fadeOut();
+		var cur = parseIntWH($(this).html());
+		$(this).html(addCommas(cur + 1));
+		$(this).fadeIn();
+	});
 }
 
 function hookSaveButton() {
-	if ($("#wpSave").html() == null ) {
+	if ( ! $("#wpSave").html() ) {
 		setTimeout(hookSaveButton, 200);
 		return;
 	}
@@ -121,9 +146,9 @@ function setContentInner(html, fade) {
 	//document.title = title;
 
 	var matches = html.match(/<div id='newrollbackurl'[^<]*<\/div>/);
-	if (matches != null) {
+	if (matches) {
 		newlink = matches[0];
-		gRollbackurl = newlink.replace(/<(?:.|\s)*?>/g, "");
+		rollbackUrl = newlink.replace(/<(?:.|\s)*?>/g, "");
 	}
 	setRCLinks();
 	addBackLink();
@@ -136,14 +161,14 @@ function setContentInner(html, fade) {
 	if (rev || ns >= 0) openSubMenu('ordering');
 	// Fire even to initialize wikivideo
 	$(document).trigger('rcdataloaded');
-	
+
 }
 
 function setContent(html) {
 	var e = document.getElementById('bodycontents2');
 	if (navigator.appVersion.indexOf("MSIE") >= 0) {
 		$("#bodycontents2").hide(300, function() {
-			setContentInner(html,false);
+			setContentInner(html, false);
 		});
 	} else {
 		$("#bodycontents2").fadeOut(300, function() {
@@ -155,7 +180,7 @@ function setContent(html) {
 
 function resetRCLinks() {
 	var matches = nextrev.match(/<div id='skiptitle'[^<]*<\/div>/);
-	if (matches == null || matches.length == 0) {
+	if (!matches || matches.length === 0) {
 		return;
 	}
 	var newlink = matches[0];
@@ -188,18 +213,18 @@ function setupTabs() {
 		openSubMenu('help');
 		return false;
 	});
-	
-	   $("#rcpatrol_keys").on("click", function(e){
-        e.preventDefault();
-        $("#rcpatrol_info").dialog({
-            width: 500,         
-            minHeight: 300,                 
-            modal: true,
-            title: 'RCPatrol Keys',
-            closeText: 'Close',
-            position: 'center',
-        });                                                                                         
-    });
+
+	$("#rcpatrol_keys").on("click", function(e) {
+		e.preventDefault();
+		$("#rcpatrol_info").dialog({
+			width: 500,
+			minHeight: 300,
+			modal: true,
+			title: 'RCPatrol Keys',
+			closeText: 'x',
+			position: 'center',
+		});
+	});
 }
 
 function skip() {
@@ -214,7 +239,12 @@ function skip() {
 }
 
 function resetQuickNoteLinks() {
-	$('#qnote_buttons').load("/Special:QuickNoteEdit/quicknotebuttons");
+	$.get(
+		"/Special:QuickNoteEdit/quicknotebuttons",
+		function (response, xhr) {
+			$('#qnote_buttons').html(response);
+		}
+	);
 }
 
 function changeReverse() {
@@ -230,6 +260,14 @@ function changeReverse() {
 
 function changeUserFilter() {
 	rc_user_filter = $("#rc_user_filter").val();
+}
+
+function changeUser(user) {
+	var url = '/Special:RCPatrol';
+	if (user) {
+		url += '?rc_user_filter=' + encodeURIComponent( $('#rc_user_filter').val() );
+	}
+	window.location.href = url;
 }
 
 function modUrl(url) {
@@ -263,39 +301,58 @@ function modUrl(url) {
 function loadData(url) {
 	url = modUrl(url);
 	loaded = false;
-	$.get(url,
-		function(data) {
-			setContent(data['html']);
+	$.ajax({
+		url: url,
+		success: function(data) {
+			setContent(data.html);
 		},
-		'json'
-	);
+		error: function(jqxhr, textStatus, errorThrown) {
+			setContent('There was a problem. Status: ' + textStatus + ', error: ' + errorThrown);
+		},
+		dataType: 'json'
+	});
 	return false;
 }
 
-function setUnpatrolled(count) {
+function setUnpatrolledTitleNumber(count) {
 	$("#rcpatrolcount h3").fadeOut(400, function() {
 		$("#rcpatrolcount h3").html(count)
 			.fadeIn();
 	});
 }
 
+function setPreloadedFromErrorCallback(jqxhr, textStatus, errorThrown) {
+	var data = {err: 'Status: ' + textStatus + ', reported error: ' + errorThrown}
+	setPreloaded(data);
+}
+
 function setPreloaded(data) {
-	nextrev = data['html'];
+	// If there was an error reported by RCP on server side, give an option to view it
+	if (!data || !data.html || data.err) {
+		console.log('setPreloaded detected RCP error', data);
+		var msg = data ? JSON.stringify(data) : '<no available data>';
+		$('.rcp_err_dump').text( msg );
+		$('.rcp_err').show();
+		loaded = true;
+		return;
+	}
+
+	nextrev = data.html;
 	resetRCLinks();
 	loaded = true;
-	setUnpatrolled(data['unpatrolled']);
+	setUnpatrolledTitleNumber(data.unpatrolled);
 }
 
 function sendMarkPatrolled(url) {
 	url = modUrl(url);
 	if (nextrev) {
 		loaded = false;
-		$.get(url,
-			function(data) {
-				setPreloaded(data);
-			},
-			'json'
-		);
+		$.ajax({
+			url: url,
+			success: setPreloaded,
+			error: setPreloadedFromErrorCallback,
+			dataType: 'json'
+		});
 		addBackLink();
 		setContent(nextrev);
 	} else {
@@ -309,7 +366,7 @@ function markPatrolled() {
 		setTimeout(markPatrolled, 500);
 		return;
 	}
-	
+
 	var numedits = parseIntWH($('#numedits').html());
 	$("#iia_stats_today_rc_edits, #iia_stats_week_rc_edits, #iia_stats_all_rc_edits").each(function(index, elem) {
 		$(this).fadeOut();
@@ -322,19 +379,17 @@ function markPatrolled() {
 
 	//change quick note links
 	resetQuickNoteLinks();
-	window.oTrackUserAction();
-
 	return false;
 }
 
 function preloadNext(url) {
 	url = modUrl(url);
-	$.get(url,
-		function(data) {
-			setPreloaded(data);
-		},
-		'json'
-	);
+	$.ajax({
+		url: url,
+		success: setPreloaded,
+		error: setPreloadedFromErrorCallback,
+		dataType: 'json'
+	});
 	return false;
 }
 
@@ -351,7 +406,8 @@ function addBackLink() {
 function goback() {
 	if (backindex > 0) {
 		backindex--;
-		var index = backindex-1;
+		var index = backindex - 1;
+		if (index < 0) index += backsize;
 		var backlink = backurls[index % backsize];
 		loadData(backlink);
 	} else {
@@ -364,6 +420,18 @@ function handleQESubmit() {
 	incQuickEditCount();
 }
 
+function updateWidget(id, x) {
+	var url = '/Special:Standings/' + x;
+	$.get(url,
+		function (data) {
+			$(id).fadeOut();
+			$(id).html(data['html']);
+			$(id).fadeIn();
+		},
+		'json'
+	);
+}
+
 function updateLeaderboard() {
 	updateWidget("#iia_standings_table", "QuickEditStandingsGroup");
 	var min = RC_WIDGET_LEADERBOARD_REFRESH / 60;
@@ -373,55 +441,125 @@ function updateLeaderboard() {
 }
 
 function updateTimers() {
-	updateTimer("stup");
+	WH.updateTimer("stup");
 	setTimeout(updateTimers, 1000 * 60);
 }
 
-function openSubMenu(menuName){
+function openSubMenu(menuName) {
 	var menu = $("#rc_" + menuName);
-	if(menu.is(":visible")){
+	if (menu.is(":visible")) {
 		menu.hide();
 		$("#rctab_" + menuName).removeClass("on");
 	} else {
 		$(".rc_submenu").hide();
+		$("#rc_help").hide();
 		menu.show();
 		$("#rc_subtabs div").removeClass("on");
 		$("#rctab_" + menuName).addClass("on");
 	}
 }
 
-function changeUser(user) {
-	if (user)
-		window.location.href = "/Special:RCPatrol?rc_user_filter=" + encodeURIComponent($("#rc_user_filter").val());
-	else
-		window.location.href = "/Special:RCPatrol";
-}
-
-$(document).ready(function() {
+function initRCPatrol() {
 	if (rc_user_filter) {
 		$('#rc_user_filter').val(rc_user_filter);
 		openSubMenu('user');
 	}
 
+	$('.rcp_err_reload').click( function() {
+		// Reload RCP if user requests it in error situation
+		window.location.href = window.location.href;
+		return false;
+	});
+
+	$('.rcp_err_show').click( function() {
+		$('.rcp_err').css('width', '300px');
+		$('.rcp_err_dump').show();
+		return false;
+	});
+
 	setTimeout(updateLeaderboard, 1000 * RC_WIDGET_LEADERBOARD_REFRESH);
 	setTimeout(updateTimers, 1000 * 60);
 
-	if ($('#rcpatrolcount').length == 0) {
+	if ($('#rcpatrolcount').length === 0) {
 		$('#article').prepend('<div id="rcpatrolcount" class="tool_count"><h3></h3></div>');
 	}
-	gPostRollbackCallback = function () {
-		span = $('#rollback-status');
-		if (span.length && span.html().toLowerCase().indexOf('reverted edits by') >= 0) {
-			// Special hack for BR because he didn't like not being able
-			// to quick edit after a rollback
-			//var exceptionsList = ['BR', 'JuneDays', 'Zack', 'KommaH'];
-			var exceptionsList = ['JuneDays', 'Zack', 'KommaH'];
-			if ($.inArray(wgUserName, exceptionsList) == -1) {
-				// Change to skip per lighthouse bug #572
-				setTimeout( skip, 250 );
-				//setTimeout( markPatrolled, 250 );
-			}
-		}
-	};
-});
 
+	$(document).on("change", "#namespace", function(){
+		ns = $('#namespace').val();
+		nextrev = null;
+	});
+
+	readyForRollback = true;
+}
+
+function postRollbackCallback() {
+	span = $('#rollback-status');
+	if (span.length && span.html().toLowerCase().indexOf('reverted edits by') >= 0) {
+		// Special hack for BR because he didn't like not being able
+		// to quick edit after a rollback
+		//var exceptionsList = ['BR', 'JuneDays', 'Zack', 'KommaH'];
+		var exceptionsList = ['JuneDays', 'Zack', 'KommaH'];
+		if ($.inArray(wgUserName, exceptionsList) == -1) {
+			// Change to skip per lighthouse bug #572
+			setTimeout( skip, 250 );
+			//setTimeout( markPatrolled, 250 );
+		}
+	}
+}
+
+/*
+function cancelRollback() {
+	$('#rollback-link').html(previousHTML);
+}
+*/
+
+function setRollbackURL(url) {
+	rollbackUrl = url;
+}
+
+function rollback() {
+	var span = $('#rollback-link');
+	if (!span.length) span = $('#rollback-status');
+	span.html('<b>' + msg_rollback_inprogress + '</b>');
+
+	$.get(rollbackUrl, function(response) {
+		var span = $('#rollback-link');
+		if (!span.length) {
+			$('#rollback-status').html(response);
+			if (readyForRollback) postRollbackCallback();
+			return false;
+		} else {
+			if (response.indexOf("<title>Rollback failed") > 0) {
+				var msg = '<br/><div style="background: red;"><b>' + msg_rollback_fail + '</b></div>';
+			} else {
+				var msg = '<br/><div style="background: yellow;"><b>' + msg_rollback_complete + '</b></div>';
+			}
+			span.html(msg);
+			if (readyForRollback) postRollbackCallback();
+		}
+	});
+
+	$('body').trigger('trackAction');
+
+	return false;
+}
+
+$(document).ready(initKeyBindings);
+$(document).ready(initRCPatrol);
+
+// External methods
+window.WH.RCPatrol = {
+	setupTabs : setupTabs,
+	skip : skip,
+	changeReverse : changeReverse,
+	changeUserFilter : changeUserFilter,
+	changeUser : changeUser,
+	markPatrolled : markPatrolled,
+	preloadNext : preloadNext,
+	goback : goback,
+	handleQESubmit : handleQESubmit,
+	setRollbackURL : setRollbackURL,
+	rollback : rollback
+};
+
+}(jQuery, mediaWiki) );

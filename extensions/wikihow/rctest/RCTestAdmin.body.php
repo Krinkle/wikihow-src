@@ -1,4 +1,4 @@
-<?
+<?php
 
 class RCTestAdmin extends UnlistedSpecialPage {
 	var $ts = null;
@@ -21,6 +21,7 @@ class RCTestAdmin extends UnlistedSpecialPage {
 		}
 
 		$wgOut->setPageTitle('Patrol Coach Test Scores');
+		$wgOut->addModules('ext.wikihow.rcTestAdmin');
 		EasyTemplate::set_path( dirname(__FILE__).'/' );
 		switch ($wgRequest->getVal("a", "report")) {
 			case "report":
@@ -37,7 +38,6 @@ class RCTestAdmin extends UnlistedSpecialPage {
 
 		$vars['results'] = $this->getScores();
 		$vars['days'] = $wgRequest->getVal("days", 7);
-		$vars['css'] = HtmlSnips::makeUrlTags('css', array('rctestadmin.css'), 'extensions/wikihow/rctest', true);
 		$html = EasyTemplate::html('RCTestAdmin', $vars);
 		$wgOut->addHTML($html);
 	}
@@ -50,7 +50,6 @@ class RCTestAdmin extends UnlistedSpecialPage {
 		$res = $dbr->select(array('rctest_scores', 'rctest_quizzes'), array('rs_timestamp', 'rq_difficulty', 'rs_quiz_id', 'rs_correct', 'rs_response'), array('rq_id = rs_quiz_id', 'rs_user_id' => $uid), 
 			"RCTestAdmin::printDetail", array('ORDER BY' => 'rs_timestamp DESC, rq_difficulty, rs_correct'));
 
-		wfLoadExtensionMessages('RCTestGrader');
 		$scores = array();
 		while ($row = $dbr->fetchObject($res)) {
 			$score = get_object_vars($row);
@@ -61,7 +60,6 @@ class RCTestAdmin extends UnlistedSpecialPage {
 		}
 
 		$vars['results'] = $scores;
-		$vars['css'] = HtmlSnips::makeUrlTags('css', array('rctestadmin.css'), 'extensions/wikihow/rctest', false);
 		$html = EasyTemplate::html('RCTestAdminDetail', $vars);
 		$wgOut->setArticleBodyOnly(true);
 		$wgOut->addHTML($html);

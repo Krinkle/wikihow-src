@@ -26,6 +26,7 @@ Articles you reserve can be found under "Your Reserved Articles".
 	<th>Id</th>
 	<th>Url</th>
 	<th>Completed Date</th>
+	<th>Notes</th>
 </thead>
 <tbody>
 	<? foreach ($completed as $a) { ?>
@@ -35,6 +36,7 @@ Articles you reserve can be found under "Your Reserved Articles".
 		<?=$linker->linkSystemUrl($a->getUrl())?>
 		</td>
 		<td><?=$a->getCompletedDate()?></td>
+		<td><?=$a->getNotes()?></td>
 	</tr>
 	<? } ?>
 </tbody>

@@ -1513,6 +1513,7 @@ class Sanitizer {
 
 			# WAI-ARIA
 			'role',
+			'aria-label', // Reuben/wikiHow, 2015/11/30: allow screen reader attributes
 		);
 
 		if ( $wgAllowRdfaAttributes ) {

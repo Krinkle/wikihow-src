@@ -24,13 +24,6 @@ abstract class WAPUser {
 
 	abstract public static function newFromName($userName, $dbType);
 
-	public static function newFromUserObject(&$u, $dbType) {
-		if ($u instanceof StubUser) {
-			$u->load();
-		}
-		return new WAPUser($u, $dbType);
-	}
-
 	public function getId() {
 		return $this->u->getId();
 	}
@@ -123,6 +116,7 @@ abstract class WAPUser {
 	}
 
 	function hasPermissions($action = array('')) {
+		global $wgIsDevServer;
 		$hasPermissions = false;
 		$adminGroup = WAPDB::getInstance($this->dbType)->getWAPConfig()->getWikiHowAdminGroupName();
 		$userGroup = WAPDB::getInstance($this->dbType)->getWAPConfig()->getWikiHowGroupName();
@@ -160,8 +154,7 @@ abstract class WAPUser {
 		if ($this->inGroup($adminGroup)) {
 			// Admins can only access the system from dev or a wikiknowhow.com domain
 			// for perf reasons
-			$hasPermissions = stripos(@$_SERVER['HOSTNAME'], 'wikidiy.com') !== false
-				|| stripos(@$_SERVER['HOSTNAME'], 'spare1.wikihow.com') !== false;
+			$hasPermissions = $wgIsDevServer;
 			$hasPermissions = true;
 		} 
 

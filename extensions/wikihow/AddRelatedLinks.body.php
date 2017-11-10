@@ -1,4 +1,4 @@
-<?
+<?php
 
 class AddRelatedLinks extends UnlistedSpecialPage {
 
@@ -54,7 +54,7 @@ class AddRelatedLinks extends UnlistedSpecialPage {
 		parent::__construct( 'AddRelatedLinks' );
 	}
 
-	function addLinkToRandomArticleInSameCategory($t, $summary =  "Weaving the web of links", $linktext = null) {
+	function addLinkToRandomArticleInSameCategory($t, $summary = "Adding links", $linktext = null) {
 		global $wgOut;
 		$cats = array_keys($t->getParentCategories());
 		$found = false;
@@ -64,14 +64,14 @@ class AddRelatedLinks extends UnlistedSpecialPage {
 			$cat = Title::newFromText($cat);
 			if (in_array($cat->getText(), self::$ignore_cats)) {
 				#echo "ignoring cat {$cat->getText()}\n";
-				continue;		
+				continue;
 			}
 			#echo "using cat {$cat->getText()} for {$t->getFullText()}\n";
 			$dbr = wfGetDB(DB_SLAVE);
-			$id  = $dbr->selectField(array('categorylinks', 'page'), 
-					array('cl_from'), 
+			$id  = $dbr->selectField(array('categorylinks', 'page'),
+					array('cl_from'),
 					array('cl_to'=>$cat->getDBKey(), 'page_id = cl_from', 'page_namespace'=>NS_MAIN, 'page_is_redirect'=>0),
-					"AddRelatedLinks::execute", 
+					__METHOD__,
 					array("ORDER BY"=>"rand()", "LIMIT"=>1));
 			if (!$id) {
 				$wgOut->addHTML("<li>Couldn't get a category/enough results for <b>{$t->getText()}</b></li>\n");
@@ -90,10 +90,9 @@ class AddRelatedLinks extends UnlistedSpecialPage {
 	}
 
 	function execute($par) {
-		global $wgRequest, $wgUser, $wgOut, $wgEmbedVideoServiceList;
+		global $wgRequest, $wgUser, $wgOut;
 
-		$fname = "AddRelatedLinks::execute";
-		wfProfileIn($fname); 
+		wfProfileIn(__METHOD__);
 		if (!in_array('staff', $wgUser->getGroups())) {
 			$wgOut->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
 			return;
@@ -105,18 +104,16 @@ class AddRelatedLinks extends UnlistedSpecialPage {
 			</form>
 END
 		);
-	
+
 		if (!$wgRequest->wasPosted()) {
-			wfProfileOut($fname);
-			return; 
+			wfProfileOut(__METHOD__);
+			return;
 		}
 
-		set_time_limit(3000); 
+		set_time_limit(3000);
 
-		require_once('Newarticleboost.body.php');
- 	
 		$dbr = wfGetDB(DB_SLAVE);
-		$urls = array_unique(split("\n", $wgRequest->getVal('xml')));
+		$urls = array_unique(explode("\n", $wgRequest->getVal('xml')));
 
 		$olduser = $wgUser;
 		$wgUser = User::newFromName("Wendy Weaver");
@@ -126,24 +123,24 @@ END
 			$url = trim($url);
 			if ($url == "") continue;
 			$url = preg_replace("@http://www.wikihow.com/@im", "", $url);
-			$t = Title::newFromURL($url); 
+			$t = Title::newFromURL($url);
 			if (!$t) {
 				$wgOut->addHTML("<li>Can't make title out of {$url}</li>\n");
-				continue;	
+				continue;
 			}
 			$r = Revision::newFromTitle($t);
-			if (!$r) {	
+			if (!$r) {
 				$wgOut->addHTML("<li>Can't make revision out of {$url}</li>\n");
-				continue;	
+				continue;
 			}
 			$text = $r->getText();
 			$search = new LSearch();
-			$results = $search->googleSearchResultTitles($t->getText(), 0, 30, 7);
+			$results = $search->externalSearchResultTitles($t->getText(), 0, 30, 7);
 			$good = array();
 			foreach ($results as $r) {
 				if ($r->getText() == $t->getText())
 					continue;
-				if ($r->getNamespace() != NS_MAIN) 
+				if ($r->getNamespace() != NS_MAIN)
 					continue;
 				if (preg_match("@\[\[{$t->getText()}@", $text))
 					continue;
@@ -152,11 +149,11 @@ END
 			}
 
 			if (sizeof($good) == 0)  {
-				$src = self::addLinkToRandomArticleInSameCategory($t);	
+				$src = self::addLinkToRandomArticleInSameCategory($t);
 				if ($src) {
-					$wgOut->addHTML("<li>Linked from <b><a href='{$src->getFullURL()}?action=history' target='new'>{$src->getText()}</a></b> to <b><a href='{$t->getFullURL()}' target='new'>{$t->getText()}</a></b> (random)</li>\n");	
+					$wgOut->addHTML("<li>Linked from <b><a href='{$src->getFullURL()}?action=history' target='new'>{$src->getText()}</a></b> to <b><a href='{$t->getFullURL()}' target='new'>{$t->getText()}</a></b> (random)</li>\n");
 				} else {
-					$wgOut->addHTML("<li>Could not find appropriate links for <b><a href='{$t->getFullURL()}' target='new'>{$t->getText()}</a></b></li>\n");	
+					$wgOut->addHTML("<li>Could not find appropriate links for <b><a href='{$t->getFullURL()}' target='new'>{$t->getText()}</a></b></li>\n");
 				}
 			} else {
 				$x = rand(0, min(4, sizeof($good) - 1));
@@ -166,7 +163,6 @@ END
 			}
 		}
 		$wgOut->addHTML("</ul>Finished at " . date("r") );
-		wfProfileOut($fname);
-		return;
+		wfProfileOut(__METHOD__);
 	}
 }

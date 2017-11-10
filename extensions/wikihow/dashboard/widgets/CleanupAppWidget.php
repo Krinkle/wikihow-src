@@ -114,7 +114,7 @@ class CleanupAppWidget extends DashboardWidget {
 	 */
 	public function getLeaderboardData(&$dbr, $starttimestamp){
 
-		$data = Leaderboard::getArticlesRepaired($starttimestamp, 'cleanup');
+		$data = LeaderboardStats::getArticlesRepaired($starttimestamp, 'cleanup');
 		arsort($data);
 
 		return $data;

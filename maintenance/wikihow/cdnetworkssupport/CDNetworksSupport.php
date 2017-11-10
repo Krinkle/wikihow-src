@@ -12,7 +12,7 @@ class CDNetworksSupport {
 	public static function doCDnetworksApiCall($params, $locations) {
 		$url = 'https://openapi.us.cdnetworks.com/purge/rest/doPurge';
 
-		if (count($locations) == 1 && strpos($location[0], '*') !== false) {
+		if (count($locations) == 1 && strpos($locations[0], '*') !== false) {
 			$type = 'wildcard';
 		} else {
 			foreach ($locations as $location) {

@@ -17,3 +17,12 @@ $wgSpecialPages['LoginFacebook'] = 'LoginFacebook';
 $wgAutoloadClasses['LoginFacebook'] = dirname( __FILE__ ) . '/LoginReminder.body.php';
 $wgSpecialPages['LoginCheck'] = 'LoginCheck';
 $wgAutoloadClasses['LoginCheck'] = dirname( __FILE__ ) . '/LoginReminder.body.php';
+
+$wgResourceModules['ext.wikihow.loginreminder'] = [
+    'scripts'       => 'LoginReminder.js',
+    'localBasePath' => dirname(__FILE__),
+    'remoteExtPath' => 'wikihow/loginreminder',
+    'targets'       => ['desktop'],
+    'messages' => [ 'lr_choose_longer_password', 'lr_passwords_dont_match', 'lr_password_reset' ],
+	'position' => 'top'
+];

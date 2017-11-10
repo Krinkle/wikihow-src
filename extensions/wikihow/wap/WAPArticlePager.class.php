@@ -23,7 +23,6 @@ class WAPArticlePager {
 		$vars['u'] = $u;
 		$vars['articles'] = $u->getAssignedArticles($offset, $rows);
 		$vars['numrows'] = $rows;
-		$vars['tag'] = $rawTag;
 		$config = WAPDB::getInstance($this->dbType)->getWAPConfig();
 		$userClass = $config->getUserClassName();
 		$vars['currentUser'] = $userClass::newFromUserObject($wgUser, $this->dbType);
@@ -35,6 +34,10 @@ class WAPArticlePager {
 	}
 
 	public function getTagListPager($rawTag, $offset, $rows = NUM_ROWS) {
+		$context = RequestContext::getMain();
+		$config = WAPDB::getInstance($this->dbType)->getWAPConfig();
+		$userClass = $config->getUserClassName();
+		$vars['u'] = $userClass::newFromUserObject($context->getUser(), $this->dbType);
 		$vars['rows'] = $this->getTagListRows($rawTag, $offset, $rows);
 		$vars['offset'] = $offset;
 		$vars['numrows'] = $rows;
@@ -45,7 +48,12 @@ class WAPArticlePager {
 	}
 
 	public function getTagListRows($rawTag, $offset, $rows = NUM_ROWS, $filter = null) {
+		$context = RequestContext::getMain();
 		$db = WAPDB::getInstance($this->dbType);
+
+		$config = WAPDB::getInstance($this->dbType)->getWAPConfig();
+		$userClass = $config->getUserClassName();
+		$vars['u'] = $userClass::newFromUserObject($context->getUser(), $this->dbType);
 		$vars['articles'] = $db->getArticlesByTagName($rawTag, $offset, $rows, WAPArticleTagDB::ARTICLE_UNASSIGNED, $filter);
 		$vars['numrows'] = $rows;
 		$vars['tag'] = $rawTag;

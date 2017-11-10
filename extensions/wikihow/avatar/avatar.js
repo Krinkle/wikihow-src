@@ -130,7 +130,7 @@ function removeButton() {
 				alert('Failed while removing avatar.');
 			}
 		});
-	} 
+	}
 
 }
 
@@ -162,7 +162,7 @@ function closeButton() {
 	$('avatarModalPage').style.display = 'none';
 */
 	if (nonModal) {
-		window.location.href=wgServer+'/'+userpage; 
+		window.location.href=wgServer+'/'+userpage;
 	} else {
 		location.reload();
 	}
@@ -175,22 +175,22 @@ function dynLoadPrototype() {
 	proto.setAttribute("type","text/javascript");
 	proto.setAttribute("src", "/extensions/wikihow/common/cropper/lib/prototype.js");
 	document.getElementsByTagName("head")[0].appendChild(proto); ;
-	
+
 	var scriptac=document.createElement('script');
 	scriptac.setAttribute("type","text/javascript");
 	scriptac.setAttribute("src", "/extensions/wikihow/common/cropper/lib/scriptaculous.js?load=builder,dragdrop");
-	document.getElementsByTagName("head")[0].appendChild(scriptac); 
+	document.getElementsByTagName("head")[0].appendChild(scriptac);
 
 	var cropper=document.createElement('script');
 	cropper.setAttribute("type","text/javascript");
 	cropper.setAttribute("src", "/extensions/wikihow/common/cropper/cropper.js");
-	document.getElementsByTagName("head")[0].appendChild(cropper); 
+	document.getElementsByTagName("head")[0].appendChild(cropper);
 
   var fileref=document.createElement("link")
   fileref.setAttribute("rel", "stylesheet")
   fileref.setAttribute("type", "text/css")
   fileref.setAttribute("href", "/extensions/wikihow/common/cropper/cropper.css")
-	document.getElementsByTagName("head")[0].appendChild(fileref); 
+	document.getElementsByTagName("head")[0].appendChild(fileref);
 }
 
 function editButton() {
@@ -203,13 +203,13 @@ function editButton() {
 		/* REMOVE POPUP
 		if (button_edit) {
 			$('avatarPreview2').innerHTML = '';
-		
+
 			initimg.name = imgIn + '/' + wgUserID + '.jpg';
 			initimg.onload = cropperCenter;
 			initimg.onerror = loadFailure;
 			initimg.src = imgServer + imgIn + '/' + wgUserID + '.jpg?' + Math.floor(Math.random() * 99999);
 			onCropCall();
-		
+
 			button_edit = false;
 		}
 		document.getElementById('avatarModalPage').style.display = 'block';
@@ -222,15 +222,15 @@ function initNonModal() {
 	var initimg = new Image();
 	var imageName = '';
 	$('avatarPreview2').innerHTML = '';
-	
+
 	var imgDir = '';
-	if (avatarReload){ 
+//	if (avatarReload){
 		imgDir = getImgDir("tmp_" + wgUserID + ".jpg");
 		imageName = imgServer + imgIn + '/' + imgDir + 'tmp_' + wgUserID + '.jpg?' + Math.floor(Math.random() * 99999);
-	} else {
-		imgDir = getImgDir(wgUserID + ".jpg");
-		imageName = imgServer + imgIn + '/' + imgDir + wgUserID + '.jpg?' + Math.floor(Math.random() * 99999);
-	}
+//	} else {
+//		imgDir = getImgDir(wgUserID + ".jpg");
+//		imageName = imgServer + imgIn + '/' + imgDir + wgUserID + '.jpg?' + Math.floor(Math.random() * 99999);
+//	}
 	initimg.name = imageName;
 
 	initimg.onload = function() {
@@ -239,7 +239,7 @@ function initNonModal() {
 	}
 
 	initimg.onerror = function() {
-		if (avatarReload){ 
+		if (avatarReload){
 			loadFailure(this.name);
 		}
 
@@ -267,14 +267,14 @@ function setActionDIV() {
 		jQuery('#avatarULaction').html("<div class='avatarULtextBox'><a href id='gatUploadImageLink' onclick=\"uploadImageLink();return false;\">Upload Image</a></div>");
 	};
 	initimg.src = imgServer + imgOut + '/' + imgDir + wgUserID + '.jpg?' + Math.floor(Math.random() * 99999);
-	
+
 }
 
 function getNewPic() {
    var newBlock = "<img src='' alt='Source Image' id='avatarIn' />";
 	$('avatarJS').innerHTML = newBlock;
 	$('avatarPreview2').innerHTML = '';
-	
+
 	//AIM.submit(this, {'onStart' : startCallback, 'onComplete' : completeCallback})
 	//document.avatarFileSelectForm.submit();
 }
@@ -286,10 +286,10 @@ function cropperCenter() {
 	var newmarg = (totwidth - this.width - 100 )/2;
 	$('avatarImgBlock').style.marginLeft = newmarg + 'px';
 //	alert(this.name + ' is ' + this.width + ' by ' + this.height + ' pixels in size. centered:'+newmarg);
-	
+
 	return true;
 }
-			
+
 function getWidthAndHeight() {
 	var totwidth = $('avatarImgBlock').style.width.replace('px','');
 	var leftmarg = $('avatarImgBlock').style.marginLeft.replace('px','');
@@ -310,7 +310,7 @@ function loadFailure(name) {
 	} else {
 		mname = this.name;
 	}
-	
+
 	alert(mname + ' failed to load.');
 	return true;
 }
@@ -364,7 +364,7 @@ function onEndCrop( coords, dimensions ) {
 }
 
 function onCropCall() {
-	cropperObj = new Cropper.ImgWithPreview( 
+	cropperObj = new Cropper.ImgWithPreview(
 		'avatarIn',
 		{
 			previewWrap: 'avatarPreview2',
@@ -427,28 +427,28 @@ function completeCallback(response) {
  * *  http://www.webtoolkit.info/
  * *
  * **/
- 
+
 AIM = {
- 
+
 	frame : function(c) {
- 
+
 		var n = 'f' + Math.floor(Math.random() * 99999);
 		var d = document.createElement('DIV');
 		d.innerHTML = '<iframe style="display:none" src="about:blank" id="'+n+'" name="'+n+'" onload="AIM.loaded(\''+n+'\')"></iframe>';
 		document.body.appendChild(d);
- 
+
 		var i = document.getElementById(n);
 		if (c && typeof(c.onComplete) == 'function') {
 			i.onComplete = c.onComplete;
 		}
- 
+
 		return n;
 	},
- 
+
 	form : function(f, name) {
 		f.setAttribute('target', name);
 	},
- 
+
 	submit : function(f, c) {
 		AIM.form(f, AIM.frame(c));
 		if (c && typeof(c.onStart) == 'function') {
@@ -457,7 +457,7 @@ AIM = {
 			return true;
 		}
 	},
- 
+
 	loaded : function(id, c) {
 		var i = document.getElementById(id);
 		if (i.contentDocument) {
@@ -470,7 +470,7 @@ AIM = {
 		if (d.location.href == "about:blank") {
 			return;
 		}
- 
+
 		if (typeof(i.onComplete) == 'function') {
 			i.onComplete(d.body.innerHTML);
 		}
@@ -584,7 +584,7 @@ var BrowserDetect = {
 			   string: navigator.userAgent,
 			   subString: "iPhone",
 			   identity: "iPhone/iPod"
-	    },
+		},
 		{
 			string: navigator.platform,
 			subString: "Linux",
@@ -595,3 +595,12 @@ var BrowserDetect = {
 };
 BrowserDetect.init();
 
+// Show the #uploadedfile button only if the user selected an image
+jQuery(document).on('change', '#uploadedfile', function(e) {
+	var submitButton = jQuery("#gatAvatarImageSubmit");
+	if (jQuery(this).val()) {
+		submitButton.removeClass("disabled").prop('disabled', false);
+	} else {
+		submitButton.addClass("disabled").prop('disabled', true);
+	}
+});

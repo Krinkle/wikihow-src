@@ -47,6 +47,14 @@ class SpecialLog extends SpecialPage {
 	public function execute( $par ) {
 		global $wgLogRestrictions;
 
+		// Reuben, wikiHow (July 24, 2015): remove access to Special:Log
+		// for anonymous users. This page is slow and has been a target
+		// for recent DDoS attacks.
+		if ($this->getUser()->isAnon()) {
+			$this->getOutput()->loginToUse();
+			return;
+		}
+
 		$this->setHeaders();
 		$this->outputHeader();
 
@@ -55,8 +63,10 @@ class SpecialLog extends SpecialPage {
 		$opts->add( 'user', '' );
 		$opts->add( 'page', '' );
 		$opts->add( 'pattern', false );
-//		$opts->add( 'year', null, FormOptions::INTNULL ); don't default to zero
-		$opts->add( 'year', '' );
+		// WH: Lojjik 9/22/2015
+		// Changed Special:Log year search field to default to current year
+		// since there was a bug open for this. The normal default is an empty string.
+		$opts->add( 'year', date("Y"), FormOptions::INTNULL ); // don't default to zero
 		$opts->add( 'month', null, FormOptions::INTNULL );
 		$opts->add( 'tagfilter', '' );
 		$opts->add( 'offset', '' );

@@ -1,6 +1,6 @@
 <?php
 # Script to get translationlinks that point to redirected or deleted articles
-# This should be run from runLangScript.sh 
+# This should be run from "whrun --lang=all ..."
 require_once('commandLine.inc');
 
 global $wgLanguageCode;

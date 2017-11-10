@@ -1,4 +1,4 @@
-<?
+<?php
 
 class Mypages extends SpecialPage {
 

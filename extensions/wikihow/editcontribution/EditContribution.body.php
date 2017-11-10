@@ -4,12 +4,11 @@
  * Displays information about edit contributions, which contributed
  * to the final good revision for a given article.
  */
-class EditContribution extends UnlistedSpecialPage
-{
+class EditContribution extends UnlistedSpecialPage {
 	public function __construct() {
 		parent::__construct('EditContribution');
 	}
-	public function execute() {
+	public function execute($par) {
 		global $wgRequest, $wgOut, $wgUser;
 
 		$userGroups = $wgUser->getGroups();

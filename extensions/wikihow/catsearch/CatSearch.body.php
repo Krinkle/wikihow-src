@@ -1,23 +1,20 @@
-<?
+<?php
+
 class CatSearch extends UnlistedSpecialPage {
 
-	function __construct() { 
+	function __construct() {
 		parent::__construct( 'CatSearch' );
 	}
-	
-	function execute($par) {
-		global $wgOut, $wgRequest, $wgUser;
 
+	function execute($par) {
 		$fname = 'CatSearch::execute';
 		wfProfileIn( $fname );
 
-		$wgOut->setRobotpolicy( 'noindex,nofollow' );
-		if ($wgUser->getId() == 0) {
-			$wgOut->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
-		}
+		$out = $this->getOutput();
+		$out->setRobotpolicy( 'noindex,nofollow' );
 
-		$wgOut->setArticleBodyOnly(true);
-		if ($q = $wgRequest->getVal('q')) {
+		$out->setArticleBodyOnly(true);
+		if ($q = $this->getRequest()->getVal('q')) {
 			/*
 			if ($t = $wgRequest->getVal('t', 0)) {
 				echo json_encode(array("results" => $this->formatResults($this->catToolSearch($q))));
@@ -36,7 +33,7 @@ class CatSearch extends UnlistedSpecialPage {
 
 		$dbr = wfGetDB(DB_SLAVE);
 		$prefix = "Category ";
-		$query = $dbr->strencode($prefix . $q); 
+		$query = $dbr->strencode($prefix . $q);
 		$suggestions = array();
 		$count = 0;
 
@@ -46,8 +43,8 @@ class CatSearch extends UnlistedSpecialPage {
 			$suggestions[] = $t->getPartialUrl();
 		}
 
-        $l = new LSearch();
-       	$results = $l->googleSearchResultTitles($query, 0, 30, 0, LSearch::SEARCH_CATSEARCH);
+		$l = new LSearch();
+		$results = $l->externalSearchResultTitles($query, 0, 30, 0, LSearch::SEARCH_CATSEARCH);
 		foreach ($results as $t) {
 			if (!$this->ignoreCategory($t->getText())) {
 				if ($t->getNamespace() == NS_CATEGORY) {
@@ -94,10 +91,10 @@ class CatSearch extends UnlistedSpecialPage {
 		return $cats;
 	}
 
-	function ignoreCategory($cat) {
+	public static function ignoreCategory($cat) {
 		$cat = str_replace("-", " ", $cat);
 		$ignoreCats = wfMsgForContent("categories_to_ignore");
-		$ignoreCats = split("\n", $ignoreCats);
+		$ignoreCats = explode("\n", $ignoreCats);
 		$ignoreCats = str_replace("http://www.wikihow.com/Category:", "", $ignoreCats);
 		$ignoreCats = str_replace("-", " ", $ignoreCats);
 		return array_search($cat, $ignoreCats) !== false ? true : false || $cat == 'WikiHow' || $cat == 'Wikihow' || $cat == 'Honors' || $cat == 'Answered Requests' || $cat == 'Patrolling';
@@ -127,7 +124,7 @@ class CatSearch extends UnlistedSpecialPage {
 	}
 
 	function getCategoryPartialMatches($q) {
-		$cats = CategoryInterests::getCategoriesArray();	
+		$cats = CategoryInterests::getCategoriesArray();
 		// Only do partial matches when the query is more than 3 characters.  Returns too much gibberish otherwise
 		$results = array();
 		if (strlen($q) > 3) {
@@ -139,19 +136,19 @@ class CatSearch extends UnlistedSpecialPage {
 		return $results;
 	}
 
-	function substrArraySearch($find, $in_array, $keys_found = array()) { 
-		if(is_array($in_array)) { 
-			foreach($in_array as $key => $val) { 
+	function substrArraySearch($find, $in_array, $keys_found = array()) {
+		if(is_array($in_array)) {
+			foreach($in_array as $key => $val) {
 				if(is_array($val)) {
-					$this->substrArraySearch($find, $val, $keys_found); 
-				} else { 
+					$this->substrArraySearch($find, $val, $keys_found);
+				} else {
 					if(false !== stripos($val, $find) && !$this->ignoreCategory($val)) {
-						$keys_found[] = $val; 
+						$keys_found[] = $val;
 					}
-				} 
-			} 
-			return $keys_found; 
-		} 
-		return false; 
-	} 
+				}
+			}
+			return $keys_found;
+		}
+		return false;
+	}
 }

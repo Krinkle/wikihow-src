@@ -9,7 +9,16 @@ $wgExtensionCredits['specialpage'][] = array(
 );
 
 $wgSpecialPages['AdminAdExclusions'] = 'AdminAdExclusions';
-$wgAutoloadClasses['AdminAdExclusions'] = dirname(__FILE__) . '/AdminAdExclusions.body.php';
+$wgAutoloadClasses['AdminAdExclusions'] = __DIR__ . '/AdminAdExclusions.body.php';
+
+$wgResourceModules['ext.wikihow.ad_exclusions'] = [
+	'targets' => [ 'desktop' ],
+	'position' => 'top',
+	'remoteExtPath' => 'wikihow/wikihowAds',
+	'localBasePath' => dirname(__FILE__),
+	'scripts' => [ 'adminadexclusions.js' ],
+];
+
 
 /****
 CREATE TABLE IF NOT EXISTS `adexclusions` (

@@ -9,31 +9,11 @@ $messages['en']=
 		'embedvideo-bad-id' => 'EmbedVideo received the bad id "$1" for the service "$2".',
 		'embedvideo-illegal-width' => 'EmbedVideo received the illegal width parameter "$1".',
 		'embedvideo-embed-clause' =>
-			'<object width="$2" height="$3">'.
-			'<param name="movie" value="$1"></param>'.
-			'<param name="allowfullscreen" value="true"></param>' .
-			'<param name="wmode" value="transparent"></param>'.
-			'<embed src="$1" type="application/x-shockwave-flash" '.
-			'wmode="transparent" width="$2" height="$3">'.
-			'</embed></object>',
+			'<div class="embedvideocontainer"><iframe class="embedvideo" src="$1" frameborder="0" allowfullscreen></iframe></div>',
 		'embedvideo-embed-clause-popcorn' =>
-			'<iframe style="margin-left:-8px;" src="$1" width="640" height="403" frameborder="0" mozallowfullscreen webkitallowfullscreen allowfullscreen></iframe>',
+			'<div class="embedvideocontainer"><iframe class="embedvideo" style="margin-left:-8px;" src="$1" frameborder="0" mozallowfullscreen webkitallowfullscreen allowfullscreen></iframe></div>',
 		'embedvideo-embed-clause-howcast' =>
-			'<object width="$2" height="$3" classid="clsid:D27CDB6E-AE6D-11cf-96B8-444553540000" id="howcastplayer">'.
-			'<param name="movie" value="$1"></param>'.
-			'<param name="allowfullscreen" value="true"></param>' .
-			'<param name="wmode" value="transparent"></param>'.
-			'<param name="allowScriptAccess" value="always"></param>'.
-			'<embed src="$1" type="application/x-shockwave-flash" '.
-			'wmode="transparent" width="$2" height="$3" allowFullScreen="true" allowScriptAccess="always">'.
-			'</embed></object>',
+			'<div class="embedvideocontainer"><iframe class="embedvideo" src="$1" frameborder="0" allowfullscreen></iframe></div>',
 		'embedvideo-embed-clause-videojug' =>
-			'<object width="$2" height="$3">'.
-			'<param name="movie" value="$1"></param>'.
-			'<param name="allowfullscreen" value="true"></param>' .
-			'<param name="wmode" value="transparent"></param>'.
-			'<param name="allowScriptAccess" value="always"></param>'.
-			'<embed src="$1" type="application/x-shockwave-flash" '.
-			'wmode="transparent" width="$2" height="$3" allowFullScreen="true" allowScriptAccess="always">'.
-			'</embed></object>',
+			'<div class="embedvideocontainer"><iframe class="embedvideo" src="$1" frameborder="0" allowfullscreen></iframe></div>'
 	);

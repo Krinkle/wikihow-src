@@ -14,6 +14,7 @@ class WikihowPreferences {
 		'profilebox_fav3',
 		'profilebox_favs',
 		'profilebox_startedEdited',
+		'profilebox_questions_answered',
 		'profilebox_display',
 		'image_license',
 		'phpbb_user_lastvisit',
@@ -22,7 +23,8 @@ class WikihowPreferences {
 		'show_google_authorship',
 		'gplus_uid',
 		'variant',
-		'useadvanced');
+		'useadvanced',
+		'patrolcountlocal');
 
 	public static function userResetAllOptions($newOptions, $oldOptions) {
 		//these are the options we don't want to reset when we say reset all
@@ -40,23 +42,49 @@ class WikihowPreferences {
 
 	public static function getPreferences( $user, &$preferences ) {
 		$userGroups = $user->getGroups();
+		// set $userGroups to be the proper type at least
+		if (!$userGroups) $userGroups = array();
+
+		$optout = (bool)$user->getIntOption( 'globalemailoptout' );
+
+		if ( $user->isAllowed( 'sendemail' ) ) {
+			$core_prefs = array( 'disablemail', 'enotifwatchlistpages', 'enotifminoredits' );
+		} else {
+			$core_prefs = array( 'enotifwatchlistpages', 'enotifminoredits' );
+		}
+
+		foreach ( $core_prefs as $pref ) {
+			$preferences[$pref]['disabled'] = $optout;
+		}
 
 		$preferences['disablemarketingemail'] =
 			array(
 				'type' => 'toggle',
-				'section' => 'echo/emailsettingsind',
+				'section' => 'echo/emailsettings',
 				'label-message' => 'prefs-marketing',
 				'id' => 'wpMarketingEmailFlag',
-				'invert' => '1' //backwards preference. 1 = off, 0 = on
+				'invert' => '1', //backwards preference. 1 = off, 0 = on
+				'disabled' => $optout
+			);
+
+		$preferences['disableqaemail'] =
+			array(
+				'type' => 'toggle',
+				'section' => 'echo/emailsettings',
+				'label-message' => 'prefs-disableqaemail',
+				'id' => 'wpQAEmailFlag',
+				'invert' => '1', //backwards preference. 1 = off, 0 = on
+				'disabled' => $optout
 			);
 
 		$preferences['usertalknotifications'] =
 			array(
 				'type' => 'toggle',
-				'section' => 'echo/emailsettingsind',
+				'section' => 'echo/emailsettings',
 				'label-message' => 'prefs-talk',
 				'id' => 'wpUserTalkNotifications',
-				'invert' => '1' //backwards preference. 1 = off, 0 = on
+				'invert' => '1', //backwards preference. 1 = off, 0 = on
+				'disabled' => $optout
 			);
 
 		//MOVED TO ECHO
@@ -73,29 +101,32 @@ class WikihowPreferences {
 			$preferences['thumbsemailnotifications'] =
 				array(
 					'type' => 'toggle',
-					'section' => 'echo/emailsettingsind',
+					'section' => 'echo/emailsettings',
 					'label-message' => 'prefs-thumbsemail',
 					'id' => 'wpThumbsEmailNotifications',
-					'invert' => '1' //backwards preference. 1 = off, 0 = on
+					'invert' => '1', //backwards preference. 1 = off, 0 = on
+					'disabled' => $optout
 				);
 		}
 
 		$preferences['enableauthoremail'] =
 			array(
 				'type' => 'toggle',
-				'section' => 'echo/emailsettingsind',
+				'section' => 'echo/emailsettings',
 				'label-message' => 'prefs-authoremail',
 				'id' => 'wpAuthorEmailNotifications',
-				'invert' => '1' //backwards preference. 1 = off, 0 = on
+				'invert' => '1', //backwards preference. 1 = off, 0 = on
+				'disabled' => $optout
 			);
-			
+
 		$preferences['managearticlenotifications'] =
 			array(
 				'type' => 'info',
-				'section' => 'echo/emailsettingsind',
+				'section' => 'echo/emailsettings',
 				'id' => 'managearticlenotifications',
 				'default' => '<a href="/Special:AuthorEmailNotification">Manage Article Email Notifications</a>',
-				'raw' => true
+				'raw' => true,
+				'disabled' => $optout
 			);
 
 		$preferences['hidepersistantsavebar'] =
@@ -140,7 +171,7 @@ class WikihowPreferences {
 				'id' => 'wpDefaultEditor',
 				'name' => 'wpDefaultEditor'
 			);
-			
+
 		$preferences['articlecreator'] =
 			array(
 				'type' => 'toggle',
@@ -150,7 +181,20 @@ class WikihowPreferences {
 				'name' => 'wpArticleCreator'
 			);
 
-		if (class_exists('RCTest') && ( in_array('staff', $userGroups) || in_array('sysop', $userGroups) || in_array('newarticlepatrol', $userGroups) )) {
+		$preferences['promotenotify'] =
+			array(
+				'type' => 'toggle',
+				'section' => 'editing/advancedediting',
+				'label-message' => 'prefs-promotenotify',
+				'id' => 'wpPromoteNotify',
+				'name' => 'wpPromoteNotify'
+			);
+
+		if (class_exists('RCTest') && $userGroups &&
+			( in_array('staff', $userGroups)
+				|| in_array('sysop', $userGroups)
+				|| in_array('newarticlepatrol', $userGroups) )
+		) {
 			$preferences['rctest'] =
 				array(
 					'type' => 'toggle',
@@ -180,6 +224,39 @@ class WikihowPreferences {
 					'id' => 'welcomer',
 					'name' => 'wpOpwelcomer'
 				);
+
+
+			$preferences['showhelpfulnessdata'] =
+				array(
+					'type' => 'toggle',
+					'section' => 'rendering/advancedrendering',
+					'label-message' => 'prefs-showhelpfulnessdata',
+					'id' => 'showhelpfulnessdata',
+					'name' => 'wpOpShowHelpfulnessData'
+				);
+		}
+
+		$preferences['showarticleinfo'] =
+			array(
+				'type' => 'toggle',
+				'section' => 'rendering/advancedrendering',
+				'label-message' => 'prefs-showarticleinfo',
+				'id' => 'showarticleinfo',
+				'name' => 'wpOpShowArticleInfo'
+			);
+
+		if ( in_array('sysop', $userGroups)
+			|| in_array('newarticlepatrol', $userGroups)
+			|| in_array('staff', $userGroups)
+		) {
+			$preferences['showdemoted'] =
+				array(
+					'type' => 'toggle',
+					'section' => 'wikihow',
+					'label-message' => 'prefs-showdemoted',
+					'id' => 'showdemoted',
+					'name' => 'wpOpshowdemoted'
+				);
 		}
 
 		/**
@@ -205,14 +282,14 @@ class WikihowPreferences {
 			// $preferences['enotifrevealaddr']['section'] = 'email';
 
 		if(array_key_exists('enotifwatchlistpages', $preferences))
-			$preferences['enotifwatchlistpages']['section'] = 'echo/emailsettingsind';
+			$preferences['enotifwatchlistpages']['section'] = 'echo/emailsettings';
 		if(array_key_exists('disablemail', $preferences))
-			$preferences['disablemail']['section'] = 'echo/emailsettingsind';
+			$preferences['disablemail']['section'] = 'echo/emailsettings';
 		if(array_key_exists('enotifminoredits', $preferences))
-			$preferences['enotifminoredits']['section'] = 'echo/emailsettingsind';
+			$preferences['enotifminoredits']['section'] = 'echo/emailsettings';
 		if(array_key_exists('enotifrevealaddr', $preferences))
-			$preferences['enotifrevealaddr']['section'] = 'echo/emailsettingsind';
-			
+			$preferences['enotifrevealaddr']['section'] = 'echo/emailsettings';
+
 		//remove a couple we don't need any longer
 		unset($preferences['ccmeonemails']);
 		unset($preferences['emailaddress']);

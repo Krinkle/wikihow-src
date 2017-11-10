@@ -3,18 +3,24 @@ class WAPDB {
 	// DB Types
 	const DB_CONCIERGE = 1;
 	const DB_BABELFISH = 2;
-	const DB_EDITFISH = 3;
+    const DB_EDITFISH = 3;
+    const DB_TITLEFISH = 4;
+	const DB_CHOCOFISH = 5;
+	const DB_RETRANSLATEFISH = 6;
 
 	// DB-specific configuration (table names, etc)
- 	private $wapConfig = null;
+ 	protected $wapConfig = null;
 
 	// WAPDB database type
-	private $dbType = null;
+	protected $dbType = null;
 
 	// Singelton DBs
 	private static $conciergeDB = null;
 	private static $babelfishDB = null;
 	private static $editfishDB = null;
+    private static $titlefishDB = null;
+	private static $chocofishDB = null;
+	private static $retranslatefishDB = null;
 
 	// Tag DBs
 	protected $articleTagDB = null;
@@ -42,16 +48,37 @@ class WAPDB {
 				self::$editfishDB =  new $dbClass($config);
 			}
 			return self::$editfishDB;
+		} elseif ($dbType == self::DB_CHOCOFISH) {
+			if (is_null(self::$chocofishDB)) {
+				$config = new WAPChocofishConfig();
+				$dbClass = $config->getDBClassName();
+				self::$chocofishDB =  new $dbClass($config);
+			}
+			return self::$chocofishDB;
+        } elseif ($dbType == self::DB_TITLEFISH) {
+            if (is_null(self::$titlefishDB)) {
+                $config = new WAPTitlefishConfig();
+                $dbClass = $config->getDBClassName();
+                self::$titlefishDB = new $dbClass($config);
+            }
+			return self::$titlefishDB;
+		} elseif ($dbType == self::DB_RETRANSLATEFISH) {
+			if (is_null(self::$retranslatefishDB)) {
+				$config = new WAPRetranslatefishConfig();
+				$dbClass = $config->getDBClassName();
+				self::$retranslatefishDB = new $dbClass($config);
+			}
+			return self::$retranslatefishDB;
 		} else {
 			throw new Exception('No valid system provided');
 		}
 	}
 
 	protected function __construct(WAPConfig $config) {
-		$this->wapConfig = $config;	
+		$this->wapConfig = $config;
 		$this->articleTagDB = WAPTagDB::getArticleTagDB($config);
 		$this->userTagDB = WAPTagDB::getUserTagDB($config);
-		$this->dbType = $config->getDBType();
+        $this->dbType = $config->getDBType();
 	}
 
 	public function parseUrlList(&$urlList, $langCode) {
@@ -80,23 +107,23 @@ class WAPDB {
 	}
 
 	public function processUrlListByLang(&$urlList, $langCode) {
-		$excludedKey = $this->getWAPConfig()->getExludedArticlesKeyName();
+		$excludedKey = $this->getWAPConfig()->getExcludedArticlesKeyName();
 		$excludeList = explode("\n", ConfigStorage::dbGetConfig($excludedKey));
 		$urlList = Misc::getUrlDecodedData($urlList);
 
 		$processedUrls = array(
 			WAPArticle::STATE_INVALID => array(),
 			WAPArticle::STATE_EXCLUDED => array(),
-			WAPArticle::STATE_UNASSIGNED => array(), 
-			WAPArticle::STATE_ASSIGNED => array(), 
-			WAPArticle::STATE_COMPLETED => array(), 
+			WAPArticle::STATE_UNASSIGNED => array(),
+			WAPArticle::STATE_ASSIGNED => array(),
+			WAPArticle::STATE_COMPLETED => array(),
 			WAPArticle::STATE_NEW => array());
 
 		$urls = $this->parseURLlist($urlList, $langCode);
 		foreach ($urls as $url) {
 			// If it's in the system, put it in the right bucket
 			$wa = $url['a'];
-			if ($wa->exists()) {
+			if ($wa && $wa->exists()) {
 				$url['aid'] = $aid = $wa->getArticleId();
 				if (in_array($aid, $excludeList)) {
 					$processedUrls[WAPArticle::STATE_EXCLUDED][] = $url;
@@ -133,7 +160,7 @@ class WAPDB {
 	}
 
 	public function removeExcludedArticles($langCode) {
-		$excludedKey = $this->getWAPConfig()->getExludedArticlesKeyName();
+		$excludedKey = $this->getWAPConfig()->getExcludedArticlesKeyName();
 		$excludeList = explode("\n", ConfigStorage::dbGetConfig($excludedKey));
 		if (!empty($excludeList)) {
 			$this->removeArticles($excludeList, $langCode);
@@ -167,7 +194,7 @@ class WAPDB {
 		$dbType = $this->getWAPConfig()->getDBType();
 		$className = $this->getWAPConfig()->getArticleClassName();
 		$article = $className::newFromId($aid, $langCode, $dbType);
-		
+
 		// If not a staff user only allow reservation of articles if user user tag matches article tag
 		if (!$wu->canView($article)) {
 			throw new Exception("You don't have permission to reserve this article.");
@@ -193,7 +220,7 @@ class WAPDB {
 
 	public function tagArticles(&$aids, $langCode, &$tags, $doInsert = true) {
 		$aids = array_unique($aids);
-		// Perf optimization.  Skip the inserting of urls if you know the articles you are tagging 
+		// Perf optimization.  Skip the inserting of urls if you know the articles you are tagging
 		// already are in the database.  This is an edge case use solely for BabelfishDB::importBatch()
 		if ($doInsert) {
 			$this->insertUrls($aids, $langCode);
@@ -201,6 +228,67 @@ class WAPDB {
 		$rawTags = $this->getRawTags($tags);
 		$this->processTagsOnWAPArticles($aids, $langCode, $rawTags, true);
 		$this->articleTagDB->tagArticles($aids, $langCode, $tags);
+	}
+
+	public function addNotesToArticles(&$aids, $langCode, $notes) {
+		$aids = array_unique($aids);
+
+		$this->insertUrls($aids, $langCode);
+
+		$articleTable = $this->getWAPConfig()->getArticleTableName();
+
+		$dbw = wfGetDB(DB_MASTER);
+
+		$dbw->update(
+			$articleTable,
+			array('ct_notes' => $notes),
+			array('ct_page_id' => $aids, 'ct_lang_code' => $langCode),
+			__METHOD__
+		);
+	}
+
+	// Data format: array(array('lang', 'url', 'note'), ...)
+	public function addSeparateNotesToArticles(&$data) {
+		$result = array(
+			'added' => 0,
+			'lengthError' => 0,
+			'notFound' => array());
+
+		$className = $this->getWAPConfig()->getArticleClassName();
+		$dbType = $this->getWAPConfig()->getDBType();
+		$tableName = $this->getWAPConfig()->getArticleTableName();
+
+		$dbw = wfGetDB(DB_MASTER);
+
+		foreach ($data as $row) {
+			if (count($row) != 3) {
+				$result['lengthError'] += 1;
+				continue;
+			}
+
+			$lang = $row[0];
+			$url = $row[1];
+			$note = $row[2];
+
+			$article = $className::newFromUrl($url, $lang, $dbType);
+			if (!$article || !$article->exists()) {
+				$result['notFound'][] = array('langCode' => $lang, 'url' => $url);
+				continue;
+			}
+
+			$dbw->update(
+				$tableName,
+				array('ct_notes' => $note),
+				array(
+					'ct_page_id' => $article->getPageId(),
+					'ct_lang_code' => $article->getLangCode()),
+				__METHOD__
+			);
+
+			$result['added'] += 1;
+		}
+
+		return $result;
 	}
 
 	protected function insertUrls(&$aids, $langCode, $fields = array(), $override = false) {
@@ -215,6 +303,10 @@ class WAPDB {
 		// Add title-specific info
 		foreach ($aids as $aid) {
 			$t = Title::newFromId($aid);
+			if (!$t || !$t->exists()) {
+				print "GEORGE says 'could not load article id: $aid'\n";
+				continue;
+			}
 			$datum = $fields;
 			$datum['ct_page_id'] = $t->getArticleId();
 			$datum['ct_lang_code'] = $langCode;
@@ -274,7 +366,11 @@ class WAPDB {
 	}
 
 	public function getUsersForTag(&$tag) {
-		$uids = $this->getUserIdsForTag($tag);
+        $uids = $this->getUserIdsForTag($tag);
+        if (!$uids) {
+            return array();
+        }
+
 		$users = array();
 		$dbType = $this->getWAPConfig()->getDBType();
 		$userClass = $this->getWAPConfig()->getUserClassName();
@@ -283,9 +379,9 @@ class WAPDB {
 		}
 		return $users;
 	}
-	
+
 	public function removeTagsFromArticles(&$urlList, $langCode, &$tags) {
-		$processedUrls = $this->processUrlListByLang($urlList, $langCode);	
+		$processedUrls = $this->processUrlListByLang($urlList, $langCode);
 
 		$aids = array();
 		foreach ($processedUrls as $type => $urls) {
@@ -301,6 +397,30 @@ class WAPDB {
 		$rawTags = $this->getRawTags($tags);
 		$this->processTagsOnWAPArticles($aids, $langCode, $rawTags, false);
 		$this->articleTagDB->deleteArticleTagsWithTagIds($aids, $langCode, $tagIds);
+	}
+
+	public function removeNotesFromArticles(&$urlList, $langCode) {
+		$processedUrls = $this->processUrlListByLang($urlList, $langCode);
+
+		$aids = array();
+		foreach ($processedUrls as $type => $urls) {
+			if ($type != 'invalid') {
+				foreach ($urls as $url) {
+					$aids[] = $url['aid'];
+				}
+			}
+		}
+
+		$aids = array_unique($aids);
+
+		$dbw = wfGetDB(DB_MASTER);
+
+		$dbw->update(
+			$this->getWAPConfig()->getArticleTableName(),
+			array('ct_notes' => ''),
+			array('ct_page_id' => $aids, 'ct_lang_code' => $langCode),
+			__METHOD__
+		);
 	}
 
 	public function removeTagsFromUsers(&$uids, &$tags) {
@@ -327,18 +447,18 @@ class WAPDB {
 		$aids = array_unique($aids);
 		$pageIds = "(" . implode(",", $aids) . ")";
 		$articleTable = $this->getWAPConfig()->getArticleTableName();
-		$res = $dbw->select($articleTable, 
-			array('ct_page_id', 'ct_lang_code', 'ct_tag_list'), 
-			array("ct_lang_code" => $langCode, "ct_page_id IN $pageIds"), 
+		$res = $dbw->select($articleTable,
+			array('ct_page_id', 'ct_lang_code', 'ct_tag_list'),
+			array("ct_lang_code" => $langCode, "ct_page_id IN $pageIds"),
 			__METHOD__);
 		$articles = array();
 		foreach ($res as $row) {
 			$row = get_object_vars($row);
 			$this->logError($add ? "add tags" : "remove tags");
 			$this->logError("(aid, lang, current tags) - (" . implode(",", array_values($row)) . ")");
-			$row['ct_tag_list'] = $add ? 
-				$this->addTagsToList($row['ct_tag_list'], $tags) : 
-				$this->removeTagsFromList($row['ct_tag_list'], $tags);	
+			$row['ct_tag_list'] = $add ?
+				$this->addTagsToList($row['ct_tag_list'], $tags) :
+				$this->removeTagsFromList($row['ct_tag_list'], $tags);
 			$row['ct_tag_list'] = $dbw->strencode($row['ct_tag_list']);
 			$this->logError("new tags: " . $row['ct_tag_list']);
 			$articles[] = $row;
@@ -350,7 +470,7 @@ class WAPDB {
 			$dbw->query($sql);
 		}
 	}
-	
+
 	private function addTagsToList($tagList, $tags) {
 		$tagList = empty($tagList) ? array() : explode(",", trim($tagList));
 		foreach ($tags as $tag) {
@@ -392,6 +512,16 @@ class WAPDB {
 		return $tagList;
 	}
 
+	public function deactivateTags($tags) {
+		$tagIds = $this->getTagIds($tags);
+		$this->articleTagDB->changeTagState($tagIds, WAPTagDB::TAG_DEACTIVATED);
+	}
+
+	public function activateTags($tags) {
+		$tagIds = $this->getTagIds($tags);
+		$this->articleTagDB->changeTagState($tagIds, WAPTagDB::TAG_ACTIVE);
+	}
+
 	public function removeTagsFromSystem(&$tags) {
 		$tagsToRemove = $this->getTagIds($tags);
 		$unassignedTags = $this->getTagIds($this->articleTagDB->getUnassignedTags());
@@ -416,7 +546,26 @@ class WAPDB {
 				}
 			}
 		}
-		return $assignedTags;	
+		return $assignedTags;
+	}
+
+	// Return false if user has assigned articles
+	public function deactivateUser($uid) {
+		$assignedArticles = $this->getArticlesByUser($uid, 0, 1, WAPUser::ARTICLE_ASSIGNED);
+		if (empty($assignedArticles)) {
+			$ret = true;
+			$config = $this->getWAPConfig();
+			$dbType = $this->getWAPConfig()->getDBType();
+			$userClass = $config->getUserClassName();
+			$groupName = $config->getWikiHowGroupName();
+
+			$u = $userClass::newFromId($uid, $dbType);
+			$u->removeGroup($groupName);
+		} else {
+			$ret = false;
+		}
+
+		return $ret;
 	}
 
 	public function removeUsers($uids) {
@@ -432,23 +581,24 @@ class WAPDB {
 			// Remove all tags associated with the user
 			$db->deleteAllUserTagsByUser($uid);
 
-			// Remove assigned flag 
+			// Remove assigned flag
 			$articleTable = $this->getWAPConfig()->getArticleTableName();
 			$articleTagTable = $this->getWAPConfig()->getArticleTagTableName();
 			$sql = "UPDATE $articleTable, $articleTagTable SET ca_reserved = 0
 				WHERE ca_page_id = ct_page_id AND ct_lang_code = ca_lang_code AND ct_user_id = $uid AND ct_completed = 0";
 			$dbw->query($sql);
-			
+
 			$dbw->update($articleTable, array('ct_user_id' => 0, 'ct_user_text' => '', 'ct_reserved_timestamp' => ''),
 				array('ct_user_id' => $uid, 'ct_completed' => 0), __METHOD__);
 		}
 	}
 
 	public function addUser(&$url, $powerUser = false) {
-		if	(0 !== stripos($url, 'http://www.wikihow.com/')) {
-			throw new Exception('User urls should start with http://www.wikihow.com/');
+		$url = trim($url);
+		if	(!preg_match('@^https?://www\.wikihow\.com/User:@', $url)) {
+			throw new Exception('User URLs should start with http(s)://www.wikihow.com/User:');
 		}
-		
+
 		$uname = WAPUtil::getUserNameFromUserUrl($url);
 		$success = false;
 		$u = User::newFromName($uname);
@@ -457,26 +607,26 @@ class WAPDB {
 			if (!empty($uid)) {
 				$groupName = $this->getWAPConfig()->getWikiHowGroupName();
 				$u->addGroup($groupName);
-				
+
 				if ($powerUser) {
 					$powerUserGroup = WAPDB::getInstance($this->dbType)->getWAPConfig()->getWikiHowPowerUserGroupName();
 					$u->addGroup($powerUserGroup);
 				}
 				$success = true;
-			} 		
+			}
 		}
 		return $success;
 	}
 
 	/*
-	* Release an article by removing reserve and completed row data in articles and article tags tables 
+	* Release an article by removing reserve and completed row data in articles and article tags tables
 	*/
 	public function releaseArticles(&$aids, $langCode, WAPUser &$wu) {
 		if (!empty($aids) && !empty($langCode)) {
 			$aids = array_unique($aids);
 			$ids = "(" . implode(",", $aids) . ")";
 			$conds = array("ct_page_id IN $ids", "ct_lang_code" => $langCode);
-			// If not a staff user, only allow updates to rows which user is assigned to 
+			// If not a staff user, only allow updates to rows which user is assigned to
 			if (!$wu->inGroup('staff')) {
 				$conds["ct_user_id"] = $wu->getId();
 			}
@@ -534,7 +684,7 @@ class WAPDB {
 		$dbType = $this->getWAPConfig()->getDBType();
 		$className = $this->getWAPConfig()->getArticleClassName();
 		$wa = $className::newFromId($aid, $langCode, $dbType);
-		// If not a staff user, only allow updates to rows which user is assigned to 
+		// If not a staff user, only allow updates to rows which user is assigned to
 		if (!$wu->canView($wa)) {
 			throw new Exception("You don't have permissions to complete this article");
 		}
@@ -557,13 +707,13 @@ class WAPDB {
 		$articles = array();
 		if (sizeof($aids)) {
 			$table = $this->getWAPConfig()->getArticleTableName();
-			$res = $dbr->select($table, '*', 
+			$res = $dbr->select($table, '*',
 				array('ct_lang_code' => $langCode, 'ct_page_id in (' . implode(',', $aids) . ')'), __METHOD__);
 
 			$dbType = $this->getWAPConfig()->getDBType();
 			$className = $this->getWAPConfig()->getArticleClassName();
 			foreach ($res as $row) {
-				$articles[] = $className::newFromDBRow($row, $dbType);	
+				$articles[] = $className::newFromDBRow($row, $dbType);
 			}
 		}
 		return $articles;
@@ -578,7 +728,7 @@ class WAPDB {
 		} elseif (WAPUser::ARTICLE_COMPLETED == $articleState) {
 			$conds['ct_completed'] = 1;
 			$options['ORDER BY'] = 'ct_completed_timestamp DESC';
-		} 		
+		}
 
 		$table = $this->getWAPConfig()->getArticleTableName();
 		$res = $dbr->select($table, array('*'), $conds, __METHOD__, $options);
@@ -586,7 +736,7 @@ class WAPDB {
 		$className = $this->getWAPConfig()->getArticleClassName();
 		$articles = array();
 		foreach ($res as $row) {
-			$articles[] = $className::newFromDBRow($row, $dbType);	
+			$articles[] = $className::newFromDBRow($row, $dbType);
 		}
 		return $articles;
 	}
@@ -594,10 +744,14 @@ class WAPDB {
 	public function getArticlesByTagName($tag, $offset, $limit, $articleState, $catFilter, $orderBy = '') {
 		if (!isset($tag)) {
 			return false;
-		}		
+		}
 
 		$tag = $this->articleTagDB->getTagByRawTag($tag);
-		$tagId = $tag['tag_id'];
+        $tagId = $tag['tag_id'];
+        if (!isset($tagId)) {
+            return false;
+        }
+
 		$dbr = $this->dbr;
 
 		$limitSql = $this->articleTagDB->getLimitSql($offset, $limit);
@@ -617,10 +771,10 @@ class WAPDB {
 		$articleTable = $this->getWAPConfig()->getArticleTableName();
 		$sql = "SELECT ct.*
 			FROM  $articleTagTable, $articleTable ct
-			WHERE  
+			WHERE
 			$reserved
-			ca_tag_id = $tagId AND 
-			ca_page_id = ct_page_id 
+			ca_tag_id = $tagId AND
+			ca_page_id = ct_page_id
 			$catWhere
 			AND ca_lang_code = ct_lang_code
 			$orderBy
@@ -635,7 +789,26 @@ class WAPDB {
 		}
 		return $articles;
 	}
+	public function getTagCount($tag) {
+		if (!isset($tag)) {
+			return false;
+		}
 
+		$tag = $this->articleTagDB->getTagByRawTag($tag);
+		$tagId = $tag['tag_id'];
+		if (!isset($tagId)) {
+			return false;
+		}
+
+		$articleTagTable = $this->getWAPConfig()->getArticleTagTableName();
+		$articleTable = $this->getWAPConfig()->getArticleTableName();
+		$sql = "SELECT COUNT(*) AS count FROM $articleTagTable WHERE ca_tag_id = $tagId";
+		$dbr = wfGetDB(DB_SLAVE);
+		$res = $dbr->query($sql, __METHOD__);
+		$row = $res->fetchRow();
+		return $row['count'];
+
+	}
 	public function getUserTagDB() {
 		return $this->userTagDB;
 	}

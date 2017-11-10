@@ -1,12 +1,14 @@
 <?php
-require_once("extensions/wikihow/TranslationLink.php");
+
+global $IP;
+require_once("$IP/extensions/wikihow/TranslationLink.php");
 
 class RevertTool extends UnlistedSpecialPage {
   function __construct() {
 	    parent::__construct('RevertTool');
 	}
 	public function revertList($list, $revertUser) {
-		global $wgServer, $wgLanguageCode;
+		global $wgLanguageCode;
 		$results = array();
 
 		foreach($list as $l) {

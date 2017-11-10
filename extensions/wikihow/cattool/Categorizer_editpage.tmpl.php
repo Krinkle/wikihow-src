@@ -40,7 +40,7 @@
 			</div>
 		</div>
 		<div id="cat_options">
-			<a href="#" class="button primary" id="cat_save_editpage"><?= wfMessage('cat_update_categories')->text() ?></a>
+			<a href="#" class="button primary op-action" id="cat_save_editpage"><?= wfMessage('cat_update_categories')->text() ?></a>
 			<a href="#" class="button secondary" id="cat_cancel"><?= wfMessage('cancel')->text()?></a>
 		</div>
 		<br />

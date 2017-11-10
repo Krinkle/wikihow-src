@@ -1,4 +1,5 @@
 <?php
+
 class Leonard extends UnlistedSpecialPage {
 	public function __construct() {
 		parent::__construct("Leonard");	
@@ -24,7 +25,7 @@ class Leonard extends UnlistedSpecialPage {
 	private $allowedFileExts = array("csv","CSV");
 	private $allowedCsvFileSize = 2000000;
 	private $allowedFileTypes = array("text/csv");
-	public function execute() {
+	public function execute($par) {
 		require_once ('YBSuggestions.php');
 		require_once ('KeywordIdeasCSV.php');
 		

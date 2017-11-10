@@ -10,10 +10,11 @@ class TopicAppWidget extends DashboardWidget {
 	 * Returns the start link for this widget
 	 */
 	public function getStartLink($showArrow, $widgetStatus) {
-		if($widgetStatus == DashboardWidget::WIDGET_ENABLED)
+		//[sc] works for anon now, so no need to log in 12/2015
+		if($widgetStatus == DashboardWidget::WIDGET_ENABLED || $widgetStatus == DashboardWidget::WIDGET_LOGIN)
 			$link = "<a href='/Special:EditFinder/Topic' class='comdash-start'>Start";
-		else if($widgetStatus == DashboardWidget::WIDGET_LOGIN)
-			$link = "<a href='/Special:Userlogin?returnto=Special:EditFinder/Topic' class='comdash-login'>Login";
+		// else if($widgetStatus == DashboardWidget::WIDGET_LOGIN)
+			// $link = "<a href='/Special:Userlogin?returnto=Special:EditFinder/Topic' class='comdash-login'>Login";
 		else if($widgetStatus == DashboardWidget::WIDGET_DISABLED)
 			$link = "<a href='/Become-a-New-Article-Booster-on-wikiHow' class='comdash-start'>Start";
 		if($showArrow)
@@ -94,8 +95,7 @@ class TopicAppWidget extends DashboardWidget {
 	 * Returns the number of images left to be added.
 	 */
 	public function getCount(&$dbr) {
-		return " ";
-		//return EditFinder::getUnfinishedCount($dbr, 'Topic');
+		return 0;
 	}
 
 	public function getUserCount() {
@@ -104,8 +104,12 @@ class TopicAppWidget extends DashboardWidget {
 		return $data['week'];
 	}
 
-	public function getAdjustedCount() {
-		return " ";
+	public function getWeatherClass($count) {
+		return wfMessage('cd-topic-weather');
+	}
+
+	public function getAdjustedCount(&$dbr) {
+		return wfMessage('cd-topic-remaining');
 	}
 
 	public function getAverageCount() {
@@ -119,7 +123,7 @@ class TopicAppWidget extends DashboardWidget {
 	 */
 	public function getLeaderboardData(&$dbr, $starttimestamp) {
 
-		$data = Leaderboard::getArticlesRepaired($starttimestamp, 'topic');
+		$data = LeaderboardStats::getArticlesRepaired($starttimestamp, 'topic');
 		arsort($data);
 
 		return $data;

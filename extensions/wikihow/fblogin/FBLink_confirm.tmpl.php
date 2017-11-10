@@ -13,7 +13,7 @@
 	<div><img class='fl_pic' src="<?=$fbPicUrl?>"></img></div>
 	<div class='fl_acct_name fl_acct_name_fb'>Your Facebook Account</div>
 	<div><b><?=$fbName?></b></div>
-	<? 
+	<?
 	if ($fbLocation) echo "<div>$fbLocation</div>";
 	if ($fbEmployer) echo "<div>$fbEmployer</div>";
 	//if ($fbSchool) echo "<div>$fbSchool</div>";
@@ -26,3 +26,4 @@
 	<a href="#" class="button primary" id="fl_button_save">Link Accounts</a>
 	<a class='button fl_button_cancel' href="#">Cancel</a>
 </div>
+<input type="hidden" id="edit_token" value="<?= $editToken ?>">

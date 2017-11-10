@@ -1,7 +1,5 @@
-<?
-/*
-* 
-*/
+<?php
+
 class ArticleData extends UnlistedSpecialPage {
 
 	var $action = null;
@@ -13,7 +11,7 @@ class ArticleData extends UnlistedSpecialPage {
 	}
 
 	function execute($par) {
-		global $wgUser, $wgOut, $wgRequest, $wgServer, $isDevServer;
+		global $wgUser, $wgOut, $wgRequest;
 
 		$userGroups = $wgUser->getGroups();
 		if ($wgUser->isBlocked() || !in_array('staff', $userGroups)) {
@@ -41,7 +39,7 @@ class ArticleData extends UnlistedSpecialPage {
 		}
 
 		$this->action = empty($par) ? 'cats' : strtolower($par);
-		$wgOut->addScript(HtmlSnips::makeUrlTags('js', array('download.jQuery.js'), 'extensions/wikihow/common', false));
+		$wgOut->addScript(HtmlSnips::makeUrlTag('/extensions/wikihow/common/download.jQuery.js'));
 		EasyTemplate::set_path( dirname(__FILE__).'/' );
 		$vars = array();
 		$this->setVars($vars);
@@ -57,10 +55,18 @@ class ArticleData extends UnlistedSpecialPage {
 	function outputCategoryReport() {
 		global $wgRequest, $wgOut;
 
-		$cat = str_replace("http://www.wikihow.com/Category:", "", trim(Misc::getUrlDecodedData($wgRequest->getVal('data'))));
+		$title = Misc::getTitleFromText(trim(Misc::getUrlDecodedData($wgRequest->getVal('data'))));
+		$cat = $title->getText();
 		$catArr = array($cat);
 		$cats = CategoryInterests::getSubCategoryInterests($catArr);
 		$cats[] = $cat;
+		$cats = array_map(
+			function($cat) {
+				return str_replace(' ', '-', $cat);
+			},
+			$cats
+		);
+
 		$cats = '"' . join('","', $cats) . '"';
 
 		$sql = 'SELECT 
@@ -69,7 +75,7 @@ class ArticleData extends UnlistedSpecialPage {
 				INNER JOIN categorylinks c ON c.cl_from = page_id 
 				WHERE page_namespace = 0  and page_is_redirect = 0 AND c.cl_to IN (' . $cats . ')';
 		$dbr = wfGetDB(DB_SLAVE);
-		$res = $dbr->query($sql);	
+		$res = $dbr->query($sql);
 
 		$articles = array();
 		while ($row = $dbr->fetchObject($res)) {
@@ -170,11 +176,11 @@ class ArticleData extends UnlistedSpecialPage {
 	function outputArticleReport() {
 		global $wgRequest;
 
-		$urls = split("\n", trim(Misc::getUrlDecodedData($wgRequest->getVal('data'))));
+		$urls = explode("\n", trim(Misc::getUrlDecodedData($wgRequest->getVal('data'))));
 		$dbr = wfGetDB(DB_SLAVE);
 		$articles = array();
 		foreach ($urls as $url) {
-			$t = Title::newFromText(str_replace("http://www.wikihow.com/", "", $url));
+			$t = Misc::getTitleFromText($url);
 			if ($t && $t->exists()) {
 				$articles[$t->getArticleId()] = array ('url' => Misc::makeUrl($t->getText()));
 				if ($this->slowQuery) {
@@ -198,7 +204,7 @@ class ArticleData extends UnlistedSpecialPage {
 	function outputArticleIdReport() {
 		global $wgRequest;
 
-		$ids = split("\n", trim(Misc::getUrlDecodedData($wgRequest->getVal('data'))));
+		$ids = explode("\n", trim(Misc::getUrlDecodedData($wgRequest->getVal('data'))));
 		$dbr = wfGetDB(DB_SLAVE);
 		$articles = array();
 		foreach ($ids as $id) {

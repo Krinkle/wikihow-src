@@ -1,4 +1,4 @@
-<?
+<?php
 
 class SpamDiffTool extends SpecialPage {
 
@@ -71,7 +71,7 @@ class SpamDiffTool extends SpecialPage {
 			$text = '';
 			$urls = array();
 			$source = wfMsgForContent( 'top_level_domains' );
-			$tlds = split("\n", $source);
+			$tlds = explode("\n", $source);
 
 			foreach ($vals as $key=>$value) {
 				if (strpos($key, "http://") === 0) {

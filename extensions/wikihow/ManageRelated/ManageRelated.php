@@ -17,7 +17,7 @@ if ( ! defined( 'MEDIAWIKI' ) ) die();
 $wgExtensionCredits['specialpage'][] = array(
 	'name' => 'ManageRelated',
 	'author' => 'Travis Derouin',
-	'description' => 'Provides a way of searching, previewing and adding links to an existing article',
+	'description' => 'Provides a way of searching, previewing and adding related wikiHows to an existing article',
 	'url' => 'http://www.wikihow.com/WikiHow:ManageRelated-Extension',
 );
 
@@ -29,3 +29,13 @@ $wgSpecialPages['PreviewPage'] = 'PreviewPage';
 $wgAutoloadClasses['PreviewPage'] = dirname( __FILE__ ) . '/ManageRelated.body.php';
 
 $wgExtensionMessagesFiles['RelatedArticleAlias'] = dirname( __FILE__ ) . '/RelatedArticle.alias.php';
+
+$wgResourceModules['ext.wikihow.ManageRelated'] = [
+	'localBasePath' => __DIR__,
+	'targets' => [ 'desktop' ],
+	'styles' => [ 'managerelated.css' ],
+	'scripts' => [ 'managerelated.js', '../common/jquery.scrollTo/jquery.scrollTo.js' ],
+	'dependencies' => [ 'ext.wikihow.desktop_base' ],
+	'remoteExtPath' => 'wikihow',
+	'position' => 'bottom' ];
+

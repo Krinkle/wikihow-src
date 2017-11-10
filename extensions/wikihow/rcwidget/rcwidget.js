@@ -1,3 +1,5 @@
+(function($, mw) {
+
 var rcElements = [];
 var rcReset = true;
 var rcCurrent = 0;
@@ -9,9 +11,13 @@ var rcInterval = '';
 var rcReloadInterval = '';
 var rcwGCinterval = '';
 var rcUnpatrolled = 0;
+var rcNABcount = 0;
+var isBooster = false;
 var rcPause = false;
 var rcExternalPause = false;
 var rcUser = -1;
+var rcThresholds = null;
+var nabThresholds = null;
 
 var rcwIsFull = 0;
 var rcLoadCounter = 1;
@@ -20,9 +26,21 @@ var RCW_MAX_DISPLAY = 3;
 var RCW_DEBUG_FLAG = false;
 var RCW_DIRECTION = 'down';
 var RCW_DEFAULT_URL = "/Special:RCWidget";
-var RCW_ENGLISH = typeof wgContentLanguage == 'string' &&  wgContentLanguage == 'en';
-var RCW_CDN_SERVER = typeof wgServer == 'string' ? wgServer : '';
+var RCW_ENGLISH = mw.config.get('wgContentLanguage') == 'en';
+var server = mw.config.get('wgServer');
+var RCW_CDN_SERVER = typeof server == 'string' ? server : '';
 var rcwTestStatusOn = false;
+
+var rc_URL = RCW_DEFAULT_URL;
+var rc_ReloadInterval, rc_nabRedThreshold, rc_patrolRedThreshold;
+
+// external params
+function setParams(params) {
+	rc_URL = params['rc_URL'];
+	rc_ReloadInterval = params['rc_ReloadInterval'];
+	rc_nabRedThreshold = params['rc_nabRedThreshold'];
+	rc_patrolRedThreshold = params['rc_patrolRedThreshold'];
+}
 
 function getNextSpot() {
 	if (rcwDPointer >= RCW_MAX_DISPLAY) {
@@ -125,16 +143,16 @@ function rcUpdate() {
 
 var rcwRunning = true;
 function rcTransport(obj) {
-	var rcwScrollCookie = getCookie('rcScroll');
+	var rcwScrollCookie = $.cookie('rcScroll');
 
 	obj = $(obj);
 	if (rcwRunning) {
-		setRCWidgetCookie('rcScroll','stop',1);
+		$.cookie('rcScroll', 'stop', {expires: 7});
 		rcStop();
 		rcwRunning = false;
 		obj.addClass('play');
 	} else {
-		deleteCookie('rcScroll');
+		$.removeCookie('rcScroll');
 		rcStart();
 		obj.removeClass('play');
 		rcwRunning = true;
@@ -159,9 +177,9 @@ function rcStop() {
 function rcStart() {
 	rcUpdate();
 	rcLoadCounter = 1;
-	if (rcReloadInterval == '') { rcReloadInterval = setInterval('rcwReload()', rc_ReloadInterval); }
-	if (rcInterval == '') { rcInterval = setInterval('rcUpdate()', 3000); }
-	if (rcwGCinterval == '') { rcwGCinterval = setInterval('rcGC()', 30000); }
+	if (rcReloadInterval == '') { rcReloadInterval = setInterval(rcwReload, rc_ReloadInterval); }
+	if (rcInterval == '') { rcInterval = setInterval(rcUpdate, 3000); }
+	if (rcwGCinterval == '') { rcwGCinterval = setInterval(rcGC, 30000); }
 }
 
 function rcwReadElements(nelem) {
@@ -170,6 +188,7 @@ function rcwReadElements(nelem) {
 	var Servertime = 0;
 	var ElementCount = 0;
 	var Unpatrolled = 0;
+	var NABcount = null;
 
 	for (var i in nelem) {
 		if (typeof(i) != "undefined") {
@@ -177,12 +196,19 @@ function rcwReadElements(nelem) {
 				Servertime = nelem[i];
 			} else if(i == 'unpatrolled'){
 				Unpatrolled = nelem[i];
-			}else {
+			} else if (i == 'NABcount'){
+				NABcount = nelem[i];
+			} else if (i == 'rcThresholds') {
+				rcThresholds = nelem[i];
+			} else if (i== 'nabThresholds') {
+				nabThresholds = nelem[i];
+			} else {
 				Elements.push(nelem[i]);
 				ElementCount++;
 			}
 		}
 	}
+
 	Current = 0;
 
 	rcServertime = Servertime;
@@ -191,10 +217,10 @@ function rcwReadElements(nelem) {
 	rcCurrent = Current;
 	rcReset = true;
 	rcUnpatrolled = Unpatrolled;
+	rcNABcount = NABcount;
 }
 
 function rcwReload() {
-	if (rc_URL == '') rc_URL = RCW_DEFAULT_URL;
 	rcLoadCounter++;
 
 	if (rcLoadCounter > RCW_LOAD_COUNTER_MAX) {
@@ -205,17 +231,23 @@ function rcwReload() {
 		if (rcwTestStatusOn) $('#teststatus').innerHTML = "Reload Counter..."+rcLoadCounter;
 	}
 
-	var url = RCW_CDN_SERVER + rc_URL + '?function=rcwOnReloadData';
+	var url = RCW_CDN_SERVER + rc_URL + '?function=WH.RCWidget.rcwOnReloadData&fromhttp=1';
 	rcwLoadUrl(url);
 }
 
 function rcwOnReloadData(data) {
 	rcwReadElements(data);
+	if (isBooster && rcNABcount != null) {
+		$('#nabheader').show();
+		rcwLoadNabWeather();
+	} else {
+		$('#nabheader').hide();
+	}
 	rcwLoadWeather();
 }
 
 function rcwLoad() {
-	if (rc_URL == '') rc_URL = RCW_DEFAULT_URL;
+	isBooster = $.inArray( "newarticlepatrol", mw.config.get('wgUserGroups')) >= 0;
 
 	var listid = $('#rcElement_list');
 	listid.css('height', (RCW_MAX_DISPLAY * 65) + 'px');
@@ -232,17 +264,23 @@ function rcwLoad() {
 	}
 
 
-	var url = RCW_CDN_SERVER + rc_URL + '?function=rcwOnLoadData';
+	var url = RCW_CDN_SERVER + rc_URL + '?function=WH.RCWidget.rcwOnLoadData&fromhttp=1';
 	if(rcUser != -1)
 		url += "&userId=" + rcUser;
 	rcwLoadUrl(url);
 }
 
 function rcwLoadUrl(url) {
+	var siterev = mw.config.get('wgWikihowSiteRev');
 	if (url.indexOf('?') >= 0) {
-		url += '&' + wgWikihowSiteRev;
+		url += '&' + siterev;
 	} else {
-		url += '?' + wgWikihowSiteRev;
+		url += '?' + siterev;
+	}
+	if (isBooster) {
+		url += '&nabrequest=1';
+	} else {
+		url += '&nabrequest=0';
 	}
 	if (rcExternalPause) return false;
 	var activateWidget = true;
@@ -260,8 +298,21 @@ function rcwLoadUrl(url) {
 		//
 		// from: http://bugs.jquery.com/ticket/4898
 		$.ajaxSetup( {cache: true} ); 
-		$('#rcwidget_divid').after( $('<script src="' + url + '"></script>') );
-		$.ajaxSetup( {cache: false} ); 
+
+		// NOTE: I changed this to jQuery.getScript because creating our own
+		// script element that we insert into the DOM caused a Chrome debugger
+		// warning. We had done this originally to get around the cross-domain
+		// restrictions on loading JS. (We used to load this payload from our
+		// whstatic.com domain.)
+		//
+		// Here is the warning we'd see:
+		// "Synchronous XMLHttpRequest on the main thread is deprecated because of
+		// its detrimental effects to the end user's experience. For more help,
+		// check https://xhr.spec.whatwg.org/."
+		$.getScript(url, function() {
+			// after loading happens, revert the ajax setting
+			$.ajaxSetup( {cache: false} );
+		} );
 	}
 }
 
@@ -270,7 +321,7 @@ function rcwOnLoadData(data) {
 
 	var listid = $('#rcElement_list');
 	if (rcwTestStatusOn) $('#teststatus').innerHTML = "Nodes..."+listid.childNodes.length;
-	var rcwScrollCookie = getCookie('rcScroll');
+	var rcwScrollCookie = $.cookie('rcScroll');
 
 	if (!rcwScrollCookie) {
 		var elem = getRCElem(listid, 'new');
@@ -284,22 +335,52 @@ function rcwOnLoadData(data) {
 		}
 		rcStop();
 	}
-
+	//if the user is an article booster
+	if (isBooster && rcNABcount != null) {
+		$('#nabheader').show();
+		rcwLoadNabWeather();
+	} else {
+		$('#nabheader').hide();
+	}
 	rcwLoadWeather();
 }
 
 function rcwLoadWeather() {
-	var rcWeather = jQuery('.weather');
+	var rcWeather = jQuery('#rcwweather');
+	var rcWeatherUnpatrolled = jQuery('.weather_unpatrolled');
 	rcWeather.removeClass('sunny partlysunny cloudy rainy');
-	if(rcUnpatrolled < 150) //sunny
+	if(rcUnpatrolled < rcThresholds.low) //sunny
 		rcWeather.addClass("sunny");
-	else if(rcUnpatrolled < 500) //sunny/cloudy
+	else if(rcUnpatrolled < rcThresholds.med) //sunny/cloudy
 		rcWeather.addClass("partlysunny");
-	else if(rcUnpatrolled < 1000) //cloudy
+	else if(rcUnpatrolled < rcThresholds.high) //cloudy
 		rcWeather.addClass("cloudy");
 	else //rainy
 		rcWeather.addClass("rainy");
-	rcWeather.html(rcUnpatrolled);
+	rcWeatherUnpatrolled.html(rcUnpatrolled);
+	//threshold passed in from RCwidget.body.php
+	if(rcUnpatrolled >= rc_patrolRedThreshold ){
+		rcWeatherUnpatrolled.css('color','red');
+	}
+}
+
+function rcwLoadNabWeather() {
+	var nabWeather = jQuery('#nabweather');
+	var rcWeatherUnpatrolled = jQuery('.weather_nab');
+	nabWeather.removeClass('sunny partlysunny cloudy rainy');
+	if(rcNABcount < nabThresholds.low) //sunny
+		nabWeather.addClass("sunny");
+	else if(rcNABcount < nabThresholds.med) //sunny/cloudy
+		nabWeather.addClass("partlysunny");
+	else if(rcNABcount < nabThresholds.high) //cloudy
+		nabWeather.addClass("cloudy");
+	else //rainy
+		nabWeather.addClass("rainy");
+	rcWeatherUnpatrolled.html(rcNABcount);
+	//threshold passed in from RCwidget.body.php
+	if(rcNABcount >= rc_nabRedThreshold){
+		rcWeatherUnpatrolled.css('color','red');
+	}
 }
 
 function rcGC() {
@@ -309,39 +390,16 @@ function rcGC() {
 	}
 	$('#rcElement_list #rcw_deleteme').remove();
 
-	/*var listid = $('#rcElement_list');
-	var listcontents = $('#rcElement_list div');
-	for (i = 0; i < listcontents.length; i++) {
-		if ($(listcontents[i]).attr('id') == 'rcw_deleteme') {
-			//listid.removeChild( listcontents[i] );
-			$(listcontents[i]).remove();
-		}
-	}*/
 	if (rcwTestStatusOn) $('#teststatus').innerHTML = tmpHTML;
 }
 
-function setRCWidgetCookie(c_name, value, expiredays) {
-	var exdate = new Date();
-	exdate.setDate(exdate.getDate() + expiredays);
-	document.cookie = c_name + "=" + escape(value) + (expiredays == null ? "" : ";expires=" + exdate.toGMTString());
-}
+// Module exports
+WH.RCWidget = {};
+WH.RCWidget.rcwLoad = rcwLoad;
+WH.RCWidget.rcTransport = rcTransport;
+WH.RCWidget.setParams = setParams;
+WH.RCWidget.rcwOnLoadData = rcwOnLoadData;
+WH.RCWidget.rcwOnReloadData = rcwOnReloadData;
 
-function getCookie(c_name) {
-	if (document.cookie.length > 0) {
-		var c_start = document.cookie.indexOf(c_name + "=");
-		if (c_start != -1) {
-			c_start = c_start + c_name.length + 1;
-			var c_end = document.cookie.indexOf(";", c_start);
-			if (c_end == -1) 
-				c_end = document.cookie.length;
-			return unescape( document.cookie.substring(c_start, c_end) );
-		}
-	}
-	return "";
-}
-
-function deleteCookie(name) {
-	if (getCookie(name)) 
-		document.cookie = name + "=" + ";expires=Thu, 01-Jan-1970 00:00:01 GMT";
-}
+})(jQuery, mw);
 

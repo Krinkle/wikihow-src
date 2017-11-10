@@ -1,6 +1,4 @@
-<?
-
-if (!defined('MEDIAWIKI')) die();
+<?php
 
 class AdminQuizzes extends UnlistedSpecialPage {
 
@@ -69,7 +67,7 @@ class AdminQuizzes extends UnlistedSpecialPage {
 	/**
 	 * Execute special page.  Only available to wikihow staff.
 	 */
-	public function execute() {
+	public function execute($par) {
 		global $wgRequest, $wgOut, $wgUser, $wgLang;
 		
 		$user = $wgUser->getName();

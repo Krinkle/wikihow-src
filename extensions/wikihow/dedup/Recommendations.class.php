@@ -2,6 +2,10 @@
 require_once("$IP/extensions/wikihow/dedup/dedupQuery.php");
 require_once("$IP/extensions/wikihow/dedup/SuccessfulEdit.class.php");
 
+/**
+ * Make recommendations about what articles a user should edit. 
+ *
+ */
 class Recommendations 
 {
 	/**

@@ -1,4 +1,4 @@
-<?
+<?php
 	
 	$messages = array();
 	$messages['en'] = array(
@@ -10,7 +10,7 @@
 		'nfd_delete_message' => "The $1 version of $5 has been deleted for '$2'. $3 voted for the deletion. $4 voted against the deletion. It had $6 views at time of deletion.",
 		'nfd_dup_message' => "The $1 version of $5 has been redirected to $7. $3 voted for the deletion. $4 voted against deletion. It had $6 views at the time of redirection.",
 		'nfd_congrats' => "Congratulations!<br />You have reached the end of the queue!",
-		'nfd_congrats_2' => "You can try changing the <a href='#' class='nfd_options_link'>settings on NFD</a> to see if you can find more edits in one of the other NFD reasons.<br /><br />Alternatively, you could try:<ul><li><a href='/wikiHow:IntroImageAdderStartPage'>Using the Image Picker App</a></li><li><a href='/Special:ListRequestedTopics'>Answering a request</a></li><li><a href='/Special:RCPatrol'>Patrolling recent changes</a>",
+		'nfd_congrats_3' => "You can try changing the <a href='#' class='nfd_options_link'>settings on NFD</a> to see if you can find more edits in one of the other NFD reasons.<br /><br />Alternatively, you could try:<ul><li><a href='/Special:ListRequestedTopics'>Answering a request</a></li><li><a href='/Special:RCPatrol'>Patrolling recent changes</a>",
 		"nfdvote_" => "<p class='first'>Thanks! You're first to vote</p><p>on $1</p>",
 		"nfdvote_tie" => "<p class='first'>Awaiting Deciding Vote</p><p>for $1</p>",
 		"nfdvote_approved" => "<p class='first'>This article has been deleted:</p><p>$1</p>",

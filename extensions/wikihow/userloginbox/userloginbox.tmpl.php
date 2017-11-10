@@ -1,26 +1,20 @@
-<form name="userlogin" class="userlogin" method="post" action="<?=$action_url?>">
-	
-	<h3><?= wfMessage('log_in_via')->text() ?></h3>
-	<?=$social_buttons?>
-		
-	<div class="userlogin_inputs">
-		<h3><?= wfMessage('login')->text() ?></h3>
-		<input type='text' class='loginText input_med' name="wpName" id="wpName1<?=$suffix?>" value="Username" size='20' />
-		<input type="hidden" id="wpName1_showhide<?=$suffix?>" /><br />
-		
-		<input type='password' class='loginPassword input_med' name="wpPassword" id="wpPassword1<?=$suffix?>" value="" size='20' />
-		<input type="hidden" id="wpPassword1_showhide<?=$suffix?>" />
+<div name="userlogin" class="userlogin">
+
+	<h3><?= $hdr_txt ?></h3>
+	<div id='social-login-navbar' data-return-to='<?= htmlspecialchars($return_to) ?>'>
+		<div id="fb_connect<?=$suffix?>"><a id="fb_login<?=$suffix?>" href="#" role="button" class="ulb_button" aria-label="<?=wfMessage('aria_facebook_login')->showIfExists()?>"><span></span>Facebook</a></div>
+		<div id="gplus_connect<?=$suffix?>"><a id="gplus_login<?=$suffix?>" href="#" role="button" class="ulb_button"  aria-label="<?=wfMessage('aria_google_login')->showIfExists()?>"><span></span>Google</a></div>
+		<?php if (CivicLogin::isEnabled()): ?>
+			<div id="civic_connect<?=$suffix?>"><a id="civic_login<?=$suffix?>" href="#" role="button" class="ulb_button"  aria-label="<?=wfMessage('aria_civic_login')->showIfExists()?>"><span></span>Civic</a></div>
+		<?php endif ?>
 	</div>
 
-	<input type='submit' class="button primary login_button" name="wpLoginattempt" id="wpLoginattempt" value="<?= wfMessage('login')->text() ?>" />
-
-	<div class="userlogin_remember">
-		<input type='checkbox' name="wpRemember" value="1" id="wpRemember<?=$suffix?>" checked="checked" /> 
-		<label for="wpRemember<?=$suffix?>"><?= wfMessage('remember_me')->text() ?></label>
+	<div>
+		<a href="/Special:UserLogin?type=<?=$btn_link_type?>&returnto=<?=$return_to?>" role="button" id="wh_login<?=$suffix?>" class="ulb_button <?=$is_login?>" aria-label="<?= $hdr_txt ?>"><span></span><?=$wh_txt?></a>
 	</div>
-	
+
 	<div class="userlogin_links">
-		<a href="/Special:LoginReminder" id="forgot_pwd<?=$suffix?>"><?= wfMessage('forgot_pwd')->text()?></a>
-		<a href="<?php if(SSL_LOGIN_DOMAIN) print "https://" . SSL_LOGIN_DOMAIN; ?>/Special:Userlogin?type=signup"><?= wfMessage('nologinlink')->text()?></a>
+		<?= $bottom_txt_1 ?>
+		<a href="/Special:UserLogin?type=<?=$bottom_link_type . $from_http ?>"><?= $bottom_txt_2 ?></a>
 	</div>
-</form>
+</div>

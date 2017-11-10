@@ -21,7 +21,7 @@ class ArticleAuthors {
 			return array();
 		}
 	}
-	
+
 	private static function printAuthors(&$authors) {
 		global $wgOut;
 		$wgOut->addHtml(implode(", ", $authors));
@@ -64,44 +64,28 @@ class ArticleAuthors {
 		return $authors;
 	}
 
-	static function getAuthorHeader() {
-		global $wgTitle, $wgRequest, $wgUser, $wgLanguageCode;
+	static function getAuthorHeaderSidebar() {
+		global $wgTitle, $wgRequest, $wgUser;
 		if (!$wgTitle
 			|| !($wgTitle->getNamespace() == NS_MAIN || $wgTitle->getNamespace() == NS_PROJECT)
 			|| $wgRequest->getVal('action', 'view') != 'view'
-			|| $wgRequest->getVal('diff') != '') return "";
+			|| $wgRequest->getVal('diff') != '') {
+				return "";
+			}
 
 		ArticleAuthors::loadAuthorsCache();
 		$html = "";
-		// Logged in users see this
-		if ($wgUser->getID() > 0) {
-			//$users =  array_slice(self::$authorsCache, 0, min(sizeof(self::$authorsCache), 4));
-			$users =  self::$authorsCache;
-			if (!empty($users)) {
-				$html = wfMessage('originated_by', "<span id='loggedin'>" .  self::formatAuthorList($users, true, true, 4) . "</span>")->text();
-			}
-		} else {
-			//$users = array_slice(self::$authorsCache, 0, min(sizeof(self::$authorsCache), 4));
-			$users =  self::$authorsCache;
-			if (!empty($users)) {
-				$otherUserCount = sizeof(self::$authorsCache) - 4;
-				$authorSpan = "<span>" . self::formatAuthorList($users, false, false, 4) . "</span>";
-				if ($otherUserCount > 1) {
-					$html = wfMessage('originated_by_and_others_anon', $authorSpan, $otherUserCount)->text();
-				} elseif ($otherUserCount == 1) {
-					$html = wfMessage('originated_by_and_1_other_anon', $authorSpan)->text();
-				} else {
-					$html = wfMessage('originated_by_anon', $authorSpan)->text();
-				}
+		$users =  self::$authorsCache;
+		if (!empty($users)) {
+			$message = "";
+			$numEditors = count($users);
+			$message = wfMessage('sp_editor_multi', $numEditors)->text();
+			if ($wgUser->getID() > 0) {
+				$message =  Linker::link($wgTitle, $message, array(), array( "action"=>"credits" ) );
 			}
 		}
 
-		if (empty($users)) {
-		  $html = "";  //no longer showing <span>&nbsp;</span> as it caused spacing problems - bebeth
-		}
-
-		$html = "<p id='originators'>$html</p>";
-		return $html;
+		return $message;
 	}
 
 	static function loadAuthorsCache() {
@@ -132,9 +116,9 @@ class ArticleAuthors {
 	}
 
 	static function formatAuthorList($authors, $showAllLink = true, $link = true, $max = null) {
-		global $wgTitle, $wgUser, $wgRequest, $wgMemc;
+		global $wgTitle, $wgUser, $wgRequest, $wgMemc, $wgOut;
 
-		if (!$wgTitle || !in_array($wgTitle->getNamespace(), array(NS_MAIN, NS_PROJECT))) {
+		if (!$wgTitle || !$wgTitle->inNamespaces(NS_MAIN, NS_PROJECT)) {
 			return '';
 		}
 
@@ -159,7 +143,7 @@ class ArticleAuthors {
 				if (!$user) continue;
 				$name = $user->getRealName();
 				if (!$name) $name = $user->getName();
-				//Remove trailing spaces 
+				//Remove trailing spaces
 				$name=preg_replace("/ +$/","", $name);
 				//check if G+ user
 				if ($user->getOption('show_google_authorship')) {
@@ -172,29 +156,27 @@ class ArticleAuthors {
 			}
 			$count++;
 		}
-		
+
 		//are we floating G+ authors to the top?
 		//if so, keep #1 as #1
 		if (count($links_gp) > 0) {
 			if ($gplus_first) {
 				$links = array_merge($links_gp, $links);
-			}
-			else {
+			} else {
 				$first = array_shift($links);
 				$links = array_merge($links_gp, $links);
 				if ($first) array_unshift($links, $first);
 			}
 		}
-		
 		//let's truncate here if we need to
 		if ($max) {
 			$links = array_slice($links, 0, min(sizeof($links), $max));
 		}
-		
+
 		$html = implode(", ", $links);
 		if ($showAllLink) {
-			$sk = $wgUser->getSkin();
-			$html .=  " (" . $sk->makeLinkObj($wgTitle, wfMessage('see_all')->text(), "action=credits")  . ")";
+			$sk = $wgOut->getSkin();
+			$html .=  " (" . Linker::link( $wgTitle, wfMessage('see_all')->text(), array(), array('action' => 'credits') )  . ")";
 		}
 		$wgMemc->set($cachekey, $html);
 

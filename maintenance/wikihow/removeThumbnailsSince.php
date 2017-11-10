@@ -5,8 +5,6 @@ require_once( __DIR__ . '/cdnetworkssupport/CDNetworksSupport.php' );
 
 class RemoveThumbnailsSince extends Maintenance {
 
-	const AWS_BUCKET = 'image_backups';
-
 	public function __construct() {
 		parent::__construct();
 		$this->addOption( 'title', 'title', false, true, 't');
@@ -132,7 +130,7 @@ class RemoveThumbnailsSince extends Maintenance {
 	// given an image file (local file object) delete the thumbnails from s3
 	// functionality gotten from FileRepo.php quickpurgebatch and LocalFile.php purgethumblist
 	public static function purgeThumbnailsFromS3($file) {
-		$s3 = new S3(WH_AWS_BACKUP_ACCESS_KEY, WH_AWS_BACKUP_SECRET_KEY);
+		$s3 = new S3(WH_AWS_IMAGES_ACCESS_KEY, WH_AWS_IMAGES_SECRET_KEY);
 
 		$thumbnails = $file->getThumbnails();
 		$dir = array_shift( $thumbnails );
@@ -149,7 +147,7 @@ class RemoveThumbnailsSince extends Maintenance {
 				$uri = "{$dirPath}/{$thumbnail}";
 				//$path = str_replace("mwstore://local-backend/local-thumb/", "", $item);
 				decho("s3 object to delete", $uri, false);
-				$s3->deleteObject(self::AWS_BUCKET, $uri);
+				$s3->deleteObject(WH_AWS_IMAGE_BACKUPS_BUCKET, $uri);
 			}
 		}
 	}

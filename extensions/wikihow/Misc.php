@@ -5,156 +5,9 @@ if ( ! defined( 'MEDIAWIKI' ) )
 $wgExtensionMessagesFiles['Misc'] = dirname(__FILE__) . '/Misc.i18n.php';
 $wgAutoloadClasses['Misc'] = dirname(__FILE__) . '/Misc.body.php';
 
-//$wgHooks['IsTrustedProxy'][] = array('Misc::checkCloudFlareProxy');
-$wgHooks['IsTrustedProxy'][] = array('Misc::checkFastlyProxy');
+$wgHooks['UnitTestsList'][] = array('Misc::onUnitTestsList');
 
-$wgHooks['ArticleConfirmDelete'][] = array('Misc::getDeleteReasonFromCode');
-$wgHooks['MakeGlobalVariablesScript'][] = array('Misc::addGlobalVariables');
-$wgHooks['EditPage::showEditForm:fields'][] = array('Misc::onShowEditFormFields');
-$wgHooks['BeforeWelcomeCreation'][] = array('Misc::onBeforeWelcomeCreation');
-$wgHooks['MaybeAutoPatrol'][] = array('Misc::onMaybeAutoPatrol');
-
-$wgHooks['SpecialRecentChangesPanel'][] = array('Misc::onSpecialRecentChangesPanel');
-$wgHooks['SpecialRecentChangesQuery'][] = array('Misc::onSpecialRecentChangesQuery');
-
-// Reuben, 1/9/14 - I commented out use of this hook below because it stopped
-// our own Special:LSearch page from loading (Mediawiki's Special:Search page
-// would load instead). I can't figure out how the hook below is supposed to work
-// with our LSearch page, so I'm disabling it (to fix bugs) until I can ask 
-// Jordan.
-//$wgHooks['LanguageGetSpecialPageAliases'][] = array('Misc::onLanguageGetSpecialPageAliases');
-
-// Mediawiki 1.21 seems to redirect pages differently from 1.12, so we recreate
-// the 1.12 functionality from "redirect" articles that are present in the DB.
-//   - Reuben, 12/23/2013
-$wgHooks['InitializeArticleMaybeRedirect'][] = array('Misc::onInitializeArticleMaybeRedirect');
-$wgHooks['BeforeInitialize'][] = array('Misc::onBeforeInitialize');
-
-$wgHooks['TitleSquidURLs'][] = array('Misc::onTitleSquidURLs');
-$wgHooks['wgQueryPages'][] = array('Misc::onPopulateWgQueryPages');
-
-function checkFastlyProxy() {
-	$value = isset($_SERVER[WH_FASTLY_HEADER_NAME]) ? $_SERVER[WH_FASTLY_HEADER_NAME] : '';
-	return $value == WH_FASTLY_HEADER_VALUE;
-}
-
-function decho($name, $value = "", $html = true) {
-	$lineEnd = "<br>\n";
-	if (!$html) {
-		$lineEnd = "\n";
-	}
-	$prefix = wfGetCaller(2);
-
-	if (is_string($value)) {
-		echo "$prefix: $name: $value";
-	} else if ((!is_array($value) || !is_object($value)) && method_exists($value, '__toString')) {
-		print_r("$prefix: $name: $value");
-	} else {
-		echo "$prefix: $name: ";
-		print_r($value);
-		echo $lineEnd;
-	}
-
-	echo $lineEnd;
-}
-
-// Generate a link to our external CDN
-function wfGetPad($relurl = '') {
-	global $wgServer, $wgIsDomainTest, $wgRequest, $wgSSLsite, $wgIsStageHost;
-
-	$isCanonicalServer = $wgServer == 'http://www.wikihow.com' ||
-		$wgServer == 'http://m.wikihow.com' ||
-		$wgIsDomainTest;
-	$isCachedCopy = $wgRequest && $wgRequest->getVal('c') == 't';
-
-	// Special case for www.wikihow.com urls being requested for international
-	if (!IS_PROD_EN_SITE && preg_match('@http://www.wikihow.com@', $relurl)) {
-		$relurl = str_replace('http://www.wikihow.com', '', $relurl);
-	} else {
-		// Don't translate CDN URLs in 4 cases:
-		//  (1) if the URL is non-relative (starts with http://),
-		//  (2) if the hostname of the machine doesn't end in .wikihow.com and
-		//  (3) the site is being served via SSL/https (to get around
-		//      mixed content issues with chrome)
-		//  (4) if the image being requested is from an international server
-		if (preg_match('@^https?://@i', $relurl)
-			|| $isCachedCopy
-			|| IS_IMAGE_SCALER
-			|| (!$isCanonicalServer
-				&& (!preg_match('@\.wikihow\.com$@', @$_ENV['HOSTNAME'])
-					|| $wgSSLsite
-					|| $wgIsStageHost
-					|| !IS_PROD_EN_SITE))
-		) {
-			return $relurl;
-		}
-	}
-
-	$numPads = 3;
-	// Mask out sign or upper bits to make 32- and 64-bit machines produce
-	// uniform results.
-	$crc = crc32($relurl) & 0x7fffffff;
-	$pad = ($crc % $numPads) + 1;
-	$prefix = 'pad';
-
-	return "http://{$prefix}{$pad}.whstatic.com{$relurl}";
-	// Code to send half of the requests to one CDN then half to the other
-	/*
-	global $wgTitle, $wgLanguageCode;
-	if ($wgLanguageCode != 'en') {
-		return "http://{$prefix}{$pad}.whstatic.com{$relurl}";
-	} elseif (preg_match('@^/images/(.*)$@', $relurl, $m)) {
-		$rest = $m[1];
-		$title = $wgTitle && strlen($wgTitle->getText()) > 0 ? $wgTitle->getText() : 'Z';
-		if (ord($title{0}) <= ord('D')) {
-			return "http://d1cu6f3ciowfok.cloudfront.net/images_en/" . $rest;
-		} else {
-			return "http://{$prefix}{$pad}.whstatic.com{$relurl}";
-		}
-	}
-	return $relurl;
-	*/
-}
-
-/* function wfStrr_replace($text, $find, $replace) {
-	$i = strrpos($text, $find);
-	if ($i === false)
-		return $text;
-	#echo $text . "\n--------\n" . substr($text, 0, $i) . "\n--------\n" . substr($text, $i+strlen($find));
-	$s = substr($text, 0, $i)
-			. $replace
-			. substr($text, $i+strlen($find));
-	#echo "\n---------\n\n{$s}\n"; exit;
-	return $s;
-} */
-
-/*
- * Function written by Travis. Takes a date (in a string format such that
- * php's strtotime() function will work with it) or a unix timestamp
- * (if you pass in $isUnixTimestamp == true) and converts to format
- * "x Days/Seconds/Minutes Ago" format relative to current date.
- */
-function wfTimeAgo($date, $isUnixTimestamp = false) {
-	// INTL: Use the internationalized time function based off the original wfTimeAgo
-	return Misc::getDTDifferenceString($date, $isUnixTimestamp);
-}
-
-function wfFlattenArrayCategoryKeys($arg, &$results = array()) {
-	if (is_array($arg)) {
-		foreach ($arg as $a=>$p) {
-			$results[] = $a;
-			if (is_array($p)) {
-			   wfFlattenArrayCategoryKeys($p, $results);
-			}
-		}
-	}
-	return $results;
-}
-
-// WHMWUP -- Reuben 11/19: Empty stub of a deprecated function
-function wfLoadExtensionMessages($module) {
-}
-
+// wikiHow category defines list. Powers of 2.
 define('CAT_ARTS', 1);
 define('CAT_CARS', 2);
 define('CAT_COMPUTERS', 4);
@@ -176,3 +29,312 @@ define('CAT_WIKIHOW', 65536);
 define('CAT_WORK', 131072);
 define('CAT_YOUTH', 262144);
 
+// Generate a link to our external/cheaper CDN; generates .whstatic.com urls
+function wfGetPad($relurl = '') {
+	global $wgServer, $wgRequest, $wgIsSecureSite, $wgLanguageCode;
+	global $wgIsStageDomain, $wgIsDevServer, $wgIsImageScaler, $wgIsAnswersDomain;
+
+	$isCanonicalProdDomain = preg_match('@^(https?:)?//(www|m|[a-z]{2}(\.m)?)\.wikihow\.(com|cz|it|jp|vn)$@', $wgServer) > 0;
+	$isCachedCopy = $wgRequest && $wgRequest->getVal('c') == 't';
+	$externalEnSourceImage = false;
+
+	// Special case for www.wikihow.com image urls being requested by
+	// our non-English domains
+	if ($wgLanguageCode != 'en' && preg_match('@^(https?:)?//(www|m)\.wikihow\.com(.*)$@', $relurl, $m)) {
+		$relurl = $m[3]; // keep just the relative url after the domain
+		$externalEnSourceImage = true;
+	} else {
+		// Don't translate CDN URLs in 4 cases:
+		//  (1) if the URL is non-relative (for example, starts with http://),
+		if (preg_match('@^(https?:)?//@i', $relurl)) {
+			return $relurl;
+		}
+		//  (2) if the image being requested is on one of these specific
+		//      services that shouldn't serve whstatic urls
+		if ($isCachedCopy || $wgIsImageScaler || $wgIsDevServer) {
+			return $relurl;
+		}
+		//  (3) if we are loading a non-canonical wikiHow domain (like
+		//      apache.wikihow.com or blah.whstatic.com), but the hostname of
+		//      the machine doesn't end with .wikihow.com
+		if ( !$isCanonicalProdDomain
+			&& !$wgIsAnswersDomain
+			&& ( !preg_match('@\.wikihow\.com$@', @$_ENV['HOSTNAME']) // on a production server
+				|| $wgIsStageDomain )
+		) {
+			return $relurl;
+		}
+	}
+
+	// We transform ES image URLs to use EN production domain as follows:
+	//   http://es.wikihow.com/images/0/00/My-image.jpg ===>
+	//   http://pad1.whstatic.com/images_es/0/00/My-image.jpg
+	if ($wgLanguageCode != 'en') {
+		if (!$externalEnSourceImage) {
+			$relurl = preg_replace('@^/images/@', "/images_$wgLanguageCode/", $relurl);
+		} else {
+			$relurl = preg_replace('@^/images/@', "/images_en/", $relurl);
+		}
+	}
+
+	if ($wgIsSecureSite) {
+		// If on https or INTL, we want to link to the https wikihow EN domain for
+		// these images.
+		return "https://www.wikihow.com{$relurl}";
+	} else {
+		$numPads = 3;
+		// Mask out sign or upper bits to make 32- and 64-bit machines produce
+		// uniform results.
+		$crc = crc32($relurl) & 0x7fffffff;
+		$pad = ($crc % $numPads) + 1;
+		$domain = "pad{$pad}";
+
+		return "http://$domain.whstatic.com{$relurl}";
+	}
+
+	// Code to send half of the requests to one CDN then half to the other
+	/*
+	global $wgTitle, $wgLanguageCode;
+	if ($wgLanguageCode != 'en') {
+		return "http://{$prefix}{$pad}.whstatic.com{$relurl}";
+	} elseif (preg_match('@^/images/(.*)$@', $relurl, $m)) {
+		$rest = $m[1];
+		$title = $wgTitle && strlen($wgTitle->getText()) > 0 ? $wgTitle->getText() : 'Z';
+		if (ord($title{0}) <= ord('D')) {
+			return "http://d1cu6f3ciowfok.cloudfront.net/images_en/" . $rest;
+		} else {
+			return "http://{$prefix}{$pad}.whstatic.com{$relurl}";
+		}
+	}
+	return $relurl;
+	*/
+}
+
+/**
+ * Generate the canonical domain for a language, either mobile
+ * or desktop.
+ * @param string $lang domain name to generate, by language. It should be a
+ *   2-letter language code, or '' to use $wgLanguageCode
+ * @param bool $mobile true or false to generate mobile version of target domain;
+ *   false is default.
+ * @return string a domain such as www.wikihow.com, es.m.wikihow.com, etc
+ */
+function wfCanonicalDomain($lang = '', $mobile = false) {
+	global $wgActiveLanguages, $wgLanguageCode, $wgActiveDomainOverrides;
+	global $wgNoMobileRedirectTest;
+
+	if ($wgNoMobileRedirectTest) {
+		$mobile = false;
+	}
+	if (!$lang) $lang = $wgLanguageCode;
+	if (in_array($lang, array_merge(array('en'), $wgActiveLanguages))) {
+		if (isset($wgActiveDomainOverrides[$lang])) {
+			$platform = $mobile ? 'mobile' : 'desktop';
+			return $wgActiveDomainOverrides[$lang][$platform];
+		} else {
+			return !$mobile ? $lang . '.wikihow.com' : $lang . '.m.wikihow.com';
+		}
+	} else {
+		return '';
+	}
+}
+
+/**
+ * Generate the canonical domains for all active languages, either mobile
+ * or desktop.
+ * @param bool $mobile true or false to generate mobile versions of domains;
+ *   false is default.
+ * @param bool $includeEn true or false to include the English domain;
+ *   false is default.
+ * @return array an associated array mapping language codes to domains
+ */
+function wfGetAllCanonicalDomains($mobile=false, $includeEn=false) {
+	global $wgActiveLanguages, $wgActiveDomainOverrides;
+
+	$langs = $wgActiveLanguages;
+	if ($includeEn) {
+		$langs = array_merge(array('en'), $langs);
+	}
+
+	$canonicalDomains = array();
+	$platform = $mobile ? 'mobile' : 'desktop';
+
+	foreach ($langs as $lang) {
+		if (isset($wgActiveDomainOverrides[$lang])) {
+			$canonicalDomains[$lang] = $wgActiveDomainOverrides[$lang][$platform];
+		} else {
+			$canonicalDomains[$lang] = $lang . ($mobile ? '.m' : '') . '.wikihow.com';
+		}
+	}
+
+	return $canonicalDomains;
+}
+
+/**
+ * Generate a partial regex string matching on any active canonical domain,
+ * for either mobile or desktop.
+ * @param bool $mobile true or false to generate mobile versions of domains;
+ *   false is default.
+ * @param bool $includeEn true or false to include the English domain;
+ *   false is default.
+ * @param bool $capture true or false to capture the matched regex group;
+ *   false is default.
+ * @return array an associated array mapping language codes to domains
+ */
+function wfGetDomainRegex($mobile=false, $includeEn=false, $capture=false) {
+	return
+		'('
+		. ($capture ? '' : '?:')
+		. implode(
+			'|',
+			array_map(
+				'preg_quote',
+				array_values(wfGetAllCanonicalDomains($mobile, $includeEn))
+			)
+		)
+		. ')';
+}
+
+/**
+ * Return the language corresponding to the given domain as a two-character
+ * language code.
+ * @param string $domain the domain (either desktop or mobile) for which to
+ *   fetch the language; e.g. 'www.wikihow.com' or 'es.m.wikihow.com'.
+ * @return string the two-character language code for the language
+ *   corresponding to the domain; e.g. 'en', or '' if none found.
+ */
+function wfGetLangCodeFromDomain($domain) {
+	/**
+	 * Associative array computed once to contain a map of canonical domains for
+	 * active languages, to their corresponding language codes.
+	 *
+	 * The known domains are fetched from wfGetAllCanonicalDomains.
+	 *
+	 * The array's structure will be as follows:
+	 * array(
+	 *   'www.wikihow.com' => 'en',
+	 *   'm.wikihow.com' => 'en',
+	 *   // ...
+	 *   'es.wikihow.com' => 'es',
+	 *   'es.m.wikihow.com' => 'es',
+	 *   // ...
+	 *   'www.wikihow.vn' => 'vi',   // Note: some language domains do not follow the
+	 *   'm.wikihow.vn' => 'vi', // standard structure for international.
+	 *   // ...
+	 * );
+	 */
+	static $domainToLanguageMap = false;
+
+	if ($domainToLanguageMap === false) {
+		$platforms = array(
+			false, // desktop
+			true // mobile
+		);
+
+		$domainToLanguageMap = array();
+		foreach ($platforms as $platform) {
+			$langDomains = wfGetAllCanonicalDomains($platform, true);
+			foreach ($langDomains as $lang=>$langDomain) {
+				$domainToLanguageMap[$langDomain] = $lang;
+			}
+		}
+	}
+
+	if (isset($domainToLanguageMap[$domain])) {
+		// The domain is in our generated list for Active Languages
+		return $domainToLanguageMap[$domain];
+	} elseif (preg_match('@^([a-z]{2})\.@', $domain, $m)) {
+		// Fall-back when domain not in list, but does start with two-character code
+		return $m[1];
+	} else {
+		return '';
+	}
+}
+
+/**
+ * Import an environment variable and make it a define with the same name
+ * and a default value if it's not in the environment.
+ */
+function wfImportFromEnv($arr, $default = '') {
+	if (!is_array($arr)) $arr = [ $arr ];
+	foreach ($arr as $var) {
+		if (!defined($var)) {
+			if (isset($_ENV[$var])) {
+				define($var, $_ENV[$var]);
+			} else {
+				define($var, $default);
+			}
+		}
+
+		// clear out sensitive variables from $_ENV and $_SERVER arrays
+		if (isset($_ENV[$var])) {
+			unset($_ENV[$var]);
+		}
+		if (isset($_SERVER[$var])) {
+			unset($_SERVER[$var]);
+		}
+	}
+}
+
+/*
+ * Function written by Travis. Takes a date (in a string format such that
+ * php's strtotime() function will work with it) or a unix timestamp
+ * (if you pass in $isUnixTimestamp == true) and converts to format
+ * "x Days/Seconds/Minutes Ago" format relative to current date.
+ */
+function wfTimeAgo($date, $isUnixTimestamp = false) {
+	// INTL: Use the internationalized time function based off the original wfTimeAgo
+	return Misc::getDTDifferenceString($date, $isUnixTimestamp);
+}
+
+// WHMWUP -- Reuben 11/19: Empty stub of a deprecated function
+function wfLoadExtensionMessages($module) {
+	// Added by Reuben as a reminder to remove
+	wfDeprecated( __METHOD__, '1.12' );
+}
+
+function decho( $name, $value = "", $html = true, $showPrefix = true ) {
+	$lineEnd = "\n";
+	if ( $html ) {
+		$lineEnd = "<br>\n";
+	}
+
+	$prefix = "";
+	if ( $showPrefix ) {
+		$prefix = wfGetCaller( 2 ) . ": ";
+	}
+
+	if ( is_string( $value ) ) {
+		echo $prefix.$name.": $value";
+	} else if ( ( !is_array( $value ) || !is_object( $value ) ) && method_exists( $value, '__toString' ) ) {
+		print_r( $prefix.$name.": $value");
+	} else {
+		echo $prefix.$name.": ";
+		print_r( $value );
+		echo $lineEnd;
+	}
+
+	echo $lineEnd;
+}
+
+function usernameInList($list=[]) {
+	global $wgUser, $wgRequest;
+	$username = $wgUser->isAnon() ? $wgRequest->getIP() : $wgUser->getName();
+	return in_array($username, $list);
+}
+
+function wfRewriteCSS($css, $addRemove) {
+	if ($addRemove) { // ADD
+		// Insert the padx.whstatic.com URLs into CSS
+		return preg_replace_callback(
+			'@url\((/[^)]*)\)@',
+			function ($m) {
+				$url = $m[1];
+				$str = 'url(' . wfGetPad($url) . ')';
+				return $str;
+			}, $css);
+	} else {
+		// Remove padx.whstatic.com URLs from CSS
+		return preg_replace('@url\(http://[^.]+\.whstatic\.com(/[^)]*)\)@', "url($1)", $css);
+	}
+}

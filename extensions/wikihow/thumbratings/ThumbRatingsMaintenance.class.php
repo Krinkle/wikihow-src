@@ -1,16 +1,18 @@
-<?
+<?php
+
 require_once("$IP/extensions/wikihow/thumbratings/ThumbRank.class.php");
 require_once("$IP/extensions/wikihow/DatabaseHelper.class.php");
 
 class ThumbRatingsMaintenance {
 
-	function __construct() { }
+	public function __construct() {
+	}
 
 	/*
 	* For some likely complex parser reason this script starts to become memory inefficient
-	* and slow down after reordering appox 1k articles.  
+	* and slow down after reordering appox 1k articles.
 	*/
-	function rankArticles($num = 1000, $lowDate) {
+	public function rankArticles($num = 1000, $lowDate) {
 		global $wgUseSquid, $wgHooks;
 		$this->output("rankArticles() start: " . date("Y-m-d H:i:s"));
 
@@ -26,12 +28,12 @@ class ThumbRatingsMaintenance {
 		$wgUseSquid = false;
 
 		// Get articles with votes
-		$dbr = self::getMaintenanceDBR(); 
-		$res = $dbr->select('thumb_ratings', 'tr_page_id', 
-			array("tr_last_ranked IS NULL OR tr_last_ranked < '$lowDate'"), 
-			__METHOD__, 
+		$dbr = self::getMaintenanceDBR();
+		$res = $dbr->select('thumb_ratings', 'tr_page_id',
+			array("tr_last_ranked IS NULL OR tr_last_ranked < '$lowDate'"),
+			__METHOD__,
 			array('GROUP BY' => 'tr_page_id', 'ORDER BY' => 'SUM(tr_up + tr_down) DESC', 'LIMIT' => $num));
-		$ids = array();		
+		$ids = array();
 		foreach ($res as $row) {
 			$ids[] = $row->tr_page_id;
 		}
@@ -54,7 +56,7 @@ class ThumbRatingsMaintenance {
 		// Reset appropriate vars to original state
 		$wgUseSquid = $oldWgUseSquid;
 		$wgHooks['ArticleSaveComplete'] = $oldArticleSaveCompleteHooks;
-		
+
 		$this->output("rankArticles() finish: " . date("Y-m-d H:i:s"));
 	}
 
@@ -63,7 +65,7 @@ class ThumbRatingsMaintenance {
 		$dbw->update('thumb_ratings', array('tr_last_ranked' => wfTimestampNow()), array('tr_page_id' => $aid), __METHOD__);
 	}
 
-	function refreshArticleVotes() {
+	public function refreshArticleVotes() {
 		$this->output("refreshArticleVotes() start: " . date("Y-m-d H:i:s"));
 		$dbw = wfGetDB(DB_MASTER);
 		$ids = $this->getDailyEditPageIds();
@@ -85,7 +87,7 @@ class ThumbRatingsMaintenance {
 				if (sizeof($hashes)){
 					$hashList = "('" . implode("','", $hashes) . "')";
 					$dbw->delete('thumb_ratings', array('tr_page_id' => $id, "tr_hash NOT IN $hashList"), __METHOD__);
-				} 
+				}
 				$this->output("page id: $id, " . sizeof($hashes) . " hashes saved");
 			} else {
 				$this->output("page id: $id, DELETED");
@@ -95,11 +97,11 @@ class ThumbRatingsMaintenance {
 		$this->output("refreshArticleVotes() finish: " . date("Y-m-d H:i:s"));
 	}
 
-	function output($str) {
+	private function output($str) {
 		echo "$str\n";
 	}
 
-	function getDailyEditPageIds($lookback = 1) {
+	private function getDailyEditPageIds($lookback = 1) {
 		$dbr = wfGetDB(DB_SLAVE);
 		$lowDate = wfTimestamp(TS_MW, strtotime("-$lookback day", strtotime(date('Ymd', time()))));
 
@@ -113,8 +115,8 @@ class ThumbRatingsMaintenance {
 		return $ids;
 	}
 
-	function getLastGoodRevision($aid) {
-		$t = Title::newFromId($aid); 
+	private function getLastGoodRevision($aid) {
+		$t = Title::newFromId($aid);
 		$r = null;
 		if (GoodRevision::patrolledGood($t)) {
 			$gr = GoodRevision::newFromTitle($t, $aid);
@@ -124,19 +126,14 @@ class ThumbRatingsMaintenance {
 	}
 
 	public static function getMaintenanceDBR() {
-		global $wgDBname;
+		global $wgDBname, $wgIsDevServer;
 
-		if (strpos(@$_SERVER['HOSTNAME'], 'wikidiy.com') !== false) {
-			define(MAINTENANCE_DB_HOST, WH_DATABASE_MASTER);
-		} else {
-			define(MAINTENANCE_DB_HOST, WH_DATABASE_BACKUP);
-		}
-
+		$maintenanceDBhost = WH_DATABASE_MASTER;
 		$db = DatabaseBase::factory('mysql');
-    	$db->open(MAINTENANCE_DB_HOST, WH_DATABASE_MAINTENANCE_USER, WH_DATABASE_MAINTENANCE_PASSWORD, $wgDBname);
-    	return $db;
+		$db->open($maintenanceDBhost, WH_DATABASE_MAINTENANCE_USER, WH_DATABASE_MAINTENANCE_PASSWORD, $wgDBname);
+		return $db;
 	}
-	
+
 	public static function getRatedArticlesCount() {
 		$dbr = self::getMaintenanceDBR();
 		return $dbr->selectField('thumb_ratings', 'count(distinct tr_page_id)', array(), __METHOD__);

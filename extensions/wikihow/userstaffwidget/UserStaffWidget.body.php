@@ -2,21 +2,23 @@
 
 class UserStaffWidget extends UnlistedSpecialPage {
 	public function __construct() {
-		parent::__construct('UserStaffWidget');	
+		parent::__construct('UserStaffWidget');
 	}
+
 	public static function isAllowed() {
-		global $wgUser;
+		$context = RequestContext::getMain();
 
-		$username = $wgUser->getName();
-		if ( ! in_array($username, array('Gersh','Reuben,','Krystle','Anna','JackHerrick'))) {                                                                                                  
-			return false;
-		}
+		//English only
+		if ($context->getLanguage()->getCode() != 'en') return false;
+
+		//staff only
+		$userGroups = $context->getUser()->getGroups();
+		if (!in_array('staff', $userGroups)) return false;
+
 		return true;
-
 	}
+
 	public static function getStaffWidgetData($userId ) {
-		global $wgServer;
-		
 		$host = WH_TITUS_API_HOST;
 		$url = $host."/api.php?action=flavius&subcmd=staff&user_id=$userId&format=json";
 		$ch = curl_init($url);
@@ -52,13 +54,13 @@ class UserStaffWidget extends UnlistedSpecialPage {
 
 	}
 
-	public function execute() {
-		global $wgLang, $wgOut, $wgRequest, $wgUser;
+	public function execute($par) {
+		global $wgOut, $wgRequest, $wgUser;
 		if(!self::isAllowed()) {
 			$wgOut->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
 			return;
-		}		
-	
+		}
+
 		$userName = $wgRequest->getVal('user_name','');
 		$userName = str_replace('-',' ',$userName);
 		$u = User::newFromName($userName);
@@ -76,7 +78,7 @@ class UserStaffWidget extends UnlistedSpecialPage {
 		global $wgUser, $wgTitle, $wgLang;
 
 		if(!self::isAllowed()) {
-			return true;	
+			return true;
 		}
 		if($wgTitle->getNamespace() == NS_USER ) {
 			if(preg_match("@^([^/]+)(/|$)@",$wgTitle->getText(),$matches)) {
@@ -112,7 +114,7 @@ class UserStaffWidget extends UnlistedSpecialPage {
 			$txt .= "var username = this.title;
 					$.ajax({url:'/Special:UserStaffWidget',type:'GET',
 					data: {'user_name':username}, success:function(data) {
-						$('#sidebar .user_widget').html(data).show();	
+						$('#sidebar .user_widget').html(data).show();
 					}});
 			";
 			$txt .= "});\n";

@@ -1,4 +1,4 @@
-<?
+<?php
 
 class ThumbsNotifications extends UnlistedSpecialPage {
 

@@ -1,49 +1,65 @@
+(function($, mw) {
+
+window.WH.LoginReminder = {};
+
 /*
  * To change this template, choose Tools | Templates
  * and open the template in the editor.
  */
 var focusElement = "";
 
-jQuery(document).ready(function(){
+$(document).ready(function() {
 
 	//show the instructions if they exist
-	jQuery(".input_med").focus(function(){
+	$(".input_med").focus(function() {
 		id = $(this).attr("id");
 		focusElement = id;
-		if($("#" + id + "_mark").is(":visible")){
+		if (id == "wpName2" && !$(this).val()) {
+			$("#wpName2_mark").hide();
+			$("#wpName2_info").show();
+		} else if ($("#" + id + "_mark").is(":visible")) {
 			$("#" + id + "_error").show();
-		}
-		else{
+		} else {
 			$("#" + id + "_info").show();
 		}
 	});
 
 	//hide the instructions if user isn't hovering
 	//over them/
-	jQuery(".input_med").blur(function(){
+	$(".input_med").blur(function() {
 		id = $(this).attr("id");
-		if(focusElement == id)
+		if (focusElement == id)
 			focusElement = "";
 		$("#" + id + "_error").hide();
-		
-		if($("#" + id + "_showhide").val() != 1)
+
+		if ($("#" + id + "_showhide").val() != 1)
 			$("#" + id + "_info").hide();
 	});
 
-	jQuery(".mw-info").hover(function(){
+	// Make info and error boxes clickable
+	$(".mw-info, .mw-error").mousedown(function(e) {
+		e.preventDefault();
+	});
+
+	// Autofill the username field when clicking on a suggestion
+	$("#wpName2_error").on("click", ".username-suggestion", function() {
+		$("#wpName2").val($(this).text());
+	});
+
+	$(".mw-info").hover(function() {
 		idInfo = $(this).attr("id");
 		id = idInfo.substring(0, idInfo.length - 5);
 		$("#" + id + "_showhide").val(1);
-	}, function(){
+	}, function() {
 		idInfo = $(this).attr("id");
 		id = idInfo.substring(0, idInfo.length - 5);
 		$("#" + id + "_showhide").val(0);
-		if(id != focusElement)
+		if (id != focusElement)
 			$(this).hide();
 	});
 
-	jQuery("#wpUseRealNameAsDisplay").change(function(){
-		if (jQuery("#wpUseRealNameAsDisplay").is(':checked')){
+	$("#wpUseRealNameAsDisplay").change(function() {
+		if ($("#wpUseRealNameAsDisplay").is(':checked')) {
 			$("#real_name_row").show();
 		} else {
 			$("#real_name_row").hide();
@@ -51,93 +67,102 @@ jQuery(document).ready(function(){
 		}
 	});
 
-	if (jQuery("#wpUseRealNameAsDisplay").is(':checked')){
+	if ($("#wpUseRealNameAsDisplay").is(':checked')) {
 		$("#real_name_row").show();
 	}
 
-	jQuery("#userloginForm #wpName, #userloginForm #wpName2").blur(function(){
-		checkName(jQuery(this).val());
+	$("#userloginForm #wpName, #userloginForm #wpName2").blur(function() {
+		checkName($(this).val());
 	})
 
-	jQuery("#userloginForm #wpPassword2").blur(function(){
-		pass1 = jQuery(this).val();
-		if(pass1.length < 4 && pass1.length > 0){
-			//jQuery("#wpPassword2_error div").html(unescape(passwordtooshort));
-			jQuery("#wpPassword2_error div").html('pwd too $hort');
-			jQuery("#wpPassword2_mark").show();
-		}
-		else{
-			jQuery("#wpPassword2_mark").hide();
+	$("#userloginForm #wpPassword2").blur(function() {
+		pass1 = $(this).val();
+		if (pass1.length < 4 && pass1.length > 0) {
+			$("#wpPassword2_error").html(mw.message('lr_choose_longer_password').text());
+			$("#wpPassword2_mark").show();
+		} else {
+			$("#wpPassword2_mark").hide();
 		}
 	});
 
-	jQuery("#userloginForm #wpRetype").blur(function(){
-		pass1 = jQuery("#userloginForm #wpPassword2").val();
-		pass2 = jQuery("#userloginForm #wpRetype").val();
+	$("#userloginForm #wpRetype").blur(function() {
+		pass1 = $("#userloginForm #wpPassword2").val();
+		pass2 = $("#userloginForm #wpRetype").val();
 
-		if(pass1 != pass2){
-			//jQuery("#wpRetype_error div").html(unescape(badretype));
-			jQuery("#wpRetype_error div").html(unescape('bad retype'));
-			jQuery("#wpRetype_mark").show();
-		}
-		else{
-			jQuery("#wpRetype_mark").hide();
+		if (pass1 != pass2) {
+			$("#wpRetype_error").html(mw.message('lr_passwords_dont_match').text());
+			$("#wpRetype_mark").show();
+		} else {
+			$("#wpRetype_mark").hide();
 		}
 	});
 
-	jQuery(".wpMark").click(function(){
+	$(".wpMark").click(function() {
 		idInfo = $(this).attr("id");
 		id = idInfo.substring(0, idInfo.length - 5);
-		jQuery("#" + id + "_error").show();
-		jQuery("#" + id).focus();
+		$("#" + id + "_error").show();
+		$("#" + id).focus();
 	});
 
+	$(document).on('click', "#forgot_pwd", function() {
+		if ($("#wpName1").val() == 'Username or Email') $("#wpName1").val('');
+		getPassword($("#wpName1").val());
+		return false;
+	});
+
+	$("#forgot_pwd_head").click(function() {
+		if ($("#wpName1_head").val() == 'Username or Email') $("#wpName1_head").val('');
+		getPassword($("#wpName1_head").val());
+		return false;
+	});
 });
 
-function checkName(username){
-	var params = 'username=' + encodeURIComponent(username);
+function checkName(username) {
+	var params = 'username=' + encodeURIComponent(username) + '&fromhttp=1';
 	var that = this;
 	var url = '/Special:LoginCheck?' + params;
-	jQuery.get(url, function(json) {
+	$.get(url, function(json) {
 		if (json) {
-			data = jQuery.parseJSON( json );
-			if(data.error){
-				jQuery("#wpName2_error div").html(data.error);
-				jQuery("#wpName2_mark").show();
-			}
-			else{
-				jQuery("#wpName2_mark").hide();
+			data = $.parseJSON(json);
+			if (data.error) {
+				$("#wpName2_error").html(data.error);
+				$("#wpName2_mark").show();
+			} else {
+				$("#wpName2_mark").hide();
 			}
 		} else {
-			jQuery("#wpName2_mark").hide();
+			$("#wpName2_mark").hide();
 		}
 	});
 }
 
 var whWasPasswordReset = false;
-function getPassword(username){
+
+function getPassword(username) {
+	//close any open modals
+	if ($.modal) $.modal.close();
+
 	//since this can be called from an article page
 	//make sure the jquery ui is loaded
-	var url = "/extensions/wikihow/common/jquery-ui-1.9.2.custom/js/jquery-ui-1.9.2.custom.min.js";
-	$.getScript(url, function() {
-		jQuery('#dialog-box').html('');
-		url = "/Special:LoginReminder?name=" + username;
-		
-		jQuery('#dialog-box').load(url, function(){
+	mw.loader.using( ['jquery.ui.dialog'], function () {
+		$('#dialog-box').html('');
+		url = "/Special:LoginReminder?name=" + encodeURIComponent(username) + "&fromhttp=1";
+
+		$('#dialog-box').load(url, function() {
 			whWasPasswordReset = false;
-			jQuery('#dialog-box').dialog({
+			$('#dialog-box').dialog({
 				width: 650,
 				modal: true,
-				title: 'Password Reset',
-				closeText: 'Close',
-				close: function () {
+				title: mw.message('lr_password_reset').text(),
+				closeText: 'x',
+				close: function() {
 					if (whWasPasswordReset) {
-						jQuery('#password-reset-dialog').dialog({
+						$('#password-reset-dialog').dialog({
 							width: 250,
 							modal: true
 						});
-						jQuery('#password-reset-ok').click(function() {
-							jQuery('#password-reset-dialog').dialog('close');
+						$('#password-reset-ok').click(function() {
+							$('#password-reset-dialog').dialog('close');
 							return false;
 						});
 					}
@@ -147,37 +172,39 @@ function getPassword(username){
 	});
 }
 
-function checkSubmit(name, captchaWord, captchaId) {
-	var params = 'submit=true&name=' + encodeURIComponent(jQuery("#" + name).val()) + '&wpCaptchaId=' + jQuery("#" + captchaId).val() + '&wpCaptchaWord=' + jQuery("#" + captchaWord).val();
+WH.LoginReminder.checkSubmit = function(name, captchaWord, captchaId) {
+	var params = 'submit=true&name=' + encodeURIComponent($("#" + name).val()) + '&wpCaptchaId=' + $("#" + captchaId).val() + '&wpCaptchaWord=' + $("#" + captchaWord).val();
+	params += '&fromhttp=1';
 	var that = this;
 	var url = '/Special:LoginReminder?' + params;
-	jQuery.get(url, function(json) {
+	$.get(url, function(json) {
 		if (json) {
-			data = jQuery.parseJSON( json );
-			jQuery(".mw-error").hide();
-			if(data.success){
+			data = $.parseJSON(json);
+			$(".mw-error").hide();
+			if (data.success) {
 				whWasPasswordReset = true;
-				jQuery('#form_message').html(data.success);
-				jQuery('#dialog-box').dialog('close');
-			}
-			else{
-				if(data.error_username){
-					jQuery('#wpName2_error div').html(data.error_username);
-					jQuery('#wpName2_error').show();
+				$('#form_message').html(data.success);
+				$('#dialog-box').dialog('close');
+			} else {
+				if (data.error_username) {
+					$('#wpName2_error').html(data.error_username);
+					$('#wpName2_error').show();
 				}
-				if(data.error_captcha){
-					jQuery('#wpCaptchaWord_error div').html(data.error_captcha);
-					jQuery('#wpCaptchaWord_error').show();
-					jQuery('.captcha').html(decodeURI(data.newCaptcha));
+				if (data.error_captcha) {
+					$('#wpCaptchaWord_error').html(data.error_captcha);
+					$('#wpCaptchaWord_error').show();
+					$('.captcha').html(decodeURI(data.newCaptcha));
 				}
-				if(data.error_general){
-					jQuery('#wpName2_error div').html(data.error_general);
-					jQuery('#wpName2_error').show();
+				if (data.error_general) {
+					$('#wpName2_error').html(data.error_general);
+					$('#wpName2_error').show();
 				}
 			}
 		} else {
-			
+
 		}
 	});
 	return false;
-};
+}
+
+})(jQuery, mw);

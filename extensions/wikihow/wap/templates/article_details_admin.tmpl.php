@@ -1,5 +1,5 @@
 <h3>Language: <?=$lang?></h3>
-<? if (!$article->exists()) {?>
+<? if (!$article || !$article->exists()) {?>
 	<h4>Article doesn't exist in the system</h4>
 <? } else { ?>
 	<div style="margin-top: 10px">
@@ -15,6 +15,7 @@
 	<li>Assigned to: <?=$assignedLink?></li>
 	<li>Assigned on: <?=$assignedOn?></li>
 	<li>Completed on: <?=$completedOn?></li>
+	<li>Notes: <?=$article->getNotes()?></li>
 	<?
 	echo "<li>Tags: ";
 	if (!empty($tags)) {

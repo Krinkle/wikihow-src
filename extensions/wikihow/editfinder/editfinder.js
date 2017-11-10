@@ -12,10 +12,10 @@ function EditFinder() {
 	this.m_searchterms = '';
 }
 
+EditFinder.prototype.init = function () {
+	editFinder.initToolTitle();
+	editFinder.getArticle();
 
-// Init shortcut key bindings
-$(document).ready(function() {
-	initToolTitle();
 	$(".firstHeading").after($("#editfinder_cat_header"));
 
 	var mod = Mousetrap.defaultModifierKeys;
@@ -23,7 +23,7 @@ $(document).ready(function() {
 	Mousetrap.bind(mod + 's', function() {$('#editfinder_skip').click();});
 	Mousetrap.bind(mod + 'p', function() {$('#wpSave').click();});
 	Mousetrap.bind(mod + 'v', function() {$('#wpPreview').click();});
-	Mousetrap.bind(mod + 'c', function() {$('#edit_cancel_btn').click();});
+	Mousetrap.bind(mod + 'c', function() {document.getElementById('mw-editform-cancel').click();});
 
 	 $("#edit_keys").click(function(e){
         e.preventDefault();
@@ -32,15 +32,11 @@ $(document).ready(function() {
             minHeight: 300,
             modal: true,
             title: 'Greenhouse Keys',
-            closeText: 'Close',
+            closeText: 'x',
             position: 'center',
         });
-    });	
-});
+    });
 
-EditFinder.prototype.init = function () {
-	editFinder.getArticle();
-	
 	//bind skip link
 	jQuery('#editfinder_skip').click(function(e) {
 		e.preventDefault();
@@ -49,93 +45,123 @@ EditFinder.prototype.init = function () {
 			editFinder.getArticle();
 		}
 	});
-	
-	var interests = editFinder.getEditType() == 'Topic';
+
+	var interests = editFinder.getEditType() == 'topic';
+
+	if (interests) {
+		editFinder.showCatChooseLink();
+	}
+	else {
+		editFinder.getUserCats();
+	}
+
 	/*category choosing*/
 	jQuery('.editfinder_choose_cats').click(function(e){
 		e.preventDefault();
 		if (interests) {
 			editFinder.getThoseInterests();
+			$(document).scrollTop(0);
 		}
 		else {
 			editFinder.getThoseCats();
 		}
 	});
-	
-	if (interests) {
-		editFinder.getUserInterests();
-	}
-	else {
-		editFinder.getUserCats();
-	}
-	
+
+}
+
+//overrides the wikihowbits.js one
+EditFinder.prototype.initToolTitle = function() {
+	$(".wh_block").before("<div id='editfinder_tool_title'>" + $(".firstHeading").html() + "</div>");
 }
 
 
 EditFinder.prototype.getEditType = function() {
-	var pathParts = window.location.pathname.split('/');
-	return pathParts[pathParts.length - 1];
+	return $('#editfinder_edittype').val();
 }
 
 EditFinder.prototype.getThoseInterests = function() {
-	jQuery('#dialog-box').html('');
-	jQuery('#dialog-box').load('/Special:CatSearchUI?embed=1', function() {
-		jQuery('#dialog-box').dialog({
-			width: 400,
-			modal: true,
-			title: 'Interests',
-			closeText: 'Close',
-			close: function(event, ui) {
-				// Only auto-show this dialog once. Use this cookie as a variable to control
-				$.cookie('ef_int', '1', {expires: 365 * 10, path: '/'});
+	if ($('#editfinder_interests').is(':visible')) {
+		//close it
+		$('#editfinder_interests').slideUp(function() {
+			if ($('#ef_num_cats').val() != $(".csui_category").size()) {
 				window.location.reload();
 			}
 		});
-	});
+	}
+	else {
+		if ($('#editfinder_interests').length) {
+			//already exists? don't load it again. just show it.
+			$('#editfinder_interests').slideDown();
+		}
+		else {
+			//load it and open it
+			mw.loader.using( ['ext.wikihow.catsearchui'], function () {
+
+				var url = '/Special:CatSearchUI?embed=1';
+				$.get(url, function(data) {
+					$('#editfinder_tool_title').after('<div id="editfinder_interests">'+data+'</div>');
+					$('#editfinder_interests').slideDown(function() {
+						WH.CatSearchUI.initAC();
+					});
+				});
+
+			});
+		}
+	}
 }
 
 EditFinder.prototype.getThoseCats = function() {
 	jQuery('#dialog-box').html('');
 	var efType = editFinder.getEditType();
-	jQuery('#dialog-box').load('/Special:SuggestCategories?type=' + efType, function(){
-		if (efType !== '') {
-			jQuery('#suggest_cats').attr('action',"/Special:SuggestCategories?type=" + efType);
-		}
-		jQuery('#dialog-box').dialog( "option", "position", 'center' );
-		jQuery('#dialog-box td').each(function(){
-			var myInput = $(this).find('input');
-			var position = $(this).position();
-			$(myInput).css('top', position.top + 10 + "px");
-			$(myInput).css('left', position.left + 10 + "px");
-			$(this).click(function(){
-				editFinder.choose_cat($(this).attr('id'));
-			})
-		})
-		jQuery('#check_all_cats').click(function(){
-			var cats = jQuery('form input:checkbox');
-			var bChecked = jQuery(this).prop('checked');
-			for (i=0;i<cats.length;i++) {
-				var catid = cats[i].id.replace('check_','');
-				editFinder.choose_cat(catid,bChecked);
+
+	mw.loader.using( ['ext.wikihow.SuggestedTopics'], function () {
+
+		jQuery('#dialog-box').load('/Special:SuggestCategories?type=' + efType, function(){
+			if (efType !== '') {
+				jQuery('#suggest_cats').attr('action',"/Special:SuggestCategories?type=" + efType);
 			}
+			jQuery('#dialog-box').dialog( "option", "position", 'center' );
+			jQuery('#dialog-box td').each(function(){
+				var myInput = $(this).find('input');
+				var position = $(this).position();
+				$(myInput).css('top', position.top + 10 + "px");
+				$(myInput).css('left', position.left + 10 + "px");
+				$(this).click(function(){
+					editFinder.choose_cat($(this).attr('id'));
+				})
+			})
+			jQuery('#check_all_cats').click(function(){
+				var cats = jQuery('form input:checkbox');
+				var bChecked = jQuery(this).prop('checked');
+				for (i=0;i<cats.length;i++) {
+					var catid = cats[i].id.replace('check_','');
+					editFinder.choose_cat(catid,bChecked);
+				}
+			});
 		});
+		jQuery('#dialog-box').dialog({
+			width: 826,
+			modal: true,
+			closeText: 'x',
+			title: 'Categories'
+		});
+
 	});
-	jQuery('#dialog-box').dialog({
-		width: 826,
-		modal: true,
-		closeText: 'Close',
-		title: 'Categories'
-	});
+}
+
+EditFinder.prototype.showCatChooseLink = function() {
+	var html = '<a id="editfinder_hdr_choose" class="editfinder_choose_cats">'+mw.message('change_topics').text()+'</a>';
+	$('#editfinder_tool_title').append(html);
 }
 
 EditFinder.prototype.choose_cat = function(key,bChoose) {
 	safekey = key.replace("&", "and");
  	var e = $("#" + safekey);
-	
+
 	//forcing it or based off the setting?
 	if (bChoose == null)
 		bChoose = (e.hasClass('not_chosen')) ? true : false;
-	
+
  	if (bChoose) {
  		e.removeClass('not_chosen');
  		e.addClass('chosen');
@@ -157,39 +183,31 @@ EditFinder.prototype.getArticle = function(the_id) {
 	if (e.html())
 		url += '&skip=' + encodeURIComponent(e.html());
 	var title = '';
-	
+
 	//add the edit type
 	var efType = editFinder.getEditType();
-	if (efType !== '') 
+	if (efType !== '')
 		url += '&edittype=' + efType;
-		
+
 	//add the article id if we need a specific one
-	if (the_id) 
+	if (the_id)
 		url += '&id=' + the_id;
-	
+
 	jQuery('#editfinder_article_inner').fadeOut('fast');
 	jQuery('#editfinder_preview').fadeOut('fast',function() {
 		jQuery('#editfinder_spinner').fadeIn();
-		
-		jQuery.get(url, function (data) {
-			var json = jQuery.parseJSON(data);
-			
-			aid = json['aid'];
-			title = json['title'];
-			aURL = json['url'];
 
-			editFinder.display(title,aURL,aid,'editfinder_preview','intro');
+		jQuery.getJSON(url, function (data) {
+			editFinder.display(data['title'], data['url'], data['aid'],'editfinder_preview','intro','',data['cat']);
 		});
 	});
-	
-	
-
 }
 
-// 
 //
-EditFinder.prototype.display = function (title, url, id, DIV, origin, currentStep) {
+//
+EditFinder.prototype.display = function (title, url, id, DIV, origin, currentStep, userCat) {
 	this.m_title = title;
+	this.m_url = url;
 	this.m_product = 'editfinder';
 	this.m_textAreaID = 'summary';
 	this.m_currentStep = 0;
@@ -198,29 +216,30 @@ EditFinder.prototype.display = function (title, url, id, DIV, origin, currentSte
 	var showBox = this.m_currentStep !== 0;
 	var that = this;
 
-		
 	var urlget = '/Special:EditFinder?show-article=1&aid=' + id;
-	
+
 	//add the edit type
 	var efType = editFinder.getEditType();
-	if (efType !== '') 
+	if (efType !== '')
 		urlget += '&edittype=' + efType;
-		
+
 	jQuery.get(urlget, function(data) {
 		jQuery('#' + DIV).html(data);
 
 		//stop spinning and show stuff
 		jQuery('#editfinder_spinner').fadeOut('fast',function() {
-		
-			
+
 			//fill in the blanks
 			if (title == undefined) {
-				editFinder.disableTopButtons();	
+				editFinder.disableTopButtons();
 				titlelink = '[No articles found]';
+				if (efType == 'topic') editFinder.getThoseInterests();
 			}
 			else {
 				titlelink = '<a href="'+url+'">'+title+'</a>';
 				editFinder.resetTopButtons();
+				editFinder.updateCat(userCat);
+				jQuery('#editfinder_cat_header').show();
 				jQuery('#editfinder_yes').unbind('click');
 				jQuery('#editfinder_yes').click(function(e) {
 					e.preventDefault();
@@ -230,8 +249,7 @@ EditFinder.prototype.display = function (title, url, id, DIV, origin, currentSte
 				});
 			}
 			jQuery(".firstHeading").html(titlelink);
-			//jQuery('#editfinder_article_inner').html(titlelink);
-			
+
 			jQuery('#editfinder_article_inner').fadeIn();
 			jQuery('#' + DIV).fadeIn();
 		});
@@ -241,22 +259,21 @@ EditFinder.prototype.display = function (title, url, id, DIV, origin, currentSte
 
 EditFinder.prototype.edit = function (id,title) {
 	var url = '/Special:EditFinder?edit-article=1&aid=' + id;
-	
+
 	jQuery.ajax({
 		url: url,
 		success: function(data) {
 			document.getElementById('editfinder_preview').innerHTML = data;
 			jQuery('#weave_button').css('display','none');
-			jQuery('#easyimageupload_button').css('display','none');
+			jQuery('#imageupload_button').css('display','none');
 			editFinder.restoreToolbarButtons();
 			//Preview button
 			jQuery('#wpPreview').click(function() {
 				editfinder_preview = true;
 			});
 			//Publish button
-			jQuery('#wpSave').click(function() {
+			$('#wpSave').addClass('op-action').click(function() {
 				editfinder_preview = false;
-				window.oTrackUserAction();
 			});
 			//form submit
 			jQuery('#editform').submit(function(e) {
@@ -268,8 +285,9 @@ EditFinder.prototype.edit = function (id,title) {
 				}
 				else {
 					//pop conf modal
-					if (editFinder.getEditType() == 'Topic') {
+					if (editFinder.getEditType() == 'topic') {
 						editFinder.closeConfirmation(true);
+						WH.maEvent('edit_topic_greenhouse', { category: 'edit_topic_greenhouse' }, false);
 						return false;
 					}
 					else {
@@ -277,9 +295,9 @@ EditFinder.prototype.edit = function (id,title) {
 					}
 				}
 			});
-	
+
 			//pre-fill summary
-			jQuery('#wpSummary').val("Edit from "+WH.lang['app-name']+": " + editFinder.getEditType().toUpperCase());
+			jQuery('#wpSummary').val("Edit from "+mw.message('app-name').text()+": " + editFinder.getEditType().toUpperCase());
 
 			//cancel link update
 			var cancel_link = jQuery('#mw-editform-cancel').attr('href');
@@ -305,16 +323,16 @@ EditFinder.prototype.edit = function (id,title) {
 			$('#wpSave').attr('title', 'publish [' + mod + ' p]').attr('accesskey', '');
 			$('#wpPreview').attr('title', 'preview [' + mod + '  v]').attr('accesskey', '');
 			$('.editButtons #edit_cancel_btn').attr('title', 'cancel [' + mod + ' c]').attr('accesskey', '');
-			
+
 			//disable edit/skip choices
-			editFinder.disableTopButtons();		
-			
-			
+			editFinder.disableTopButtons();
+
+
 			//throw cursor in the textarea
 			jQuery('#wpTextbox1').change(function() {
 				g_bEdited = true;
 			});
-	
+
 			//add the id to the action url
 			jQuery('#editform').attr('action',jQuery('#editform').attr('action')+'&aid='+id+'&type='+ editFinder.getEditType());
 		}
@@ -322,22 +340,21 @@ EditFinder.prototype.edit = function (id,title) {
 }
 
 EditFinder.prototype.showPreview = function (id) {
-	var editform = jQuery('#wpTextbox1').val();	
+	var editform = jQuery('#wpTextbox1').val();
 	var url = '/index.php';
 	//var url = '/index.php?action=submit&wpPreview=true&live=true';
-	
-	// Not sure why Rap works when other titles don't, but it does
+
 	// According to MW, this is only used if the wikitext contains magic
 	// words such as {{PAGENAME}}
 	// See: http://www.mediawiki.org/wiki/Manual:Live_preview
-	var thisTitle = 'Rap';
+	var thisTitle = this.m_url.substring(1);
 
 	jQuery.ajax({
 		url: url,
 		type: 'POST',
 		data: $('#editform').serialize() + '&wpPreview=true&live=true&action=edit&title=' + thisTitle,
 		success: function(data) {
-			
+
 			var XMLObject = data;
 			var previewElement = jQuery(data).find('preview').first();
 
@@ -346,7 +363,7 @@ EditFinder.prototype.showPreview = function (id) {
 			if ( previewContainer && previewElement ) {
 				previewContainer.html(previewElement.first().text());
 				previewContainer.slideDown('slow');
-			}		
+			}
 		}
 	});
 }
@@ -371,48 +388,58 @@ EditFinder.prototype.displayConfirmation = function( id ) {
 		jQuery('#dialog-box').dialog({
 		   width: 450,
 		   modal: true,
-		   closeText: 'Close',
+		   closeText: 'x',
 		   title: 'Article Greenhouse Confirmation',
 			closeOnEscape: true,
 			position: 'center'
 		});
+
+		$('#ef_modal_yes').click(function() {
+			 editFinder.closeConfirmation(true);
+			 return false;
+		});
+		$('#ef_modal_no').click(function() {
+			 editFinder.closeConfirmation(false);
+			 return false;
+		});
+
 		var mod = Mousetrap.defaultModifierKeys;
 		Mousetrap.bind(mod + 'y', function() {$('#ef_yes').click();});
 		Mousetrap.bind(mod + 'n', function() {$('#ef_no').click();});
 	});
 }
 
-EditFinder.prototype.closeConfirmation = function( bRemoveTemplate ) {	
+EditFinder.prototype.closeConfirmation = function( bRemoveTemplate ) {
 	//removing the template?
 	if (bRemoveTemplate) {
 		var text = jQuery('#wpTextbox1').val();
-		var reg = new RegExp('{{' + editFinder.getEditType() + '[^\r\n]*}}','i');
+		var reg = new RegExp('{{' + editFinder.getEditType() + '[^\r\n]*?}}','i');
 		jQuery('#wpTextbox1').val(text.replace(reg,''));
 	}
-	
+
 	//close modal window
 	if (jQuery('#dialog-box').hasClass('ui-dialog-content')) {
 		jQuery('#dialog-box').dialog('close');
 	}
 	jQuery('#img-box').html('');
 	editFinder.resetTopButtons();
-	
+
 	jQuery('#editfinder_article_inner').fadeOut('fast');
 	jQuery('#editfinder_preview').fadeOut('fast');
 	jQuery('#editfinder_preview_updated').fadeOut('fast', function() {
 		jQuery('#editfinder_spinner').fadeIn();
 		jQuery('html, body').animate({scrollTop:0});
 	});
-	
+
 	//submit
 	jQuery.ajax({
 		type: 'POST',
 		url: jQuery('#editform').attr('action'),
 		data: jQuery('#editform').serialize()
-	});	
-	
+	});
+
 	editFinder.upTheStats();
-	
+
 	//next!
 	editFinder.getArticle();
 }
@@ -421,17 +448,17 @@ EditFinder.prototype.cancelConfirmationModal = function( id ) {
 	var url = '/Special:EditFinder?cancel-confirmation=1&aid=' + id;
 
 	if (g_bEdited) {
-		jQuery('#dialog-box').load(url, function(data) {	
+		jQuery('#dialog-box').load(url, function(data) {
 			//changes; get the box
 			jQuery('#dialog-box').dialog({
 			   width: 450,
 			   modal: true,
-			   closeText: 'Close',
+			   closeText: 'x',
 			   title: 'Article Greenhouse Confirmation',
 				closeOnEscape: true,
 				position: 'center'
 			});
-			
+
 			//initialize buttons
 			jQuery('#efcc_yes').unbind('click');
 			jQuery('#efcc_yes').click(function(e) {
@@ -440,7 +467,7 @@ EditFinder.prototype.cancelConfirmationModal = function( id ) {
 				jQuery('html, body').animate({scrollTop:0});
 				editFinder.resetTopButtons();
 				editFinder.getArticle(id);
-				
+
 			});
 			jQuery('#efcc_no').click(function() {
 				jQuery('#dialog-box').dialog('close');
@@ -457,16 +484,12 @@ EditFinder.prototype.cancelConfirmationModal = function( id ) {
 }
 
 EditFinder.prototype.disableTopButtons = function() {
-	//disable edit/skip choices
-	jQuery('#editfinder_yes').addClass('clickfail');	
-	jQuery('#editfinder_skip').addClass('clickfail');
+	jQuery('#editfinder_head').slideUp();
 	return;
 }
 
 EditFinder.prototype.resetTopButtons = function() {
-	//disable edit/skip choices
-	jQuery('#editfinder_yes').removeClass('clickfail');
-	jQuery('#editfinder_skip').removeClass('clickfail');
+	jQuery('#editfinder_head').slideDown();
 	return;
 }
 
@@ -474,22 +497,14 @@ EditFinder.prototype.resetTopButtons = function() {
 EditFinder.prototype.getUserInterests = function() {
 	var url = '/Special:CategoryInterests?a=get';
 	var cats = '';
-	
+
 	$.getJSON(url, function(data) {
-			cats = data.interests.join(", ");
-			cats = cats.replace(/-/g, " ");
-			if (cats.length == 0) {
-				if (!$.cookie('ef_int')) {
-					editFinder.getThoseInterests();
-				}
+			editFinder.updateCat(data.interests);
+			jQuery('#editfinder_cat_header').show();
 
-				cats = 'No interests selected';
+			if (data.interests == '') {
+				editFinder.getThoseInterests();
 			}
-
-			if (cats.length > 50)
-				cats = cats.substring(0,50) + '...';
-				
-			jQuery('#user_cats').html(cats);
 	});
 	return;
 }
@@ -498,15 +513,13 @@ EditFinder.prototype.getUserInterests = function() {
 EditFinder.prototype.getUserCats = function() {
 	var url = '/Special:SuggestCategories?getusercats=1';
 	var cats = '';
-	
+
 	jQuery.ajax({
 		url: url,
 		success: function(data) {
-			cats = data;
-			if (cats.length > 50)
-				cats = cats.substring(0,50) + '...';
-				
-			jQuery('#user_cats').html(cats);
+			cats = editFinder.formatCats(data);
+			jQuery('#editfinder_cat_header').show();
+			jQuery('#user_cats').html(mw.message('gh_interests').text()+cats);
 		}
 	});
 	return;
@@ -535,6 +548,25 @@ EditFinder.prototype.restoreToolbarButtons = function() {
 	}
 }
 
+EditFinder.prototype.updateCat = function(cat) {
+	if (cat) {
+		jQuery('#user_cats').html(mw.message('gh_topic_chosen',cat).text());
+	}
+}
+
+// format the comma array of the categories for display
+EditFinder.prototype.formatCats = function(cats_string) {
+	cats = cats_string.replace(/-/g, " ");
+	if (cats.length == 0) {
+		cats = 'No interests selected';
+	}
+
+	if (cats.length > 50)
+		cats = cats.substring(0,50) + '...';
+
+	return cats;
+}
+
 var editFinder = new EditFinder();
 
 //kick it
@@ -559,7 +591,7 @@ window.setTimeout(updateStandingsTable, 100);
 
 
 function updateWidgetTimer() {
-    updateTimer('stup');
+    WH.updateTimer('stup');
     window.setTimeout(updateWidgetTimer, 60*1000);
 }
 

@@ -11,6 +11,7 @@ abstract class WAPArticle {
 	var $completed = null;
 	var $completed_timestamp = null;
 	var $lang_code = null;
+	var $notes = null;
 
 	const STATE_INVALID = 'invalid';
 	const STATE_EXCLUDED = 'excluded';
@@ -32,6 +33,7 @@ abstract class WAPArticle {
 		$this->completed = $row->ct_completed;
 		$this->completed_timestamp = $row->ct_completed_timestamp;
 		$this->tag_list = $row->ct_tag_list;
+		$this->notes = $row->ct_notes;
 	}
 
 	abstract public static function newFromId($aid, $langCode, $dbType);
@@ -48,17 +50,32 @@ abstract class WAPArticle {
 		return $dbw->fetchObject($res);
 	}
 
+	// gets the db row of a wap type given a page title and language
+	// $pageTitle - the text title of an article or a url to a wikihow article
 	protected static function getDBRowFromPageTitle($pageTitle, $langCode, $dbType) {
+		// try to get the db title in case the $pageTitle is a full url
+		$title = Misc::getTitleFromText($pageTitle);
+		if ($title) {
+			$pageTitle = $title->getDBkey();
+		}
+
 		// Use master to prevent replication delay issues
 		$dbw = wfGetDB(DB_MASTER);
 		$table = WAPDB::getInstance($dbType)->getWAPConfig()->getArticleTableName();
 		$res = $dbw->select($table, array('*'), array('ct_page_title' => $pageTitle, 'ct_lang_code' => $langCode), __METHOD__);
-		return $dbw->fetchObject($res);
+		$row = $dbw->fetchObject($res);
+
+		// Return null if a row isn't returned for the given page title
+		if ($row === false) {
+			$row = null;
+		}
+
+		return $row;
 	}
 
 	public function exists() {
 		return intVal($this->page_id) > 0;
-	}	
+	}
 
 	public function getUserId() {
 		return $this->user_id;
@@ -116,10 +133,10 @@ abstract class WAPArticle {
 	}
 
 	// JTODO abstract function or aware of config?
-	public function getTags() {
+	public function getTags($tagType = WAPArticleTagDB::TAG_ACTIVE) {
 		if (is_null($this->tags)) {
 			$wa = WAPDB::getInstance($this->dbType)->getArticleTagDB();
-			$this->tags = $wa->getTagsOnArticle($this->page_id, $this->lang_code);
+			$this->tags = $wa->getTagsOnArticle($this->page_id, $this->lang_code, $tagType);
 		}
 		return $this->tags;
 	}
@@ -169,10 +186,14 @@ abstract class WAPArticle {
 				foreach ($user->getTags() as $uTag) {
 					if ($aTag['raw_tag'] == $uTag['raw_tag']) {
 						$tags[] = $aTag;
-					}	
+					}
 				}
 			}
 			return $tags;
 		}
+	}
+
+	public function getNotes() {
+		return $this->notes;
 	}
 }

@@ -840,6 +840,16 @@ class AbuseFilter {
 	public static function filterAction( $vars, $title, $group = 'default' ) {
 		global $wgUser, $wgTitle, $wgRequest;
 
+		// wikiHow (Alberto, 2017-01-24) - Ticket #1834
+		$isNew = $title && !$title->exists();
+		list($mapper, $destUser) = EditMapper\EditMapperHooks::getActiveMapper($isNew, $wgUser);
+		if ($mapper && $destUser && ($mapper instanceof EditMapper\PortalEditMapper)) {
+			$mapper->doMapping($wgUser, $destUser);
+		} else {
+			$mapper = null;
+		}
+		// End of wikiHow
+
 		wfProfileIn( __METHOD__ );
 
 		$context = RequestContext::getMain();
@@ -905,6 +915,12 @@ class AbuseFilter {
 		if ( $context->getTitle() !== $oldContextTitle ) {
 			$context->setTitle( $oldContextTitle );
 		}
+
+		// wikiHow (Alberto, 2017-01-24) - Ticket #1834
+		if ($mapper) {
+			$mapper->undoMapping(WikiPage::factory($wgTitle), $wgUser);
+		}
+		// End of wikiHow
 
 		wfProfileOut( __METHOD__ );
 

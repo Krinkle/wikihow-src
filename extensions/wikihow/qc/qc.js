@@ -1,20 +1,32 @@
+( function($, mw) {
 
 var qc_vote = 0; 
 var qc_skip = 0;
 var qc_id   = 0;
 var QC_STANDINGS_TABLE_REFRESH = 600; 
 
-$("document").ready(function() {
+$(document).ready(function() {
 	initToolTitle();
 	getNextQC();
 });
 
+function qgGetOption(optName) {
+	var cookie = $.cookie(optName);
+
+	if (typeof cookie == 'undefined') {
+		return "";
+	}
+
+	return cookie;
+}
+
 function getNextQC() {
-	//grab options
+	// grab options
+
 	$.get('/Special:QG',
 		{ fetchInnards: true,
-		  qc_type: getCookie('qcrule_choices'),
-		  by_username: getCookie('qg_byusername'),
+		  qc_type: qgGetOption('qcrule_choices'),
+		  by_username: qgGetOption('qg_byusername')
 		},
 		function (result) {
 			loadResult(result);
@@ -23,27 +35,33 @@ function getNextQC() {
 	);
 }
 
-//keep hidden input list of QC choices
+// keep hidden input list of QC choices
 function updateChoices() {
 	var choices = [];
 	$("#qg_options input:checked").each(function() {
 		choices.push($(this).attr('id'));
 	});
-	setCookie('qcrule_choices',choices.join());
+	$.cookie('qcrule_choices',choices.join(), { expires: 7 });
 }
 
 function QG_byUserName(name) {
-	setCookie('qg_byusername',$.trim(name));
+	$.cookie('qg_byusername',$.trim(name));
 }
 
 
 function loadResult(result) {
-	//clear stuff out
+	// clear stuff out
 	$('#qccontents').remove();
 	$('#qg_tabs').remove();
 	$('#qg_submenu').remove();
-	
-	//add in stuff
+
+	$('body').data({
+		event_type: 'quality_guardian',
+		assoc_id:  (result.qc_id == -1) ? result.pqt_id : result.qc_id,
+		label: (result.qc_id==-1) ? 'plant' : ''
+	});
+
+	// add in stuff
 	$(".firstHeading").html(result['title']);
 
 	$(".firstHeading").before(result['qctabs']);
@@ -65,7 +83,7 @@ function loadResult(result) {
 	$("#quickeditlink").html(result['quickedit']);
 
 	//are we patrolling by a user?
-	if (getCookie('qg_byusername') !== '') {
+	if (qgGetOption('qg_byusername') !== '') {
 		openSubMenu('byuser');
 	}
 	
@@ -85,7 +103,6 @@ function loadResult(result) {
 	$('#qc_yes').click( function() {
 		if (!$(this).hasClass('clickfail')) {
 			qcVote(true);
-			window.oTrackUserAction();
 		}
 		return false;
 	});
@@ -94,7 +111,6 @@ function loadResult(result) {
 	$('#qc_no').click( function() {
 		if (!$(this).hasClass('clickfail_2')) {
 			qcVote(false);
-			window.oTrackUserAction();
 		}
 		return false;
 	});	
@@ -110,10 +126,10 @@ function loadResult(result) {
 	//tooltip for changed by
 	$('#qc_changedby a.tooltip').hover(
 		function() {
-			getToolTip(this,true);
+			WH.getToolTip(this,true);
 		},
 		function() {
-			getToolTip(this,false);
+			WH.getToolTip(this,false);
 		}
 	);
 	
@@ -133,9 +149,11 @@ function submitResponse() {
 		{ 
 		  qc_vote: qc_vote,
 		  qc_skip: qc_skip,
-		  qc_type: getCookie('qcrule_choices'),
-		  by_username: getCookie('qg_byusername'),
-		  qc_id: qc_id
+		  qc_type: qgGetOption('qcrule_choices'),
+		  by_username: qgGetOption('qg_byusername'),
+		  qc_id: qc_id,
+		  event_type: $('body').data('event_type'),
+		  pqt_id: $("#pqt_id").val()
 		},
 		function (result) {
 			if (!qc_skip) {
@@ -162,8 +180,8 @@ function displayQCOptions(menuName) {
 	$.get('/Special:QG',
 		{ getOptions: true,
 		  menuName: menuName,
-		  choices: getCookie('qcrule_choices'),
-		  username: getCookie('qg_byusername'),
+		  choices: qgGetOption('qcrule_choices'),
+		  username: qgGetOption('qg_byusername'),
 		},
 		function (result) {
 			$('#qg_options').html(result);
@@ -197,7 +215,6 @@ function displayQCOptions(menuName) {
 	);
 }
 
-
 function openSubMenu(menuName){
 	var menu = $('#qg_submenu');
 	var choice = $('#qgtab_' + menuName);
@@ -217,7 +234,7 @@ function openSubMenu(menuName){
 }
 
 function qcVote(vote) {
-	(vote) ? (qc_vote = 1) :(qc_vote = 0);
+	qc_vote = (vote ? 1 : 0);
 	qc_skip = 0; 
 	incCounters(); 
 	submitResponse();
@@ -237,31 +254,33 @@ function getVoteBlock() {
 		},
 		function (result) {
 			$('#qc_voteblock,#qc_voteblock_top,#qc_voteblock_bottom').remove();
+
+			if (result != "") {
 			
-			vote_block = "<div id='qc_voteblock'>" + result + "</div>";
-			
-			$('#top_links').after(vote_block);
-			
-			//animate in
-			$('#qc_voteblock').animate({
-				"height": "toggle", 
-				"opacity": "toggle"
-				}, { duration: 800 });
-			
-			//tooltip for changed by
-			$('.qc_avatar a.tooltip').hover(
-				function() {
-					getToolTip(this,true);
-				},
-				function() {
-					getToolTip(this,false);
-				}
-			);
+				vote_block = "<div id='qc_voteblock'>" + result + "</div>";
+
+				$('#top_links').after(vote_block);
+
+				//animate in
+				$('#qc_voteblock').animate({
+					"height": "toggle",
+					"opacity": "toggle"
+					}, { duration: 800 });
+
+				//tooltip for changed by
+				$('.qc_avatar a.tooltip').hover(
+					function() {
+						WH.getToolTip(this,true);
+					},
+					function() {
+						WH.getToolTip(this,false);
+					}
+				);
+			}
 		}
 	);	
 
 }
-
 
 updateStandingsTable = function() {
     var url = '/Special:Standings/QCStandingsGroup';
@@ -279,17 +298,20 @@ window.setTimeout(updateWidgetTimer, 60*1000);
 window.setTimeout(updateStandingsTable, 1000 * QC_STANDINGS_TABLE_REFRESH);
 
 function updateWidgetTimer() {
-    updateTimer('stup');
+    WH.updateTimer('stup');
     window.setTimeout(updateWidgetTimer, 60*1000);
 }
 
 function incCounters() {
-	$("#iia_stats_week_qc, #iia_stats_today_qc, #iia_stats_all_qc, #iia_stats_group").each(function (index, elem) {
+	$("#iia_stats_week_qc, #iia_stats_today_qc, #iia_stats_all_qc").each(function (index, elem) {
 			$(this).fadeOut(function () {
-				val = parseInt($(this).html()) + 1;
+				val = $(this).html().replace(/,/g,"");
+				val = parseInt(val) + 1;
 				$(this).html(val);
 				$(this).fadeIn(); 
 			});
 		}
 	); 
 }
+
+}(jQuery, mediaWiki) );

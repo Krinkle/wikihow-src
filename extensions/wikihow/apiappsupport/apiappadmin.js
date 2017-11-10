@@ -1,4 +1,3 @@
-if (!WH) var WH = {};
 jQuery.extend(WH, (function($) {
 	function APIAppAdmin() {
 		var toolURL = "/Special:APIAppAdmin";

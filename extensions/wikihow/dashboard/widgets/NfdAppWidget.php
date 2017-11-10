@@ -114,7 +114,7 @@ class NfdAppWidget extends DashboardWidget {
 	 */
 	public function getLeaderboardData(&$dbr, $starttimestamp){
 
-		$data = Leaderboard::getNfdsReviewed($starttimestamp);
+		$data = LeaderboardStats::getNfdsReviewed($starttimestamp);
 		arsort($data);
 
 		return $data;

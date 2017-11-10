@@ -1,4 +1,4 @@
-<?
+<?php
 
 /*******************
  *
@@ -92,7 +92,7 @@ class RatingSample extends RatingsTool {
 			return $name;
 	}
 
-	function getRatingResponse($itemId, $rating) {
+	function getRatingResponse($itemId, $rating, $source, $ratingId) {
         if($rating == 0)
             return $this->getRatingReasonForm($itemId);
         else
@@ -104,14 +104,13 @@ class RatingSample extends RatingsTool {
 			<div id='sample_accuracy_form'>
                 <form id='rating_feeback' name='rating_reason' method='GET'>
                     <textarea class='input_med' name=submit></textarea>
-                    <input type='button' class='rating_submit button primary' value='Submit' onClick='ratingReason(this.form.elements[\"submit\"].value, \"{$itemId}\", \"sample\");'>
+                    <input type='button' class='rating_submit button primary' value='".wfMessage('Submit')->text()."' onClick='WH.ratings.ratingReason(this.form.elements[\"submit\"].value, \"{$itemId}\", \"sample\", 0, null, 0);'>
                 </form>
 			</div>";
 		return $html;
 	}
 
 	function getRatingForm() {
-		wfLoadExtensionMessages('RateItem');
 
 		$html = "<div id='sample_rating'>
 			<h4>" . wfMessage('ratesample_question')->text() . "</h4>
@@ -129,6 +128,13 @@ class RatingSample extends RatingsTool {
 
 	function getQueryPage() {
 		return new ListSampleAccuracyPatrol();
+	}
+
+	public function getRatingReasonResponse($rating) {
+		if (intval($rating) > 0) {
+			return wfMsg('ratesample_reason_submitted_yes');
+		}
+        return wfMsg('ratesample_reason_submitted');
 	}
 }
 
@@ -160,49 +166,3 @@ class RatingSample extends RatingsTool {
     
  */
 
-/*
- * moved directly to the AccuracyPatrol class
- *
-class ListSampleAccuracyPatrol extends PageQueryPage {
-
-	var $targets = array();
-
-	function getName() {
-		return 'AccuracyPatrol';
-	}
-
-	function isExpensive( ) { return false; }
-
-	function isSyndicated() { return false; }
-
-	function getPageHeader( ) {
-		global $wgOut;
-		return $wgOut->parse( wfMsg( 'listlowratingstext' ) );
-	}
-
-	function getOrder() {
-		return '';
-	}
-
-	function getSQL() {
-		$minvotes = wfMsg('list_bottom_rated_pages_min_votes');
-		$avg = wfMsg('list_bottom_rated_pages_avg');
-
-		return "SELECT rsl_page, rsl_avg, rsl_count FROM ratesample_low WHERE rsl_count >= $minvotes AND rsl_avg <= $avg ORDER BY rsl_avg";
-	}
-
-	function formatResult($skin, $result) {
-
-		$t = Title::newFromText("sample/$result->rsl_page");
-		if ($t == null)
-			return "";
-
-		$avg = number_format($result->rsl_avg * 100, 0);
-		$cl = SpecialPage::getTitleFor( 'Clearratings', $result->rsl_page );
-
-		return "{$skin->makeLinkObj($t, $t->getFullText() )} - ({$result->rsl_count} votes, average: {$avg}% - {$skin->makeLinkObj($cl, 'clear', 'type=sample')})";
-	}
-
-
-}
-*/

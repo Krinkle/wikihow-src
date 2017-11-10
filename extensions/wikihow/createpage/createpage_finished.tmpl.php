@@ -15,7 +15,7 @@
 
 	<div>
 		<a href="#" class="post_to_facebook" onclick="javascript:<?=$share_fb?>;return false;" alt="Post to Facebook"></a>
-		<a href="#" class="post_to_twitter" onclick='javascript:shareTwitter("aen");gatTrack("Author_engagement","Twitter_post","Publishing_popup");return false;' alt="Post to Twitter"></a>
+		<a href="#" class="post_to_twitter" onclick='WH.shareTwitter("aen");gatTrack("Author_engagement","Twitter_post","Publishing_popup");return false;' alt="Post to Twitter"></a>
 		<br class="clearall" />
 	</div>
 

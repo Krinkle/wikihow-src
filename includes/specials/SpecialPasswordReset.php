@@ -47,10 +47,8 @@ class SpecialPasswordReset extends FormSpecialPage {
 	}
 
 	public function userCanExecute( User $user ) {
-		// JRS 02/24/14 only let staff users access this page
 		$userGroups = $this->getContext()->getUser()->getGroups();
-		return in_array('staff', $userGroups) && $this->canChangePassword( $user ) === true && parent::userCanExecute( $user );
-		//return $this->canChangePassword( $user ) === true && parent::userCanExecute( $user );
+		return $this->canChangePassword( $user ) === true && parent::userCanExecute( $user );
 	}
 
 	public function checkExecutePermissions( User $user ) {
@@ -364,5 +362,10 @@ class SpecialPasswordReset extends FormSpecialPage {
 
 	protected function getGroupName() {
 		return 'users';
+	}
+
+	// WIKIHOW added this function to allow login on mobile
+	public function isMobileCapable() {
+		return true;
 	}
 }

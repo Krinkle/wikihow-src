@@ -238,6 +238,11 @@ class SpecialActiveUsers extends SpecialPage {
 		$this->outputHeader();
 
 		$out = $this->getOutput();
+
+		// WH, Reuben: Temporary, while database upgrades are occurring. Talked with K about this, 2015/3/23.
+		$out->addHTML('We have to disable this page for at least a few weeks during our database upgrades, since it was causing system load issues. :(');
+		return;
+
 		$out->wrapWikiMsg( "<div class='mw-activeusers-intro'>\n$1\n</div>",
 			array( 'activeusers-intro', $this->getLanguage()->formatNum( $wgActiveUserDays ) ) );
 

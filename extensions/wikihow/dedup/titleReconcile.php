@@ -1,9 +1,26 @@
 <?php
 
+/**
+ * Class for reconciling the article titles in the Dedup system, and article titles 
+ * on the site.
+ */
 class TitleReconcile
 {
 	public static function reconcile() {
 		global $wgLanguageCode;
+
+		//Deal with titles turned into deletes, redirects, or re-named
+		$dbr = wfGetDB(DB_SLAVE);
+		$sql = "select tq_title from dedup.title_query left join page on tq_page_id=page_id and replace(page_title,'-',' ')=tq_title and page_namespace=0 and page_is_redirect=0 where page_title is NULL";
+		$res = $dbr->query($sql, __METHOD__);
+		$deletedTitles = array();
+		foreach($res as $row) {
+			$deletedTitles[] = $row->tq_title;
+		}
+		foreach($deletedTitles as $pageTitle) {
+			print("Removing title from system " . $pageTitle . "\n");
+			DedupQuery::removeTitle($pageTitle,$wgLanguageCode);	
+		}
 
 		// Add titles missing from our system with associated keywords
 		$dbr = wfGetDB(DB_SLAVE);
@@ -19,17 +36,5 @@ class TitleReconcile
 			DedupQuery::addTitle($t, $wgLanguageCode);	
 		}
 
-		//Deal with titles turned into deletes or redirects
-		$dbr = wfGetDB(DB_SLAVE);
-		$sql = "select tq_title from dedup.title_query left join page on tq_page_id=page_id where page_namespace=0 and page_is_redirect=0 and page_title is NULL";
-		$res = $dbr->query($sql, __METHOD__);
-		$deletedTitles = array();
-		foreach($res as $row) {
-			$deletedTitles[] = $row->page_title;	
-		}
-		foreach($deletedTitles as $title) {
-			print("Removing title from system " . $row->page_title . "\n");
-			DedupQuery::removeTitle($row->page_title,$wgLanguageCode);	
-		}
 	}
 }

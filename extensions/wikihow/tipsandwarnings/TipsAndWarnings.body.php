@@ -1,4 +1,4 @@
-<?
+<?php
 /*
 * 
 */
@@ -18,7 +18,10 @@ class TipsAndWarnings extends UnlistedSpecialPage {
 		if($articleId != 0 && $tip != "") {		
 			$wgOut->setArticleBodyOnly(true);
 			if($tip != "") {
-				$result['success'] = $this->addTip($articleId, $tip);
+				//$result['success'] = $this->addTip($articleId, $tip);
+				$tipId = $this->addTip($articleId, $tip);
+				$tp = new TipsPatrol;
+				$result['success'] = $tp->addToQG($tipId, $articleId, $tip);
 				print_r(json_encode($result));
 				return;
 			}
@@ -45,12 +48,21 @@ class TipsAndWarnings extends UnlistedSpecialPage {
 		if($title) {
 			
 			$dbw = wfGetDB(DB_MASTER);
-			$dbw->insert('tipsandwarnings', array('tw_page' => $articleId, 'tw_tip' => $tip, 'tw_user' => $wgUser->getID(), 'tw_timestamp' => wfTimestampNow()));
+			$dbw->insert('tipsandwarnings', array('tw_page' => $articleId, 'tw_tip' => $tip, 'tw_user' => $wgUser->getID(), 'tw_timestamp' => wfTimestampNow()),__METHOD__);
 			
-			return true;
+			//return true;
+			$tipId = $dbw->selectField('tipsandwarnings', array('tw_id'), array('tw_page' => $articleId, 'tw_tip' => $tip, 'tw_user' => $wgUser->getID()),__METHOD__);
+			
+			$logPage = new LogPage('addedtip', false);
+			$logData = array($tipId);
+			$logMsg = wfMessage('addedtip-added-logentry', $title->getFullText(), $tip)->text();
+			$logS = $logPage->addEntry("Added", $title, $logMsg, $logData);
+			
+			return $tipId;
 		}
 		
-		return false;
+		//return false;
+		return '';
 	}
 	
 	public static function injectCTAs(&$xpath, &$t) {
@@ -95,6 +107,28 @@ class TipsAndWarnings extends UnlistedSpecialPage {
 				}
 				
 				$i++;
+			}
+		}
+	}
+
+	public static function addRedesignCTAs(&$doc, &$t) {
+		if (self::isValidTitle($t) && self::isActivePage()) {
+
+			foreach(pq("#tips > ul") as $node) {
+				$newHtml = "<textarea class='newtip' placeholder='Know a good tip? Add it.'></textarea>";
+				$newHtml .= "<a href='#' class='addtip op-action' role='button' aria-label='" . wfMessage('aria_add_tip')->showIfExists() . "'>Add</a>";
+
+				$newNode = "<div class='addTipElement'>{$newHtml}</div>";
+
+				$nextNode = pq($node)->next();
+
+				if($nextNode->length > 0 ) {
+					pq($newNode)->insertBefore($nextNode);
+				}
+				else {
+					pq($node)->parent()->append($newNode);
+				}
+				return; //only one
 			}
 		}
 	}

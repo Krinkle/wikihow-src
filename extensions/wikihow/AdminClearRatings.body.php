@@ -1,40 +1,40 @@
-<?
-
-if (!defined('MEDIAWIKI')) die();
+<?php
 
 global $IP;
 
 require_once("$IP/extensions/wikihow/Rating/RatingArticle.php");
 require_once("$IP/extensions/wikihow/Rating/RatingSample.php");
+require_once("$IP/extensions/wikihow/Rating/RatingStar.php");
 
 class AdminClearRatings extends UnlistedSpecialPage {
-	function __construct() {
+	public function __construct() {
 		parent::__construct('AdminClearRatings');
 	}
 
 	/**
 	 * Execute special page. Only available to wikihow staff.
 	 */
-	function execute() {
-		global $wgRequest, $wgOut, $wgLang, $wgServer;
+	public function execute($par) {
+		$req = $this->getRequest();
+		$out = $this->getOutput();
 
 		if (!$this->userAllowed()) {
-			$wgOut->setRobotpolicy('noindex,nofollow');
-			$wgOut->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
+			$out->setRobotpolicy('noindex,nofollow');
+			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
 
-		$wgOut->setHTMLTitle('Admin - Clear Ratings - wikiHow');
-		$wgOut->setPageTitle('Clear Ratings for Multiple Pages');
+		$out->setHTMLTitle('Admin - Clear Ratings - wikiHow');
+		$out->setPageTitle('Clear Ratings for Multiple Pages');
 
-		if ($wgRequest->wasPosted()) {
-			$wgOut->setArticleBodyOnly(true);
+		if ($req->wasPosted()) {
+			$out->setArticleBodyOnly(true);
 			$html = '';
 
 			set_time_limit(0);
 
-			$pageList = $wgRequest->getVal('pages-list', '');
-			$comment = '[Batch Clear] ' . $wgRequest->getVal('comment', '');
+			$pageList = $req->getVal('pages-list', '');
+			$comment = '[Batch Clear] ' . $req->getVal('comment', '');
 
 			if ($pageList) $pageList = urldecode($pageList);
 			$pageList = preg_split('@[\r\n]+@', $pageList);
@@ -53,7 +53,7 @@ class AdminClearRatings extends UnlistedSpecialPage {
 			}
 
 			$html .= $this->generateResults($pageData, $failedPages, $comment);
-			
+
 			if (!empty($failedPages)) {
 				$html .= '<br/><p>Unable to parse the following URLs:</p>';
 				$html .= '<p>';
@@ -67,7 +67,7 @@ class AdminClearRatings extends UnlistedSpecialPage {
 			return;
 		} else {
 			$tmpl = self::getGuts('AdminClearRatings');
-			$wgOut->addHTML($tmpl);
+			$out->addHTML($tmpl);
 		}
 
 	}
@@ -117,18 +117,9 @@ class AdminClearRatings extends UnlistedSpecialPage {
 		</script>";
 	}
 
-	public function getAllowedUsers() {
-		return array("G.bahij");
-	}
-
 	public function userAllowed() {
-		global $wgUser;
-
-		$user = $wgUser->getName();
-		$allowedUsers = $this->getAllowedUsers();
-
-		$userGroups = $wgUser->getGroups();
-		if ($wgUser->isBlocked() || !in_array($user, $allowedUsers) && !in_array('staff', $userGroups)) {
+		$userGroups = $this->getUser()->getGroups();
+		if ($this->getUser()->isBlocked() || !in_array('staff', $userGroups)) {
 			return false;
 		}
 
@@ -136,23 +127,23 @@ class AdminClearRatings extends UnlistedSpecialPage {
 	}
 
 	private function generateResults($pageData, $failedPages, $comment) {
+
 		// Set up the output table:
 		$html = '<style>.tres tr:nth-child(even) {background: #e0e0e0;} .failed {color: #a84810;} .cleared {color: #48a810;}</style>';
 		$html .= '<table class="tres"><tr>';
 		$html .= '<th width="350px"><b>Page</b></th>';
 		$html .= '<th width="50px"><b>Type</b></th>';
-		// $html .= '<th><b>Page ID</b></th>';
-		// $html .= '<th><b>Rating</b></th>';
-		// $html .= '<th><b>Active ratings</b></th>';
 		$html .= '<th width="240px"><b>Status</b></th></tr>';
 
 		$articleRatingTool = new RatingArticle();
 		$sampleRatingTool = new RatingSample();
+		$starRatingTool = new RatingStar();
 		$dbr = wfGetDB(DB_SLAVE);
 		$samplePrefix = 'Sample/';
 
-		foreach($pageData as &$dataRow) {
-			global $wgUser;
+		$user = $this->getUser();
+
+		foreach ($pageData as $dataRow) {
 
 			$p = $dataRow['partial'];
 			$html .= '<tr>';
@@ -190,9 +181,6 @@ class AdminClearRatings extends UnlistedSpecialPage {
 			if ($notFound) {
 				$html .= "<td>{$dataRow['url']}</td>"; // Title/URL
 				$html .= "<td></td>"; // Type
-				// $html .= "<td></td>"; // ID
-				// $html .= "<td></td>"; // Rating
-				// $html .= "<td></td>"; // Rating count
 				$html .= "<td><b><span class=\"failed\">Page not found</span></b></td>"; // Status
 			} else {
 				$status = '';
@@ -221,16 +209,20 @@ class AdminClearRatings extends UnlistedSpecialPage {
 					$ratResDelData = $ratResDel->fetchRow();
 					if ($ratResDel->numRows() == 0 || !isset($ratResDelData['R'])) {
 						$status = '<span class="failed">No ratings found</span>';
-					} elseif ($wgUser->getId() == 0) {
+					} elseif ($user->getId() == 0) {
 						$status = '<span class="failed">No permission: Not logged in?</span>';
 					} else {
 						$ratResData = $ratRes->fetchRow();
 						$dataRow['pageRating'] = isset($ratResData['R']) ? $ratResData['R'] : 'N/A';
 						$dataRow['ratingCount'] = $ratResData['C'] or 0;
-						$tool->clearRatings($dataRow['pageId'], $wgUser, $comment);
+						$tool->clearRatings($dataRow['pageId'], $user, $comment);
 						if ($dataRow['type'] == 'sample') {
 							// Also delete rating reasons for samples
 							$tool->deleteRatingReason($dataRow['pageId']);
+						}
+						elseif ($dataRow['type'] == 'article') {
+							// Also delete star ratings w/ articles
+							$starRatingTool->clearRatings($dataRow['pageId'], $user, $comment);
 						}
 						if (isset($ratResData['R'])) {
 							$status = '<span class="cleared">Cleared</span>';
@@ -242,11 +234,8 @@ class AdminClearRatings extends UnlistedSpecialPage {
 					$status = '<span class="failed">Server error (rating tool null)</span>';
 				}
 
-				$html .= "<td><a href='{$wgServer}/{$dataRow['title']}' rel='nofollow'>{$dataRow['title']}</a></td>";
+				$html .= "<td><a href='/{$dataRow['title']}' rel='nofollow'>{$dataRow['title']}</a></td>";
 				$html .= "<td>{$dataRow['type']}</td>";
-				// $html .= "<td>{$dataRow['pageId']}</td>";
-				// $html .= "<td>{$dataRow['pageRating']}</td>";
-				// $html .= "<td>{$dataRow['ratingCount']}</td>";
 				$html .= "<td><b>{$status}</b></td>";
 			}
 		}

@@ -1,6 +1,4 @@
-<?
-
-if (!defined('MEDIAWIKI')) die();
+<?php
 
 class AdminLookupNab extends UnlistedSpecialPage {
 
@@ -8,7 +6,7 @@ class AdminLookupNab extends UnlistedSpecialPage {
 		parent::__construct('AdminLookupNab');
 	}
 	
-	function execute() {
+	function execute($par) {
 		global $wgRequest, $wgOut, $wgUser, $wgLang;
 
 		//$userGroups = $wgUser->getGroups();
@@ -63,7 +61,6 @@ class AdminLookupNab extends UnlistedSpecialPage {
 		$tmpl = AdminLookupPages::getGuts('AdminLookupNab');
 
 		$wgOut->addHTML($tmpl);
-		$wgOut->addHTML($wgServer);
 	}
 	
 	
@@ -71,11 +68,11 @@ class AdminLookupNab extends UnlistedSpecialPage {
 	 * Given a URL, give back the page title
 	 */
 	public static function getTitleFromURL($url) {
-		global $wgServer;		
-		$count = preg_match('@^' . $wgServer . '/@', $url);
+		global $wgCanonicalServer;
+		$count = preg_match('@^' . $wgCanonicalServer . '/@', $url);
 		if (!$count) return null;
 
-		$partialUrl = preg_replace('@^' . $wgServer. '/@', '', $url);
+		$partialUrl = preg_replace('@^' . $wgCanonicalServer. '/@', '', $url);
 		return $partialUrl;
 	}
 }
@@ -89,7 +86,7 @@ class AdminLookupPages extends UnlistedSpecialPage {
 	/**
 	 * Execute special page.  Only available to wikihow staff.
 	 */
-	function execute() {
+	function execute($par) {
 		global $wgRequest, $wgOut, $wgUser, $wgLang;
 
 		//$userGroups = $wgUser->getGroups();

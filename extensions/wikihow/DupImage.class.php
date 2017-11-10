@@ -1,4 +1,16 @@
-<?
+<?php
+
+/*
+CREATE TABLE `images_sha1` (
+  `is_sha1` varchar(255) NOT NULL,
+  `is_page_id` int(10) unsigned NOT NULL,
+  `is_page_title` varchar(255) NOT NULL,
+  `is_updated` varchar(14) NOT NULL,
+  PRIMARY KEY (`is_sha1`),
+  KEY `is_page_id` (`is_page_id`)
+);
+ */
+
 class DupImage {
 
 	/**

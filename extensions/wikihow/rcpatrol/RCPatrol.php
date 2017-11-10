@@ -21,10 +21,19 @@ $wgExtensionCredits['specialpage'][] = array(
 	'description' => 'An improved way of doing RC Patrol', 
 );
 
-$wgExtensionMessagesFiles['RCPatrol'] = dirname(__FILE__) . '/RCPatrol.i18n.php';
+$wgExtensionMessagesFiles['RCPatrol'] = __DIR__ . '/RCPatrol.i18n.php';
 $wgExtensionMessagesFiles['RCPatrolAliases'] = __DIR__ . '/RCPatrol.alias.php';
-$wgSpecialPages['RCPatrol'] 		= 'RCPatrol';
-$wgAutoloadClasses['RCPatrol'] 		= dirname( __FILE__ ) . '/RCPatrol.body.php';
+$wgSpecialPages['RCPatrol'] = 'RCPatrol';
+$wgAutoloadClasses['RCPatrol'] = __DIR__ . '/RCPatrol.body.php';
 
-$wgSpecialPages['RCPatrolGuts'] 	= 'RCPatrolGuts';
-$wgAutoloadClasses['RCPatrolGuts'] 	= dirname( __FILE__ ) . '/RCPatrol.body.php';
+$wgSpecialPages['RCPatrolGuts'] = 'RCPatrolGuts';
+$wgAutoloadClasses['RCPatrolGuts'] = __DIR__ . '/RCPatrol.body.php';
+
+$wgResourceModules['ext.wikihow.rcpatrol'] = [
+	'localBasePath' => __DIR__,
+	'targets' => [ 'desktop', 'mobile' ],
+	'styles' => [ 'rcpatrol.css' ],
+	'scripts' => [ 'rcpatrol.js' ],
+	'remoteExtPath' => 'wikihow',
+	'position' => 'top'
+];

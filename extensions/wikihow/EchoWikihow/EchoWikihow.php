@@ -9,9 +9,11 @@ $wgAutoloadClasses['EchoWikiHowHooks'] = dirname(__FILE__) . '/EchoWikihow.body.
 /****************** HOOK, LINE, WINNER ***/
 $wgHooks['BeforeCreateEchoEvent'][] = array('EchoWikiHowHooks::onBeforeCreateEchoEvent');
 $wgHooks['EchoGetDefaultNotifiedUsers'][] = array('EchoWikiHowHooks::onEchoGetDefaultNotifiedUsers');
+$wgHooks['CreateEmailPreferences'][] = array('EchoWikiHowHooks::onCreateEmailPreferences');
 $wgHooks['GetPreferences'][] = array('EchoWikiHowHooks::onGetPreferences');
 $wgHooks['AddNewAccount'][] = array('EchoWikiHowHooks::onAccountCreated');
 $wgHooks['EchoAbortEmailNotification'][] = array('EchoWikiHowHooks::onEchoAbortEmailNotification');
+$wgHooks['UserClearNewKudosNotification'][] = array('EchoWikihowHooks::onUserClearNewKudosNotification');
 
 //only web
 $wgEchoNotifiers = array(

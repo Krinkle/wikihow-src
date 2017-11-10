@@ -160,11 +160,17 @@ class UserMailer {
 	 * @throws MWException
 	 * @return Status object
 	 */
-	public static function send( $to, $from, $subject, $body, $replyto = null, $contentType = 'text/plain; charset=UTF-8' ) {
-		global $wgSMTP, $wgEnotifMaxRecips, $wgAdditionalMailParams, $wgAllowHTMLEmail;
+	public static function send( $to, $from, $subject, $body, $replyto = null, $contentType = null, $category = null ) {
+		global $wgSMTP, $wgEnotifMaxRecips, $wgAdditionalMailParams, $wgAllowHTMLEmail, $wgDisableScriptEmails;
+		global $wgIsDevServer;
+
 		$mime = null;
 		if ( !is_array( $to ) ) {
 			$to = array( $to );
+		}
+
+		if ( $wgIsDevServer ) {
+			$subject = "[FROM DEV] " . $subject;
 		}
 
 		// mail body must have some content
@@ -248,6 +254,13 @@ class UserMailer {
 		$headers['Date'] = MWTimestamp::getLocalInstance()->format( 'r' );
 		$headers['Message-ID'] = self::makeMsgId();
 		$headers['X-Mailer'] = 'MediaWiki mailer';
+
+		# Liam, wikiHow 08-28-15: Adding a header used by SendGrid to categorize emails for statistics breakdown.
+		# This header is removed by SendGrid before the final email is sent to the user.
+		if ( isset($category) ) {
+			$headers['X-SMTPAPI'] = json_encode(array("category" => $category));
+		}
+
 
 		# Line endings need to be different on Unix and Windows due to
 		# the bug described at http://trac.wordpress.org/ticket/2603
@@ -360,12 +373,21 @@ class UserMailer {
 				$safeMode = wfIniGetBool( 'safe_mode' );
 
 				foreach ( $to as $recip ) {
-					if (IS_PROD_EN_SITE || IS_PROD_INTL_SITE || IS_CLOUD_SITE || preg_match('/@wikihow\.com>?$/', $recip)) {
+					// Reuben, July 2015: added ability to disable all email sending from a script
+					if ( $wgDisableScriptEmails ) continue;
+
+					// only send email if we're in a production environment OR the recipient is someone@wikihow.com.
+					// we do this so that non-staff do not get spammed from our dev site.
+					global $wgIsDevServer;
+					if ( !$wgIsDevServer || preg_match('/@wikihow\.com>?$/', $recip) ) {
 						if ( $safeMode ) {
 							$sent = mail( $recip, self::quotedPrintable( $subject ), $body, $headers );
 						} else {
 							$sent = mail( $recip, self::quotedPrintable( $subject ), $body, $headers, $wgAdditionalMailParams );
 						}
+					}
+					else {
+						$sent = true; //fake send for dev
 					}
 				}
 			} catch ( Exception $e ) {
@@ -802,6 +824,7 @@ class EmailNotification {
 		if ( $wgEnotifRevealEditorAddress
 			&& ( $this->editor->getEmail() != '' )
 			&& $this->editor->getOption( 'enotifrevealaddr' )
+			&& $this->editor->getIntOption( 'globalemailoptout' ) === 0
 		) {
 			$editorAddress = new MailAddress( $this->editor );
 			if ( $wgEnotifFromEditor ) {
@@ -875,7 +898,8 @@ class EmailNotification {
 				$wgContLang->userTime( $this->timestamp, $watchingUser ) ),
 			$this->body );
 
-		return UserMailer::send( $to, $this->from, $this->subject, $body, $this->replyto );
+		wfRunHooks( 'AppendUnsubscribeLinkToBody', array( &$body, &$watchingUser ) );
+		return UserMailer::send( $to, $this->from, $this->subject, $body, $this->replyto, null, "watchlist" );
 	}
 
 	/**
@@ -900,7 +924,7 @@ class EmailNotification {
 					$wgContLang->time( $this->timestamp, false, false ) ),
 				$this->body );
 
-		return UserMailer::send( $addresses, $this->from, $this->subject, $body, $this->replyto );
+		return UserMailer::send( $addresses, $this->from, $this->subject, $body, $this->replyto, null, "watchlist" );
 	}
 
 } # end of class EmailNotification

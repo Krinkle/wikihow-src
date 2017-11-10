@@ -65,6 +65,8 @@ class MovePageForm extends UnlistedSpecialPage {
 		}
 
 		$newTitleTextMain = $request->getText( 'wpNewTitleMain' );
+		// Lojjik 11/26/2014, allow hyphens during move by using upper Unicode instead of ASCII
+		$newTitleTextMain = preg_replace( '@[-]@u', json_decode( '"\u2010"' ), $newTitleTextMain );
 		$newTitleTextNs = $request->getInt( 'wpNewTitleNs', $this->oldTitle->getNamespace() );
 		// Backwards compatibility for forms submitting here from other sources
 		// which is more common than it should be..

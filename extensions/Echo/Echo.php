@@ -122,7 +122,7 @@ $wgAutoloadClasses['EchoSuppressionRowUpdateGenerator'] = $dir . 'includes/schem
 
 // Housekeeping hooks
 $wgHooks['LoadExtensionSchemaUpdates'][] = 'EchoHooks::getSchemaUpdates';
-$wgHooks['GetPreferences'][] = 'EchoHooks::getPreferences';
+$wgHooks['EchoPreferencesStart'][] = 'EchoHooks::getPreferences';
 $wgHooks['PersonalUrls'][] = 'EchoHooks::onPersonalUrls';
 $wgHooks['BeforePageDisplay'][] = 'EchoHooks::beforePageDisplay';
 $wgHooks['MakeGlobalVariablesScript'][] = 'EchoHooks::makeGlobalVariablesScript';

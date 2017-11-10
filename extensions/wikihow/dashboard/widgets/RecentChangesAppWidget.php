@@ -86,7 +86,7 @@ class RecentChangesAppWidget extends DashboardWidget {
 	 * Gets data from the Leaderboard class for this widget
 	 */
 	public function getLeaderboardData(&$dbr, $starttimestamp){
-		$data = Leaderboard::getRCEdits($starttimestamp);
+		$data = LeaderboardStats::getRCEdits($starttimestamp);
 
 		//for some reason we shouldn't be sorting if its RC data
 		//arsort($data);

@@ -1,5 +1,3 @@
-var WH = WH || {};
-
 WH.ThumbRatings = (function($) {
 
 	var controller = '/Special:ThumbRatings';
@@ -15,9 +13,9 @@ WH.ThumbRatings = (function($) {
 			var data = {'aid' : wgArticleId, 'hash' : vals[2], 'vote' : vals[1], 'type' : vals[3]};
 			$.get(controller, data);
 
-			if (_gaq) {
+			if (typeof ga == 'function') {
 				var action = vals[3] + '-' + vals[1];
-				_gaq.push(['_trackEvent', 'm-thumbrating', action, wgTitle]);
+				ga('send', 'event', 'm-thumbrating', action, wgTitle);
 			}
 
 			changeThumbRatingState(className, vals);	
@@ -28,27 +26,22 @@ WH.ThumbRatings = (function($) {
 		$('a.' + className).each(function() {
 			var tr_vote = $(this).find('span.tr_vote');
 			var tr_box = $(this);
-			var color = vals[1] == 'up' ? '#93b874' : '#b5ab98';
+			var color = vals[1] == 'up' ? '#93b874' : '#cc8969';
 			var msg = vals[1] == 'up' ? getUpMsg() : getDownMsg();
+			$(this).addClass("clicked");
 			$(tr_vote).removeClass('nodisplay').html(parseInt($(tr_vote).html()) + 1);
-			$(tr_box).css('background', color).css('border-color', color);
-			$('span#tr_prompt_' + vals[2]).css('border-color', color).css('color', color).html(msg);
+			$('span#tr_prompt_' + vals[2]).css('color', color).html(msg);
 		});
 	}
 
 	function getUpMsg() {
-		var msgs = ['Yay!', 'Hooray!', 'Awesome', 'Great!', 'Sweet!', 'Nice!', 
-			'Thanks!', 'Woo-hoo!', 'Cheers', 'Score!', 'Beautiful', 'Wonderful',
-			'Wondrous', 'Cool!', 'Fantastic', 'Splendid!', 'Bravo!', 'Zounds!', 
-			'Booyah!'];
+		var msgs = ['Thanks!'];
 
 		return msgs[Math.floor(Math.random() * msgs.length)];
 	}
 
 	function getDownMsg() {
-		var msgs = ['Apologies', 'Too bad', 'Bummer', 'Oh no!', 'Darn', 'Oops!', 
-			'Sorry', 'Mea culpa', 'D’oh!', 'Our bad', 'Shucks', 'Oopsie', 'Uh oh!'];
-		return msgs[Math.floor(Math.random() * msgs.length)];
+		return getUpMsg();
 	}
 
 	function hideAll() {

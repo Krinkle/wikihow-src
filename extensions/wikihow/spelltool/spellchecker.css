@@ -29,18 +29,19 @@
     margin-top: 15px;
 }
 
-#spch-head {
-	padding: 15px;
+.spch-head {
+	padding: 15px 0 50px 0;
 }
 
-#spch-head h1 {
+.spch-head h1 {
 	margin:0;
     padding: 10px 0 0 15px;
 }
 
 #spch-options, #spch-edit-buttons{
 	font-size:1em;
-	float:right;
+	padding-top: 10px;
+	width: 100%;
 }
 
 #spch-options a, #spch-edit-buttons a {
@@ -160,13 +161,12 @@
 	margin-top:10px;
 }
 
-#spch-prompt {
+.spch-prompt {
 	background: #fafaf9;
-	height: 50px;
-	padding-top: 10px;
+	padding: 10px 0;
 }
 
-#spch-snippet {
+.spch-snippet {
 	padding: 15px;
 	background: white;
 	font-size: 16px;
@@ -174,13 +174,55 @@
 	border: 1px solid #e5e5e5;
 }
 
-#spch-prompt a.button {
+.spch-snippet.anon_limited {
+	text-align: center;
+}
+
+.spch-prompt a.button {
 	padding: 12px 11px;
 }
 
+#spch-snippet b {
+	font-weight: normal;
+}
+
+#spch-snippet .label,  {
+	display: none;
+}
+
+#spch-snippet div.mwimg, #spch-snippet label, #spch-snippet .step_num, #spch-snippet .reference, #spch-snippet br {
+	display: none;
+}
+
 #spch-qe {
-	margin-top: 14px;
-	margin-right: 11px;
-	font-size: 12px;
 	visibility: hidden;
 }
+
+#spch_help {
+	margin-left:10px;
+	margin-top:-33px;
+}
+
+#spch-skip-article.button, #spch-qe.button {
+	float: left;
+}
+
+#spch-skip-article {
+	margin-left: 10px;
+}
+
+#spch_help {
+	margin-left: 25px;
+}
+
+p.anon_limited_msg {
+	margin-bottom: 25px;
+	font-size: 18px;
+}
+
+.tip_bubble_outer {
+	position:relative;
+	bottom: 70px;
+}
+
+#eoq_box { margin-top: 1em; }

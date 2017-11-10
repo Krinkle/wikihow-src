@@ -39,7 +39,7 @@ interface WAPConfig {
 	public function getSystemUITemplatesLocation();
 
 	// ConfigStorage excluded articles key name
-	public function getExludedArticlesKeyName();
+	public function getExcludedArticlesKeyName();
 
 	public function getSystemName();
 

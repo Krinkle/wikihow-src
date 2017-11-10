@@ -1,3 +1,27 @@
+#boostMsg {
+	margin-left: -16px;
+}
+
+#comdash-sb-boosteralert{
+	/* @embed */
+	background: url(/skins/owl/images/cd_rocketship.png) no-repeat 0 0;
+	margin-left: -23px;
+}
+
+#NABcount{
+	float: left;
+	margin-top: -5px;
+	margin-left: 13px;
+	font-size: 15px;
+	position: relative;
+	z-index: 1;
+	width: 4%;
+	color: red;
+	text-align: center;
+	border-radius: 8px;
+	background-color: rgb(229,229,229);
+}
+
 .comdash-welcome {
 	padding: 20px 20px 0 20px;
 	font-size: .8em;
@@ -511,8 +535,8 @@
 .cd-customize-li .cust-widget { display: none; }
 .cd-customize-li .cust-name{margin-left: 10px;}
 
-.cd-bottom-buttons { text-align:right; line-height: 26px; font-size: 1.1em; font-weight: bold; line-height: 38px; }
-.cd-bottom-buttons input { float:right; margin-left: 10px; width: 30px;}
+.cd-bottom-buttons { text-align:right; line-height: 26px; font-weight: bold; line-height: 38px; }
+.cd-bottom-buttons input { float:right; margin-left: 10px; width: 40px;}
 .cd-button { color:#FFFFFF; display:block; font-weight:bold; overflow:hidden; text-align:center; background:url("/skins/WikiHow/images/buttons_editbar.png") no-repeat scroll -0 0 transparent; height: 30px; line-height: 30px; width: 64px; float: left; margin: 0 3px; }
 .cd-input-button { border: none; cursor: pointer; letter-spacing: .01em; line-height: normal; }
 .button64 { background-position: -467px 0; float:left; }

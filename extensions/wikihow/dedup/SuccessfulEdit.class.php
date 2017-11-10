@@ -1,9 +1,18 @@
 <?php
 
 /**
- * This class is used to count the number of bytes in an article, which were succesful edits */
+ * SuccessfulEdit::getEdits counts number of important characters added to an article by a
+ * particular revision. This can be used to find out whether an editor is good for a certain
+ * topic.
+ *
+ * This class is referenced by the Recommendations class. It is also run by a script, which
+ * caches the results in a table as its run.
+ */
 class SuccessfulEdit {
-	//Amount of bytes added to final revision
+
+	// Number of bytes added to final revision. Uses diff to find out if a given edit/revision
+	// was reverted or overridden with other people's edit. Bold edits are the edits that had
+	// a large contribution to the final article.
 	public static function getEdits($articleId) {
 		$dbr = wfGetDB(DB_SLAVE);
 		$gr = 0;

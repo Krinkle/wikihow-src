@@ -1,7 +1,7 @@
 .postedit-container {
 	margin: 0 auto;
 	position: fixed;
-	top: 0;
+	top: 75px;
 	height: 0;
 	left: 50%;
 	z-index: 1000;

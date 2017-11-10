@@ -557,7 +557,10 @@ abstract class QueryPage extends SpecialPage {
 			} else {
 				# No results to show, so don't bother with "showing X of Y" etc.
 				# -- just let the user know and give up now
-				$out->addWikiMsg( 'specialpage-empty' );
+				#XXCHANGED: BS - needed to change the message for nab
+				$msg = 'specialpage-empty';
+				wfRunHooks( 'wgQueryPagesNoResults', array( &$msg ) );
+				$out->addWikiMsg( $msg );
 				$out->addHTML( Xml::closeElement( 'div' ) );
 				return;
 			}

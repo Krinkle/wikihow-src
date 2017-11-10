@@ -10,8 +10,11 @@
  * @
  */
 class WikihowImagePage extends ImagePage {
+	
+	const LIGHTBOX_WIDTH = 900;
+	const LIGHTBOX_HEIGHT = 900;
 
-	public static function newFromTitle(&$title, &$page) {
+	public static function onArticleFromTitle( &$title, &$page ) {
 		switch ($title->getNamespace()) {
 			case NS_IMAGE:
 			case NS_FILE:
@@ -20,6 +23,49 @@ class WikihowImagePage extends ImagePage {
 		}
 		return true;
 	}
+	
+	function renderAjax() {
+		global $wgUser, $wgImageLimits, $wgRequest, $wgSquidMaxage;
+		
+		$out = $this->getContext()->getOutput();
+		$out->setSquidMaxage($wgSquidMaxage);
+		$out->setArticleBodyOnly(true);
+
+		$image = RepoGroup::singleton()->findFile($this->mTitle);
+		// get the id of the page that requested this so we can use it in the watermark
+		$aid = $wgRequest->getVal('aid');
+
+		if ( $aid ) {
+			$params = array( 'width' => self::LIGHTBOX_WIDTH, 'height' => self::LIGHTBOX_HEIGHT, 'mArticleID' => $aid );
+			$thumb = $image->transform( $params );
+			$url = $thumb->getUrl();
+		} else {
+			$url = $image->createThumb(self::LIGHTBOX_WIDTH, self::LIGHTBOX_HEIGHT);
+		}
+		$helper = new ImageHelper();
+		$info = $helper->getImageInfoWidget($this, $this->mTitle, $this->getDisplayedFile());
+		
+		$newSize = $helper->calcResize($image->width, $image->height, self::LIGHTBOX_WIDTH, self::LIGHTBOX_HEIGHT);
+		
+		if ($image && $image->exists()) {
+				$out->addHtml("<div class='img-container animated fadeIn' style='height:" . $newSize['height'] . "px;'><img src='" . wfGetPad($url) . "'/></div>");
+		}
+		
+		$out->addHtml('<div class="content-container animated fadeIn">');
+		$out->addHtml($info);
+		
+		$out->addHtml('<div class="description">');
+		$helper->showDescription($this->mTitle);
+		$out->addHtml('</div>');
+		
+		if ($wgUser && !$wgUser->isAnon()) {
+			$this->imageHistory();
+		}
+		$out->addHtml('</div>');
+
+		$hash = explode('?', $wgRequest->getRequestURL());
+		$out->addHtml(Html::inlineScript("window.location.hash='$hash[0]'"));
+	}
 
 	/*
 	* Most of the logic for image pages exists in this method.  We're
@@ -27,14 +73,22 @@ class WikihowImagePage extends ImagePage {
 	*/
 	function view() {
 		global $wgShowEXIF, $wgRequest, $wgUser;
-
+		
+		// used by the lightbox effect on the article page
+		if ($wgRequest->getVal('ajax') == 'true') {
+			$this->renderAjax();
+			return;
+		}
+		
 		$out = $this->getContext()->getOutput();
 		$sk = $this->getContext()->getSkin();
 		$diff = $wgRequest->getVal( 'diff' );
 		$diffOnly = $wgRequest->getBool( 'diffonly', $wgUser->getOption( 'diffonly' ) );
+		
+
 
 		if ( $this->mTitle->getNamespace() != NS_IMAGE || ( isset( $diff ) && $diffOnly ) )
-			return Article::view();
+			return Article::view();	
 
 		if ($wgShowEXIF && $this->getDisplayedFile()->exists()) {
 			// FIXME: bad interface, see note on MediaHandler::formatMetadata().
@@ -48,14 +102,14 @@ class WikihowImagePage extends ImagePage {
 		ImageHelper::showDescription($this->mTitle);
 
 		$lastUser = $this->getDisplayedFile()->getUser();
-		$userLink = Linker::makeLinkObj(Title::makeTitle(NS_USER, $lastUser), $lastUser);
+		$userLink = Linker::link(Title::makeTitle(NS_USER, $lastUser), $lastUser);
 
 		$out->addHTML("<div style='margin-bottom:20px'></div>");
 
 		# Show shared description, if needed
 		if ( $this->mExtraDescription ) {
 			$fol = wfMsgNoTrans( 'shareddescriptionfollows' );
-			if( $fol != '-' && !wfEmptyMsg( 'shareddescriptionfollows', $fol ) ) {
+			if( $fol != '-' && !wfMessage( 'shareddescriptionfollows' )->isBlank() ) {
 				$out->addWikiText( $fol );
 			}
 			$out->addHTML( '<div id="shared-image-desc">' . $this->mExtraDescription . '</div>' );
@@ -78,7 +132,7 @@ class WikihowImagePage extends ImagePage {
 		
 		if (ImageHelper::IMAGES_ON) {
 			$ih->getConnectedImages($articles, $this->mTitle);
-			$ih->getRelatedWikiHows($this->mTitle, $sk);
+			ImageHelper::getRelatedWikiHows($this->mTitle, $sk);
 		}
 		$ih->addSideWidgets($this, $this->mTitle, $this->getDisplayedFile());
 
@@ -98,7 +152,8 @@ class WikihowImagePage extends ImagePage {
 			$this->imageHistory();
 		}
 
-		ImageHelper::displayBottomAds();
+		//Taking out image ads on 1/12/15 at the request of google
+		//ImageHelper::displayBottomAds();
 
 		if ( $showmeta ) {
 			$out->addHTML( Xml::element(
@@ -124,37 +179,24 @@ class WikihowImagePage extends ImagePage {
 		/*
 		*  We'll use this in place of the uploadLinksBox in file history
 		*/
-	   function uploadLinksMessage($writeIt = true) {
-        global $wgUser, $wgOut, $wgTitle;
+		 function uploadLinksMessage($writeIt = true) {
+				global $wgUser, $wgOut, $wgTitle;
 
-        if( !$this->getDisplayedFile()->isLocal() )
-            return;
+				if( !$this->getDisplayedFile()->isLocal() )
+						return;
 
-        $html = '<br /><ul>';
+				$html = '<br /><ul>';
 
-        # "Upload a new version of this file" link
-        # Disabling upload a new version of this file link per Bug #585
-/*
-		if (false && UploadForm::userCanReUpload($wgUser, $this->getDisplayedFile()->name) ) {
-            $ulink = Linker::makeExternalLink( $this->getUploadUrl(), wfMessage( 'uploadnewversion-linktext' )->text() );
-            $html .= "<li><div class='plainlinks'>{$ulink}</div></li>";
-        }
-*/
+				// wikitext message
+				$html .= '<li>' . wfMessage('image_instructions', $wgTitle->getFullText())->text() . '</li></ul>';
 
-        # External editing link
-        //$elink = Linker::makeKnownLinkObj( $this->mTitle, wfMsgHtml( 'edit-externally' ), array(), 'action=edit&externaledit=true&mode=file' );
-        //$wgOut->addHtml( '<li>' . $elink . '<div>' . wfMsgWikiHtml( 'edit-externally-help' ) . '</div></li>' );
-
-        //wikitext message
-        $html .= '<li>' . wfMessage('image_instructions', $wgTitle->getFullText())->text() . '</li></ul>';
-
-        if ($writeIt) {
-            $wgOut->addHtml($html);
-        }
-        else {
-            return $html;
-        }
-    }
+				if ($writeIt) {
+						$wgOut->addHtml($html);
+				}
+				else {
+						return $html;
+				}
+		}
 	
 
 }
@@ -170,15 +212,15 @@ class WikihowImageHistoryList extends ImageHistoryList {
 		$this->showThumb = false;
 	}
 
-	public function beginImageHistoryList($navLink) {
-	   global $wgOut;
-        $s = '<div class="minor_section">' . Xml::element( 'h2', array( 'id' => 'filehistory' ), wfMessage( 'filehist' )->text() )
-            . '<div class="wh_block">'. $wgOut->parse( wfMsgNoTrans( 'filehist-help' ) )
-            . Xml::openElement( 'table', array( 'class' => 'filehistory history_table' ) ) . "\n";
-        return $s;
+	public function beginImageHistoryList($navLink = '') {
+		 global $wgOut;
+				$s = '<div class="minor_section">' . Xml::element( 'h2', array( 'id' => 'filehistory' ), wfMessage( 'filehist' )->text() )
+						. '<div class="wh_block">'. $wgOut->parse( wfMsgNoTrans( 'filehist-help' ) )
+						. Xml::openElement( 'table', array( 'class' => 'filehistory history_table' ) ) . "\n";
+				return $s;
 	}
 
-	public function endImageHistoryList($navLink) {
+	public function endImageHistoryList($navLink = '') {
 		 return "</table>" . $this->imagePage->uploadLinksMessage(false) . "</div></div>\n";
 	}
 

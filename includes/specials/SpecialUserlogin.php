@@ -43,7 +43,7 @@ class LoginForm extends SpecialPage {
 	const NEED_TOKEN = 12;
 	const WRONG_TOKEN = 13;
 
-	//XXADDED 
+	//XXADDED
 	const NO_EMAIL = 14;
 	const MULTIPLE_EMAILS = 15;
 
@@ -347,6 +347,10 @@ class LoginForm extends SpecialPage {
 		global $wgAuth, $wgMemc, $wgAccountCreationThrottle,
 			$wgMinimalPasswordLength, $wgEmailConfirmToEdit;
 
+		//XXCHANGEDXX - set mobilemode
+		$ctx = MobileContext::singleton();
+		$isMobileMode = $ctx->shouldDisplayMobileView();
+
 		// If the user passes an invalid domain, something is fishy
 		if ( !$wgAuth->validDomain( $this->mDomain ) ) {
 			return Status::newFatal( 'wrongpassword' );
@@ -416,9 +420,15 @@ class LoginForm extends SpecialPage {
 		$name = trim( $this->mUsername );
 		$u = User::newFromName( $name, 'creatable' );
 		if ( !is_object( $u ) ) {
-			return Status::newFatal( 'noname' );
+			//XXCHANGEDXX - swap for mobile version [sc]
+			$error = 'noname';
+			$error .= $isMobileMode ? '-mobile' : '';
+			return Status::newFatal( $error );
 		} elseif ( 0 != $u->idForName() ) {
-			return Status::newFatal( 'userexists' );
+			//XXCHANGEDXX - swap for mobile version [sc]
+			$error = 'userexists';
+			$error .= $isMobileMode ? '-mobile' : '';
+			return Status::newFatal( $error );
 		}
 
 		if ( $this->mCreateaccountMail ) {
@@ -427,7 +437,10 @@ class LoginForm extends SpecialPage {
 			$this->mPassword = null;
 		} else {
 			if ( $this->mPassword !== $this->mRetype ) {
-				return Status::newFatal( 'badretype' );
+				//XXCHANGEDXX - swap for mobile version [sc]
+				$error = 'badretype';
+				$error .= $isMobileMode ? '-mobile' : '';
+				return Status::newFatal( $error );
 			}
 
 			# check for minimal password length
@@ -453,7 +466,13 @@ class LoginForm extends SpecialPage {
 		# Set some additional data so the AbortNewAccount hook can be used for
 		# more than just username validation
 		$u->setEmail( $this->mEmail );
-		$u->setRealName( $this->mRealName );
+
+		//XXCHANGEDXX - Remove illegal characters from the real name
+		$this->mRealName = User::getCanonicalName($this->mRealName, 'creatable');
+		if ($this->mRealName === false) {
+			$this->mRealName = '';
+		}
+		$u->setRealName($this->mRealName);
 
 		$abortError = '';
 		$abortStatus = null;
@@ -563,7 +582,7 @@ class LoginForm extends SpecialPage {
 		// but wrong-token attempts do.
 
 
-		// Upgrade hack by Gershon Bialer                                       
+		// Upgrade hack by Gershon Bialer
 		// Removed token verification to get static header login working
 		// XXXXX
 
@@ -601,7 +620,7 @@ class LoginForm extends SpecialPage {
 			wfDebug( __METHOD__ . ": already logged in as {$this->mUsername}\n" );
 			return self::SUCCESS;
 		}
-		
+
 		//XXCHANGEDXX - added our login by email logic back [sc]
 		// Check if $this->mName is actually an email address
 		$u = null;
@@ -609,7 +628,7 @@ class LoginForm extends SpecialPage {
 		if ( $looksLikeEmail ) {
 			list($u, $count) = WikihowUser::newFromEmailAddress( $this->mUsername );
 		}
-		
+
 		// Only do the username lookup if it didn't look like an email address
 		// or the email addresses didn't have exactly 1 account attached
 		if ( is_null( $u ) ) {
@@ -800,6 +819,10 @@ class LoginForm extends SpecialPage {
 	function processLogin() {
 		global $wgMemc, $wgLang, $wgSecureLogin, $wgPasswordAttemptThrottle;
 
+		//XXCHANGEDXX - set mobilemode
+		$ctx = MobileContext::singleton();
+		$isMobileMode = $ctx->shouldDisplayMobileView();
+
 		switch ( $this->authenticateUserData() ) {
 			case self::SUCCESS:
 				# We've verified now, update the real record
@@ -854,21 +877,29 @@ class LoginForm extends SpecialPage {
 			case self::NO_NAME:
 			case self::ILLEGAL:
 				$error = $this->mAbortLoginErrorMsg ?: 'noname';
+				//XXCHANGEDXX - swap for mobile version [sc]
+				$error .= $isMobileMode ? '-mobile' : '';
 				$this->mainLoginForm( $this->msg( $error )->text() );
 				break;
 			case self::WRONG_PLUGIN_PASS:
 				$error = $this->mAbortLoginErrorMsg ?: 'wrongpassword';
+				//XXCHANGEDXX - swap for mobile version [sc]
+				$error .= $isMobileMode ? '-mobile' : '';
 				$this->mainLoginForm( $this->msg( $error )->text() );
 				break;
 			case self::NOT_EXISTS:
 				if ( $this->getUser()->isAllowed( 'createaccount' ) ) {
 					$error = $this->mAbortLoginErrorMsg ?: 'nosuchuser';
 					//XXCHANGEDXX - added specific error info [sc]
+					//XXCHANGEDXX - swap for mobile version [sc]
+					$error .= $isMobileMode ? '-mobile' : '';
 					$this->mainLoginForm( $this->msg( $error,
 						wfEscapeWikiText( $this->mUsername ) )->parse(), 'error', array('username') );
 				} else {
 					$error = $this->mAbortLoginErrorMsg ?: 'nosuchusershort';
 					//XXCHANGEDXX - added specific error info [sc]
+					//XXCHANGEDXX - swap for mobile version [sc]
+					$error .= $isMobileMode ? '-mobile' : '';
 					$this->mainLoginForm( $this->msg( $error,
 						wfEscapeWikiText( $this->mUsername ) )->text(), 'error', array('username') );
 				}
@@ -876,11 +907,15 @@ class LoginForm extends SpecialPage {
 			case self::WRONG_PASS:
 				$error = $this->mAbortLoginErrorMsg ?: 'wrongpassword';
 				//XXCHANGEDXX - added specific error info [sc]
+				//XXCHANGEDXX - swap for mobile version [sc]
+				$error .= $isMobileMode ? '-mobile' : '';
 				$this->mainLoginForm( $this->msg( $error )->text(), 'error',array('password') );
 				break;
 			case self::EMPTY_PASS:
 				$error = $this->mAbortLoginErrorMsg ?: 'wrongpasswordempty';
 				//XXCHANGEDXX - added specific error info [sc]
+				//XXCHANGEDXX - swap for mobile version [sc]
+				$error .= $isMobileMode ? '-mobile' : '';
 				$this->mainLoginForm( $this->msg( $error )->text(), 'error',array('password') );
 				break;
 			case self::RESET_PASS:
@@ -980,6 +1015,8 @@ class LoginForm extends SpecialPage {
 		$injected_html = '';
 		wfRunHooks( 'UserLoginComplete', array( &$currentUser, &$injected_html ) );
 
+		Misc::addAnalyticsEventToCookie('User Accounts', 'login', 'wikihow');
+
 		if ( $injected_html !== '' ) {
 			$this->displaySuccessfulAction( $this->msg( 'loginsuccesstitle' ),
 				'loginsuccess', $injected_html );
@@ -1009,6 +1046,8 @@ class LoginForm extends SpecialPage {
 		 */
 		wfRunHooks( 'BeforeWelcomeCreation', array( &$welcome_creation_msg, &$injected_html ) );
 
+		Misc::addAnalyticsEventToCookie('User Accounts', 'signup', 'wikihow');
+
 		$this->displaySuccessfulAction( $this->msg( 'welcomeuser', $this->getUser()->getName() ),
 			$welcome_creation_msg, $injected_html );
 	}
@@ -1031,7 +1070,7 @@ class LoginForm extends SpecialPage {
 
 		// XXXXXX
 		// Hacked by Gershon Bialer on 12/3/2013 to redirect rather than display success page upon account creation
-		// 
+		//
 		$this->executeReturnTo( 'successredirect' );
 	}
 
@@ -1130,14 +1169,14 @@ class LoginForm extends SpecialPage {
 		}
 
 		if ( $type == 'successredirect' ) {
-			//forwarding to forums?
+			// forwarding to forums, if coming from forums
 			if ($returnTo == 'vanilla') {
 				global $wgForumLink;
 				$redirectUrl = $wgForumLink;
+			} else {
+				$redirectUrl = $returnToTitle->getFullURL( $returnToQuery, false, $proto );
 			}
-			else {
-			$redirectUrl = $returnToTitle->getFullURL( $returnToQuery, false, $proto );
-			}
+
 			$this->getOutput()->redirect( $redirectUrl );
 		} else {
 			$this->getOutput()->addReturnTo( $returnToTitle, $returnToQuery, null, $options );
@@ -1214,6 +1253,8 @@ class LoginForm extends SpecialPage {
 
 			$q = 'action=submitlogin&type=signup';
 			$linkq = 'type=login';
+
+			$out->getSkin()->addWidget(wfMessage('signupreasons')->text(), 'usercreate');
 		} else {
 			// Additional styles for login form
 			$out->addModuleStyles( array(
@@ -1265,7 +1306,18 @@ class LoginForm extends SpecialPage {
 		$template->set( 'domain', $this->mDomain );
 		$template->set( 'reason', $this->mReason );
 
-		$template->set( 'action', $titleObj->getLocalURL( $q ) );
+		// wikiHow, 2015/09/29 - Make sure HTTPS is used if secure login is set
+		$actionUrl = $titleObj->getLocalURL($q);
+		global $wgSecureLogin;
+		if ($wgSecureLogin) {
+			$from_http = $this->getRequest()->getVal('fromhttp', 0);
+			if ( $from_http && strpos($actionUrl, 'fromhttp=') === false ) {
+				$actionUrl = $actionUrl . '&fromhttp=' . $from_http;
+			}
+			$actionUrl = wfExpandUrl( $actionUrl, PROTO_HTTPS );
+		}
+
+		$template->set( 'action', $actionUrl );
 		$template->set( 'message', $msg );
 		$template->set( 'messagetype', $msgtype );
 		// Added errorlist variable to list all errors.
@@ -1421,7 +1473,7 @@ class LoginForm extends SpecialPage {
 	/**
 	 * Renew the user's session id, using strong entropy
 	 */
-	public static function renewSessionId() {
+	public function renewSessionId() {
 		global $wgSecureLogin, $wgCookieSecure;
 		if ( $wgSecureLogin && !$this->mStickHTTPS ) {
 			$wgCookieSecure = false;
@@ -1524,5 +1576,10 @@ class LoginForm extends SpecialPage {
 
 	protected function getGroupName() {
 		return 'login';
+	}
+
+	// WIKIHOW added this function to allow login on mobile
+	public function isMobileCapable() {
+		return true;
 	}
 }

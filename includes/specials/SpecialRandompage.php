@@ -135,12 +135,14 @@ class RandomPage extends SpecialPage {
 		$redirect = $this->isRedirect() ? 1 : 0;
 
 		return array(
-			'tables' => array( 'page' ),
+			'tables' => array( 'page', 'index_info' ),
 			'fields' => array( 'page_title', 'page_namespace' ),
 			'conds' => array_merge( array(
 				'page_namespace' => $this->namespaces,
 				'page_is_redirect' => $redirect,
-				'page_random >= ' . $randstr
+				'page_random >= ' . $randstr,
+				'page_id = ii_page',
+				'ii_policy IN (1, 4)'
 			), $this->extra ),
 			'options' => array(
 				'ORDER BY' => 'page_random',

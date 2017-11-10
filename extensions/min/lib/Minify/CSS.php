@@ -49,8 +49,19 @@ class Minify_CSS {
      * @return string
      */
     public static function minify($css, $options = array()) 
-    {
-        require_once 'Minify/CSS/Compressor.php';
+	{
+		/*
+		 * George Bahij 02/02/15:
+		 * If the cssjanus option has been set in the minifier extension's
+		 * index.php, run the CSS through CSSJanus::transform to flip the site
+		 * for right-to-left lanugages.
+		 */
+		if (isset($options['cssjanus']) && $options['cssjanus']) {
+			require_once dirname(__FILE__) . '/../../../../includes/libs/CSSJanus.php';
+			$css = CSSJanus::transform($css, true, false);
+		}
+
+		require_once 'Minify/CSS/Compressor.php';
         if (isset($options['preserveComments']) 
             && !$options['preserveComments']) {
             $css = Minify_CSS_Compressor::process($css, $options);

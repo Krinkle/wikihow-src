@@ -38,6 +38,17 @@ class SpecialNewpages extends IncludableSpecialPage {
 	// Some internal settings
 	protected $showNavigation = false;
 
+	// 11-2016 [ab] (wikiHow) Link to ReindexedPages for Googlebot
+	function outputHeader($summaryMessageKey = '') {
+		parent::outputHeader($summaryMessageKey);
+
+		$url = SpecialPage::getTitleFor('ReindexedPages')->getLinkUrl();
+		$txt = strtolower(wfMessage('reindexedpages')->text());
+
+		$html = wfMessage('reindexed-link-from-newpages', $url, $txt)->text();
+		$this->getOutput()->addHTML($html);
+	}
+
 	public function __construct() {
 		parent::__construct( 'Newpages' );
 	}
@@ -334,7 +345,8 @@ class SpecialNewpages extends IncludableSpecialPage {
 			array()
 		);
 
-		$query = array( 'redirect' => 'no' );
+		// 8-2016 [sc] (wikiHow) want cleaner links w/ a better path (no index=...)
+		// $query = array( 'redirect' => 'no' );
 
 		// Linker::linkKnown() uses 'known' and 'noclasses' options.
 		// This breaks the colouration for stubs.
@@ -568,7 +580,14 @@ class NewPagesPager extends ReverseChronologicalPager {
 			'length' => 'page_len', 'rev_id' => 'page_latest', 'rc_this_oldid',
 			'page_namespace', 'page_title'
 		);
-		$join_conds = array( 'page' => array( 'INNER JOIN', 'page_id=rc_cur_id' ) );
+		$join_conds = array('page' => array( 'INNER JOIN', 'page_id=rc_cur_id' ));
+
+		// 8-2016 [sc] (wikiHow) only look for indexed pages if logged out
+		if ($this->getUser()->isAnon()) {
+			$conds['ii_policy'] = RobotPolicy::POLICY_DONT_CHANGE;
+			$tables[] = 'index_info';
+			$join_conds['index_info'] = array( 'INNER JOIN', 'ii_page=page_id');
+		}
 
 		wfRunHooks( 'SpecialNewpagesConditions',
 			array( &$this, $this->opts, &$conds, &$tables, &$fields, &$join_conds ) );

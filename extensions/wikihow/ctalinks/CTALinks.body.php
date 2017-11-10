@@ -1,21 +1,21 @@
-<?
+<?php
 
 class CTALinks {
 
 	function __construct() {
 	}
 
-        function getCTA() {
-                global $wgTitle, $wgUser, $wgRequest;
+	function getCTA() {
+		global $wgTitle, $wgUser, $wgRequest;
 
 		// Check various conditions to verify we should be displaying CTA links
 		if (!CTALinks::isArticlePageTarget()) return "";
 
 		// ctaLinks structure is array [ctaId, link, ctaId, link, ...]. Whenever a ctaLink is added to the cta_links message, it must be preceded with a unique id number
-                $ctaLinks  = explode(",", trim(wfMsgForContent('cta_links')));
+		$ctaLinks  = explode(",", trim(wfMsgForContent('cta_links')));
 		if (sizeof($ctaLinks) == 0) return "";
 
-                $result = "";
+				$result = "";
 		// Debug option to pass in specific ctaId to display
 		$debugId = $wgRequest->getVal('ctaid');
 		if (isset($debugId)) {
@@ -29,8 +29,8 @@ class CTALinks {
 				setcookie("ctaId", intval($ctaLinks[$ctaNum * 2]));
 			}
 		}
-                return $result;
-        }
+		return $result;
+	}
 	
 	function getCTAById($ctaId, &$ctaLinks) {
 		$ctaId = intval($ctaId);
@@ -75,10 +75,10 @@ class CTALinks {
 	
 	
 	function isArticlePageTarget() {
-                global $wgTitle, $wgRequest, $wgUser;
-                // Only display for article pages that aren't new articles
-                $createNewArticle = $wgRequest->getVal('create-new-article', '') == 'true';
-                return !($createNewArticle || $wgTitle->getNamespace() != NS_MAIN || $wgTitle->getFullText() == wfMsg('mainpage') || $wgRequest->getVal('action') != '');
+		global $wgTitle, $wgRequest, $wgUser;
+		// Only display for article pages that aren't new articles
+		$createNewArticle = $wgRequest->getVal('create-new-article', '') == 'true';
+		return !($createNewArticle || $wgTitle->getNamespace() != NS_MAIN || $wgTitle->getFullText() == wfMsg('mainpage') || $wgRequest->getVal('action') != '');
 	}
 
 	function isLoggedIn() {
@@ -87,7 +87,7 @@ class CTALinks {
 	}
 
 	function isConversionPageTarget() {
-                global $wgRequest;
+				global $wgRequest;
 		//return $wgRequest->getVal('ctaconv') == 'true';
 		return self::isArticlePageTarget();
 	}

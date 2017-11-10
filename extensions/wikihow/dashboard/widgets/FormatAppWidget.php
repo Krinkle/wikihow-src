@@ -114,7 +114,7 @@ class FormatAppWidget extends DashboardWidget {
 	 */
 	public function getLeaderboardData(&$dbr, $starttimestamp){
 
-		$data = Leaderboard::getArticlesRepaired($starttimestamp, 'format');
+		$data = LeaderboardStats::getArticlesRepaired($starttimestamp, 'format');
 		arsort($data);
 
 		return $data;

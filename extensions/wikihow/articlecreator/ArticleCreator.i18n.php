@@ -1,4 +1,4 @@
-<?
+<?php
 
 $messages = array();
 
@@ -7,9 +7,9 @@ $messages['en'] = array (
 	'ac-section-intro-name' => 'Introduction',
 	'ac-section-intro-desc' => 'Enter a short introduction to quickly introduce the reader to your article.',
 	'ac-section-intro-button-txt' => 'Add Introduction',
-	'ac-section-intro-placeholder' => 'Enter your introduction here, and then click "Add Introduction"',
+	'ac-section-intro-placeholder' => 'Enter your introduction here',
 	'ac-section-steps-name' => 'Steps',
-	'ac-section-steps-desc' => 'Enter each step of your article here. Press "Add Step" after each individual step.',
+	'ac-section-steps-desc' => 'Enter each step of your article here. Press "Add Step" after each individual step. Be as detailed as possible when describing how to do each step.  It’s always better to over-describe a step than under-describe it.',
 	'ac-section-steps-name-method-placeholder' => 'Enter the method or part title here.',
 	'ac-section-steps-method-done-button-txt' => 'Save',
 	'ac-section-steps-addstep-placeholder' => 'Enter one step here and then click "Add Step"',
@@ -59,5 +59,23 @@ $messages['en'] = array (
 	'ac-part-selector-txt' => 'Do you have another part for ',
 	'ac-add-method-button-txt' => 'Add a Method',
 	'ac-add-part-button-txt' => 'Add a Part',
+	'ac-modal-head' => 'Congratulations, your article is published!',
+	'ac-modal-step1' => 'Article Created!',
+	'ac-modal-step2' => 'Article in Review',
+	'ac-modal-step3' => 'Viewable by millions!',
+	'ac-modal-email-error' => "Whoops! If you'd like to receive email notifications, please enter a valid email.",
+	'ac-modal-email-hdr' => 'Email me about updates to my article',
+	'ac-modal-email-msg' => "Thanks for starting a new article! Like all new articles, it's now waiting for quality review.",
+	'ac-modal-email-ph' => 'your email address',
+	'ac-modal-email2-ph' => 'Enter email addresses here',
+	'ac-modal-email2-msg' => 'You can enter multiple emails separated by commas',
+	'ac-modal-shareit-hdr' => 'Share your new article with the world!',
+	'ac-modal-share' => 'Share',
+	'ac-modal-email' => 'Email',
+	'ac-modal-view-article-btn' => 'Done, go to article',
+	'ac-modal-checkbox' => "Don't show this again",
+	'ac-modal-info-tip' => "We'll send an email when this article gets updated or reaches important milestones.",
+	'ac-modal-sign-up' => 'Create an account',
+	'ac-modal-anon-msg' => "Want to see updates on your article's progress and get personal credit for what you just wrote? Create a wikiHow account and we'll link your new article to it.",
+	'ac-overwrite-reason' => 'Automatically deleting demoted article to make way for a rewrite',
 );
-

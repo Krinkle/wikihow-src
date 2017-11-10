@@ -1,4 +1,5 @@
-<?
+<?php
+
 class GetSamples extends UnlistedSpecialPage {
 	
 	function __construct() {
@@ -64,7 +65,7 @@ class GetSamples extends UnlistedSpecialPage {
 	/**
 	 * EXECUTE
 	 **/
-	function execute () {
+	function execute($par) {
 		global $wgUser, $wgOut, $wgRequest;
 		
 		$user = $wgUser->getName();

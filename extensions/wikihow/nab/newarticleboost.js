@@ -1,18 +1,24 @@
+if (typeof console == "undefined" || typeof console.log == "undefined") {
+	var console = { log: function() {} };
+};
 
-var nap_editUrl;
-var nap_preview = false;
-var needToConfirm = true;
+window.WH = window.WH || {};
+window.WH.nab = window.WH.nab || {};
 
-function nap_editClick(url) {
+window.WH.nab.preview = false;
+window.WH.nab.needToConfirm = true;
+
+window.WH.nab.editClick = function(url) {
 	var strResult;
-	nap_editUrl = url;
-	$('#article_contents')
-		.html('<b>Loading...</b>')
-		.attr('onDblClick', '');
-	$('#editButton').hide();
+	window.WH.nab.editUrl = url;
+	$("#quickedit_contents")
+		.html("<b>Loading...</b>")
+		.attr("onDblClick", "");
+	$("#article_contents").hide();
+	$(".editButton").hide();
 
-	// make sure this can't be clicked twice
-	if ($('#article_contents').find('textarea').length > 0) {
+	// make sure this can"t be clicked twice
+	if ($("#quickedit_contents").find("textarea").length > 0) {
 		return false;
 	}
 
@@ -21,44 +27,46 @@ function nap_editClick(url) {
 	document.write = function() {};
 
 	$.get(url, function (data) {
-		$('#article_contents').html(data);
-		//document.editform.target = "_blank";
-		//restoreToolbarButtons();
-		$('#wpPreview')
-			.unbind('click')
+		$("#quickedit_contents").html(data);
+		$(".templatesUsed").parent().remove();
+		$("#wpPreview")
+			.unbind("click")
 			.click( function() {
-				nap_preview = true;
+				window.WH.nab.preview = true;
 			});
-		$('#wpSave')
-			.unbind('click')
+		$("#wpSave")
+			.unbind("click")
 			.click( function() {
-				nap_preview = false;
+				window.WH.nab.preview = false;
 			});
-		document.editform.setAttribute('onsubmit', 'return nap_SubmitForm();');
+		$("#mw-editform-cancel").on("click", function(){
+			if(confirm("Are you sure you want to cancel? You will lose any changes.")) {
+				$("#quickedit_contents").hide();
+				$("#article_contents").show();
+			}
+			return false;
+		});
+		document.editform.setAttribute("onsubmit", "return window.WH.nab.submitEditForm();");
 		document.editform.wpTextbox1.focus();
-		$('#wpSummary').val(gAutoSummaryText);
-		window.onbeforeunload = confirmExit;
+		$("#wpSummary").val(mw.message("nap_autosummary").text());
+		window.onbeforeunload = window.WH.nab.confirmExit;
 	});
 
 	return false;
 }
 
-function nap_clearEditForm() {
-	$('#article_contents').html('Article saved.');
-}
-
-function nap_SubmitForm() {
+window.WH.nab.submitEditForm = function() {
 	var parameters = "";
 	for (var i=0; i < document.editform.elements.length; i++) {
-   		var element = document.editform.elements[i];
+		var element = document.editform.elements[i];
 		if (parameters != "") {
 			parameters += "&";
 		}
-	
-		if ( (element.name == 'wpPreview' && nap_preview) || (element.name == 'wpSave' && !nap_preview)) {
+
+		if ( (element.name == "wpPreview" && window.WH.nab.preview) || (element.name == "wpSave" && !window.WH.nab.preview)) {
 			parameters += element.name + "=" + encodeURIComponent(element.value);
-		} else if (element.name != 'wpDiff' && element.name != 'wpPreview' && element.name != 'wpSave' && element.name.substring(0,7) != 'wpDraft')  {
-			if (element.type == 'checkbox') {
+		} else if (element.name != "wpDiff" && element.name != "wpPreview" && element.name != "wpSave" && element.name.substring(0,7) != "wpDraft")  {
+			if (element.type == "checkbox") {
 				if (element.checked) {
 					parameters += element.name + "=1";
 				}
@@ -68,22 +76,24 @@ function nap_SubmitForm() {
 		}
 	}
 
-	$.post(nap_editUrl + "&action=submit", parameters,
+	$.post(window.WH.nab.editUrl + "&action=submit", parameters,
 		function (data) {
-			$('#article_contents')
-				.html(data)
-				.attr('style', '')
-				.attr('onDblClick', 'nap_editClick("' + nap_editUrl + '");');
-			$('#editButton').attr('style', '');
-			if (nap_preview) {
-				var previewButton = document.getElementById('wpPreview');
-				previewButton.setAttribute('onclick', 'nap_preview=true;');
-				var saveButton = document.getElementById('wpSave');
-				saveButton.setAttribute('onclick', 'nap_preview=false;');
-				document.editform.setAttribute('onsubmit', 'return nap_SubmitForm();');
+			if (window.WH.nab.preview) {
+				$("#quickedit_contents")
+					.html(data)
+					.attr("style", "");
+				var previewButton = document.getElementById("wpPreview");
+				previewButton.setAttribute("onclick", "window.WH.nab.preview=true;");
+				var saveButton = document.getElementById("wpSave");
+				saveButton.setAttribute("onclick", "window.WH.nab.preview=false;");
+				document.editform.setAttribute("onsubmit", "return window.WH.nab.submitEditForm();");
 				document.editform.wpTextbox1.focus();
 			} else {
-				nap_getDiffLink();
+				$("#article_contents")
+					.html(data)
+					.attr("style", "");
+				window.WH.nab.getDiffLink();
+				$("#quickedit_contents").hide();
 			}
 
 		});
@@ -92,83 +102,66 @@ function nap_SubmitForm() {
 	return false; // block sending the forum
 }
 
-function nap_Merge(title) {
-	document.nap_form.template3_merge.checked = 1;
-	document.nap_form.param3_param1.value=title.replace(/&#39;/, "'");
-	document.nap_form.param3_param1.focus();
-}
+window.WH.nab.submitNabForm = function() {
+	window.WH.nab.disableButtons();
 
-function nap_Dupe(title) {
-	document.nap_form.template4_nfddup.checked = 1;
-	document.nap_form.param4_param1.value = title.replace(/&#39;/, "'");
-	document.nap_form.param4_param1.focus();
-}
-
-function nap_onlyDup1() {
-	if (document.nap_form.template4_nfddup.checked == 1) {
-		document.nap_form.template1_nfd.checked = 0;
-	}
-}
-function nap_onlyDup2() {
-	if (document.nap_form.template1_nfd.checked == 1) {
-		document.nap_form.template4_nfddup.checked = 0;
-	}
-}
-
-function checkNap() {
-	// check existence of dup article
-	if (document.nap_form.template4_nfddup.checked) {
-		api_url = "http://" + window.location.hostname + "/api.php"
-		params = "action=query&format=xml&titles=" + encodeURIComponent(document.nap_form.param4_param1.value);
-		$.post(api_url, params,
-			function (data) {
-				if (data.indexOf("pageid=") < 0) {
-					alert("Oops!  The title, \"How to " + document.nap_form.param4_param1.value + "\", doesn't match any articles.  Capitalization and spelling must match perfectly.  \n\nCan you fix this and resubmit it?");
-				}
-			},
-			'xml');
-	}
-	return true;
-}
-
-function confirmExit() {
-	if (needToConfirm) {
-		return gChangesLost;
-	}
-	return '';
-}
-
-function nap_cCheck() {
-	$('#nap_copyrightresults').html("<center><img src='/extensions/wikihow/rotate.gif'></center>"); 
-	$.get(nap_cc_url, function(data) {
-		$('#nap_copyrightresults').html(data);
+	var form = $("#nap_form");
+	$.ajax({
+		type: form.attr("method"),
+		url: form.attr("action"),
+		data: form.serialize(),
+		dataType: "json",
+		error: function(jqXHR, textStatus, errorThrown) {
+			alert(JSON.parse(jqXHR.responseText).message);
+		}
 	});
-}
 
-function nap_MarkRelated(id, p1, p2) {
-	url = "http://" + window.location.hostname + "/Special:Markrelated?p1=" + p1 + "&p2=" + p2;
-	$.get(url, function() {
-		$("#mr_" + id)
-			.fadeOut(400, function() {
-				$("#mr_" + id)
-					.html("<b>Done!</b>")
-					.fadeIn();
-			});
-	});
-}
+	window.WH.nab.loadNextArticle();
 
-function nap_copyVio(url) {
-	document.nap_form.template5_copyvio.checked =true;
-	document.nap_form.param5_param1.value = url;
-	document.nap_form.param5_param1.focus();
 	return false;
 }
 
-function nap_getDiffLink() {
+window.WH.nab.loadNextArticle = function() {
+	var nextUrl = $("#nextNabUrl").val();
+	var nextTitle = $("#nextNabTitle").val();
+	$("#nab-article-container").load(nextUrl + "&noSkin=1", function(response, status, xhr) {
+		if (status == "error") {
+			if (nextUrl === "" && nextTitle === "") {
+				alert("It looks like we're out of articles!");
+			} else {
+				alert("Couldn't load the next article (" + nextUrl + ")");
+			}
+			return;
+		}
+		window.scrollTo(0, 0);
+		window.history && window.history.pushState({}, "", nextUrl);
+		document.title = nextTitle;
+		window.WH.nab.enableButtons();
+	});
+}
+
+window.WH.nab.merge = function(title) {
+	if( !$(this).hasClass("clickfail") ) {
+		$("#nap_demote").val("nap_demote");
+		$("#template3_merge").val("on");
+		$("#param3_param1").val(title.replace(/&#39;/, "'"));
+		window.WH.nab.submitNabForm();
+		window.WH.nab.disableButtons();
+	}
+}
+
+window.WH.nab.confirmExit = function() {
+	if (window.WH.nab.needToConfirm) {
+		return mw.message("all-changes-lost").text();
+	}
+	return "";
+}
+
+window.WH.nab.getDiffLink = function() {
 	var target = document.nap_form.target.value;
-	var url = "http://" + window.location.hostname + "/api.php?action=query&prop=revisions&titles=" + encodeURIComponent(target) + "&rvlimit=20&rvprop=timestamp|user|comment|ids&format=json";
+	var url = "/api.php?action=query&prop=revisions&titles=" + encodeURIComponent(target) + "&rvlimit=20&rvprop=timestamp|user|comment|ids&format=json";
 	var pageid = document.nap_form.page.value;
-	$.get(url, 
+	$.get(url,
 		function (data) {
 			var first = data.query.pages[pageid].revisions[0].revid;
 			var last = null;
@@ -179,74 +172,92 @@ function nap_getDiffLink() {
 					break;
 				}
 			}
-			$('#article_contents').append('<center><b><a href="/index.php?title=' +  encodeURIComponent(target) + '&diff=' + first + '&oldid=' + last +'" target="_blank">Link to Diff</a></center></b>');
+			$("#article_contents").append("<center><b><a href='/index.php?title=" +  encodeURIComponent(target) + "&diff=" + first + "&oldid=" + last +"' target='_blank'>Link to Diff</a></center></b>");
 		},
-		'json');
+		"json");
 }
 
-function checkNewbieFlush() {
-	if (confirm("Are you sure you want to clear the newbie queue?")) {
-		document.location = "/Special:Newarticleboost?newbie=1&flushnewbie=1&flushlimit=" + $("#newbieflush_limit").val();
-	}
+window.WH.nab.disableButtons = function() {
+	$(".arrow_box .button, #nap_duplicates .button").addClass("clickfail wait");
 }
 
-function showDialog(url) {
-	url = url.replace(/http:\/\//, '');
-	url = url.replace(/\/.*/g, '');
-	if (!url || url == 'www.wikihow.com') {
-		// Do nothing for empty and wikihow links
-		return false;
-	}
-
-	var url1 = url;
-	var parts = url1.split(".").reverse();
-	var url2 = parts[1] + "." + parts[0];
-	
-	var html = "<div style='font-size: 1.3em;'>Pick the domain you would like to blacklist: <br/><br/>";
-	html += "<input type='radio' url' name='url' value='" + url1 + "'> " + url1 + "<br/>";
-	html += "<input type='radio' name='url' value='" + url2  + "'> " + url2 + "<br/>";
-	html += "<br/>";
-	html += "<input type='button' id='spambutton' value='Save' style='float: right;'>";
-	html += "</div>";
-
-	$("#dialog-box")
-		.html(html)
-		.dialog({ 
-			modal: true,
-			title: 'Add to spam',
-			closeText: 'Close',
-			height: 200,
-			width: 400
-		});
-	$("#spambutton").click(
-		function() {
-			var url = $('input:radio[name=url]:checked').val();
-			url = url.replace(/\./g, '\\.');
-			url = '\\b' + url;
-			$("#dialog-box").html("<center><img src='/extensions/wikihow/rotate.gif'></center>");
-			$.post('/Special:SpamDiffTool', 
-				{ newurls: url,
-				  confirm: true },
-				function(data) {
-					$("#dialog-box").dialog('close');
-				}
-			);
-		}
-	);
-
+window.WH.nab.enableButtons = function() {
+	$(".arrow_box .button, #nap_duplicates .button").removeClass("clickfail wait");
 }
 
 $(document).ready(function() {
 
-	$("#article_contents a").each( function() {
-		var href = $(this).attr('href');
-		if (href) {
-			$(this).click(function() {
-				showDialog($(this).attr('href'));
-				return false;
-			});
-		}
-	});
+	if(document.nap_form) {
+		$('body').data({
+			event_type: 'nab',
+			article_id: document.nap_form.page.value
+		});
+	}
+
+	if (mw.config.get("isArticlePage")) {
+
+		$(window).on("popstate", function(e) {
+			if (e.originalEvent.state) {
+				window.location.reload();
+			}
+		});
+
+		window.history && window.history.replaceState({}, "", window.location.href);
+
+		var container = $("#nab-article-container");
+		container.on("click", "#nap_skip_btn", function(){
+			if( !$(this).hasClass("clickfail") ) {
+				$("#nap_skip").val("nap_skip");
+				window.WH.nab.submitNabForm();
+			}
+		});
+
+		container.on("change", "#nap_delete", function(){
+			// They've clicked the delete button and selected a reason
+			if( !$(this).hasClass("clickfail") ) {
+				WH.usageLogs.log({
+					event_action: 'nfd',
+					nfd_type: $('#nap_delete option:selected').val()
+				});
+				$("#template1_nfd").val("on");
+				$("#nap_demote").val("nap_demote");
+				window.WH.nab.submitNabForm();
+			}
+		});
+
+		container.on("click", "#nap_promote", function(){
+			if( !$(this).hasClass("clickfail") ) {
+				$("#nap_submit").val("nap_submit");
+				window.WH.nab.submitNabForm();
+			}
+		});
+
+		container.on("click", "#nap_star", function(){
+			if( !$(this).hasClass("clickfail") ) {
+				$("#nap_submit").val("nap_submit");
+				$("#cb_risingstar").val("on");
+				window.WH.nab.submitNabForm();
+			}
+		});
+
+		container.on("click", "#nap_demote_btn", function(){
+			if( !$(this).hasClass("clickfail") ) {
+				$("#nap_demote").val("nap_demote");
+				window.WH.nab.submitNabForm();
+			}
+		});
+
+		$(window).scroll(function() {
+			$("#nap_header").css("top",$("#header").height());
+
+			if($(window).scrollTop() <= 0) {
+				$("#nap_header").css("top", "99px");
+			}
+		});
+	} else {
+		$("#nap_low").on("change", function(){
+			window.location = $("#low_url").val();
+		});
+	}
 
 });
-

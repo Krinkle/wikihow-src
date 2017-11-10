@@ -3,16 +3,25 @@
 /***********************************************
  * Our custom login and sign-up page templates *
  ***********************************************/
- 
+
 if( !defined( 'MEDIAWIKI' ) ) die( -1 );
+
+$wgResourceModules['ext.wikihow.loginpage'] = array(
+	'styles' => 'wikihowlogin.css',
+	'targets' => array( 'desktop' ),
+	'localBasePath' => __DIR__,
+	'remoteExtPath' => 'wikihow',
+	'position' => 'top'
+);
 
 class WikihowLogin {
 
-	private static $BAD_USER_ERRORS = array('noname','userexists','createaccount-hook-aborted');
-	private static $BAD_PASSWORD_ERRORS = array('badretype','passwordtooshort','password-name-match','password-login-forbidden');
+	private static $BAD_USER_ERRORS = array('noname','noname-mobile','userexists','userexists-mobile','createaccount-hook-aborted');
+	private static $BAD_PASSWORD_ERRORS = array('badretype','badretype-mobile','passwordtooshort','passwordtooshort-mobile','password-name-match','password-login-forbidden');
 	private static $BAD_EMAIL_ERRORS = array('noemailtitle','invalidemailaddress');
+	private static $BAD_CAPTCHA_ERRORS = array('captcha-createaccount-fail');
 
-	/** 
+	/**
 	*	Added by Gershon Bialer with upgrade to add header
 	* 	Tweaked by Scott Cushman for upgrade 1.22
 	*	Made possible (in part) by a grant from the National Awesome Society
@@ -36,42 +45,53 @@ class WikihowLogin {
 				echo $linkq.' <a href="';
 				$template->text( 'createOrLoginHref' );
 				echo '">'.$link_text.'</a>.';
-			} 
+			}
 		echo  '</span><span class="login_headline">' . $header_text . '</span></p>';
 		return true;
 	}
-	
+
+	static function CustomSideBar(&$result) {
+		$result = true;
+		return $result;
+	}
+
 	function generateErrorList($errorArray) {
 		$errorlist = array();
 		foreach($errorArray as $error) {
 			// We determine where the message goes
-			// AbortUserLogin stuff is a raw message, and so we consider all raw messages 
+			// AbortUserLogin stuff is a raw message, and so we consider all raw messages
 			if($error && is_object($error) && get_class($error) == 'RawMessage') {
 				if(preg_match("@confirmation code@", $error->parse(), $matches)) {
 					$errorlist['captcha'][] = $error;
 				}
 				else {
-					$errorlist['username'][] = $error;	
+					$errorlist['username'][] = $error;
 				}
 			}
 			elseif(is_array($error)) {
 				if(in_array($error[0], self::$BAD_USER_ERRORS)) {
 					if(!isset($errorlist['username'])) {
-						$errorlist['username'] = array();	
-					}					
+						$errorlist['username'] = array();
+					}
 					$errorlist['username'][] = $error;
 				}
 				elseif(in_array($error[0], self::$BAD_PASSWORD_ERRORS)) {
 					if(!isset($errorlist['password'])) {
-						$errorlist['password'] = array();	
+						$errorlist['password'] = array();
 					}
 					$errorlist['password'][] = $error;
 				}
 				elseif(in_array($error[0], self::$BAD_EMAIL_ERRORS)) {
 					if(!isset($errorlist['email'])) {
-						$errorlist['email'] = array();	
+						$errorlist['email'] = array();
 					}
 					$errorlist['email'][] = $error;
+				}
+				elseif(in_array($error[0], self::$BAD_CAPTCHA_ERRORS)) {
+					if(!isset($errorlist['captcha'])) {
+						$errorlist['captcha'] = array();
+					}
+					$errorlist['captcha'][] = $error;
 				}
 			}
 		}
@@ -89,26 +109,39 @@ class WikihowLoginTemplate extends BaseTemplate {
 		parent::__construct();
 		$wgHooks['BeforeTabsLine'][] = array('WikihowLogin::topContent',$this,'login');
 	}
-	
+
 	function execute() {
 		global $wgCookieExpiration;
 		$expirationDays = ceil( $wgCookieExpiration / ( 3600 * 24 ) );
+
+		$ctx = RequestContext::getMain();
+
+		if ($this->data['loggedin'] && !empty($ctx->getRequest()->getVal('returnto'))) {
+			$lf = new LoginForm();
+			$lf->showReturnToPage('successredirect',$ctx->getRequest()->getVal('returnto'),'',true);
+		}
+
+		$ctx->getOutput()->addModules('ext.wikihow.loginpage');
 ?>
 <div id="userlogin_alt_logins">
-	<div class="headline">Log in via</div>
-	<?=UserLoginBox::getSocialLogin()?>
+	<div class="headline"><?= wfMessage('log_in_via')->plain() ?></div>
+	<div id="fb_connect<?=$suffix?>"><a id="fb_login<?=$suffix?>" href="#" role="button" class="ulb_button" aria-label="<?=wfMessage('aria_facebook_login')->showIfExists()?>"><span></span>Facebook</a></div>
+	<div id="gplus_connect<?=$suffix?>"><a id="gplus_login<?=$suffix?>" href="#" role="button" class="ulb_button"  aria-label="<?=wfMessage('aria_google_login')->showIfExists()?>"><span></span>Google</a></div>
+	<?php if (CivicLogin::isEnabled()): ?>
+		<div id="civic_connect<?=$suffix?>"><a id="civic_login<?=$suffix?>" href="#" role="button" class="ulb_button"  aria-label="<?=wfMessage('aria_civic_login')->showIfExists()?>"><span></span>Civic</a></div>
+	<?php endif ?>
 </div>
-	
+
 <div class="mw-ui-container">
 	<?php if ( $this->haveData( 'languages' ) ) { ?>
 		<div id="languagelinks">
 			<p><?php $this->html( 'languages' ); ?></p>
 		</div>
 	<?php } ?>
-	
+
 	<div id="userloginForm" class="userloginform">
-		<div id="userloginprompt"><?php  $this->msgWiki('loginprompt') ?></div>
-		<form name="userlogin" class="mw-ui-vform" method="post" action="<?php $this->text( 'action' ); ?>">
+		<div id="userLoginOr"><?=wfMessage('loginor')->text()?></div>
+		<form name="userlogin" id="userlogin" class="mw-ui-vform" method="post" action="<?php $this->text( 'action' ); ?>">
 			<?php if ( $this->data['loggedin'] ) { ?>
 				<div class="warningbox">
 					<?php echo $this->getMsg( 'userlogin-loggedin' )->params( $this->data['loggedinuser'] )->parse(); ?>
@@ -119,9 +152,6 @@ class WikihowLoginTemplate extends BaseTemplate {
 			</section>
 
 			<div>
-				<label for='wpName1' class='userlogin_label'>
-					<?php $this->msg( 'usernameoremail' ) ?>
-				</label>
 				<?php
 				$extraAttrs = array();
 				echo Html::input( 'wpName', $this->data['name'], 'text', array(
@@ -134,22 +164,17 @@ class WikihowLoginTemplate extends BaseTemplate {
 					'required' => true,
 					// Set focus to this field if it's blank.
 					'autofocus' => !$this->data['name'],
-					//'placeholder' => $this->getMsg( 'userlogin-yourname-ph' )->text()
+					'placeholder' => $this->getMsg( 'userlogin-yourname-ph' )->text()
 				) );
-				?>					
+				?>
 				<?php if ( in_array('username',$this->data['errorlist'])): ?>
-					<div class="mw-error-bottom mw-error" id="wpName1_error">
-						<div class="mw-error-top">
-							<?php $this->html('message') ?>
-						</div>
+					<div class="mw-error" id="wpName1_error">
+						<?php $this->html('message') ?>
 					</div>
 				<?php endif; ?>
 			</div>
 
 			<div>
-				<label for='wpPassword1'>
-					<?php $this->msg( 'userlogin-yourpassword' ); ?>
-				</label>
 				<?php
 				echo Html::input( 'wpPassword', null, 'password', array(
 					'class' => 'loginPassword input_med',
@@ -158,29 +183,27 @@ class WikihowLoginTemplate extends BaseTemplate {
 					'size' => '20',
 					// Set focus to this field if username is filled in.
 					'autofocus' => (bool)$this->data['name'],
-					//'placeholder' => $this->getMsg( 'userlogin-yourpassword-ph' )->text()
+					'placeholder' => $this->getMsg( 'userlogin-yourpassword-ph' )->text()
 				) );
 				?>
 				<?php if ( in_array('password', $this->data['errorlist'] )): ?>
-					<div class="mw-error-bottom mw-error" id="wpPassword1_error">
-						<div class="mw-error-top">
-							<?php $this->html('message') ?>
-						</div>
+					<div class="mw-error" id="wpPassword1_error">
+						<?php $this->html('message') ?>
 					</div>
 				<?php endif; ?>
 			</div>
-			<div id="forgot_pwd">
-				<?php
-				if ( $this->data['useemail'] && $this->data['canreset'] && $this->data['resetlink'] === true ) {
-					echo ' ' . Linker::link(
-						SpecialPage::getTitleFor( 'PasswordReset' ),
-						$this->getMsg( 'forgot_pwd' )->parse(),
-						array( 'class' => 'mw-ui-flush-right' )
-					);
-				}
-				?>
+			<div class="remember_pwd">
+				<?php if ( $this->data['canremember'] ) { ?>
+					<input name="wpRemember" type="checkbox" value="1" id="wpRemember" tabindex="4"
+						<?php if ( $this->data['remember'] ) {
+							echo 'checked="checked"';
+						} ?>
+					>
+					<label class="mw-ui-checkbox-label">
+						<?php echo $this->getMsg( 'rememberme' )->numParams( $expirationDays )->escaped(); ?>
+					</label>
+				<?php } ?>
 			</div>
-			<br /><br />
 			<?php
 			if ( isset( $this->data['usedomain'] ) && $this->data['usedomain'] ) {
 				$select = new XmlSelect( 'wpDomain', false, $this->data['domain'] );
@@ -201,29 +224,27 @@ class WikihowLoginTemplate extends BaseTemplate {
 			}
 			?>
 
-			<div class="remember_pwd">
-				<?php if ( $this->data['canremember'] ) { ?>
-					<label class="mw-ui-checkbox-label">
-						<input name="wpRemember" type="checkbox" value="1" id="wpRemember" tabindex="4"
-							<?php if ( $this->data['remember'] ) {
-								echo 'checked="checked"';
-							} ?>
-						>
-						<?php echo $this->getMsg( 'rememberme' )->numParams( $expirationDays )->escaped(); ?>
-					</label>
-				<?php } ?>
-			</div>
-
 			<div>
 				<?php
 				echo Html::input( 'wpLoginAttempt', $this->getMsg( 'login' )->text(), 'submit', array(
 					'id' => 'wpLoginAttempt',
 					'tabindex' => '6',
-					'class' => 'mw-ui-button mw-ui-big mw-ui-block mw-ui-constructive button primary submit_button'
+					'class' => 'mw-ui-button mw-ui-big mw-ui-block button primary submit_button'
 				) );
 				?>
 			</div>
-
+			<div id="forgot_pwd">
+				<?php
+				if ( $this->data['useemail'] && $this->data['canreset'] && $this->data['resetlink'] === true ) {
+					echo ' ' . Linker::link(
+							SpecialPage::getTitleFor( 'PasswordReset' ),
+							$this->getMsg( 'forgot_pwd' )->parse(),
+							array( 'class' => 'mw-ui-flush-right' )
+						);
+				}
+				?>
+			</div>
+			<div id="userloginprompt"><?php  $this->msgWiki('loginprompt') ?></div>
 			<?php if ( $this->haveData( 'uselang' ) ) { ?><input type="hidden" name="uselang" value="<?php $this->text( 'uselang' ); ?>" /><?php } ?>
 			<?php if ( $this->haveData( 'token' ) ) { ?><input type="hidden" name="wpLoginToken" value="<?php $this->text( 'token' ); ?>" /><?php } ?>
 			<?php if ( $this->data['cansecurelogin'] ) {?><input type="hidden" name="wpForceHttps" value="<?php $this->text( 'stickhttps' ); ?>" /><?php } ?>
@@ -245,6 +266,7 @@ class WikihowCreateTemplate extends BaseTemplate {
 		global $wgHooks;
 		parent::__construct();
 		$wgHooks['BeforeTabsLine'][] = array('WikihowLogin::topContent',$this,'create');
+		$wgHooks['CustomSideBar'][] = array('WikihowLogin::CustomSideBar');
 	}
 
 	/**
@@ -263,19 +285,22 @@ class WikihowCreateTemplate extends BaseTemplate {
 	}
 
 	function execute() {
-		global $wgCookieExpiration, $wgLanguageCode;
+		global $wgCookieExpiration;
 		$expirationDays = ceil( $wgCookieExpiration / ( 3600 * 24 ) );
-		
+
+		$ctx = RequestContext::getMain();
+		$ctx->getOutput()->addModules('ext.wikihow.loginpage');
+
 		//is the user already logged in?
 		if ($this->data['loggedin']) {
 			//why is this user even here? let's give the user some options
 			echo wfMessage('alreadysignedin','Special:UserLogout')->parse();
 			return;
 		}
-		if($wgLanguageCode != "en") {
+		if($ctx->getLanguage()->getCode() != "en") {
 ?>
 <style type="text/css">
-#userlogin2 > div > label {                                                       
+#userlogin2 > div > label {
     float:left;
     display:inline-block;
     width:80px;
@@ -286,10 +311,34 @@ label[for="wpName2"], label[for="wpPassword2"] {
 #realname_check {
 	margin-left:95px;
 }
+
+<?php
+/**
+ * George 2015-04-30
+ * This was breaking the login page on int'l.
+ * Commenting out until better solution is found.
+.mw-ui-container {
+	float: left;
+	width: 50%;
+}
+*/
+?>
+
 </style>
 
 <?php } ?>
+
 <div class="mw-ui-container">
+
+	<div id="userlogin_alt_logins" class="sign_up">
+		<div class="headline"><?= wfMessage('sign_up_with')->plain() ?></div>
+		<div id="fb_connect<?=$suffix?>"><a id="fb_login<?=$suffix?>" href="#" role="button" class="ulb_button" aria-label="<?=wfMessage('aria_facebook_login')->showIfExists()?>"><span></span>Facebook</a></div>
+		<div id="gplus_connect<?=$suffix?>"><a id="gplus_login<?=$suffix?>" href="#" role="button" class="ulb_button"  aria-label="<?=wfMessage('aria_google_login')->showIfExists()?>"><span></span>Google</a></div>
+		<?php if (CivicLogin::isEnabled()): ?>
+			<div id="civic_connect<?=$suffix?>"><a id="civic_login<?=$suffix?>" href="#" role="button" class="ulb_button"  aria-label="<?=wfMessage('aria_civic_login')->showIfExists()?>"><span></span>Civic</a></div>
+		<?php endif ?>
+	</div>
+
 	<?php if ( $this->haveData( 'languages' ) ) { ?>
 		<div id="languagelinks">
 			<p><?php $this->html( 'languages' ); ?></p>
@@ -299,10 +348,12 @@ label[for="wpName2"], label[for="wpPassword2"] {
 		<div id="signupstart"><?php $this->msgWiki( 'signupstart' ); ?></div>
 	<?php } ?>
 	<div id="userloginForm" class="usercreateform">
+		<div id="userLoginOr">or</div>
+		<div class="sub_social_login"><?= wfMessage('or_create_an_account')->plain() ?></div>
 		<form name="userlogin2" id="userlogin2" class="mw-ui-vform" method="post" action="<?php $this->text( 'action' ); ?>">
 			<div>
-				<div id="wpName2_mark" class="wpMark exclamation" />
-				<label for='wpName2'>
+				<div id="wpName2_mark" class="wpMark" />
+				<label for='wpName2' class="userlogin_label">
 					<?php $this->msg( 'userlogin-yourname' ); ?>
 
 					<span class="mw-ui-flush-right"><?php echo $this->getMsg( 'createacct-helpusername' )->parse(); ?></span>
@@ -318,46 +369,39 @@ label[for="wpName2"], label[for="wpPassword2"] {
 						// 'createacct-another-username-ph' : 'userlogin-yourname-ph' )->text(),
 				) );
 				?>
-				<div class="mw-error-bottom mw-error" id="wpName2_error" <?php if (!isset($this->data['errorlist']['username'])) echo 'style="display:none;"' ?>>
-					<div class="mw-error-top">
-						<? if(isset($this->data['errorlist']['username'])) : ?>
-						<?php foreach ( $this->data['errorlist']['username'] as $error) : ?>
-							<? if(is_array($error)): ?>
-								<?php echo $this->msgHtml($error[0]) ?>
-							<? elseif(get_class($error) == 'RawMessage'): ?>
-								<?php echo $error->parse() ?>
-							<? endif; ?>
-						<?php endforeach;
-							  endif;?>
-
-					</div>
+				<div class="mw-error" id="wpName2_error" <?php if (!isset($this->data['errorlist']['username'])) echo 'style="display:none;"' ?>>
+					<? if(isset($this->data['errorlist']['username'])) {
+						foreach ($this->data['errorlist']['username'] as $error) {
+							if ( is_array($error) ) {
+								echo $this->msgHtml($error[0]);
+							} elseif ( get_class($error) == 'RawMessage' ) {
+								echo $error->parse();
+							}
+						}
+					} ?>
 				</div>
-				<div class="mw-error-bottom mw-info" id="wpName2_info" style="display:none">
-					<div class="mw-error-top">
-						<?php echo wfMsg('info_username') ?>
-					</div>
+				<div class="mw-info" id="wpName2_info" style="display:none">
+					<?php echo wfMsg('info_username') ?>
 				</div>
 				<div id="realname_check">
-					<input type='checkbox' id='wpUseRealNameAsDisplay' name='wpUseRealNameAsDisplay' tabindex='3' <? if ($this->data['userealname']) { ?>checked='checked'<? } ?> />
+					<input type='checkbox' id='wpUseRealNameAsDisplay' name='wpUseRealNameAsDisplay' <? if ($this->data['userealname']) { ?>checked='checked'<? } ?> />
 					<label for="wpUseRealNameAsDisplay"><?php $this->msg('user_real_name_display'); ?></label>
 				</div>
 			</div>
-			
+
 			<div id="real_name_row" <?php if ( $this->data['userealname'] ) { ?>style="display:none;"<? } ?>>
 				<label for='wpRealName' class="userlogin_label"><?php $this->msg( 'yourrealname' ); ?></label>
 				<input type='text' class='mw-input loginText input_med' name="wpRealName" id="wpRealName"
-					tabindex="7"
+					tabindex="2"
 					value="<?php $this->text( 'realname' ); ?>" size='20' />
-				<div class="mw-error-bottom mw-info" id="wpRealName_info">
-					<div class="mw-error-top">
+				<div class="mw-info" id="wpRealName_info">
 						<?php $this->msgWiki('info_realname') ?>
-					</div>
 				</div>
 			</div>
 
 			<div class="mw-row-password">
-				<div id="wpPassword2_mark" class="wpMark exclamation" />
-				<label for='wpPassword2'><?php $this->msg( 'userlogin-yourpassword' ); ?></label>
+				<div id="wpPassword2_mark" class="wpMark" />
+				<label for='wpPassword2' class="userlogin_label"><?php $this->msg( 'userlogin-yourpassword' ); ?></label>
 				<?php
 				echo Html::input( 'wpPassword', null, 'password', array(
 					'class' => 'mw-input loginPassword input_med',
@@ -368,20 +412,18 @@ label[for="wpName2"], label[for="wpPassword2"] {
 					//'placeholder' => $this->getMsg( 'createacct-yourpassword-ph' )->text()
 				) + User::passwordChangeInputAttribs() );
 				?>
-				<div class="mw-error-bottom mw-error" id="wpPassword2_error" <?php if ( !isset($this->data['errorlist']['password'])) echo 'style="display:none;"' ?>>
-					<div class="mw-error-top">
-						<? if(isset($this->data['errorlist']['password'])): ?>
-						<?php foreach ( $this->data['errorlist']['password'] as $error): ?>
-							<?php echo wfMessage($error[0])->params(array_splice($error,1))->plain()  ?>
-						<?php endforeach;
-							  endif; ?>
-					</div>
+				<div class="mw-error" id="wpPassword2_error" <?php if ( !isset($this->data['errorlist']['password'])) echo 'style="display:none;"' ?>>
+					<? if(isset($this->data['errorlist']['password'])): ?>
+					<?php foreach ( $this->data['errorlist']['password'] as $error): ?>
+						<?php echo wfMessage($error[0])->params(array_splice($error,1))->plain()  ?>
+					<?php endforeach;
+						  endif; ?>
 				</div>
 				<input type="hidden" id="wpPassword2_showhide" />
 			</div>
 
 			<div class="mw-row-password">
-				<div id="wpRetype_mark" class="wpMark exclamation" />
+				<div id="wpRetype_mark" class="wpMark" />
 				<label for='wpRetype' class="userlogin_label"><?php $this->msg( 'createacct-yourpasswordagain' ); ?></label>
 				<?php
 				echo Html::input( 'wpRetype', null, 'password', array(
@@ -393,6 +435,8 @@ label[for="wpName2"], label[for="wpPassword2"] {
 					//'placeholder' => $this->getMsg( 'createacct-yourpasswordagain-ph' )->text()
 					) + User::passwordChangeInputAttribs() );
 				?>
+				<div class="mw-error" id="wpRetype_error" style="display:none;" ?>
+				</div>
 			</div>
 
 			<div>
@@ -417,10 +461,8 @@ label[for="wpName2"], label[for="wpPassword2"] {
 						) );
 					?>
 				<?php } ?>
-				<div class="mw-error-bottom mw-info" id="wpEmail_info">
-					<div class="mw-error-top">
-						<?php $this->msgHtml('info_email') ?>
-					</div>
+				<div class="mw-info" id="wpEmail_info">
+					<?php $this->msgHtml('info_email') ?>
 				</div>
 			</div>
 
@@ -480,14 +522,19 @@ label[for="wpName2"], label[for="wpPassword2"] {
 			?>
 			<section class="mw-form-header">
 				<?php $this->html( 'header' ); /* extensions such as ConfirmEdit add form HTML here */ ?>
-				<div class="mw-error-bottom mw-info" id="wpCaptchaWord_info">
-					<div class="mw-error-top">
-						<?php echo wfMsg('info_captcha') ?>
-					</div>
-				</div>
-			</section>
-			<br />
 
+				<div class="mw-info" id="wpCaptchaWord_info">
+					<?php echo wfMsg('info_captcha') ?>
+				</div>
+				<?php if (isset($this->data['errorlist']['captcha'])): ?>
+				<div class="mw-error" id="wpCaptchaWord_error" style="display: block">
+					<?php foreach ( $this->data['errorlist']['captcha'] as $error): ?>
+						<?php echo wfMessage($error[0])->params(array_splice($error,1))->plain(); ?>
+					<?php endforeach; ?>
+				</div>
+				<?php endif; ?>
+
+			</section>
 			<div class="remember_pwd">
 				<?php if ( $this->data['canremember'] ) { ?>
 					<label class="mw-ui-checkbox-label">
@@ -500,7 +547,7 @@ label[for="wpName2"], label[for="wpPassword2"] {
 					</label>
 				<?php } ?>
 			</div>
-			
+
 			<div class="mw-submit">
 				<?php
 				echo Html::input(
@@ -508,7 +555,7 @@ label[for="wpName2"], label[for="wpPassword2"] {
 					$this->getMsg( 'createaccount' ),
 					'submit',
 					array(
-						'class' => "mw-ui-button mw-ui-big mw-ui-block mw-ui-constructive button primary submit_button",
+						'class' => "mw-ui-button mw-ui-big mw-ui-block button primary submit_button",
 						'id' => 'wpCreateaccount',
 						'tabindex' => $tabIndex++
 					)
@@ -517,6 +564,7 @@ label[for="wpName2"], label[for="wpPassword2"] {
 			</div>
 			<?php if ( $this->haveData( 'uselang' ) ) { ?><input type="hidden" name="uselang" value="<?php $this->text( 'uselang' ); ?>" /><?php } ?>
 			<?php if ( $this->haveData( 'token' ) ) { ?><input type="hidden" name="wpCreateaccountToken" value="<?php $this->text( 'token' ); ?>" /><?php } ?>
+			<?php if ( $this->data['cansecurelogin'] ) {?><input type="hidden" name="wpForceHttps" value="<?php $this->text( 'stickhttps' ); ?>" /><?php } ?>
 		</form>
 		<?php if ( !wfMessage( 'signupend' )->isDisabled() ) { ?>
 			<div id="signupend"><?php $this->html( 'signupend' ); ?></div>

@@ -32,6 +32,14 @@ class SpecialAbuseLog extends SpecialPage {
 		$out = $this->getOutput();
 		$request = $this->getRequest();
 
+		// Reuben, wikiHow (July 24, 2015): remove access to Special:AbuseLog
+		// for anonymous users. This page is slow and has been a target
+		// for recent DDoS attacks.
+		if ($this->getUser()->isAnon()) {
+			$out->loginToUse();
+			return;
+		}
+
 		AbuseFilter::addNavigationLinks( $this->getContext(), 'log' );
 
 		$this->setHeaders();

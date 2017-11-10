@@ -16,5 +16,5 @@ if ( ! defined( 'MEDIAWIKI' ) )
 $wgAutoloadClasses['WikihowImagePage'] = dirname( __FILE__ ) . '/WikihowImagePage.body.php';
 $wgAutoloadClasses['WikihowImageHistoryList'] = dirname( __FILE__) . '/WikihowImagePage.body.php';
 
-$wgHooks['ArticleFromTitle'][] = array('WikihowImagePage::newFromTitle');
+$wgHooks['ArticleFromTitle'][] = array('WikihowImagePage::onArticleFromTitle');
 $wgHooks['ImagePageFileHistoryLine'][] = array('WikihowImageHistoryList::onImagePageFileHistoryLine');

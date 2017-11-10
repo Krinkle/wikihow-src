@@ -1,12 +1,9 @@
 <?php
 
-if ( !defined('MEDIAWIKI') ) exit;
-
 class ImageHooks {
 
 	// AG - method signature changed due to how to check if file exists in lastest MW
-	static function onImageConvertNoScale($image, $params) {
-
+	public static function onImageConvertNoScale($image, $params) {
 		// edge case...if the image will not actually get watermarked because it's too small, just return true
 		if (WatermarkSupport::validImageSize($params['physicalWidth'], $params['physicalHeight']) == false) {
 			return true;
@@ -22,47 +19,70 @@ class ImageHooks {
 		return true;
 	}
 
-	static function onImageConvertComplete($params) {
-		global $wgJpegOptimCommand, $wgOptiPngCommand;
+	public static function onImageConvertComplete($params) {
+		global $wgJpegOptimCommand, $wgOptiPngCommand, $wgCwebpBinary, $wgIsImageScaler;
 
 		$dstPath = $params['dstPath'];
 
 		// First, add any watermarks to generated image
 		if (@$params[WatermarkSupport::ADD_WATERMARK]) {
-			WatermarkSupport::addWatermark($dstPath, $dstPath, $params['physicalWidth'], $params['physicalHeight']);
+			if ( $params['pageId'] ) {
+				WatermarkSupport::addTitleBasedWatermark( $dstPath, $dstPath, $params['physicalWidth'], $params['physicalHeight'], $params['pageId'] );
+			} else if ( $params['version'] >= 3 ) {
+				WatermarkSupport::addWatermarkV3($dstPath, $dstPath, $params['physicalWidth'], $params['physicalHeight']);
+			} else {
+				WatermarkSupport::addWatermark($dstPath, $dstPath, $params['physicalWidth'], $params['physicalHeight']);
+			}
+		}
+
+		$quality = $params['quality'] ?: 80;
+
+		// If we're requesting a WEBP image, we convert to that format using cwebp command
+		$isWebp = preg_match('@\.webp$@', $params['dstUrl']) > 0;
+		if ( $isWebp ) {
+			$tmpDestPath = $dstPath . '.webp';
+			$cmd = wfEscapeShellArg($wgCwebpBinary) . ' -q ' . wfEscapeShellArg($quality) . ' ' . wfEscapeShellArg($dstPath) .
+				' -o ' . wfEscapeShellArg($tmpDestPath);
+			wfDebugLog('imageconvert', __METHOD__ . " [cwebp] $cmd");
+			$err = wfShellExec( $cmd, $retval );
+			// log $err and $retval here if debugging
+			if ( file_exists($tmpDestPath) ) {
+				rename($tmpDestPath, $dstPath);
+			}
 		}
 
 		// Then try to optimize the output image for size while keeping
 		// display properties the same by using optipng and jpegoptim
-		if (IS_IMAGE_SCALER && @$params['mimeType'] == 'image/jpeg' && $wgJpegOptimCommand) {
+		if ($wgIsImageScaler && @$params['mimeType'] == 'image/jpeg' && $wgJpegOptimCommand) {
 			$cmd = wfEscapeShellArg($wgJpegOptimCommand) . " --strip-all " .
-				wfEscapeShellArg($dstPath) . " >> /tmp/imgopt.log 2>&1";// . " 2>&1";
-			$beforeExists = file_exists($dstPath);
+				wfEscapeShellArg($dstPath) . " >> /tmp/imgopt.log 2>&1";
+			wfDebugLog('imageconvert', __METHOD__ . " [jpegoptim] $cmd");
+			$before = file_exists($dstPath) ? filesize($dstPath) : 'f';
 			wfDebug( __METHOD__.": running jpegoptim: $cmd\n");
 			$err = wfShellExec( $cmd, $retval );
-			$afterExists = file_exists($dstPath);
+			$after = file_exists($dstPath) ? filesize($dstPath) : 'f';
 			$currentDate = `date`;
 			// debugging output
-			wfErrorLog(trim($currentDate) . " $cmd b:" . ($beforeExists ? 't' : 'f') .
-				" a:" . ($afterExists ? 't' : 'f') . " ret:$retval\n", '/tmp/imgopt.log');
-		} elseif (IS_IMAGE_SCALER && @$params['mimeType'] == 'image/png' && $wgOptiPngCommand) {
+			wfErrorLog(trim($currentDate) . " $cmd b:$before " .
+				"a:$after ret:$retval\n", '/tmp/imgopt.log');
+		} elseif ($wgIsImageScaler && @$params['mimeType'] == 'image/png' && $wgOptiPngCommand) {
 			$cmd = wfEscapeShellArg($wgOptiPngCommand) . " " .
-				wfEscapeShellArg($dstPath) . " >> /tmp/imgopt.log 2>&1";// . " 2>&1";
-			$beforeExists = file_exists($dstPath);
+				wfEscapeShellArg($dstPath) . " >> /tmp/imgopt.log 2>&1";
+			wfDebugLog('imageconvert', __METHOD__ . " [optipng] $cmd");
+			$before = file_exists($dstPath) ? filesize($dstPath) : 'f';
 			wfDebug( __METHOD__.": running jpegoptim: $cmd\n");
 			$err = wfShellExec( $cmd, $retval );
-			$afterExists = file_exists($dstPath);
+			$after = file_exists($dstPath) ? filesize($dstPath) : 'f';
 			$currentDate = `date`;
 			// debugging output
-			wfErrorLog(trim($currentDate) . " $cmd b:" . ($beforeExists ? 't' : 'f') .
-				" a:" . ($afterExists ? 't' : 'f') . " ret:$retval\n", '/tmp/imgopt.log');
+			wfErrorLog(trim($currentDate) . " $cmd b:$before " .
+				"a:$after ret:$retval\n", '/tmp/imgopt.log');
 		}
 
 		return true;
 	}
 
-	static function onFileTransform($image, &$params) {
-
+	public static function onFileTransform($image, &$params) {
 		if ( $image->getUser("text") 
 			&& WatermarkSupport::isWikihowCreator($image->getUser('text')) 
 			&& (!isset($params[WatermarkSupport::NO_WATERMARK]) 
@@ -80,18 +100,50 @@ class ImageHooks {
 		return false;
 	}
 
-	static function onBitmapDoTransformScalerParams($params, &$scalerParams) {
+	public static function onBitmapDoTransformScalerParams($params, &$scalerParams) {
 		if ( isset($params[WatermarkSupport::ADD_WATERMARK]) ) {
 			 $scalerParams[WatermarkSupport::ADD_WATERMARK] = $params[WatermarkSupport::ADD_WATERMARK];
 		}
+		if ( isset($params[WatermarkSupport::PAGE_ID]) ) {
+			 $scalerParams[WatermarkSupport::PAGE_ID] = $params[WatermarkSupport::PAGE_ID];
+		}
+		if ( isset($params["version"]) ) {
+			$scalerParams["version"] = $params['version'];
+			if ( $params['version'] > 3 ) {
+				$scalerParams['sharpen'] = true;
+				$scalerParams['quality'] = 85;
+			}
+		}
+
+		if ( isset($params['quality']) ) {
+			$scalerParams['quality'] = $params['quality'];
+		}
+
 		return true;
 	}
 
 	// AG changed the signature of this method to take the rawParams as well as normalised params
 	//  so that we can add the crop to the filename if needed (which uses rawParams)
-	static function onFileThumbName($image, $rawParams, $params, &$thumbName) {
+	public static function onFileThumbName($image, $rawParams, $params, &$thumbName) {
+
+		// In our development environment, we don't want to keep a full
+		// copy of all wikihow files, so we download them on demand from prod,
+		// and on international, we only want the logo without the page title
+		global $wgIsDevServer, $wgLanguageCode;
+		if ($wgIsDevServer) {
+			DevImageHooks::onFileThumbName($image);
+		}
+
 		if (!$rawParams) {
 			$rawParams = $params;
+		}
+
+		if ( is_array( $params ) && isset( $params['mArticleID'] ) && WatermarkSupport::isRestricted( $params['mArticleID'] ) ) {
+			$params[WatermarkSupport::NO_WATERMARK] = true;
+		}
+
+		if ( is_array( $params ) && isset( $params['mArticleID'] ) && class_exists( 'AlternateDomain' ) && AlternateDomain::onNoBrandingDomain() ) {
+			$params[WatermarkSupport::NO_WATERMARK] = true;
 		}
 
 		if ( $image->getUser('text') 
@@ -109,12 +161,17 @@ class ImageHooks {
 			// but we need to reflect the requested "px" width in the URL generated by these functions
 			// because it must match the input "canonical" url.
 			// Example: /images/thumb/8/87/Manage-Fats-and-Sugars-on-the-Volumetrics-Diet-Step-12.jpg/-crop-342-254-300px-nowatermark-Manage-Fats-and-Sugars-on-the-Volumetrics-Diet-Step-12.jpg
+
+			// we set the height param to be '' if the height of 0 or -1 was requested,
+			// because the height in the generated URL needs to match this param
+			// Example: /images/thumb/1/10/User-Completed-Image-Identify-a-Brown-Recluse-2014.07.09-16.42.16.0.jpg/-crop-200--200px-User-Completed-Image-Identify-a-Brown-Recluse-2014.07.09-16.42.16.0.jpg
+			$height = $rawParams['height'] > 0 ? $rawParams['height'] : '';
 			if (isset($params['reqwidth']) && $params['reqwidth'] > 0) {
 				$wm = isset($params[WatermarkSupport::NO_WATERMARK])
 					&& $params[WatermarkSupport::NO_WATERMARK]
 						? 'nowatermark-'
 						: '';
-				$thumbName = "-crop-{$rawParams['width']}-{$rawParams['height']}-"
+				$thumbName = "-crop-{$rawParams['width']}-{$height}-"
 					. "{$params['reqwidth']}px-"
 					. $wm . $image->getName();
 			} else {
@@ -122,10 +179,42 @@ class ImageHooks {
 			}
 		}
 
+		// check if we got a quality hint that we should add
+		if ( self::addQualityToThumbName( $params ) ) {
+			$quality = $params['quality'];
+			if ($quality) {
+				$qualityNamePart = 'q' . $quality . '-';
+				$thumbName = $qualityNamePart . $thumbName;
+			}
+		}
+
+		// add any prefixes which affect the watermark like version or aid (for title based watermark)
+		$prefix = WatermarkSupport::getThumbPrefix( $image, $params );
+		$thumbName = $prefix . $thumbName;
+
+		// when we need a thumbnail in WEBP format instead, we see urls like this:
+		// /images/thumb/7/76/Kiss-Step-1-Version-5.jpg/aid2053-728px-Kiss-Step-1-Version-5.jpg.webp
+		if ( isset( $params['webp'] ) && $params['webp'] ) {
+			$thumbName .= '.webp';
+		}
+
 		return true;
 	}
 
-	static function onImageConvert($params) {
+	/**
+	 * Do we have a quality parameter we can add to the thumbnail name?
+	 *
+	 * @return bool
+	 */
+	private static function addQualityToThumbName($params) {
+		if ( !$params || !is_array( $params ) || !isset($params['quality']) || !$params['quality'] ) {
+			return false;
+		}
+
+		return true;
+	}
+
+	public static function onImageConvert($params) {
 		$physicalWidth = $params['physicalWidth'];
 		$physicalHeight = $params['physicalHeight'];
 		$addWatermark = isset($params[WatermarkSupport::ADD_WATERMARK]) ? $params[WatermarkSupport::ADD_WATERMARK] : '';
@@ -140,66 +229,114 @@ class ImageHooks {
 		return true;
 	}
 
-	static function onThumbnailBeforeProduceHTML($thumbnailImage, $attribs, $linkAttribs) {
+	public static function onConstructImageConvertCommand($params, &$quality) {
+		if ($params['quality']) {
+			$isWebp = preg_match('@\.webp$@', $params['dstUrl']) > 0;
+
+			$quality = ['-quality', $isWebp ? 95 : $params['quality']];
+		}
+
+		return true;
+	}
+
+	public static function onThumbnailBeforeProduceHTML($thumbnailImage, &$attribs, $linkAttribs) {
 		if ($attribs && is_array($attribs) && !empty($attribs['src'])) {
-			$attribs['src'] = wfGetPad($attribs['src']);
+			if (!empty($attribs['class'])) {
+				$attribs['class'] .= ' whcdn';
+			} else {
+				$attribs['class'] = 'whcdn';
+			}
+			// NOTE, this used to be: $attribs['src'] = wfGetPad($attribs['src']);
+			// but for the HTTPS rollout, we no longer want to cache the results
+			// of wfGetPad in memcache, since it's context dependent. We use
+			// phpQuery to match all "whcdn" classes and call wfGetPad as a
+			// post-processing step.
 		}
 		return true;
 	}
 
 	// aaron - linker hook before images are produced
-	static function onImageBeforeProduceHTML(&$dummy, &$title, &$file, &$frameParams, &$handlerParams, &$time, &$res) {
+	public static function onImageBeforeProduceHTML(&$dummy, &$title, &$file, &$frameParams, &$handlerParams, &$time, &$res) {
 		if (!$file) {
 			MWDebug::warning("could not load file from title: $title");
 			return false;
 		}
 
 		return true;
+
 	}
 
-	// Parse the first part of a thumbnail name such as: "670px", "crop-127-100-127px",
-	// or "-nowatermark-670px". ImageHooks::onFileThumbName generates these thumbnail
-	// prefixes and this method parses them at a later step when they are requested.
-	static function onImageHandlerParseParamString($str, &$params) {
-		$p = array();
+	/*
+	 * Parse the first part of a thumbnail name such as: "670px", "crop-127-100-127px",
+	 * or "-nowatermark-670px". ImageHooks::onFileThumbName generates these thumbnail
+	 * prefixes and this method parses them at a later step when they are requested.
+	 * @param $str thumbnail name with the file name removed so only parameters remain
+	 * @param $params this is set by the current function so used as a sort of return value
+	 * @return boolean always returns true as to follow the convention for hooks
+	 */
+	public static function onImageHandlerParseParamString( $str, &$params ) {
+		// the parameters are all separated by - and contain any values next to their name
+		// the only exception for now is the crop param which is followed by the height and width
+		$result = array();
 		$parts = explode('-', $str);
-		// skip any empty first param because thumbnail prefixes are often "-crop-..."
-		if (count($parts) && !$parts[0]) {
-			array_shift($parts);
-		}
-		// check for crop-width-height
-		if (count($parts) >= 3 && $parts[0] == 'crop') {
-			array_shift($parts);
-			$p['crop'] = 1;
-			$p['width'] = (int)array_shift($parts);
-			$p['height'] = (int)array_shift($parts);
-		}
-		// check for 670px
-		if ( count($parts) && preg_match( '/^(\d+)px$/', $parts[0], $m ) ) {
-			array_shift($parts);
-			$width = (int)$m[1];
-			if (!isset($p['width']) || $p['width'] <= 10) {
-				$p['width'] = $width;
-			} else {
-				$p['reqwidth'] = $width;
+		while ( count( $parts ) ) {
+			$param = array_shift( $parts );
+			if ( !$param ) {
+				continue;
 			}
-			// Note that we take the crop width param to be the correct one if two
-			// width params are present. This functionality can be verified by looking
-			// at the output image (which is 163px wide) from this partial URL:
-			// /images/thumb/c/ca/Default_wikihow_blue.png/-crop-163-119-141px-Default_wikihow_blue.png
-		}
-		// check for nowatermark
-		if (count($parts) && $parts[0] == 'nowatermark') {
-			array_shift($parts);
-			$p[WatermarkSupport::NO_WATERMARK] = true;
+			// if we have a crop param then grab the next two values for width and height
+			if ( $param == "crop" ) {
+				$result['width'] = ( int )array_shift( $parts );
+				$result['height'] = ( int )array_shift( $parts );
+				$result['crop'] = 1;
+			} else if ( $param == "nowatermark" ) {
+				$result[WatermarkSupport::NO_WATERMARK] = true;
+			} else if ( substr( $param, 0, 1 ) == 'v' ) {
+				$result['version'] = substr( $param, 1 );
+			} else if ( substr( $param, 0, 1 ) == 'q' ) {
+				$result['quality'] = ( int )substr( $param, 1 );
+			} else if ( substr( $param, 0, 3 ) == 'aid' ) {
+				$result['pageId'] = $param;
+			} else if ( substr( $param, -2, 2 ) == 'px' ) {
+				$width = ( int )substr( $param, 0, strlen( $param ) - 2 );
+				if ( $result['crop'] == 1 && $result['width'] > 10 ) {
+					$result['reqwidth'] = $width;
+				} else {
+					$result['width'] = $width;
+				}
+			}
 		}
 
-		// if we were able to parse this thumbnail prefix, keep result
-		if (count($p)) {
-			$params = $p;
+		if ( $result ) {
+			$params = $result;
+		}
+
+		return true;
+	}
+
+	private static function parseQualityParameter(&$parts, &$normalizedParams) {
+		// check for quality
+		if ( count($parts) && preg_match('/^q\d+$/', $parts[0])) {
+			$quality = (int)substr(array_shift($parts), 1);
+			if ($quality) {
+				$normalizedParams['quality'] = $quality;
+			}
+		}
+	}
+
+	// Detect whether an otherwise normal thumbnail request ended with .webp. For ex:
+	// /images/thumb/7/76/Kiss-Step-1-Version-5.jpg/aid2053-728px-Kiss-Step-1-Version-5.jpg.webp
+	public static function onExtractThumbParameters($thumbname, &$params) {
+		if ( preg_match('@\.webp$@', $thumbname) ) {
+			$params['webp'] = 1;
 		}
 		return true;
 	}
 
+	public static function onUnitTestsList( &$files ) {
+		global $IP;
+		$files = array_merge( $files, glob( __DIR__ . '/tests/*Test.php' ) );
+		return true;
+	}
 }
 

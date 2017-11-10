@@ -1,170 +1,397 @@
-<?
-
-if (!defined('MEDIAWIKI')) die();
+<?php
 
 class AdminRemoveRatingReason extends UnlistedSpecialPage {
 	public function __construct() {
 		parent::__construct('AdminRemoveRatingReason');
 	}
 
-	public function getAllowedUsers(){
-		return AdminRatingReasons::getAllowedUsers();
-	}
-	public function userAllowed() {
-		return AdminRatingReasons::userAllowed();
-	}
+	public function userCanExecute( User $user ) {
+		$userGroups = $user->getGroups();
 
-	public function execute($par) {
-		global $wgRequest, $wgOut, $wgUser;
-
-		if (!$this->userAllowed()) {
-			return;
+		if ($user->isBlocked()) {
+			return false;
 		}
 
-		$ratr_item = isset( $par ) ? $par : $wgRequest->getVal('target');
-		$ratr_id = $wgRequest->getVal('id');
+		$allowedGroups = array("staff", "staff_widget");
+
+		foreach($allowedGroups as $group) {
+			if (in_array($group, $userGroups)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+    public function execute($par) {
+		$out = $this->getOutput();
+
+		$ratr_item = isset( $par ) ? $par : $this->getRequest()->getVal('target');
+		$ratr_id = $this->getRequest()->getVal('id');
 
 		$dbw = wfGetDB( DB_MASTER );
 
 		if (!$ratr_id) {
 			$dbw->delete("rating_reason", array("ratr_item" => $ratr_item));
-			$wgOut->addHTML("<h3>All Rating Reasons for {$ratr_item} have been deleted.</h3><br><hr size='1'><br>");
+			$out->addHTML("<h3>All Rating Reasons for {$ratr_item} have been deleted.</h3><br><hr size='1'><br>");
 		} else {
 			$dbw->delete("rating_reason", array("ratr_id" => $ratr_id));
-			$wgOut->addHTML("<h3>Rating Reason for {$ratr_item} has been deleted.</h3><br><hr size='1'><br>");
+			$out->addHTML("<h3>Rating Reason for {$ratr_item} has been deleted.</h3><br><hr size='1'><br>");
 		}
 
 		$arr = Title::makeTitle(NS_SPECIAL, "AdminRatingReasons");
 
-		$skin = $wgUser->getSkin();
 		$orig = Title::newFromText("sample/".$ratr_item);
 
-		$wgOut->addHTML("Return to ". $skin->makeLinkObj($arr, "AdminRatingReasons"."<br>"));
-		$wgOut->addHTML("Go to ".$skin->makeLinkObj($orig, "{$ratr_item}"));
+		$out->addHTML("Return to ". Linker::link($arr, "AdminRatingReasons"."<br>"));
+		$out->addHTML("Go to ".Linker::linkKnown($orig, "{$ratr_item}"));
 	}
 }
 
-class AdminRatingReasons extends UnlistedSpecialPage {
 
-	// TODO We probably want to consider having the clear on the page that shows the ratings clear it too. 
-	
-	public function __construct() {
-		parent::__construct('AdminRatingReasons');
+abstract class Helpfulness extends QueryPage {
+	protected $mType;
+	protected $mRatingTableName;
+	protected $mRatingTablePrefix;
+	protected $mShowAccuracyInline = false;
+	protected $mAllowedGroups = array("staff", "staff_widget");
+
+	public function __construct($name = '') {
+		$this->ratingsCache = array();
+		parent::__construct($name);
 	}
 
-	public function getAllowedUsers() {
-		return  array(
+	public function isListed() {
+		return false;
+	}
+
+	public function userCanExecute( User $user ) {
+		$userGroups = $user->getGroups();
+
+		if ($user->isBlocked()) {
+			return false;
+		}
+
+		foreach($this->mAllowedGroups as $group) {
+			if (in_array($group, $userGroups)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	function execute( $par ) {
+        global $wgHooks;
+
+        $wgHooks['ShowSideBar'][] = array($this, 'removeSideBarCallback');
+
+		$action = $this->getRequest()->getVal('action');
+		if ($action == 'csv') {
+			return $this->getCSV();
+		}
+
+		parent::execute($par);
+	}
+
+    public static function removeSideBarCallback(&$showSideBar) {
+        $showSideBar = false;
+        return true;
+    }   
+
+	function getHeaderTitle() {
+		return "Helpfulness Responses";
+	}
+
+	function getPageJS() {
+		$html = <<<EOHTML
+		<script>
+		$('.mw-spcontent').on("click", '.arr_ratings_show', function(e) {
+			e.preventDefault();
+			$('.phr_data').toggle();
+			$(this).html($(this).text() == 'Show Ratings' ? 'Hide Ratings' : 'Show Ratings');
+		});
+
+		</script>
+EOHTML;
+		return $html;
+	}
+
+	function getPageHeader() {
+		$html = HtmlSnips::makeUrlTag('/extensions/wikihow/Rating/adminratingreasons.css');
+		$html .= $this->getPageJS();
+		$csvLink = $this->getCSVLink($item);
+		$item = $this->getRequest()->getVal('item');
+		$headerTitle = $this->getHeaderTitle();
+
+		if ($item) {
+			$title = Title::newFromText($item);
+			$showAll = Linker::link($this->getTitle(), 'All Results');
+			$showRatings = "<a class='arr_ratings_show' href='#'>Show Ratings</a>";
+			$html .= "<h2>$headerTitle for ".Linker::link($title)."</h2>";
+			$html .= "<p>(".$showAll." | ".$csvLink." | ".$showRatings.")</p>";
+			$html .= $this->getRatingHTML($item);
+		} else {
+			$html .= "<h2>$headerTitle</h2>";
+			$html .= "<p>(".$csvLink.")</p><br>";
+		}
+
+		// total helpfulness responses
+		$totals = $this->getTotalReasonsHTML($item);
+		$html .= $totals;
+
+		return $html;
+	}
+
+	function getTotalReasonsHTML($item) {
+		$dbr = wfGetDB(DB_SLAVE);
+		$where = array('ratr_type' => $this->mType);
+
+		$result = array();
+		if ($item) {
+			$where['ratr_item'] = $item;
+		}
+
+		$total = $dbr->selectField('rating_reason', 'count(*)', $where, __METHOD__);
+		$where['ratr_rating'] = 0;
+		$no = $dbr->selectField('rating_reason', 'count(*)', $where, __METHOD__);
+		$yes = $total - $no;
+
+		$html = "<div class='arr_totals'>";
+		$html .= "There are $total responses.  $yes chose 'yes', and $no chose 'no'.</div><br>";
+		return $html;
+	}
+
+	private function getCSV() {
+		global $wgCanonicalServer;
+
+		header('Content-type: application/force-download');
+		header('Content-disposition: attachment; filename="data.csv"');
+
+		$this->getOutput()->disable();
+
+		$item = $this->getRequest()->getVal('item');
+
+		$lines = array();
+
+		$dbr = wfGetDB(DB_SLAVE);
+
+		$vars = array('ratr_item as title',
+			'ratr_rating as rating',
+			'ratr_text as reason',
+			'ratr_user_text as user',
+			'ratr_name as name',
+			'ratr_email as email',
+			'ratr_detail as detail',
+			'ratr_timestamp as date');
+
+		$where = array('ratr_type'=>$this->mType);
+		if ($item) {
+			$where['ratr_item'] = $item;
+		}
+
+		$options = array("ORDER BY"=>"ratr_timestamp DESC", "LIMIT" => 50000);
+
+		$res = $dbr->select('rating_reason', $vars, $where, __METHOD__, $options);
+
+		foreach ($res as $row) {
+			$rating = $row->rating == 0 ? 'no' : 'yes';
+			$reason = '"' . str_replace('"', '""', $row->reason) . '"';
+
+			$title = Title::newFromText($row->title);
+			if ( !$title || !$title->exists() ) {
+				continue;
+			}
+
+			$link = str_replace(" ", "-", "$wgCanonicalServer/".$title->getText());
+
+			$acc = $this->getRatingAccuracy($row->title);
+			$accPercent = $acc->percentage . "%";
+			$accVotes = $acc->total;
+
+			$detail = "";
+			if ($row->detail) {
+				$detail = wfMessage($row->detail);
+				$detail = '"' . str_replace('"', '""', $detail) . '"';
+			}
+
+			$line = array($link, $rating, $reason, $row->user, $row->name, $row->email, $row->date, $this->mType, $accPercent, $accVotes, $detail);
+			$lines[] = implode(",", $line);
+		}
+
+		print("title,rating,reason,user,name,email,date,type,accuracy,accuracy votes,detail\n");
+		print(implode("\n", $lines));
+	}
+
+	private function getCSVLink($item) {
+		$queryParams = array("action"=>"csv");
+
+		if ($item) {
+			$queryParams['item'] = $item;
+		}
+
+		$html = Linker::linkKnown($this->getTitle(), "download .csv [last 50k entries only]", array(), $queryParams);
+		return $html;
+
+	}
+
+	function isSyndicated() {
+		return false;
+	}
+
+	function getQueryInfo() {
+		$cond = array();
+		$cond["ratr_type"] = $this->mType;
+
+		$item = $this->getRequest()->getVal("item");
+		if ($item) {
+			$cond["ratr_item"] = $item;
+		}
+
+		return array(
+			'tables' => array( 'rating_reason' ),
+			'fields' => array( 'namespace' => 0,
+					'title' => 'ratr_item',
+					'value' => 'ratr_id',
+					'type' => 'ratr_type',
+					'ratr_text' => 'ratr_text',
+					'ratr_timestamp' => 'ratr_timestamp',
+					'name' => 'ratr_name',
+					'email' => 'ratr_email',
+					'ratr_detail' => 'ratr_detail',
+					'ratr_rating' => 'ratr_rating' ),
+			'conds' => $cond,
+			'options' => array()
 		);
 	}
 
-	public function userAllowed() {
-		global $wgUser;
+	function getOrderFields() {
+		return array("ratr_timestamp");
+	}
 
-		$user = $wgUser->getName();
-		$allowedUsers = $this->getAllowedUsers();
-
-		$userGroups = $wgUser->getGroups();
-		if ($wgUser->isBlocked() || (!in_array($user, $allowedUsers) && !in_array('staff', $userGroups)))
-		{
-			return False;
+	function getAccuracyText($ratingsData) {
+		if ($this->mShowAccuracyInline) {
+			return "{$ratingsData->percentage}% of {$ratingsData->total} votes";
 		}
-
-		return True;
-
 	}
 
-	public function execute() {
-		global $wgRequest, $wgOut, $wgUser;
-
-		if (!$this->userAllowed()) {
-			$wgOut->setRobotpolicy('noindex,nofollow');
-			$wgOut->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
-			return;
-		}
-
-		$wgOut->setHTMLTitle('Admin - Rating Reasons - wikiHow');
-		$wgOut->setPageTitle('List Of Rating Reasons');
-
-		$ArrLink = SpecialPage::getTitleFor('AdminRatingReasons');
-		$filterThis = $wgUser->getSkin()->makeLinkObj($ArrLink, 'Show All Rating Reasons');
-
-		// TODO what does this checklimits line do..
-		list( $limit, $offset) = wfCheckLimits();
-
-		$item = $wgRequest->getVal('item');
-		$pqp = new RatingReasonsQueryPage($item);
-		$pqp->getList();
-		$wgOut->addHTML("<hr><br><p>{$filterThis}</p>");
-	}
-}
-
-class RatingReasonsQueryPage extends PageQueryPage {
-
-	public function __construct($item=NULL) {
-		$this->ratingsCache = array();
-		if ($item) {
-			$this->itemId = $item;
-		}
-
-		parent::__construct('RatingReasonsQueryPage');
+	function getRatingAccuracyKey($titleText) {
+		$title = $this->getResultTitle( urldecode( $titleText ) );
+		return $title->getArticleId();
 	}
 
-	function getList() {
-		list( $limit, $offset ) = wfCheckLimits();
-		$this->limit = $limit;
-		$this->offset = $offset;
-		parent::execute('');
-	}
+	function getRatingAccuracy($titleText) {
+		$key = $this->getRatingAccuracyKey($titleText);
 
-	function getName() {
-		return 'AdminRatingReasons';
-	}
-
-	function getRatingAccuracy($itemId) {
-		$rd = $this->ratingsCache[$itemId];
+		$rd = $this->ratingsCache[$key];
 
 		if (!$rd) {
 			$dbr = wfGetDB(DB_SLAVE);
-			$rd = Pagestats::getRatingData($itemId, 'ratesample', 'rats', $dbr);
-			$this->ratingsCache[$itemId] = $rd;
+			$rd = Pagestats::getRatingData($key, $this->mRatingTableName, $this->mRatingTablePrefix, $dbr);
+			$this->ratingsCache[$key] = $rd;
 		} 
 
 		return $rd;
 	}
 
-	function isExpensive( ) { return false; }
+	function getRatingHTML($titleText) {
+		$key = $this->getRatingAccuracyKey($titleText);
 
-	function isSyndicated() { return false; }
+		$rd = $this->ratingsCache[$key];
 
-	function getOrder() {
-		return ' ORDER BY ratr_item ' . ($this->sortDescending() ? 'DESC' : ''); 
+		if (!$rd) {
+			$dbr = wfGetDB(DB_SLAVE);
+			$rd = PageHelpfulness::getRatingHTML($key, $this->getUser());
+			$this->ratingsCache[$key] = $rd;
+		}
+		return $rd;
 	}
 
-	function getSQL() {
-		$query = "SELECT ratr_type as type, 0 as namespace, ratr_item as title, ratr_id as value, ratr_text from rating_reason";
+	function isExpensive() {
+		return false;
+	}
 
-		if ($this->itemId) {
-			$query = $query." WHERE ratr_item = '{$this->itemId}'";
+	function getResultTitle($titleText) {
+		return Title::newFromText($titleText);
+	}
+
+	public function formatResult($skin, $result) {
+		$title = $this->getResultTitle($result->title);
+		$item = $this->getRequest()->getVal("item");
+		if (!$item) {
+			$titleLink = Linker::linkKnown($title, $result->title );
+			$filterThis = Linker::link($this->getTitle(), 'filter', array(), array('item'=>$result->title));
+			$accText = $this->getAccuracyText($this->getRatingAccuracy($result->title));
 		}
 
-		return $query;
+		$timestamp = $result->ratr_timestamp;
+		$time = strtotime($timestamp);
+		$timestamp = wfTimestamp(TS_MW, $timestamp);
+		$timestamp = date("m-d-Y", $time);
+
+		$rating = $result->ratr_rating == 0 ? "No" : "Yes";
+
+		$thumbClass = "arr_thumb arr_thumb_no";
+		if ($result->ratr_rating > 0) {
+			$thumbClass = "arr_thumb arr_thumb_yes";
+		}
+
+		$html = "<div class='arr_data'><div class='$thumbClass'></div></div>";
+		$html.= "<div class='arr_rating arr_data'>rating: $result->ratr_rating<br></div>";
+		if ($titleLink) {
+			$html.= "<div class='arr_title arr_data'>$titleLink</div>";
+		}
+		$html.= "<div class='arr_result arr_data'>$result->ratr_text</div>";
+		$html.= "<div class='arr_timestamp arr_data'>$timestamp</div>";
+		$html.= "<div class='arr_name arr_data'>$result->name</div>";
+		$html.= "<div class='arr_email arr_data'>$result->email</div>";
+		$detail = $result->ratr_detail;
+		if ($detail) {
+			$detail = wfMessage($detail);
+		}
+		$html.= "<div class='arr_detail arr_data'>$detail</div>";
+		if ($accText) {
+			$html.= "<div class='arr_data'>$accText</div>";
+		}
+		if ($filterThis) {
+			$html.= "<div class='arr_filter arr_data'>($filterThis)</div>";
+		}
+		return $html;
+	}
+}
+
+class ArticleHelpfulness extends Helpfulness {
+	public function __construct($name = '') {
+		$this->mType = "article";
+		$this->mRatingTableName = "rating";
+		$this->mRatingTablePrefix = "rat";
+		parent::__construct('ArticleHelpfulness');
+	}
+}
+
+class AdminRatingReasons extends Helpfulness {
+	public function __construct($name = '') {
+		$this->mType = "sample";
+		$this->mRatingTableName = "ratesample";
+		$this->mRatingTablePrefix = "rats";
+		$this->mShowAccuracyInline = true;
+		parent::__construct('AdminRatingReasons');
 	}
 
-	function formatResult($skin, $result) {
-		$t = Title::newFromText("$result->type/$result->title");
-
-		$clear = SpecialPage::getTitleFor( 'AdminRemoveRatingReason', $result->title );
-		$idv = "id={$result->value}";
-
-		$ArrLink = SpecialPage::getTitleFor('AdminRatingReasons');
-		$filterThis = $skin->makeLinkObj($ArrLink, 'filter', 'item='.$result->title);
-		$clearThis = $skin->makeLinkObj($clear, 'clear', $idv);
-		$clearAll = $skin->makeLinkObj($clear, 'clear all');
-
-
-		$acc = $this->getRatingAccuracy($result->title);
+	function getRatingHTML($titleText) {
+		$acc = $this->getRatingAccuracy($titleText);
 		$accText .= "{$acc->percentage}% of {$acc->total} votes";
+		$html = "<div class='phr_data'>Accuracy: ".$accText."</div><br>";
+		return $html;
+	}
 
-		return $skin->makeLinkobj($t, $result->title ) . ": {$result->ratr_text} - ({$filterThis}, {$clearThis}, {$clearAll}) - Accuracy: ".$accText;
+	function getHeaderTitle() {
+		return "Sample Rating Reasons";
+	}
+
+	function getResultTitle($titleText) {
+		return Title::newFromText('sample/'.$titleText);
+	}
+
+	function getRatingAccuracyKey($titleText) {
+		return $titleText;
 	}
 }

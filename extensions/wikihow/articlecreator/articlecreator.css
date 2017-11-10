@@ -1,43 +1,30 @@
 .ac_method {
 	margin-bottom: 20px;
 	list-style-type: none;
-	padding-top: 30px !important;
-	background-color: #f6f5f4;
-	padding: 62px 27px 20px 27px;
-	border-radius: 4px;
-	-moz-border-radius: 4px;
-	-webkit-border-radius: 4px;
+	padding: 0px;
 	margin-bottom: 25px;
 	position: relative;
-	line-height: 25px;
-	border: 1px solid #e5e5e5;
 }
 
 .ac_method_editor {
-	margin-bottom: 15px;
+	margin: 15px;
 }
 .ac_method_controls {
 	margin-bottom: 10px;
 }
 
 #ac_edit_form {
-	background-color: #ecebe8;
-	padding: 5px 5px 20px 5px;
+	background-color: #f6f5f4;
+	padding: 0px 0px 10px 0px;
+	border-radius: 4px;
+	-moz-border-radius: 4px;
+	-webkit-border-radius: 4px;
+	border: 1px solid #e5e5e5;
+	margin: 10px 0 0 0;
 }
 
-.ac_method #ac_edit_form {
-	margin: 10px -20px -20px -20px;	
-}
-
-.ac_other_section #ac_edit_form {
-	margin: 10px -10px -10px -10px;
-}
-
-#introduction .ac_new_li {
-	margin-top: 10px;
-}
 .ac_new_li,  .mce-panel textarea, .ac_edit_method_text, #ac_edit_text {
-	margin-bottom: 10px;
+	margin: 10px 0px;
 	width: 658px;
 	height: 50px;
 	border-radius: 4px;
@@ -47,13 +34,32 @@
 	resize: none;
 }
 
-#ac_edit_text {
-	width: 98.4%;
+
+
+
+.ac_new_li {
+	width: 100%;
+	box-sizing: border-box;
 }
 
-.ac_li_adder .step_num {
-/* 	margin-top: 50px; */
-	margin: 50px 0 0 -6px
+.ac_method .ac_new_li {
+	width: 654px;
+	margin: 0px 0px 10px 0;
+}
+
+#introduction .ac_new_li {
+	border: 0;
+	margin: 0;
+}
+
+#ac_edit_text {
+	width: 100%;
+	box-sizing: border-box;
+	border: 0px;
+	margin: 0;
+	border-radius: 4px 4px 0px 0px;
+	-moz-border-radius: 4px 4px 0px 0px;
+	-webkit-border-radius: 4px 4px 0px 0px;
 }
 
 #steps .ac_li_adder div.mce-tinymce {
@@ -82,26 +88,12 @@
 }
 
 
-ul.ac_lis {
+.ac_lis {
 	display: none;
-	padding: 10px 0;
 }
 
-.ac_lis > li {
-	background: #fff;
-	/*border: 1px #e5e5e5;*/
-	border: 1px #e5e5e5;;
-	border-left-style: solid;
-	border-right-style: solid;
-	border-bottom-style: dotted;
-	border-top: 0px;
-	padding: 10px;
-	margin: 0px;
-	list-style-position: inside;
-
-	margin-left: -28px;
-	margin-right: -28px;
-
+.ac_methods .ac_lis {
+	padding: 10px 0;
 }
 
 .ac_lis li li {
@@ -138,6 +130,10 @@ ul.ac_lis {
 	padding-top: 5px;
 }
 
+.ac_method_title {
+	margin-left: 15px;
+}
+
 .ac_txt:hover, .ac_method_title:hover {
 	border-bottom: 1px dashed #383 !important;
 	color: #383;
@@ -150,45 +146,42 @@ ul.ac_lis {
 	border-bottom: none !important;
 }
 
-.ac_lis > li:first-child {
-	border-top: 1px solid #e5e5e5;
-}
-
-.ac_lis > li:last-child {
-	border-bottom: 1px solid #e5e5e5;
-}
-
 #steps .ac_lis > li, #introduction .ac_lis > li, .ac_ordered_methods {
 	list-style: none;	
 }
 
 #steps .ac_lis > li {
-	padding: 10px 20px 20px 20px;
+	padding: 10px 20px 20px 0px;
 }
 
-.section h2, #steps h2 {
-	line-height: 22px !important;
-	position: static !important;
+#steps h2 {
+	border-radius: 0;
+	-moz-border-radius: 0;
+	-webkit-border-radius: 0;
+}
+
+#main_container h2 span {
+	margin: 0;
 }
 
 #main_container h2 {
-	display: inline;
+	line-height: 20px;
+	padding: 15px;
+	box-sizing: border-box;
+	position: static;
+	margin: 0;
 }
 
 .ac_desc {
-	display: inline-block;
-	margin-left: 5px;
-	margin-bottom: 10px;
-	font-size: 14px
+	display: inline;
+	margin-left: 10px !important;
+	font-size: 14px;
+	font-weight: normal;
 }
-
-#main_container .section {
-	padding-top: 27px;
-}
-
 
 #ac_delete {
 	float: left;
+	margin-left: 5px;
 }
 
 #ac_step_adder {
@@ -198,10 +191,6 @@ ul.ac_lis {
 #ac_add_steps, #ac_save, #ac_cancel {
 	float: right;
 	line-height: normal;
-}
-
-#ac_save {
-	margin-right: 0px;
 }
 
 ul.ac_toolbar {
@@ -222,37 +211,42 @@ ul.ac_toolbar {
 .mce-panel {
 	border: 0px !important;
 	background-color: #f6f5f4 !important;
+	border-radius: 0 0px 4px 4px;
+	-moz-border-radius: 0 0px 4px 4px;
+	-webkit-border-radius: 0 0px 4px 4px;
 }
-
-.ac_lis .mce-panel {
-	background-color: #ecebe8 !important;
-}
-
-.ac_lis .mce-panel.mce-edit-area {
-	background-color: white !important;
-}
-
 
 .mce-edit-area {
 	padding:5px !important;
 	background-color: white !important;
-	border: 1px #e5e5e5 solid !important;
-	border-radius: 4px !important;
-	-moz-border-radius: 4px !important;
-	-webkit-border-radius: 4px !important;
 	font-size: 14px !important;
+	border-radius: 0 0px 4px 4px;
+	-moz-border-radius: 0 0px 4px 4px;
+	-webkit-border-radius: 0 0px 4px 4px;
+}
+
+.ac_lis .mce-panel.mce-edit-area {
+	border: 0px !important;
+	border-radius: 0;
+	-moz-border-radius: 0;
+	-webkit-border-radius: 0;
 }
 
 .mce-toolbar {
-	padding: 5px 0 !important;
+	padding: 5px !important;
+	border: 0px #e5e5e5 solid !important;
+	border-radius: 4px 4px 0px 0px;
+	-moz-border-radius: 4px 4px 0px 0px;
+	-webkit-border-radius: 4px 4px 0px 0px;
 }
 
 .ac_edit_method_text {
-/* 	width: 87%; */
-	height: 23px;
-	padding: 10px 3px 6px 10px;
+	height: 40px;
+	padding: 10px;
 	margin: 0;
 	font-size: 16px;
+	width: 100%;
+	box-sizing: border-box;
 }
 
 .ac_edit_method {
@@ -267,6 +261,7 @@ input[name="method_format"] {
 #ac_add_new_method {
 	border: 1px solid #e5e5e5;
 	padding: 15px 25px;
+	background: #fff;
 }
 
 #ac_method_selector {
@@ -292,7 +287,7 @@ input[name="method_format"] {
 
 .ac_method_tools {
 	float: right;
-	margin-top: -15px;
+	margin: 10px;
 }
 
 .ac_remove_method, .ac_reorder_method {
@@ -303,8 +298,8 @@ input[name="method_format"] {
 	-webkit-border-radius: 4px;
 	-moz-border-radius: 4px;
 	border-radius: 4px;
-	width: 25px;
-	height: 25px;
+	width: 15px;
+	height: 15px;
 }
 
 .ac_question {
@@ -319,22 +314,22 @@ input[name="method_format"] {
 }
 .ac_remove_method {	
 	background: url(/skins/owl/images/ac_delete.png) center no-repeat;	
-	background-size: 18px 22px;
+	background-size: 15px;
 }
 
 .ac_remove_method:hover {
 	background: url(/skins/owl/images/ac_delete_hover.png) center no-repeat;
-	background-size: 18px 22px;
+	background-size: 15px;
 }
 
 .ac_reorder_method {	
 	background: url(/skins/owl/images/ac_move.png) center no-repeat;	
-	background-size: 23px 18px;
+	background-size: 15px;
 }
 
 .ac_reorder_method:hover {
 	background: url(/skins/owl/images/ac_move_hover.png) center no-repeat;
-	background-size: 23px 18px;
+	background-size: 15px;
 }
 
 .ac_confirm_buttons {
@@ -372,10 +367,6 @@ input[name="method_format"] {
 	display: none;
 }
 
-#introduction {
-	padding-bottom: 20px;
-}
-
 #introduction .ac_lis li {
 /* 	border-radius: 4px !important; */
 /* 	-moz-border-radius: 4px !important; */
@@ -392,24 +383,12 @@ input[name="method_format"] {
 	font-size: 16px;
 }
 
-#main_container {
-	padding-bottom:30px;
-}
-
-#main_container h1 {
-	font-size: 28px;
-}
-
 #ac_token {
 	display: none;
 }
 
 a.button {
 	line-height: normal;
-}
-
-.ac_method h3 {
-	line-height: 24px;
 }
 
 #ac_whats_this {
@@ -436,21 +415,86 @@ div[id^="ac_error_guider"] .guider_title {
 	box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.05) inset, 0px 0px 8px rgba(82, 168, 236, 0.6);
 }
 
-#ac_add_sources {
-background: url(/skins/owl/images/plus-button.png) no-repeat;
-padding-left: 35px;
-margin-bottom: 10px;
-line-height: 36px !important;
-background-size: 25px 25px;
-font-size: 22px;
-font-weight: normal;
-}
 
 #ac_add_sources a {
-	cursor: finger;
 	cursor: pointer;
 }
 
 #sourcesandcitations {
 	display: none;
+}
+
+#ac_copyright_warning {
+	clear: both;
+	float: left;
+	margin: 0.5em;
+	color: #545454;
+	font-size: .7em;
+}
+
+#ac_publish {
+	margin-right: 0px;
+}
+
+.add_sources_section {
+	margin-bottom: 0px;
+}
+
+.section {
+	padding: 0;
+}
+
+.section .altblock {
+	margin: 0;
+	border-radius: 0;
+	-moz-border-radius: 0;
+	-webkit-border-radius: 0;
+}
+
+.section h3 {
+	position: initial;
+	line-height: 60px;
+}
+
+.ac_methods .ac_editor {
+	padding: 15px;
+}
+
+.steps ul {
+	background: none;
+}
+
+.steps li {
+	background: white;
+}
+
+.mw-headline {
+	margin-left: 15px;
+}
+
+.mce-container {
+	border-radius: 4px;
+	-moz-border-radius: 4px;
+	-webkit-border-radius: 4px;
+}
+
+.mce-tinymce.mce-container.mce-panel {
+	border: 1px solid #e5e5e5 !important;
+	border-radius: 4px;
+	-moz-border-radius: 4px;
+	-webkit-border-radius: 4px;
+}
+
+
+#ac_edit_form .mce-tinymce.mce-container.mce-panel {
+	border: 0px  !important;
+}
+
+#ac_add_sources {
+	background: url(/skins/owl/images/plus-button.png) no-repeat;
+	background-size: 25px 25px;
+	padding: 4px 35px !important;
+
+	/*font-size: 22px;*/
+	font-weight: normal;
 }

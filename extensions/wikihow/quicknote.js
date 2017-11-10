@@ -79,7 +79,7 @@ function initQuickNote( qnArticle, qnUser, contrib, regdate, qnArticleLink ) {
 		modal: true,
 		width: 425,
 		title: 'Leave a Note',
-		closeText: 'Close',
+		closeText: 'x',
 		open: function(event, ui) {
 			$("form").each(function() {
 				if(this.id.match(/postcommentForm_/)) {

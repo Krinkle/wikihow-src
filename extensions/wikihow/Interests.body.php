@@ -1,4 +1,4 @@
-<?
+<?php
 
 class Interests extends SpecialPage {
 
@@ -14,8 +14,8 @@ class Interests extends SpecialPage {
 		if ($wgRequest->getVal('interests')) {
 			$wgOut->disable();
 			$x = new LSearch(); 
-			$interests = split("\n", $wgRequest->getVal('interests'));
-			//$hits= $x->googleSearchResultTitles('"' . implode('" OR "', $interests) . '"');
+			$interests = explode("\n", $wgRequest->getVal('interests'));
+			//$hits= $x->externalSearchResultTitles('"' . implode('" OR "', $interests) . '"');
 			$result = array();
 			$result['titles'] = array();
 			

@@ -5,7 +5,6 @@ class HAWelcomeEdit extends UnlistedSpecialPage {
 	private	$mTitle;
 
 	public function __construct() {
-		wfLoadExtensionMessages('HAWelcome');
 		parent::__construct( 'HAWelcomeEdit', 'HAWelcomeEdit', null, false );
 	}
 

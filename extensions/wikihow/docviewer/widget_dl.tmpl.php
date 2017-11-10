@@ -10,6 +10,6 @@
 <? if ($dv_dl_file_txt != '') { ?>
 <p class="dv_dl_txt_2"><a href="<?=$dv_dl_file_txt?>" id="gatSampleTxt3" target="_blank" rel="nofollow"><?=$dv_download?> <?=$dv_dl_text_txt?></a></p>
 <? } ?>
-<? if ($dv_dl_file_gdoc != '') { ?>
-<p class="dv_dl_gdoc_2"><a href="http://docs.google.com/viewer?url=<?=$dv_dl_file_gdoc?>" target="_blank" id="gatSampleGdoc3" rel="nofollow"><?=$dv_open_in?> <?=$dv_dl_text_gdoc?></a></p>
+<? if ($dv_dl_file_ext != '') { ?>
+<p class="dv_dl_ext_2"><a href="<?=$dv_dl_ext_prefix.$dv_dl_file_ext?>" target="_blank" id="gatSampleExtLink3" rel="nofollow"><?=$dv_open_in?> <?=$dv_dl_text_ext?></a></p>
 <? } ?>

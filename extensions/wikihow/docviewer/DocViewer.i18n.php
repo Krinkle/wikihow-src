@@ -13,10 +13,11 @@ $messages['en'] = array (
 	'dv-dl-text-doc'	=>	"MS Word",
 	'dv-dl-text-xls'	=>	"Spreadsheet",
 	'dv-dl-text-txt'	=>	"Text File",
-	'dv-dl-text-gdoc'	=>	"Google Drive",
+	'dv-dl-text-ext'	=>	"Office Online",
 	'dv-click-back'		=>	"Back to",
 	'dv-no-doc-err'		=>	"Document not found.",
 	'dv-sample-prefix'	=>	"Sample",
 	'dv-meta-article-prefix'	=> "from How to",
 	'sample_meta_keywords_default'	=>	"sample, pdf, doc, txt",
+	'dv-preview' 		=> "Preview",
 );

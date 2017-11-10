@@ -1,6 +1,4 @@
-<?
-
-if (!defined('MEDIAWIKI')) die();
+<?php
 
 class AdminResetPassword extends UnlistedSpecialPage {
 
@@ -33,7 +31,7 @@ class AdminResetPassword extends UnlistedSpecialPage {
 	/**
 	 * Execute special page.  Only available to wikihow staff.
 	 */
-	function execute() {
+	function execute($par) {
 		global $wgRequest, $wgOut, $wgUser, $wgLang;
 
 		$userGroups = $wgUser->getGroups();

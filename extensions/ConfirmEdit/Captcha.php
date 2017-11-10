@@ -58,8 +58,15 @@ class SimpleCaptcha {
 	 * @param OutputPage $out
 	 */
 	function editCallback( &$out ) {
-		$out->addWikiText( $this->getMessage( $this->action ) );
-		$out->addHTML( $this->getForm() );
+		//XX CHANGED: Bebeth 8/6/15
+		//Changes to allow non edit pages (eg: step editor), to use the captcha
+		$message = $this->getMessage( $this->action );
+		$form = $this->getForm();
+
+		if( wfRunHooks( 'captchaEditCallback', array( $message, $form ) ) ) {
+			$out->addWikiText( $message );
+			$out->addHTML( $form );
+		}
 	}
 
 	/**

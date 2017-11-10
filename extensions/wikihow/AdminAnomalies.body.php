@@ -1,7 +1,5 @@
 <?php
 
-if ( !defined('MEDIAWIKI') ) exit;
-
 class AdminAnomalies extends UnlistedSpecialPage {
 
     public function __construct() {

@@ -111,14 +111,18 @@ STR;
 			}
 			throw new PHPUnit_Framework_ExpectationFailedException(
 				$e->getMessage() . "\nRequest: $message",
-				new PHPUnit_Framework_ComparisonFailure(
-					$exp,
-					$result,
-					print_r( $exp, true ),
-					print_r( $result, true ),
-					false,
-					$e->getComparisonFailure()->getMessage() . "\nRequest: $message"
-				)
+				// Reuben, wikiHow: the PHPUnit_Framework_ComparisonFailure should exist
+				// but doesn't in this context, somehow. This hack probably breaks a few
+				// api test cases, but allows all tests to finish at least.
+				null
+//				new PHPUnit_Framework_ComparisonFailure(
+//					$exp,
+//					$result,
+//					print_r( $exp, true ),
+//					print_r( $result, true ),
+//					false,
+//					$e->getComparisonFailure()->getMessage() . "\nRequest: $message"
+//				)
 			);
 		}
 	}

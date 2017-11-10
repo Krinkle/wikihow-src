@@ -113,7 +113,7 @@ class Yboss {
 		$queries = self::dedupAndJoinShortTitles($seedKeyword);
 		if (empty($queries)) return null;
 		
-		$url = "https://cloud.wikiknowhow.com/api.php";
+		$url = "https://titus.wikiknowhow.com/api.php";
 		$args = array();
 		$args["action"] = "dedup";
 		$args["subcmd"] = "queries";

@@ -116,7 +116,7 @@ class CopyeditAppWidget extends DashboardWidget {
 	 */
 	public function getLeaderboardData(&$dbr, $starttimestamp){
 
-		$data = Leaderboard::getArticlesRepaired($starttimestamp, 'copyedit');
+		$data = LeaderboardStats::getArticlesRepaired($starttimestamp, 'copyedit');
 		arsort($data);
 
 		return $data;

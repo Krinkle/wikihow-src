@@ -571,6 +571,10 @@ $wgDeferredUpdateList = array();
 wfProfileOut( $fname . '-globals' );
 wfProfileIn( $fname . '-extensions' );
 
+// JRS 01/24/14: including composer autoloader so we can use phpQuery without
+// loading it explicitly, and AWS services for features like avatar image upload
+require_once("$IP/extensions/wikihow/common/composer/vendor/autoload.php");
+
 # Extension setup functions for extensions other than skins
 # Entries should be added to this variable during the inclusion
 # of the extension file. This allows the extension to perform
@@ -588,9 +592,6 @@ foreach ( $wgExtensionFunctions as $func ) {
 	} else {
 		$profName = $fname . '-extensions-' . strval( $func );
 	}
-	// JRS 01/24/14 including composer autoloader so we can use aws services for features like 
-	// avatar image upload
-	require_once("$IP/extensions/wikihow/common/composer/vendor/autoload.php");
 
 	wfProfileIn( $profName );
 	call_user_func( $func );

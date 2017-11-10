@@ -1,7 +1,5 @@
 <?php
 
-if (!defined('MEDIAWIKI')) exit;
-
 class QuickEdit extends UnlistedSpecialPage {
 	function __construct() {
 		global $wgHooks;
@@ -9,9 +7,9 @@ class QuickEdit extends UnlistedSpecialPage {
 		$wgHooks['EditFilterMergedContentError'][] = array('QuickEdit::onEditFilterMergedContentError');
 	}
 
-	public function execute() {
+	public function execute($par) {
 		global $wgUser, $wgRequest, $wgOut;
-		
+
 		if ($wgUser->isBlocked()) {
 			$wgOut->blockedPage();
 			return;
@@ -44,6 +42,13 @@ class QuickEdit extends UnlistedSpecialPage {
 		$editor = new EditPage($article);
 		$editor->edit();
 
+		if ($editor->isConflict && $wgRequest->wasPosted()) {
+			$wgOut->clearHTML();
+			$wgOut->setStatusCode(409);
+			$wgOut->addWikiText( 'Your edit could not be saved due to an edit conflict. Try closing and re-opening the Quick Edit window' );
+			return;
+		}
+
 		if ($wgOut->mRedirect && $wgRequest->wasPosted()) {
 			$wgOut->redirect('');
 			$rev = Revision::newFromTitle($title);
@@ -54,7 +59,7 @@ class QuickEdit extends UnlistedSpecialPage {
 	public static function onEditFilterMergedContentError($context, $content, $status) {
 		$out = $context->getOutput();
 		header('HTTP/1.0 409 Conflict');
-		print $status->getWikiText();
+		print $status->getHTML();
 		// Never let this function end, otherwise the output is overwritten
 		exit;
 		return true;

@@ -1,4 +1,5 @@
-<?
+<?php
+
 /*
 * A visual tool to create new wikiHow articles
 */
@@ -10,7 +11,7 @@ class ArticleCreator extends SpecialPage {
 	function __construct() {
 		global $wgHooks;
 		parent::__construct('ArticleCreator');
-		$wgHooks['getToolStatus'][] = array('Misc::defineAsTool');
+		$wgHooks['getToolStatus'][] = array('SpecialPagesHooks::defineAsTool');
 	}
 
 	function execute($par) {
@@ -23,17 +24,21 @@ class ArticleCreator extends SpecialPage {
 			$out->addHtml($this->getCreatedDialogHtml());
 			return; 
 		}
-		
- 		$out->addCSSCode('acc');
- 		//$out->addJSCode('ac');
- 		$out->addJSCode('jqs');
- 		$out->addJSCode('tmc');
- 		
- 		$out->addModules( 'ext.guidedTour' );  // Used for showing validation responses
-		$out->addModules('ext.wikihow.articlecreator'); // Module to enable mw messages in javascript
+
+		$out->addModules( 'ext.wikihow.articlecreator_css' ); // css for the tool
+		$out->addModules( 'ext.wikihow.articlecreator' ); // module to enable mw messages in javascript
+		$out->addModules( 'ext.guidedTour' );  // used for showing validation responses
 			
+		if ( is_null( $request->getVal( 't' ) ) ) {
+			$out->setRobotPolicy( 'noindex,nofollow' );
+			$out->addWikitext( 'You must specify a title to create.' );
+			return;
+		}
+		
 		$t = Title::newFromText($request->getVal('t'));
 		$out->setHTMLTitle(wfMessage('ac-html-title', $t->getText()));
+
+		$overwriteAllowed = Newarticleboost::isOverwriteAllowed($t);
 			
 		if ($request->wasPosted()) {
 			$out->setArticleBodyOnly(true);
@@ -41,7 +46,7 @@ class ArticleCreator extends SpecialPage {
 			$token = $context->getUser()->getEditToken();
 			if ($request->getVal('ac_token') != $token) {
 				$response['error'] = wfMessage('ac-invalid-edit-token');
-			} else if ($this->onlyEditNewArticles && $t->exists()) {
+			} else if ($this->onlyEditNewArticles && $t->exists() && !$overwriteAllowed) {
 				$response['error'] = wfMessage('ac-title-exists', $t->getEditUrl());
 			} else if (!$t->userCan( 'create', $context->getUser(), false)) {
 				$response['error'] = wfMessage('ac-cannot-create', $t->getEditUrl());
@@ -51,7 +56,8 @@ class ArticleCreator extends SpecialPage {
 			
 			$out->addHtml(json_encode($response));	
 		} else {
-			if ($this->onlyEditNewArticles && $t->exists()) {
+			$out->setRobotPolicy( 'noindex,nofollow' );
+			if ( $this->onlyEditNewArticles && $t->exists() && !$overwriteAllowed) {
 				$out->redirect($t->getEditURL());
 			} else {
 				$this->outputStartupHtml();
@@ -62,8 +68,14 @@ class ArticleCreator extends SpecialPage {
 	private function outputStartupHtml() {
 		$out = $this->getContext()->getOutput();
 		$request = $this->getContext()->getRequest();
+		
+		if ( is_null ( $request->getVal( 't' ) ) ) {
+			$out->addWikitext( 'You must specifiy a title to create.' );
+			return;
+		}
+		
 		$t = Title::newFromText($request->getVal('t'));
-		$advancedEditLink = $this->getContext()->getSkin()->makeKnownLinkObj($t, wfMessage('advanced_editing_link')->text(), 'action=edit&advanced=true', '','','class="ac_advanced_link"');
+		$advancedEditLink = Linker::linkKnown( $t, wfMessage('advanced_editing_link')->text(), array(), array('action' => 'edit', 'advanced' => 'true'), array('ac_advanced_link', 'known', 'noclasses') );
 		
 		$out->addHtml($this->getTemplatesHtml($t));
 	
@@ -112,12 +124,23 @@ class ArticleCreator extends SpecialPage {
 					$out->addHTML($this->getOtherSectionHtml($section));
 			}
 		}
-		$out->addHtml($this->getFooterHtml());		
+		$out->addHtml($this->getFooterHtml());
+		if(Newarticleboost::isOverwriteAllowed($t)) {
+			$out->addHTML("<input type='hidden' name='overwrite' id='overwrite' value='yes' />");
+		}
 	}
 	
 	private function getFooterHtml() {
+
+		$copywarn = $this->msg( 'copyrightwarning', 
+						Linker::link( $this->msg( 'copyrightpage' )->text() ) 
+					)->plain();
+
+		$vars = array(
+				'copyrightwarning' => $copywarn
+				);
 		EasyTemplate::set_path(dirname(__FILE__).'/');
-		return EasyTemplate::html('ac-footer');
+		return EasyTemplate::html('ac-footer', $vars);
 	}
 		
 	private function getTemplatesHtml($t) {
@@ -161,6 +184,8 @@ class ArticleCreator extends SpecialPage {
 			foreach ($errors as $error) {
 				if (is_array($error)) {
 					$error = count($error) ? $error[0] : '';
+					$response['error'] = wfMessage($error)->parse();
+					return $response;
 				}
 				if (preg_match('@^spamprotection@', $error)) {
 					$response['error'] =  wfMessage('ac-error-spam')->text();
@@ -177,14 +202,30 @@ class ArticleCreator extends SpecialPage {
 			return $response;
 		}
 
+		if($request->getVal("overwrite") == "yes") {
+			//it's a rewrite. let us start anew
+			$page = WikiPage::factory($t);
+			$reason = wfMessage('ac-overwrite-reason')->text();
+			$status = $page->doDeleteArticleReal($reason);
+			if (!$status->isGood()) {
+				$response['error'] =  'doDeleteArticleReal returned an error. Cannot delete the old article to overwrite it.';
+				return $response;
+			}
+		}
+		
 		$a = new Article($t);
 		$a->doEdit($request->getVal('wikitext'), wfMessage('ac-edit-summary'));
+		if($request->getVal("overwrite") == "yes") {
+			//put the article back into nab
+			// Newarticleboost::redoNabStatus($t);
+			ChangeTags::addTags('article rewrite', null, $a->getLatest());
+		} 
 		// Add an author email notification
 		$aen = new AuthorEmailNotification();
 		$aen->addNotification($t->getText());
 
 		$response['success'] = wfMessage('ac-successful-publish');
-		$response['url'] = $t->getFullUrl();
+		$response['url'] = $t->getFullUrl().'?new=1';
 		return $response;
 	}
 
@@ -210,40 +251,46 @@ class ArticleCreator extends SpecialPage {
 	}
 	
 	private function getCreatedDialogHtml() {
+		global $wgUser;
 		EasyTemplate::set_path(dirname(__FILE__).'/');
 		$vars['dialogStyle'] = "<link type='text/css' rel='stylesheet' href='" . 
-			wfGetPad('/extensions/wikihow/common/jquery-ui-themes/jquery-ui.css?rev=' . WH_SITEREV) . "' />\n";
+			wfGetPad('/extensions/wikihow/articlecreator/ac_modal.css?rev=' . WH_SITEREV) . "' />\n" .
+			"<link type='text/css' rel='stylesheet' href='/extensions/wikihow/common/font-awesome-4.2.0/css/font-awesome.min.css?rev='".WH_SITEREV."' />\n";
+		$vars['anon'] = $wgUser->isAnon();
+		$vars['email'] = $wgUser->getEmail();
+		$vars['on_off'] = !$vars['anon'] && !$vars['email'] ? 'off' : 'on';
 		return EasyTemplate::html('ac-created-dialog', $vars);
 	}
 	
 	public static function printArticleCreatedScript($t) {
 		global $wgUser;
 		$aid = $t->getArticleId();
-	
- 		setcookie('aen_dialog_check', $aid, time()+3600);
+		
+		// deprecated cookie?
+		// setcookie('aen_dialog_check', $aid, time()+3600);
 		 echo '
-		  <script type="text/javascript">
-		  var whNewLoadFunc = function() {
-		  	if ( getCookie("aen_dialog_check") != "" ) {
-		  		var url = "/extensions/wikihow/common/jquery-ui-1.9.2.custom/js/jquery-ui-1.9.2.custom.min.js";
-		  		$.getScript(url, function() {
-		  			$("#dialog-box").load("/Special:ArticleCreator?ac_created_dialog=1");
-		  			$("#dialog-box").dialog({
-		  				modal: true,
-		  				closeText: "Close",
-		 				width: 600,
-		 				height: 200,
-		 				position: "center",
-		  				title: "' . wfMessage('createpage_congratulations')->text() . '"
-		  			});
-		  			deleteCookie("aen_dialog_check");
-		  		});
-		  	}
-		  };
+			<script type="text/javascript">
+			var whNewLoadFunc = function() {
+				var url = "/extensions/wikihow/common/jquery.simplemodal.1.4.4.min.js";
+				$.getScript(url, function() {
+					$.get("/Special:ArticleCreator?ac_created_dialog=1", function(data) {
+						$.modal(data, { 
+							zIndex: 100000007,
+							maxWidth: 400,
+							minWidth: 400,
+							minHeight: 600,
+							overlayCss: { "background-color": "#000" },
+							escClose: false,
+							overlayClose: false
+						});
+						$.getScript("/extensions/wikihow/articlecreator/ac_modal.js");
+					});
+				});
+			};
 
-		  $(window).load(whNewLoadFunc);
+			$(window).load(whNewLoadFunc);
 
-		  </script>
+			</script>
 		';	  
 	}
 	

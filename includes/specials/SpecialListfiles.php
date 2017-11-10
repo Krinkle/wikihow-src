@@ -27,6 +27,14 @@ class SpecialListFiles extends IncludableSpecialPage {
 	}
 
 	public function execute( $par ) {
+		// Reuben, wikiHow (May 22, 2015): remove access to Special:ListFiles
+		// for anonymous users. This page is slow and has been a target
+		// for recent DDoS attacks.
+		if ($this->getUser()->isAnon()) {
+			$this->getOutput()->loginToUse();
+			return;
+		}
+
 		//big table, big wikiHow page
 		global $wgHooks;
 		$wgHooks['ShowSideBar'][] = array('SpecialListFiles::removeSideBarCallback');

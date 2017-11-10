@@ -686,9 +686,13 @@ class DifferenceEngine extends ContextSource {
 		$multi = $this->getMultiNotice();
 		// Display a message when the diff is empty
 		if ( $body === '' ) {
-			$notice .= '<div class="mw-diff-empty">' .
+			// WIKIHOW - added this hook to change the notice
+			wfRunHooks('DifferenceEngineNotice', array($this, &$notice));
+			if (!$notice) {
+				$notice .= '<div class="mw-diff-empty">' .
 				$this->msg( 'diff-empty' )->parse() .
 				"</div>\n";
+			}
 		}
 
 		return $this->addHeader( $body, $otitle, $ntitle, $multi, $notice );

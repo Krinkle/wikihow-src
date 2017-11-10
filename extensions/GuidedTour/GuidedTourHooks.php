@@ -208,9 +208,16 @@ class GuidedTourHooks {
 		} 
 		$parsed['version'] = 1;
 		$parsed['tours']['rc'] = array('step' => 1);
-		$parsed['tours']['talk'] = array('step' => 1);
-		$parsed['tours']['dashboard'] = array('step' => 1);
-		setcookie( $wgCookiePrefix . self::COOKIE_NAME, FormatJson::encode($parsed), time() + $wgCookieExpiration, $wgCookiePath, $wgCookieDomain, $wgCookieSecure, false );
+		// Turning off the talk page tour for lighthouse request #881
+		//$parsed['tours']['talk'] = array('step' => 1);
+		// $parsed['tours']['dashboard'] = array('step' => 1);
+
+		// We set secureCookie to false for now because we're setting this cookie from HTTPS after
+		// account creation, but then sending the user back to HTTP by default (for now). If we
+		// move to HTTPS for all logged in users, we should change this value back to $wgCookieSecure.
+		//$secureCookie = $wgCookieSecure;
+		$secureCookie = false;
+		setcookie( $wgCookiePrefix . self::COOKIE_NAME, FormatJson::encode($parsed), time() + $wgCookieExpiration, $wgCookiePath, $wgCookieDomain, $secureCookie, false );
 
 		return true;
 	}

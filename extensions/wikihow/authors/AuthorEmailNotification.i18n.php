@@ -16,4 +16,12 @@ Please select the articles below that you would like to receive email notificati
 			'aen_cta_1' => 'Thanks again. If you like, help us out today by $1!',
 			'aen_cta_2' => 'Can you help us again today by $1?',
 			'aen_cta_3' => 'Or, come on back and help us by $1!',
+			'aen_btn_view' => 'See My Article',
+			'aen_btn_edit' => 'View Edit',
+			'aen_btn_thumb' => 'View My Edit',
+			'aen_btn_talk' => 'View My Talk Page',
+			'aen_btn_art_desc' => 'wikiHow action button that links to users article',
+			'aen_btn_diff_desc' => 'wikiHow action button that links to diffs for an article',
+			'aen_btn_talk_desc' => 'wikiHow action button that links to the users talk page.',
+			'aen_btn_default_desc' => 'wikiHow action button',
 		);

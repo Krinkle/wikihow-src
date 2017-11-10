@@ -108,7 +108,7 @@ table.wap {
 }
 
 td.urlcol {
-	width: 400px;
+	width: 280px;
 }
 
 td.tagcol {
@@ -121,6 +121,10 @@ td.actioncol {
 
 td.datecol {
 	width: 95px;
+}
+
+td.notescol {
+	width: 120px;
 }
 
 table.wap th {

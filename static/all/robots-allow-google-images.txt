@@ -3,6 +3,7 @@ User-agent: Googlebot
 Allow: /images/
 Allow: /skins/
 Allow: /extensions/min/
+Allow: /extensions/wikihow/
 Disallow: /
 Disallow: /images/samplepdfs
 Disallow: /images/sampledocs*pdf

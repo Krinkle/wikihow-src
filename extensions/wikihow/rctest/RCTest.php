@@ -16,4 +16,3 @@ function wfMarkRCTestDeleted($wikiPage) {
 
 	return true;
 }
-

@@ -28,7 +28,10 @@ $wgHooks['EmailUser'][] = 'wfFormatEmail';
 function wfFormatEmail (&$to, &$from, &$subject, &$text ) {
 	global $wgUser; 
 	$ul = $wgUser->getUserPage();
-	$text = wfMsg('email_header') . $text . wfMsg('email_footer',$wgUser->getName(), $ul->getFullURL());
+	// append the unsubscribe link.
+	// NOTE: It'd be nice to obtain the token from a user ID, but we don't really have access to one.
+	$link = UnsubscribeLink::newFromEmail( $to->address );
+	$text = wfMsg('email_header') . $text . wfMsg('email_footer',$wgUser->getName(), $ul->getFullURL(), $link->getLink());
 	return true;
 }
 

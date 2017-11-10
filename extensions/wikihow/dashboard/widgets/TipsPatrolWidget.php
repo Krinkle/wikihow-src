@@ -6,7 +6,7 @@ class TipsPatrolWidget  extends DashboardWidget {
 		parent::__construct($name);
 	}
 
-	public function getMWName(){
+	public function getMWName() {
 		return "tip";
 	}
 
@@ -15,7 +15,7 @@ class TipsPatrolWidget  extends DashboardWidget {
 	 * Provides the content in the footer of the widget
 	 * for the last contributor to this widget
 	 */
-	public function getLastContributor(&$dbr){
+	public function getLastContributor(&$dbr) {
 		$res = $dbr->select('logging', array('log_timestamp', 'log_user'), array("log_type" => "newtips"), __METHOD__, array("ORDER BY"=>"log_timestamp DESC"));
 		$row = $dbr->fetchObject($res);
 		$res->free();
@@ -28,7 +28,7 @@ class TipsPatrolWidget  extends DashboardWidget {
 	 * Provides the content in the footer of the widget
 	 * for the top contributor to this widget
 	 */
-	public function getTopContributor(&$dbr){
+	public function getTopContributor(&$dbr) {
 		
 		$startdate = strtotime("7 days ago");
 		$starttimestamp = date('YmdG',$startdate) . floor(date('i',$startdate)/10) . '00000';
@@ -44,7 +44,7 @@ class TipsPatrolWidget  extends DashboardWidget {
 	/*
 	 * Returns the start link for this widget
 	 */
-	public function getStartLink($showArrow, $widgetStatus){
+	public function getStartLink($showArrow, $widgetStatus) {
 		if($widgetStatus == DashboardWidget::WIDGET_ENABLED)
 			$link = "<a href='/Special:TipsPatrol' class='comdash-start'>Start";
 		else if($widgetStatus == DashboardWidget::WIDGET_LOGIN)
@@ -75,22 +75,18 @@ class TipsPatrolWidget  extends DashboardWidget {
 	/*
 	 * Returns the number of changes left to be patrolled.
 	 */
-	public function getCount(&$dbr){
-		$sql = "select count(*) as C from tipsandwarnings";
-		$res = $dbr->query($sql);
-
-		$row = $dbr->fetchRow($res);
-		$res->free();
-		return $row['C'];
+	public function getCount(&$dbr) {
+		$count = TipsPatrol::getCount();
+		return $count;
 	}
 
-	public function getUserCount(&$dbr){
+	public function getUserCount(&$dbr) {
 		$standings = new CategorizationStandingsIndividual();
 		$data = $standings->fetchStats();
 		return $data['week'];
 	}
 
-	public function getAverageCount(&$dbr){
+	public function getAverageCount(&$dbr) {
 		$standings = new CategorizationStandingsGroup();
 		return $standings->getStandingByIndex(self::GLOBAL_WIDGET_MEDIAN);
 	}
@@ -99,19 +95,19 @@ class TipsPatrolWidget  extends DashboardWidget {
 	 *
 	 * Gets data from the Leaderboard class for this widget
 	 */
-	public function getLeaderboardData(&$dbr, $starttimestamp){
-		$data = Leaderboard::getTipsAdded($starttimestamp);
+	public function getLeaderboardData(&$dbr, $starttimestamp) {
+		$data = LeaderboardStats::getTipsAdded($starttimestamp);
 		arsort($data);
 
 		return $data;
 
 	}
 
-	public function getLeaderboardTitle(){
+	public function getLeaderboardTitle() {
 		return $this->getTitle();
 	}
 
-	public function isAllowed($isLoggedIn, $userId=0){
+	public function isAllowed($isLoggedIn, $userId=0) {
 		if(!$isLoggedIn)
 			return false;
 		else

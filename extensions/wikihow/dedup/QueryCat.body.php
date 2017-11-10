@@ -1,5 +1,8 @@
 <?php
-require_once('dedupQuery.php');
+
+global $IP;
+require_once("$IP/extensions/wikihow/dedup/dedupQuery.php");
+
 /**
  * Find the category of queries by using Dedupping data.
  * We weight the connections of a query to articles,
@@ -55,7 +58,7 @@ class QueryCat extends UnlistedSpecialPage {
 		}
 	}
 
-	public function execute() {
+	public function execute($par) {
 		global $wgRequest, $wgOut;
         $queries = $wgRequest->getVal('queries');
 		$checkUrls = $wgRequest->getVal('checkUrls');

@@ -31,6 +31,16 @@ if ($min_documentRoot) {
 
 $min_serveOptions['minifierOptions']['text/css']['symlinks'] = $min_symlinks;
 
+/*
+ * George Bahij 02/02/15:
+ * For right-to-left languages (currently only Arabic/"ar", array updated manually),
+ * flag an option to run all CSS through CSSJanus::transform before minifying.
+ * See MediaWiki documentation on CSSJanus for more information.
+ */
+if (in_array(substr($_SERVER['SERVER_NAME'], 0, 2), array('ar'))) {
+	$min_serveOptions['minifierOptions']['text/css']['cssjanus'] = true;
+}
+
 if ($min_allowDebugFlag && isset($_GET['debug'])) {
     $min_serveOptions['debug'] = true;
 }

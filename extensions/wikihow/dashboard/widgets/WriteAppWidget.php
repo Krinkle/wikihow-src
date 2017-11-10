@@ -124,7 +124,7 @@ class WriteAppWidget extends DashboardWidget {
 	 * Gets data from the Leaderboard class for this widget
 	 */
 	public function getLeaderboardData(&$dbr, $starttimestamp){
-		$data = Leaderboard::getRequestedTopics($starttimestamp);
+		$data = LeaderboardStats::getRequestedTopics($starttimestamp);
 		arsort($data);
 
 		return $data;

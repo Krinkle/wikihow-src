@@ -3,6 +3,7 @@
 class TipsPatrol extends SpecialPage {
 
 	const TIP_EXPIRED = 1800; // 30 minutes
+	const TIP_ACTION_DEFAULT = 0;
 	const TIP_ACTION_DELETE = 1;
 	const TIP_ACTION_KEEP = 2;
 	const TIP_ACTION_SKIP = 3;
@@ -12,100 +13,101 @@ class TipsPatrol extends SpecialPage {
 
 	var $skipTool;
 
-	function __construct() {
+	public function __construct() {
 		global $wgHooks;
 		parent::__construct("TipsPatrol");
-		$wgHooks['getToolStatus'][] = array('Misc::defineAsTool');
+		$wgHooks['getToolStatus'][] = array('SpecialPagesHooks::defineAsTool');
 	}
 
-	function execute($par) {
-		global $wgOut, $wgRequest, $wgUser, $wgParser, $wgDebugToolbar;
-		$user = $this->getUser();
+	public function execute($par) {
+		global $wgDebugToolbar;
 
-		wfLoadExtensionMessages("TipsPatrol");
+		$user = $this->getUser();
+		$out = $this->getOutput();
+		$req = $this->getRequest();
 
 		if ($user->isBlocked()) {
-			$wgOut->blockedPage();
+			$out->blockedPage();
 			return;
 		}
 
 		if ($user->isAnon() || self::isBlockedFromTipsPatrol($user)) {
-			$wgOut->setRobotpolicy( 'noindex,nofollow' );
-			$wgOut->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
+			$out->setRobotpolicy( 'noindex,nofollow' );
+			$out->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
 			return;
 		}
 
 		$this->skipTool = new ToolSkip("tiptool", "tipsandwarnings", "tw_checkout", "tw_checkout_user", "tw_id");
 
-		if ($wgRequest->wasPosted()) {
-			$wgOut->disable();
+		if ($req->wasPosted()) {
+			$out->setArticleBodyOnly(true);
 			$result = array();
 			try {
 
-				$tipId = $wgRequest->getVal('tipId');
+				$tipId = $req->getVal('tipId');
 
-				if ($wgRequest->getVal('coachTip')) {
-					$tip = $wgRequest->getVal('tip');
-					$this->coachResult($tipId, $tip, &$result);
-				} elseif ($tipId != null && $wgRequest->getVal('skipTip') ) {
+				if ($req->getVal('coachTip')) {
+					$tip = $req->getVal('tip');
+					$this->coachResult($tipId, $tip, $result);
+				} elseif ($tipId != null && $req->getVal('skipTip') ) {
 					$this->logTip($tipId, self::TIP_ACTION_SKIP);
 					$this->skipTool->skipItem($tipId);
 					$this->skipTool->unUseItem($tipId);
-					WHLogFactory::getUEL()->tipsPatrolSkip($user->getId()); //TODO: Is $user->getId() correct function call
-				} elseif ($wgRequest->getVal('deleteTip')) {
-					$tip = $wgRequest->getVal('tip');
+				} elseif ($req->getVal('deleteTip')) {
+					$tip = $req->getVal('tip');
 					$this->logTip($tipId, self::TIP_ACTION_DELETE, $tip);
-					$articleId = $wgRequest->getVal('articleId');
+					$articleId = $req->getVal('articleId');
 					$this->deleteTip($tipId, $articleId, $tip);
-					WHLogFactory::getUEL()->tipsPatrolDelete($user->getId()); //TODO: Is $user->getId() correct function call
-				} elseif ($wgRequest->getVal('keepTip')) {
-					$articleId = $wgRequest->getVal('articleId');
-					$tip = $wgRequest->getVal('tip');
-					$qcId = $this->addToQG($tipId, $articleId, $tip);
-					$this->logTip($tipId, self::TIP_ACTION_KEEP, $tip, $qcId);
+					wfRunHooks('TipsPatrolled');
+				} elseif ($req->getVal('keepTip')) {
+					$articleId = $req->getVal('articleId');
+					$tip = $req->getVal('tip');
+					$this->keepTip($tipId, $articleId, $tip);
+					//$this->logTip($tipId, self::TIP_ACTION_KEEP, $tip);
+					//$qcId = $this->addToQG($tipId, $articleId, $tip);
+					//$this->logTip($tipId, self::TIP_ACTION_KEEP, $tip, $qcId);
 					$dbw = wfGetDB(DB_MASTER);
 					$dbw->delete('tipsandwarnings', array('tw_id' => $tipId));
-					WHLogFactory::getUEL()->tipsPatrolKeep($user->getId()); //TODO: Is $user->getId() correct function call
+					wfRunHooks('TipsPatrolled');
 				}
 
-				$this->getNextTip(&$result);
+				$this->getNextTip($result);
 
 				// if debug toolbark pass logs back in response
 				if ($wgDebugToolbar) {
 					$result['debug']['log'] = MWDebug::getLog();
 				}
 
-				echo json_encode($result);
+				print json_encode($result);
 
 			} catch (MWException $e) {
 				$result['error'][] = $e->getText();
-				echo json_encode($result);
+				print json_encode($result);
 				throw $e;
 			}
 
 			return;
 		}
 
-		$wgOut->setHTMLTitle(wfMessage('tipspatrol')->text());
-		$wgOut->setPageTitle(wfMessage('tipspatrol')->text());
+		$out->setHTMLTitle(wfMessage('tipspatrol')->text());
+		$out->setPageTitle(wfMessage('tipspatrol')->text());
 
-		$wgOut->addJSCode('mt');  // Mousetrap library
-		$wgOut->addCSSCode('tpc'); // Tips Patrol CSS
-		$wgOut->addScript(HtmlSnips::makeUrlTags('js', array('tipspatrol.js'), 'extensions/wikihow/tipsandwarnings'));
+		$out->addModules('ext.wikihow.UsageLogs');
+		$out->addModules('jquery.ui.dialog');
+		$out->addModules('common.mousetrap');
+		$out->addModules('ext.wikihow.tips_patrol');
 
-		if ($wgDebugToolbar) {
-			$wgOut->addScript(HtmlSnips::makeUrlTags('js', array('consoledebug.js'), 'extensions/wikihow/debug', false));
-		}
+		WikihowSkinHelper::maybeAddDebugToolbar($out);
 
 		EasyTemplate::set_path(dirname(__FILE__));
 		$vars = array();
 		$vars['tip_skip_title'] = wfMessage('tip_skip_title')->text();
 		$vars['tip_keep_title'] = wfMessage('tip_keep_title')->text();
 		$vars['tip_delete_title'] = wfMessage('tip_delete_title')->text();
-		$wgOut->addHTML(EasyTemplate::html('TipsPatrol.tmpl.php', $vars));
+		$out->addHTML(EasyTemplate::html('TipsPatrol.tmpl.php', $vars));
 		$coach = $this->getRequest()->getVal("coach");
 		// code to init the tipspatrol javascript.. doing it here lets us pass in extra variables when we init
-		$wgOut->addScript("<script>$(document).ready(function(){WH.tipsPatrol.init($coach)});</script>");
+		$out->addScript("<script>$(document).ready(function(){WH.TipsPatrol.init($coach)});</script>");
 
 		$bubbleText = "Only publish this tip if you can make it helpful, clear, and grammatically correct. Most tips should get deleted.";
 
@@ -115,38 +117,35 @@ class TipsPatrol extends SpecialPage {
 
 /*
 * tables for tips patrol coaching data
-*
-* tipspatrol_test
-* CREATE TABLE `tipspatrol_test` (
-* `tpt_id` int(8) unsigned NOT NULL AUTO_INCREMENT,
-* `tpt_tip` text collate utf8_unicode_ci,
-* `tpt_fail_message` text collate utf8_unicode_ci,
-* `tpt_success_message` text collate utf8_unicode_ci,
-* `tpt_difficulty` int(1) unsigned NOT NULL DEFAULT 0,
-* `tpt_page_id` int(8) unsigned NOT NULL,
-* `tpt_user_id` int(8) unsigned NOT NULL,
-* `tpt_answer` int(1) unsigned NOT NULL,
-* PRIMARY KEY  (`tpt_id`)
-* ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-*
-* tipspatrol_completed_test
-* CREATE TABLE `tipspatrol_completed_test` (
-* `tpc_user_id` int(8) unsigned NOT NULL,
-* `tpc_test_id` int(8) unsigned NOT NULL,
-* `tpc_score` int(1) NOT NULL,
-* `tpc_timestamp` varchar(14) collate utf8_unicode_ci NOT NULL default '',
-* KEY (`tpc_user_id`),
-* KEY `tpc_timestamp` (`tpc_timestamp`)
-* ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-*
-* tipspatrol_views
-* CREATE TABLE `tipspatrol_views` (
-* `tpv_user_id` int(8) unsigned NOT NULL,
-* `tpv_count` int(8) unsigned NOT NULL,
-* `tpv_user_blocked` BOOL NOT NULL DEFAULT 0,
-* PRIMARY KEY (`tpv_user_id`)
-* ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-*
+
+CREATE TABLE `tipspatrol_test` (
+  `tpt_id` int(8) unsigned NOT NULL AUTO_INCREMENT,
+  `tpt_tip` text collate utf8_unicode_ci,
+  `tpt_fail_message` text collate utf8_unicode_ci,
+  `tpt_success_message` text collate utf8_unicode_ci,
+  `tpt_difficulty` int(1) unsigned NOT NULL DEFAULT 0,
+  `tpt_page_id` int(8) unsigned NOT NULL,
+  `tpt_user_id` int(8) unsigned NOT NULL,
+  `tpt_answer` int(1) unsigned NOT NULL,
+  PRIMARY KEY  (`tpt_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+CREATE TABLE `tipspatrol_completed_test` (
+  `tpc_user_id` int(8) unsigned NOT NULL,
+  `tpc_test_id` int(8) unsigned NOT NULL,
+  `tpc_score` int(1) NOT NULL,
+  `tpc_timestamp` varchar(14) collate utf8_unicode_ci NOT NULL default '',
+  KEY (`tpc_user_id`),
+  KEY `tpc_timestamp` (`tpc_timestamp`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+CREATE TABLE `tipspatrol_views` (
+  `tpv_user_id` int(8) unsigned NOT NULL,
+  `tpv_count` int(8) unsigned NOT NULL,
+  `tpv_user_blocked` BOOL NOT NULL DEFAULT 0,
+  PRIMARY KEY (`tpv_user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
 */
 	private function isBlockedFromTipsPatrol($user) {
 		$dbr = wfGetDB(DB_SLAVE);
@@ -154,8 +153,8 @@ class TipsPatrol extends SpecialPage {
 		return $blocked;
 	}
 
-	private function showCoachTip($content) {
-		global $wgUser;
+	private function showCoachTip() {
+		$user = $this->getUser();
 
 		if (!self::isTPCoachEnabled()) {
 			return false;
@@ -166,12 +165,12 @@ class TipsPatrol extends SpecialPage {
 			return true;
 		}
 
-		$userGroups = $wgUser->getGroups();
+		$userGroups = $user->getGroups();
 		if (in_array('staff', $userGroups) || in_array('admin', $userGroups) || in_array('newarticlepatrol', $userGroups)) {
 			return false;
 		}
 
-		$userId = $wgUser->getID();
+		$userId = $user->getID();
 		$dbr = wfGetDB(DB_SLAVE);
 		$patrolledCount = $dbr->selectField('tipspatrol_views', 'tpv_count', 'tpv_user_id = ' . intval($userId)) ?: 0;
 
@@ -198,12 +197,13 @@ class TipsPatrol extends SpecialPage {
 			$p = 85;
 		}
 		$r = rand(1, 100);
-		if($r > $p) {
+		if ($r > $p) {
 			return true;
 		}
 		return false;
 	}
 
+/* disabled functionality - Reuben, May 2016
 	function disableTPCoach() {
 		if (!self::isTPCoachEnabled()) {
 			return;
@@ -217,18 +217,22 @@ class TipsPatrol extends SpecialPage {
 		}
 		ConfigStorage::dbStoreConfig(self::TPCOACH_ENABLED, 1);
 	}
+*/
 
-	function isTPCoachEnabled() {
-		return ConfigStorage::dbGetConfig(self::TPCOACH_ENABLED) > 0;
+	public function isTPCoachEnabled() {
+		$msg = wfMessage('tp_coach_enabled');
+		$ret = $msg->exists() && (int)$msg->text() > 0;
+		return $ret;
 	}
 
-	private function getCoachTip($content) {
-		global $wgUser, $wgOut;
+	private function getCoachTip(&$content) {
+		$user = $this->getUser();
+		$out = $this->getOutput();
 
 		$content['error'] = true;
 
 		// get a coach tip that the users hasn't seen before
-		$userId = $wgUser->getID();
+		$userId = $user->getID();
 		$where = array("tpt_id != 1 AND tpt_id NOT IN (SELECT tpc_test_id from tipspatrol_completed_test where tpc_user_id = $userId)");
 
 		$dbr = wfGetDB(DB_SLAVE);
@@ -245,9 +249,9 @@ class TipsPatrol extends SpecialPage {
 
 		$title = Title::newFromID($row->tpt_page_id);
 		$revision = Revision::newFromTitle($title);
-		$popts = $wgOut->parserOptions();
+		$popts = $out->parserOptions();
 		$popts->setTidy(true);
-		$parserOutput = $wgOut->parse($revision->getText(), $title, $popts);
+		$parserOutput = $out->parse($revision->getText(), $title, $popts);
 
 		$magic = WikihowArticleHTML::grabTheMagic($revision->getText());
 		
@@ -264,7 +268,7 @@ class TipsPatrol extends SpecialPage {
 		return true;
 	}
 
-	function setUserBlocked($userId, $block, $result) {
+	function setUserBlocked($userId, $block, &$result) {
 		$dbw = wfGetDB(DB_MASTER);
 		$dbw->update('tipspatrol_views',
 					array("tpv_user_blocked" => $block),
@@ -274,7 +278,7 @@ class TipsPatrol extends SpecialPage {
 		$result['success'] = True;
 	}
 
-	function resetUserViews($userId, $result) {
+	function resetUserViews($userId, &$result) {
 		$dbw = wfGetDB(DB_MASTER);
 
 		$dbw->update('tipspatrol_views',
@@ -296,8 +300,9 @@ class TipsPatrol extends SpecialPage {
 		$dbw->insert('tipspatrol_completed_test', $data, __METHOD__, array('IGNORE'));
 	}
 
-	private function coachResult($tipId, $tip, $content) {
-		global $wgUser, $wgRequest;
+	private function coachResult($tipId, $tip, &$content) {
+		$user = $this->getUser();
+		$req = $this->getRequest();
 
 		$dbr = wfGetDB(DB_SLAVE);
 		$where = array("tpt_id" => $tipId);
@@ -306,16 +311,16 @@ class TipsPatrol extends SpecialPage {
 		$row = $dbr->selectRow('tipspatrol_test', '*', $where, __METHOD__);
 		$answer = $row->tpt_answer;
 		$score = -1;
-		if ($wgRequest->getVal('skipTip') ) {
+		if ($req->getVal('skipTip') ) {
 			// nothing for now
-		} elseif ($wgRequest->getVal('deleteTip')) {
+		} elseif ($req->getVal('deleteTip')) {
 			if ($answer == self::TIP_ACTION_KEEP) {
 				$score = 0;
 			}
 			if ($answer == self::TIP_ACTION_DELETE) {
 				$score = 1;
 			}
-		} elseif ($wgRequest->getVal('keepTip')) {
+		} elseif ($req->getVal('keepTip')) {
 			if ($answer == self::TIP_ACTION_KEEP) {
 				$score = 1;
 			}
@@ -336,8 +341,8 @@ class TipsPatrol extends SpecialPage {
 										"fail_message"=>$row->tpt_fail_message,
 										"success_message"=>$row->tpt_success_message,
 										"difficulty"=>$row->tpt_difficulty,
-										"userName"=>$wgUser->getName());
-		$userId = $wgUser->getID();
+										"userName"=>$user->getName());
+		$userId = $user->getID();
 
 		if ($score == 0 && $answer == self::TIP_ACTION_DELETE) {
 
@@ -352,7 +357,7 @@ class TipsPatrol extends SpecialPage {
 					And remember, if you're not sure what to do, just press the \"skip\" 
 					button and you'll do fine :)\r\n
 					The Patrol Coach";
-				Misc::adminPostTalkMessage($wgUser,$from_user,$comment);
+				Misc::adminPostTalkMessage($user, $from_user, $comment);
 			}
 		}
 
@@ -364,8 +369,8 @@ class TipsPatrol extends SpecialPage {
 		$dbw->delete('tipspatrol_test', array('tpt_id' => $testId));
 	}
 
-	function addTest($tip, $page, $failMessage, $successMessage, $answer, $difficulty, $result=array()) {
-		global $wgUser;
+	function addTest($tip, $page, $failMessage, $successMessage, $answer, $difficulty, &$result=array()) {
+		$user = $this->getUser();
 
 		$t = null;
 		if (!is_numeric($page)) {
@@ -403,7 +408,7 @@ class TipsPatrol extends SpecialPage {
 
 		$data = array("tpt_tip"=> $tip,
 					"tpt_page_id"=>$pageId,
-					"tpt_user_id"=>$wgUser->getID(),
+					"tpt_user_id"=>$user->getID(),
 					"tpt_answer"=>$answerId);
 
 		if ($failMessage) {
@@ -418,71 +423,81 @@ class TipsPatrol extends SpecialPage {
 
 		$dbw = wfGetDB(DB_MASTER);
 		$dbw->insert('tipspatrol_test', $data, __METHOD__, array('IGNORE'));
-		$result['success'] = True;
+		$result['success'] = true;
 	}
 
-	private function getNextTip($content) {
-		$showCoachTip = $this->showCoachTip(&$content);
+	private function getNextTip(&$content) {
+		$showCoachTip = $this->showCoachTip();
 
 		$coachTip = null;
 		if ($showCoachTip) {
-			$coachTip = $this->getCoachTip(&$content);
+			$coachTip = $this->getCoachTip($content);
 			MWDebug::log("this will be a coach tip");
 		}
 
 		if (!$coachTip) {
-			$this->getDBTip(&$content);
+			$content = $this->getDBTip($content);
 		}
 	}
 
 	private function getDBTip($content) {
-		global $wgUser, $wgOut;
+		$out = $this->getOutput();
 
 		$dbw = wfGetDB(DB_MASTER);
 		//$dbw->query( 'SET NAMES latin1', __METHOD__ );
 		$expired = wfTimestamp(TS_MW, time() - TipsPatrol::TIP_EXPIRED);
 		$i = 0;
 		$content['error'] = true;
+		$content['lasterror'] = 'no error';
 		$goodRevision = false;
 		do {
 			$skippedIds = $this->skipTool->getSkipped();
 			$where = array();
+			$where[] = "tw_guarded = 1"; //already been through QG
 			$where[] = "tw_checkout < '$expired'";
 			$where[] = "NOT EXISTS (SELECT rc_id from recentchanges where rc_cur_id = tw_page and rc_patrolled = 0 LIMIT 1)";
-			if($skippedIds) {
+			if ($skippedIds) {
 				$where[] = "tw_id NOT IN ('" . implode("','", $skippedIds) . "')";
 			}
 			$row = $dbw->selectRow('tipsandwarnings', array('*'), $where, __METHOD__, array("LIMIT" => 1));
 			//$content['sql' . $i] = $dbw->lastQuery();
 			//$content['row'] = $row;
 
-			if($row !== false) {
+			if ($row !== false) {
 				$title = Title::newFromID($row->tw_page);
 				$isRedirect = false;
 				if ($title) {
 					$dbr = wfGetDB(DB_SLAVE);
-					$isRedirect = intval($dbr->selectField('page', 'page_is_redirect',
-						array('page_id' => $row->tw_page), __METHOD__, array("LIMIT" => 1)));
-				}
-				if($title && !$isRedirect) {
-						$this->skipTool->useItem($row->tw_id);
-						$revision = Revision::newFromTitle($title);
-						$popts = $wgOut->parserOptions();
-						$popts->setTidy(true);
-						$parserOutput = $wgOut->parse($revision->getText(), $title, $popts);
-						$magic = WikihowArticleHTML::grabTheMagic($revision->getText());
-						$content['article'] = WikihowArticleHTML::processArticleHTML($parserOutput, array('no-ads', 'ns' => NS_MAIN, 'magic-word' => $magic));
-						$content['tip'] = $row->tw_tip;
-						$content['tipId'] = $row->tw_id;
-						$content['articleId'] = $row->tw_page;
-						$content['articleTitle'] = $title->getText();
-						$content['articleUrl'] = $title->getPartialUrl();
-						$content['error'] = false;
+					$isRedirect = (int)$dbr->selectField('page', 'page_is_redirect',
+						array('page_id' => $row->tw_page), __METHOD__, array("LIMIT" => 1));
+					if ($isRedirect) {
+						$content['lasterror'] = 'title is redirect';
+					}
 				} else {
-					//article must no longer exist or be a redirect, so delete the tips associated with that article
-					$dbw = wfGetDB(DB_MASTER);
+					$content['lasterror'] = 'no title for page id: ' . $row->tw_page;
+				}
+
+				if ($title && !$isRedirect) {
+					$this->skipTool->useItem($row->tw_id);
+					$revision = Revision::newFromTitle($title);
+					$popts = $out->parserOptions();
+					$popts->setTidy(true);
+					$parserOutput = $out->parse($revision->getText(), $title, $popts);
+					$magic = WikihowArticleHTML::grabTheMagic($revision->getText());
+					$content['article'] = WikihowArticleHTML::processArticleHTML($parserOutput, array('no-ads', 'ns' => NS_MAIN, 'magic-word' => $magic));
+					$content['tip'] = $row->tw_tip;
+					$content['tipId'] = $row->tw_id;
+					$content['articleId'] = $row->tw_page;
+					$content['articleTitle'] = $title->getText();
+					$content['articleUrl'] = $title->getPartialUrl();
+					$content['error'] = false;
+				} else {
+					// article must no longer exist or be a redirect, so delete the tips associated with that article
 					$dbw->delete('tipsandwarnings', array('tw_page' => $row->tw_page));
 				}
+			} else {
+				$content['lasterror'] = 'no rows from query. skips:'
+					. ($skippedIds ? join(',', $skippedIds) : 'none. Debugging note: maybe they are all checked out? See TipsPatrol::TIP_EXPIRED.');
 			}
 			$i++;
 		// Check up to 5 titles.
@@ -495,9 +510,11 @@ class TipsPatrol extends SpecialPage {
 
 	}
 
-	private function getCount() {
+	public static function getCount() {
 		$dbr = wfGetDB(DB_SLAVE);
-		return $dbr->selectField('tipsandwarnings', 'count(*) as count');
+		// tw_guarded means it went through Quality Guardian (QG)
+		$count = $dbr->selectField('tipsandwarnings', 'COUNT(*)', array( 'tw_guarded' => '1' ), __METHOD__);
+		return $count;
 	}
 
 	// the quality guardian will delete the tip from the log.
@@ -508,13 +525,12 @@ class TipsPatrol extends SpecialPage {
 
 	// action called when a user deletes a tip from tips patrol
 	public function deleteTip($tipId = null, $articleId, $tip) {
-		global $wgUser;
-		if($tipId != null) {
+		if ($tipId != null) {
 			$dbw = wfGetDB(DB_MASTER);
 			$dbw->delete('tipsandwarnings', array('tw_id' => $tipId), __METHOD__);
 
 			$title = Title::newFromID($articleId);
-			if($title) {
+			if ($title) {
 				$logPage = new LogPage('newtips', false);
 				$logData = array();
 				$logMsg = wfMessage('newtips-rejected-logentry', $title->getFullText(), $tip)->text();
@@ -546,14 +562,14 @@ class TipsPatrol extends SpecialPage {
 	}
 
 	public function keepTip($tipId, $articleId, $tip) {
-		global $wgUser, $wgParser;
+		global $wgParser;
 
 		$title = Title::newFromID($articleId);
 
-		if($title) {
+		if ($title) {
 			$revision = Revision::newFromTitle($title);
 			$article = new Article($title);
-			if($revision && $article) {
+			if ($revision && $article) {
 				$wikitext = $revision->getText();
 				$section = Wikitext::getSection($wikitext, "Tips", true);
 
@@ -566,20 +582,26 @@ class TipsPatrol extends SpecialPage {
 				if (self::tipAlreadyAdded($tipId, $tip, $section[0])) {
 					return false;
 				}
+				
+				//make a log for this
+				$logPage = new LogPage('newtips', false);
+				$logData = array($tipId);
+				$logMsg = wfMessage('newtips-approved-logentry_tp', $title->getFullText(), $tip)->text();
+				$logS = $logPage->addEntry("Approved", $title, $logMsg, $logData);
 
 				$newSection = $section[0] . "\n* $tip";
 
 				$newText = $wgParser->replaceSection($wikitext, $section[1], $newSection);
 
 				// the save hook will log this tip being approved
-				$success = $article->doEdit($newText, wfMessage('newtips-article-edit-entry')->text());
-
+				$success = $article->doEdit($newText, wfMessage('newtips-article-edit-entry_tp')->text());
+				
 				return $success;
 			}
 		}
 	}
-	
-	private function addToQG($tipId, $articleId, $tip) {
+
+	public function addToQG($tipId, $articleId, $tip) {
 		$title = Title::newFromID($articleId);
 		if ($title) { 
 			$article = new Article($title);
@@ -588,14 +610,19 @@ class TipsPatrol extends SpecialPage {
 				$l = new QCRuleTip($article, $tipId);
 				$qcId = $l->process();	
 				
-				//log it
-				$logPage = new LogPage('newtips', false);
-				$logData = array($tipId);
-				$logMsg = wfMessage('newtips-sentToQG-logentry', $title->getFullText(), $tip)->text();
-				$logS = $logPage->addEntry("Approved", $title, $logMsg, $logData);
+				// //log it
+				// $logPage = new LogPage('newtips', false);
+				// $logData = array($tipId);
+				// $logMsg = wfMessage('newtips-sentToQG-logentry', $title->getFullText(), $tip)->text();
+				// $logS = $logPage->addEntry("Added", $title, $logMsg, $logData);
+				
+				//add to tips log table tool
+				$this->logTip($tipId, self::TIP_ACTION_DEFAULT, $tip, $qcId);
+				return true;
 			}
 		}
-		return $qcId;
+		//return $qcId;
+		return false;
 	}
 
 	function displayLeaderboards() {
@@ -608,11 +635,14 @@ class TipsPatrol extends SpecialPage {
 	}
 
 	function logTip($tipId, $tipAction, $newtip=null, $qcId = null) {
+		
 		$userId = $this->getUser()->getID();
 
 		$row = TipsPatrol::getTipRow($tipId);
 
 		if (is_array($row)) {
+			//remove guarded field
+			unset($row['tw_guarded']);
 			$row['tw_action'] = $tipAction;
 
 			if ($qcId) {
@@ -630,7 +660,7 @@ class TipsPatrol extends SpecialPage {
 			}
 
 			// only count views while tipspatrol is active
-			if (TipsPatrol::isTPCoachEnabled()) {
+			if (self::isTPCoachEnabled()) {
 				$dbw->query("INSERT INTO `tipspatrol_views` (`tpv_user_id`, `tpv_count`) VALUES ($userId, 1) ON DUPLICATE KEY UPDATE tpv_count = tpv_count + 1");
 			}
 		}
@@ -692,7 +722,7 @@ class TipsPatrol extends SpecialPage {
 
 		$badTips = array_diff($undoTipsFormatted, $prevTipsFormatted);
 		$resultTips = "== Tips ==";
-		foreach($currentTips as $currentTip) {
+		foreach ($currentTips as $currentTip) {
 			$tip = self::cleanTip($currentTip);
 			if (in_array($tip, $badTips)) {
 				continue;

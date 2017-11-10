@@ -72,13 +72,20 @@ class HtmlFormatter {
 			// Please replace with a better fix if one can be found.
 			$html = str_replace( ' <', '&#32;<', $html );
 
-			libxml_use_internal_errors( true );
+			// wikihow - altering the disabling of internal errors here
+			// so that it will remember the previous val that was set
+			// and it can be properly restored a few lines later
+			$prevVal = libxml_use_internal_errors( true );
 			$loader = libxml_disable_entity_loader();
 			$this->doc = new DOMDocument();
 			$this->doc->strictErrorChecking = false;
 			$this->doc->loadHTML( $html );
 			libxml_disable_entity_loader( $loader );
-			libxml_use_internal_errors( false );
+
+			// wikihow - setting the internal errors flag to the prev val
+			// formerly it was just setting it back to false which is bad
+			// if we really want it to be set to true globally
+			libxml_use_internal_errors( $prevVal );
 			$this->doc->encoding = 'UTF-8';
 		}
 		return $this->doc;

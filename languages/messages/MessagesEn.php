@@ -1095,12 +1095,12 @@ Note that some pages may continue to be displayed as if you were still logged in
 You can change your {{SITENAME}} [[Special:Preferences|preferences]] if you wish.',
 'yourname'                        => 'Username:',
 'userlogin-yourname'              => 'Username',
-'userlogin-yourname-ph'           => 'Enter your username',
+'userlogin-yourname-ph'           => 'Username or email',
 'createacct-another-username-ph'  => 'Enter the username',
 'createacct-helpusername'         => '', # do not translate or duplicate this message to other languages
 'yourpassword'                    => 'Password:',
 'userlogin-yourpassword'          => 'Password',
-'userlogin-yourpassword-ph'       => 'Enter your password',
+'userlogin-yourpassword-ph'       => 'Password',
 'createacct-yourpassword-ph'      => 'Enter a password',
 'yourpasswordagain'               => 'Retype password:',
 'createacct-yourpasswordagain'    => 'Confirm password',
@@ -1254,6 +1254,7 @@ Please wait $1 before trying again.',
 'suspicious-userlogout'           => 'Your request to log out was denied because it looks like it was sent by a broken browser or caching proxy.',
 'createacct-another-realname-tip' => 'Real name is optional.
 If you choose to provide it, this will be used for giving the user attribution for their work.',
+'loginor' => 'or',
 
 # Email sending
 'pear-mail-error'        => '$1', # do not translate or duplicate this message to other languages
@@ -1627,7 +1628,7 @@ The reason given by $3 is ''$2''",
 'cantcreateaccount-text' => "Account creation from this IP address (<strong>$1</strong>) has been blocked by [[User:$3|$3]].
 
 The reason given by $3 is <em>$2</em>",
-'createaccount-hook-aborted' => '<h4>Error</h4>The name is too similar to an existing account.',
+'createaccount-hook-aborted' => 'The name is too similar to an existing account.',
 
 # History pages
 'viewpagelogs'           => 'View logs for this page',
@@ -5508,8 +5509,6 @@ This page may be difficult to navigate, given wikiHow\'s numerous categories.  \
 'category-media-header' => 'Media in category "$1"',
 'category_header' => 'How to articles in category "$1"',
 'categoryarticlecount' => 'There {{PLURAL:$1|is one article|are $1 articles}} in this category.',
-'categoryhelper_javascript' => 'Your browser does not have Javascript enabled. To properly categorize an article, you will need a browser that has enabled Javascript.',
-'categoryhelper_summarymsg' => 'categorizing',
 'categorypage' => 'View category page',
 'catseparator' => '>',
 'changed' => 'changed',
@@ -5544,7 +5543,7 @@ This page may be difficult to navigate, given wikiHow\'s numerous categories.  \
 'cite_error_6' => 'Invalid <code>&lt;references&gt;</code> tag; no parameters are allowed, use <code>&lt;references /&gt;</code>',
 'cite_error_7' => 'Ran out of custom backlink labels, define more in the "\'\'cite_references_link_many_format_backlink_labels\'\'" message',
 'cite_error_8' => 'No text given.',
-'cite_reference_link' => '<sup id="$1" class="reference">[[#$2|<nowiki>[</nowiki>$3<nowiki>]</nowiki>]]</sup>',
+'cite_reference_link' => '<sup id="$1" class="reference" aria-label="$4">[[#$2|<nowiki>[</nowiki>$3<nowiki>]</nowiki>]]</sup>',
 'cite_reference_link_key_with_num' => '$1_$2',
 'cite_reference_link_prefix' => '_ref-',
 'cite_reference_link_suffix' => '',
@@ -5662,6 +5661,8 @@ Article pages are deleted according to wikiHow\'s [[deletion policy]].  Please c
 'contributionscount' => '(user\'s  name) has made (number) contributions. ',
 'contributionswarnings' => 'Please note that all contributions to WikiHow may be edited, altered, or removed by other contributors. If you don\'t want your writing to be edited mercilessly, then don\'t submit it here.',
 'contributors' => 'Contributors',
+'cookie_notice_message' => 'Cookies make wikiHow better. By continuing to use our site, you agree to our <a href="$1" target="_blank">cookie policy</a>.',
+'adblock_notice_message' => 'Can you please put wikiHow on the whitelist for your ad blocker?  wikiHow relies on ad money to give you our free how-to guides.  <a href="$1">Learn how</a>.',
 'copyright' => 'Content is available under $1.',
 'copyrightpage' => 'Project:Copyrights',
 'copyrightpagename' => '{{SITENAME}} copyright',
@@ -6312,6 +6313,8 @@ Warning: The page you are about to delete has an edit history. Make sure that yo
 <br/><br/>',
 'home' => 'Home',
 'howto' => 'How to $1',
+'howto2' => 'wikiHow to $1',
+'hp-surpriseme' => 'Surprise Me!',
 'hr_tip' => 'Horizontal line (use sparingly)',
 'ifcreatenewaccount' => 'If you don\'t already have an account, create a new account here:',
 'ignoreallwarnings' => 'Ignore <b>all warnings</b> and save the files anyway.',
@@ -7403,6 +7406,7 @@ We can always use new [[wikiHow:Recent Changes Patrollers|RC patrollers]]!  If y
 'relatedarticle_error_loading' => 'Error: The tool was unable to load the related articles for this article (is there an h2 tag in the article?). ',
 'relatedarticlestext' => 'Related wikiHow articles&nbsp;',
 'relatedwikihows' => 'Related wikiHows',
+'otherwikihows' => 'Other wikiHows',
 'rememberme' => 'Remember me',
 'remembermypassword' => 'Remember me on this computer',
 'remove' => 'Remove',
@@ -7608,7 +7612,6 @@ You may enter a user name (\'\'not\'\' real name) to view user rights changes ma
 'selectcategory' => 'Select a category...',
 'selectnewerversionfordiff' => 'Select a newer version for comparison',
 'selectolderversionfordiff' => 'Select an older version for comparison',
-'selectsubcategory' => 'Select a subcategory...',
 'selfmove' => 'Unable to move page; source and destination titles are the same.',
 'semiprotectedpagewarning' => '\'\'\'Note:\'\'\' This page has been protected so that only registered users can edit it.  Unless you are [[Special:Userlogin|logged in]], you will not be able to save any changes to this page.',
 'sendthisrequest' => 'Send This Request to a Friend',
@@ -8114,6 +8117,8 @@ rect 1 1 279 141   [[wikiHow:Tour|Click here to take the tour.]]
 desc none
 </imagemap>
 </div>',
+'wh_search_ph' => 'wikiHow to ...',
+'wh_search_line_ph' => 'to do anything...',
 'whatlinkshere' => 'What Links Here',
 'whatlinkshere-barrow' => '←',
 'whatlinkshere-summary' => '',
@@ -8209,6 +8214,11 @@ To include your video in an article on the wiki, insert the following code into 
 'navmenu_tipspatrol' => 'Patrol Tips',
 'input-month'	=> 'Month',
 'input-year'	=> 'Year',
+// Special:AritcleAuthors
+'edited_by_multiple' => '$1 Editors',
+'edited_by_one' => '$1 Editor',
+// Special:PasswordReset
+'passwordreset-username' => 'Username',
 // Special:Log
 'speciallogtitlelabel' => 'Title',
 'specialloguserlabel' => 'User',
@@ -8218,6 +8228,8 @@ To include your video in an article on the wiki, insert the following code into 
 'notifications_newtalk_mult' => 'You have $1 new talk messages.',
 'notifications_newkudos_one' => 'You have $1 new piece of fan mail.',
 'notifications_newkudos_mult' => 'You have $1 new pieces of fan mail.',
+// Mobile Category Pages
+'cat_all_articles' => 'All Articles',
 //editing
 'advanced_editing_link' => 'Switch to Advanced Editing',
 'guided_editing_link' => 'Switch to Guided Editing',
@@ -8225,7 +8237,9 @@ To include your video in an article on the wiki, insert the following code into 
 'templatesused' => 'Templates Used',
 'summary' => 'Edit Summary',
 'hp_tag' => "We're trying to help everyone on the planet<br />learn how to do anything. Join us.",
-'log_in_via' => 'Log in via',
+'log_in_via' => 'Log in with',
+'sign_up_with' => 'Sign up with',
+'or_create_an_account' => 'Create an account',
 'remember_me' => 'Remember me',
 'forgot_pwd' => 'Forgot password?',
 'site_footer_owl' => '
@@ -8257,9 +8271,11 @@ To include your video in an article on the wiki, insert the following code into 
 'part_3' => 'Parts',
 'part_2' => 'Part $1 of $2: $3',
 'part_1' => 'Part $1 of $2',
+'part' => 'Part',
 'method_3' => 'Methods',
 'method_2' => 'Method $1 of $2: $3',
 'method_1' => 'Method $1 of $2',
+'method' => 'Method',
 'recentchanges-legend'  => '',
 'text_view' => 'View as Text',
 'image_view' => 'View as Images',
@@ -8270,7 +8286,7 @@ To include your video in an article on the wiki, insert the following code into 
 'main_page_worldwide_new' => <<<'EOS'
 <h3>wikiHow Worldwide</h3>
 <div id="worldwide">
- <div id="globe" style="float:right">
+ <div id="globe">
 	  <img src="$1/skins/WikiHow/images/worldWide_globe.png" alt="wikiHow Worldwide" />
 </div>
 <div id="languages">
@@ -8282,8 +8298,33 @@ To include your video in an article on the wiki, insert the following code into 
 EOS
 ,
 'browsecategories' => 'Browse Categories',
+'category_title_tag_paginated' => '$1 (Page $2) - how to articles from wikiHow',
 'editsection-brackets'         => '$1', # only translate this message to other languages if you have to change it
+'auto_delete_reason'  => 'new article cleanup',
+'my_recent_activity' => 'My Recent Activity',
+'admin_promote' => "Promote",
+'admin_demote' => "Demote",
+'nab_demote_remove' => 'Removed demote category automatically via article promotion',
 
+'aria_header' => 'Header navigation',
+'aria_facebook_login' => 'Log in with Facebook',
+'aria_google_login' => 'Log in with Google',
+'aria_search' => 'Search here',
+'aria_breadcrumbs' => 'Category breadcrumbs',
+'aria_reference' => 'Link to Reference $1',
+'aria_step_n' => 'Step $1',
+'aria_image' => 'Image titled $1',
+'aria_edit_section' => 'Link to edit section $1',
+'aria_upload_image' => 'Link to choose an image to upload',
+'aria_thumbs_up' => 'Thumbs up to this',
+'aria_thumbs_down' => 'Thumbs down to this',
+'aria_add_tip' => 'Add a tip to this article',
+'aria_catguard_category' => 'wikiHow category',
+'aria_catguard_article' => 'Article titled',
+'aria_catguard_article_see_details' => 'See details.',
+'aria_catguard_accept' => 'Vote yes, article belongs in category',
+'aria_catguard_reject' => 'Vote no, article does not belong in category',
+'step_anchor' => 'step_$1_$2',
 );
 
 $messages = array_merge($messages, $messagesWH);
@@ -8292,7 +8333,9 @@ $namespaceNames[NS_IMAGE]	     = 'Image';
 $namespaceNames[NS_FILE_TALK]	     = 'Image_talk';
 
 $magicWordsWH = array(
-	'forceadv'	=> array( 0,	  '__FORCEADV__')
+	'forceadv'	=> array( 0,	  '__FORCEADV__'),
+	'img_tall' => array( 1, 'tall' ),
+	'img_techicon' => array( 1, 'techicon'),
 );
 $magicWords = array_merge($magicWords, $magicWordsWH);
 

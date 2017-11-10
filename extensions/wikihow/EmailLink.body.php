@@ -2,8 +2,6 @@
 
 class EmailLink extends SpecialPage {
 
-	var $stylelink = "/extensions/wikihow/common/jquery-ui-themes/jquery-ui.css";
-
 	function __construct() {
 		parent::__construct( 'EmailLink' );
 	}
@@ -11,6 +9,7 @@ class EmailLink extends SpecialPage {
 	function reject() {
 		global $wgOut, $wgUser;
 		$dbw = wfGetDB(DB_MASTER);
+		$dbw->selectDB('whdata');
 		$dbw->insert('rejected_email_links',
 			array(
 				'rel_text' => "REJECTED\nuserid: " . $wgUser->getID() . "\n"
@@ -18,13 +17,13 @@ class EmailLink extends SpecialPage {
 				. wfGetIP() . "\n" . print_r($_POST, true)
 			),
 			__METHOD__);
+		$dbw->selectDB(WH_DATABASE_NAME);
 		//be coy
 		$this->thanks();
 	}
 
 	function thanks() {
 		global $wgOut, $wgRequest;
-		$wgOut->addHTML("<link type='text/css' rel='stylesheet' href='".wfGetPad('/extensions/wikihow/common/jquery-ui-themes/jquery-ui.css?rev='. WH_SITEREV)."' />");
 		$wgOut->addHTML("<br/><br/>".wfMsg('thank-you-sending-article')."<br/><br/>");
 		if (!$wgRequest->getVal('fromajax')) {
 			$wgOut->returnToMain( false );
@@ -52,15 +51,12 @@ class EmailLink extends SpecialPage {
 		global $wgUser, $wgOut, $wgLang, $wgTitle, $wgMemc, $wgDBname, $wgScriptPath;
 		global $wgRequest, $wgSitename, $wgLanguageCode;
 		global $wgScript;
-		$fname = "wfSpecialEmailLink";
 
 		if ($wgRequest->getVal('fromajax')) {
 			$wgOut->setArticleBodyOnly(true);
 		}
 
 		$this->setHeaders();
-		$me = Title::makeTitle(NS_SPECIAL, "EmailLink");
-		$action = $me->getFullURL();
 
 		$fc = new FancyCaptcha();
 		$pass_captcha = true;
@@ -73,9 +69,6 @@ class EmailLink extends SpecialPage {
 			$recipient1 	= $wgRequest->getVal('recipient1');
 			$recipient2 	= $wgRequest->getVal('recipient2');
 			$recipient3 	= $wgRequest->getVal('recipient3');
-			if(preg_match("@kittens683\@aol.com@",$recipient1) || preg_match("@kittens683\@aol.com@",$recipient2) || preg_match("@kittens683\@aol.com@",$recipient3)) {
-				return;
-			}
 			$message 		= $wgRequest->getVal('message');
 		}
 
@@ -90,11 +83,8 @@ class EmailLink extends SpecialPage {
 					wfDebug( "User can't send without verification.\n" );
 					$wgOut->showErrorPage( "mailnologin", "mailnotverified" );
 				}
-				$wgOut->addHTML("<link type='text/css' rel='stylesheet' href='".wfGetPad($this->stylelink.'?rev='. WH_SITEREV)."' />");
 				return;
-
 			}
-
 
 			$titleKey = isset( $par ) ? $par : $wgRequest->getVal( 'target' );
 
@@ -112,10 +102,9 @@ class EmailLink extends SpecialPage {
 				$titleKey = $titleObj->getDBKey();
 			}
 
-			$articleObj = new Article($titleObj);
 			$subject = $titleObj->getText();
 			$titleText = $titleObj->getText();
-			if (WikihowArticleEditor::articleIsWikiHow($articleObj)) {
+			if (WikihowArticleEditor::articleIsWikiHow($wikiPage)) {
 				$subject = wfMsg('howto', $subject);
 				$titleText = wfMsg('howto',$titleText);
 			}
@@ -125,17 +114,13 @@ class EmailLink extends SpecialPage {
 
 			// add the form HTML
 			$article_title = wfMsg('article').":";
-			if ($titleObj->getNamespace() == NS_ARTICLE_REQUEST) {
+			if ($titleObj->inNamespace(NS_ARTICLE_REQUEST)) {
 				$wgOut->addHTML ( "<br/><br/>".wfMsg('know-someone-answer-topic-request') );
 				$article_title = wfMsg('topic-requested').":";
 			}
 
-			if ($titleObj->getNamespace() != NS_MAIN
-				&& $titleObj->getNamespace() != NS_ARTICLE_REQUEST
-				&& $titleObj->getNamespace() != NS_PROJECT)
-			{
+			if ( !$titleObj->inNamespaces(NS_MAIN, NS_ARTICLE_REQUEST) ) {
 				$wgOut->showErrorPage('emaillink', 'emaillink_invalidpage');
-				$wgOut->addHTML("<link type='text/css' rel='stylesheet' href='".wfGetPad($this->stylelink.'?rev='. WH_SITEREV)."' />");
 				return;
 			}
 
@@ -146,8 +131,7 @@ class EmailLink extends SpecialPage {
 			$titleKey = urlencode($titleKey);
 			$token = $this->getToken1();
 			$wgOut->addHTML ( "
-<link type='text/css' rel='stylesheet' href='".wfGetPad($this->stylelink.'?rev='.WH_SITEREV)."' />
-<form id=\"emaillink\" method=\"post\" action=\"{$action}\">
+<form id=\"emaillink\" method=\"post\">
 <input type=\"hidden\" name=\"target\" value=\"$titleKey\">
 <input type=\"hidden\" name=\"token\" value=\"$token\">
 <table border=\"0\">
@@ -216,8 +200,6 @@ class EmailLink extends SpecialPage {
 
 			if ( $wgUser->pingLimiter('emailfriend') ) {
 				$wgOut->rateLimited();
-				wfProfileOut( "$fname-checks" );
-				wfProfileOut( $fname );
 				return false;
 			}
 
@@ -260,39 +242,30 @@ class EmailLink extends SpecialPage {
 			}
 			$dbkey = $titleObj->getDBKey();
 
-			$articleObj = new Article($titleObj);
+			$wikiPage = WikiPage::factory($titleObj);
 			$subject = $titleObj->getText();
 			$how_to = $subject;
-			if (WikihowArticleEditor::articleIsWikiHow($articleObj)) {
+			if (WikihowArticleEditor::articleIsWikiHow($wikiPage)) {
 				$subject = wfMsg("howto", $subject);
 			}
 			$how_to = $subject;
 			if ($titleObj->getNamespace() == NS_ARTICLE_REQUEST) {
 				$subject = wfMsg('subject-requested-howto').": ".wfMsg("howto", $subject);
-			} else if ($titleObj->getNamespace() == NS_PROJECT) {
-				$subject = wfMsg('friend-sends-article-email-africa-subject');
 			} else {
 				$subject = wfMsg('wikihow-article-subject',$subject);
 			}
-			if ($titleObj->getNamespace() != NS_MAIN
-				&& $titleObj->getNamespace() != NS_ARTICLE_REQUEST
-				&& $titleObj->getNamespace() != NS_PROJECT)
-			{
+			if ( !$titleObj->inNamespaces(NS_MAIN, NS_ARTICLE_REQUEST) ) {
 				$wgOut->showErrorPage('emaillink', 'emaillink_invalidpage');
-				$wgOut->addHTML("<link type='text/css' rel='stylesheet' href='".wfGetPad($this->stylelink.'?rev='. WH_SITEREV)."' />");
 				return;
 			}
 
 			// for the body of the email
 			$titleText = $titleObj->getText();
 			if ($titleText != wfMsg('mainpage')) {
-				$summary = Article::getSection($articleObj->getContent(true), 0);
-				// trip out all MW and HTML tags
-				$summary = ereg_replace("<.*>", "", $summary);
-				$summary = ereg_replace("\[\[.*\]\]", "", $summary);
-				$summary = ereg_replace("\{\{.*\}\}", "", $summary);
+				$summary = Article::getSection($wikiPage->getText(), 0);
+				$summary = Wikitext::flatten($summary);
 			}
-			$url = $titleObj->getFullURL();
+			$url = $titleObj->getCanonicalURL();
 
 			$from_name = "";
 			$validEmail = "";
@@ -335,22 +308,18 @@ class EmailLink extends SpecialPage {
 			$num_recipients = 0;
 			if ($recipient1 != "") {
 				$num_recipients++;
-				$x = split(";", $recipient1);
+				$x = explode(";", $recipient1);
 				$r_array[] = $x[0];
 			}
 			if ($recipient2 != "") {
 				$num_recipients++;
-				$x = split(";", $recipient2);
+				$x = explode(";", $recipient2);
 				$r_array[] = $x[0];
 			}
 			if ($recipient3 != "") {
 				$num_recipients++;
-				$x = split(";", $recipient3);
+				$x = explode(";", $recipient3);
 				$r_array[] = $x[0];
-			}
-
-			if ($titleObj->getNamespace() == NS_PROJECT) {
-				$r_array[] = 'elizabethwikihowtest@gmail.com';
 			}
 
 			if ($validEmail != "" && !in_array($validEmail, $r_array)) {
@@ -358,7 +327,7 @@ class EmailLink extends SpecialPage {
 				$r_array[] = $validEmail;
 			}
 
-			if ($titleObj->getNamespace() == NS_ARTICLE_REQUEST) {
+			if ($titleObj->inNamespace(NS_ARTICLE_REQUEST)) {
 				$body = "$message
 
 ----------------
@@ -377,7 +346,7 @@ class EmailLink extends SpecialPage {
 	".wfMsg('friend-sends-article-email-main-page')."
 
 	";
-			}else if ($titleObj->getNamespace() == NS_PROJECT) {
+			} elseif ($titleObj->inNamespace(NS_PROJECT)) {
 				$body = "$message";
 			} else {
 				$body = "$message
@@ -397,7 +366,11 @@ class EmailLink extends SpecialPage {
 				if ($address == $validEmail) {
 					$sbody = wfMsg('copy-email-from-yourself') . "\n\n" . $sbody;
 				}
-                if (!UserMailer::send($to, $from, $subject, $sbody, false)) {
+				
+				$link = UnsubscribeLink::newFromEmail( $address );
+				$sbody .= "\n\n" . wfMessage( 'unsubscribe-anon', $link->getLink() )->inContentLanguage()->plain();
+				
+                if (!UserMailer::send($to, $from, $subject, $sbody, null, null, "share_friend")) {
                         //echo "got an en error\n";
                 };
 

@@ -436,6 +436,9 @@ class EditPage {
 		# checking, etc.
 		if ( 'initial' == $this->formtype || $this->firsttime ) {
 			if ( $this->initialiseForm() === false ) {
+				// Reuben (wikiHow), Nov 6, 2014: Set the http code to 404 if the
+				// section they want to edit doesn't exist
+				RequestContext::getMain()->getOutput()->setStatusCode('404');
 				$this->noSuchSectionPage();
 				wfProfileOut( __METHOD__ . "-business-end" );
 				wfProfileOut( __METHOD__ );
@@ -1206,8 +1209,6 @@ class EditPage {
 	 * marked HttpOnly. The JavaScript code converts the cookie to a wgPostEdit config
 	 * variable.
 	 *
-	 * We use a path of '/' since wgCookiePath is not exposed to JS
-	 *
 	 * If the variable were set on the server, it would be cached, which is unwanted
 	 * since the post-edit state should only apply to the load right after the save.
 	 */
@@ -1217,7 +1218,6 @@ class EditPage {
 
 		$response = RequestContext::getMain()->getRequest()->response();
 		$response->setcookie( $postEditKey, '1', time() + self::POST_EDIT_COOKIE_DURATION, array(
-			'path' => '/',
 			'httpOnly' => false,
 		) );
 	}
@@ -1277,7 +1277,9 @@ class EditPage {
 				return true;
 
 			case self::AS_SUCCESS_NEW_ARTICLE:
-				$query = $resultDetails['redirect'] ? 'redirect=no' : '';
+				// $query = $resultDetails['redirect'] ? 'redirect=no' : '';
+				//XXCHANGEDXX - adding new=1 to the querystring for new articles [sc]
+				$query = $resultDetails['redirect'] ? 'redirect=no&new=1' : 'new=1';
 				$anchor = isset( $resultDetails['sectionanchor'] ) ? $resultDetails['sectionanchor'] : '';
 				$wgOut->redirect( $this->mTitle->getFullURL( $query ) . $anchor );
 				return false;
@@ -2798,7 +2800,7 @@ HTML
 
 		if ( $this->formtype == 'diff' ) {
 			try {
-				$wgOut->addCSScode('diffc');
+				$wgOut->addModules('ext.wikihow.diff_styles');
 				$this->showDiff();
 			} catch ( MWContentSerializationException $ex ) {
 				$msg = wfMessage( 'content-failed-to-parse', $this->contentModel, $this->contentFormat, $ex->getMessage() );
@@ -3014,7 +3016,10 @@ HTML
 		return $limitReport;
 	}
 
-	protected function showStandardInputs( &$tabindex = 2 ) {
+	// Reuben, wikiHow (May 24, 2017): Fix bug #1970, by changing default tabindex
+	// order. This affects the checkboxes, so that their order is lower in the page
+	// than the save summary.
+	protected function showStandardInputs( &$tabindex = 4 ) {
 		global $wgOut;
 		$wgOut->addHTML( "<div class='editOptions'>\n" );
 
@@ -3034,8 +3039,8 @@ HTML
 
 		$wgOut->addHTML( "<div class='editButtons'>\n" );
 
-		// JRS 1/15/14 requires csjs for weave links button
-		$wgOut->addJSCode('csjs');
+		// JRS 1/15/14 requires editor_script.js for weave links button
+		$wgOut->addModules('ext.wikihow.editor_script');
 
 		// JRS 12/2/13 reordering buttons to match redesign
 		$cancel = $this->getCancelLink();

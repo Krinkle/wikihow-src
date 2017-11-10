@@ -8,6 +8,8 @@ class Alfredo extends UnlistedSpecialPage {
 	private $langs;
 	private $error;
 
+	const ALFREDO_API_ENDPOINT = "https://alfredo.wikiknowhow.com/Special:Alfredo";
+
 	// Used to store results of batch fetching pages from other sites
 	private static $pageCache=array();
 
@@ -17,7 +19,7 @@ class Alfredo extends UnlistedSpecialPage {
 	}
 
 	/**
-	 * Show the HTML template for adding images to URLs 
+	 * Show the HTML template for adding images to URLs
 	 */
 	private function showTemplate() {
 		global $wgOut, $wgActiveLangs;
@@ -25,30 +27,36 @@ class Alfredo extends UnlistedSpecialPage {
 		EasyTemplate::set_path( dirname(__FILE__) );
 		$tmpl = EasyTemplate::html("Alfredo.tmpl.php", array('langs'=>$this->langs));
 
-		$wgOut->addScript(HtmlSnips::makeUrlTags('js', array('download.jQuery.js'), 'extensions/wikihow/common', false));
+		$wgOut->addScript(HtmlSnips::makeUrlTag('/extensions/wikihow/common/download.jQuery.js'));
 		$wgOut->addHTML($tmpl);
 	}
 
 	/**
-	 * Get the protocol and host of API 
+	 * Get the protocol and host of API
 	 * @param lang Language of the host
 	 * @return Hash-array with protocol and host to connect to for API
 	 */
 	public static function getAPIInfo($lang) {
 		global $wgServer;
-		if(!preg_match("@([^:]+)://([^.]{3}.+)@",$wgServer,$matches)) {
+		$useConstants = !preg_match("@(([^:]+):)?//([^.]{3}.+)@",$wgServer,$matches);
+		if (!$useConstants) {
+			$pos = strpos($wgServer, '//');
+			$domain = $pos === false ? $wgServer : substr($wgServer, $pos + 2);
+			$useConstants = in_array($domain, wfGetAllCanonicalDomains());
+		}
+		if ($useConstants) {
 			if(!defined('WH_API_HOST') || !defined('WH_API_PROTOCOL')) {
-				throw new Exception("WH_API_HOST and WH_API_PROTOCOL must be defined to fetch Alfredo pages from the command line or non-English site");	
+				throw new Exception("WH_API_HOST and WH_API_PROTOCOL must be defined to fetch Alfredo pages from the command line or non-English site");
 			}
 			$host = WH_API_HOST;
 			$protocol = WH_API_PROTOCOL;
 		}
 		else {
-			$host = $matches[2];
-			$protocol = $matches[1];
+			$host = $matches[3];
+			$protocol = $matches[2];
 		}
 		if($lang != 'en') {
-			$host = $lang . '.' . $host;	
+			$host = $lang . '.' . $host;
 		}
 		return(array('protocol'=>$protocol, 'host'=>$host));
 	}
@@ -61,7 +69,7 @@ class Alfredo extends UnlistedSpecialPage {
 	 */
 	public static function batchFetchPages($lang, $pageIds) {
 		$ai = self::getAPIInfo($lang);
-		$url = $ai['protocol'] . '://localhost/Special:Alfredo';
+		$url = self::ALFREDO_API_ENDPOINT;
 		$headers = array();
 		$headers[] = "Host: " . $ai['host'];
 
@@ -71,15 +79,24 @@ class Alfredo extends UnlistedSpecialPage {
 		curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 		curl_setopt($ch, CURLOPT_POSTFIELDS, array("api"=>1,"articleIds"=>implode(",",$pageIds), "auth"=>WH_DEV_ACCESS_AUTH));
 		curl_setopt($ch, CURLOPT_USERPWD, WH_DEV_ACCESS_AUTH);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		$text = curl_exec($ch);
+		if (curl_errno($ch)) {
+			die( "error from $url: " . curl_error($ch) );
+		}
 		curl_close($ch);
-		
+
 		$json = json_decode($text, true);
-		foreach($json as $id=>$page) {
-			self::$pageCache[$lang][$id] = $page;
+		if (!$json) {
+			//die( "error from $url: empty response from local API" );
+			//exit;
+		}
+		if ($json) {
+			foreach($json as $id=>$page) {
+				self::$pageCache[$lang][$id] = $page;
+			}
 		}
 
 		return($json);
@@ -88,16 +105,16 @@ class Alfredo extends UnlistedSpecialPage {
 
   /**
    * Get steps info about a page utilizing caching
-	 * @param lang Language code of site 
+	 * @param lang Language code of site
 	 * @param pageId Id of the page
 	 * @return array with 'steps',  hash of page text, and image tag
 	 */
 	public static function fetchPage($lang,$pageId) {
-		if(isset(self::$pageCache[$lang][$pageId])) { 
-			return(self::$pageCache[$lang][$pageId]);	
+		if(isset(self::$pageCache[$lang][$pageId])) {
+			return(self::$pageCache[$lang][$pageId]);
 		}
 		$ai = self::getAPIInfo($lang);
-		$url = $ai['protocol'] . '://localhost/Special:Alfredo';
+		$url = self::ALFREDO_API_ENDPOINT;
 		$headers = array();
 		$headers[] = "Host: " . $ai['host'];
 
@@ -112,16 +129,16 @@ class Alfredo extends UnlistedSpecialPage {
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		$text = curl_exec($ch);
 		curl_close($ch);
-		
+
 		$json = json_decode($text, true);
 		self::$pageCache[$lang][$pageId] = $json[$pageId];
 
 		return($json[$pageId]);
 	}
-	
+
 	/**
-	 * Add images to translation table for automatically adding to 
-	 * translated pages 
+	 * Add images to translation table for automatically adding to
+	 * translated pages
 	 */
 	private function addImage($pageId, $toLang, $toAID) {
 		global $wgUser;
@@ -134,9 +151,9 @@ class Alfredo extends UnlistedSpecialPage {
 		$it->creator = $wgUser->getName();
 		$it->timeStarted = wfTimestampNow();
 
-		$it->insert(); 
+		$it->insert();
 	}
-	
+
 	/**
 	  * Add a bunch of URLs to the database for adding their images to various languages
 		* @param urls New-line seperated list of URLs or Article ids from POST
@@ -145,15 +162,15 @@ class Alfredo extends UnlistedSpecialPage {
 	private function addImages($urls, $langs) {
 		$urls = preg_split("@[\r\n]+@",Misc::getUrlDecodedData($urls));
 		$langs = preg_split("@,@",urldecode($langs));
-		
+
 		$realUrls = array();
 		$langIds = array();
 		foreach($urls as $url) {
 			if(is_numeric($url)) {
-				$langIds[] = array("lang"=>"en","id"=>$url);	
+				$langIds[] = array("lang"=>"en","id"=>$url);
 			}
 			else {
-				$realUrls[] = $url;	
+				$realUrls[] = $url;
 			}
 		}
 		$pagesA = Misc::getPagesFromURLs($realUrls, array('page_id', 'page_title'));
@@ -172,15 +189,15 @@ class Alfredo extends UnlistedSpecialPage {
 
 		$pagesB = Misc::getPagesFromLangIds($langIds, array('page_id','page_title'));
 		$pages = array_merge($pagesA, $pagesB);
-		
-		$fromIDs = array();	
+
+		$fromIDs = array();
 		$urlLookup = array();
 		foreach($pages as $page) {
 			$fromIDs[] = $page['page_id'];
 			$urlLookup[$page['page_id']] = Misc::getLangBaseURL('en') . '/' . $page['page_title'];
 		}
 		if(sizeof($fromIDs) == 0) {
-			return(array());	
+			return(array());
 		}
 		// Fetch to cache the pages for later use in addImage
 		$this->batchFetchPages("en", $fromIDs);
@@ -189,7 +206,7 @@ class Alfredo extends UnlistedSpecialPage {
 		foreach($langs as $lang) {
 			$langTLs[$lang] = TranslationLink::getLinks("en",$lang,array("tl_from_aid in (" . implode(',', $fromIDs) . ")"));
 			$newFromIds = array_map( function($m) {
-				return($m->fromAID);	
+				return($m->fromAID);
 			},$langTLs[$lang]);
 			foreach($fromIDs as $id) {
 				//Add error links
@@ -205,7 +222,7 @@ class Alfredo extends UnlistedSpecialPage {
 			// Cache the other language pages too in a batch
 			$langIds = array();
 			foreach($langTLs[$lang] as $tl) {
-					$langIds[] = $tls->toAID;	
+					$langIds[] = $tls->toAID;
 			}
 			$this->batchFetchPages($lang, $langIds);
 		}
@@ -215,23 +232,23 @@ class Alfredo extends UnlistedSpecialPage {
 					$results[] = array('fromURL' => $tl->fromURL, 'toURL'=> $tl->toURL, 'status' => 'Queued');
 				}
 				else {
-						$results[] = array('fromURL' => $tl->fromURL, 'toURL'=> $tl->toURL, 'status' => 'Failed to queue');	
+						$results[] = array('fromURL' => $tl->fromURL, 'toURL'=> $tl->toURL, 'status' => 'Failed to queue');
 				}
 			}
 		}
 		return($results);
 	}
 	/**
-	 * Handle API calls to get the steps from an article 
+	 * Handle API calls to get the steps from an article
 	 */
 	private function doAPI() {
 		global $wgRequest, $wgOut, $wgContLang;
-		$articleIds = $wgRequest->getVal("articleIds");	
+		$articleIds = $wgRequest->getVal("articleIds");
 		$articleIds = preg_split("@,@", $articleIds);
 
 		$dbr = wfGetDB(DB_SLAVE);
 		$wgOut->setArticleBodyOnly(true);
-	
+
 		$articles = array();
 		foreach($articleIds as $articleId) {
 			if(is_numeric($articleId)) {
@@ -245,7 +262,7 @@ class Alfredo extends UnlistedSpecialPage {
 
 					// We remove extra lines technically in the 'steps' section, but which don't actually contain steps
 					// Find the last line starting with a '#'
-					$lastLine = 0;	
+					$lastLine = 0;
 					$n = 0;
 					foreach($lines as $line) {
 						if($line[0] == '#') {
@@ -258,10 +275,10 @@ class Alfredo extends UnlistedSpecialPage {
 					$n = 0;
 					foreach($lines as $line) {
 						if($n > $lastLine) {
-							break;	
+							break;
 						}
 						if($n != 0) {
-							$text .= "\n";	
+							$text .= "\n";
 						}
 						$text .= $line;
 						$n++;
@@ -276,19 +293,24 @@ class Alfredo extends UnlistedSpecialPage {
 		}
 		$wgOut->addHTML(json_encode($articles));
 	}
-	
+
 	/**
 	 * Format URL for link
 	 */
 	static private function partialURLEncode($url) {
-		if(preg_match("@http://([^.]+)\.wikihow\.com/(.+)@",$url,$matches)) {
-			return("http://" . $matches[1] . ".wikihow.com/" . urlencode(urldecode($matches[2])));
+		$domainRegex = wfGetDomainRegex(
+			false, // mobile?
+			true, // includeEn?
+			true // capture?
+		);
+		if (preg_match('@http://' . $domainRegex . '/(.+)@', $url, $matches)) {
+			return 'http://' . $matches[1] . '/' . urlencode(urldecode($matches[2]));
 		}
 		else {
-			return($url);	
+			return($url);
 		}
 	}
-	
+
 	/**
 	 * Process a post request to add user URLs to Alfredo
 	 */
@@ -296,42 +318,44 @@ class Alfredo extends UnlistedSpecialPage {
 		global $wgRequest, $wgOut;
 
 		$urls = $wgRequest->getVal("urls");
-		$langs = $wgRequest->getVal("langs");	
+		$langs = $wgRequest->getVal("langs");
 		$results = $this->addImages($urls, $langs);
-			
-		//Give a TSV output on what TLs we have for doing the transfer 
+
+		//Give a TSV output on what TLs we have for doing the transfer
 		$wgOut->setArticleBodyOnly(true);
 		header('Content-Type: text/tsv');
-	  header('Content-Disposition: attachment; filename="output.xls"');
-				
+		header('Content-Disposition: attachment; filename="output.xls"');
+
 		$output = "From URL\tTo URL\n";
 		foreach($results as $result) {
 			$output .= self::partialURLEncode($result['fromURL']) . "\t" . self::partialURLEncode($result['toURL']) . "\t" . $result['status'] . "\n";
 		}
-	 	$wgOut->addHTML($output);
+		$wgOut->addHTML($output);
 
 	}
 
-	/** 
+	/**
 	 * Execute function
 	 */
-	public function execute() {
-		global $wgRequest, $wgOut, $wgUser, $wgLanguageCode; 
+	public function execute($par) {
+		global $wgRequest, $wgOut, $wgUser, $wgLanguageCode;
+		global $wgIsToolsServer, $wgIsDevServer;
 
-		if(!(IS_SPARE_HOST || IS_DEV_HOST)) {
+		if(!$wgIsToolsServer && !$wgIsDevServer) {
 			$wgOut->setRobotpolicy('noindex,nofollow');
 			$wgOut->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
-			return;	
+			return;
 		}
+
 		if($wgRequest->wasPosted()) {
 			$api = $wgRequest->getVal("api");
 
 			if($api == 1) {
 				$auth = $wgRequest->getVal("auth");
 				if($auth != WH_DEV_ACCESS_AUTH) {
-		      $wgOut->setRobotpolicy('noindex,nofollow');
-			    $wgOut->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
-					return;		
+					$wgOut->setRobotpolicy('noindex,nofollow');
+					$wgOut->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
+					return;
 				}
 				$this->doAPI();
 			}
@@ -357,7 +381,7 @@ class Alfredo extends UnlistedSpecialPage {
 			    $wgOut->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			}
 
-			$this->showTemplate();	
+			$this->showTemplate();
 		}
 	}
 }

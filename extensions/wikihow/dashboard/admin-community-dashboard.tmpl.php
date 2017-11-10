@@ -11,6 +11,11 @@
 	.dlabel { color: #999; }
 </style>
 
+<? /*
+* This code hasn't worked since Community Dashboard moved to the titus
+* server. To re-enable it, we'd have to make the server-side functionality
+* for restarting the daemon.
+*
 <h4>Refresh Data Control</h4>
 <div class="status outer" style="padding: 10px;">
 	<i style="text-decoration: underline;">Status</i><br/>
@@ -22,6 +27,7 @@
 		<li><a href="#" class="restart">restart script</a> (use caution)</li>
 	</ol>
 </div>
+*/ ?>
 
 <br/>
 

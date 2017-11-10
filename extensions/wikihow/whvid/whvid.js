@@ -1,314 +1,345 @@
-(function($) {
+WH.video = (function () {
+	'use strict';
+	var videos = [];
+	var VISIBILITY_PERCENT = 75;
+	var TOP_MENU_HEIGHT = 80;
+	var autoPlayVideo = false;
+	var cdnRoot = 'http://vid1.whstatic.com';
+	var mobile = false;
+	var imageFallback = false;
 
-	var timer; // Used to minimize calls to toggleVideos.
-	var WAIT_INTERVAL = 100;  // Timer interval
-
-	var vidPlayerDivSelector = 'div[id^=player-whvid]';
-	var largeImgSelector = 'div[id^=lrgimgurl]';
-	var smallImgSelector = 'div[id^=smlimgurl]';
-	var imgSelector = isLargeDisplay() ? largeImgSelector : smallImgSelector;
-
-	var playersInit = {};  // A list of which players have been initialized
-
-	var isOldIE = false;
-
-	var isMobileDomain = window.location.hostname.match(/\bm\./) != null;
-	var isMobile = null;
-
-	/*
-	* Initialize wikivideos on normal articles ready event
-	*/
-	$(document).ready(function() {
-		initWHVid();
-	});
-
-
-	/*
-	* Needed to init wikivideos in places where rc data is used (eg. RC Patrol and QG).  
-	* On normal articles wikivideo is initialized at document.ready but that only happens
-	* on the first time the tools are loaded. A $(document).trigger('rcdataloaded'); 
-	* must be place in the js initialization of an rc item in tools such as this 
-	* to ensure this event listener will fire
-	*/
-	$(document).on('rcdataloaded', function() { 
-		initWHVid();
-	});
-
-
-	var initWHVid = function() {
-		// IE6 and IE7 perf blows so we treat them as a special case
-		isOldIE = $.browser.msie && $.browser.version < 8;
-		if (isOldIE) {
-			$('.whvid_cont').addClass('whvid_cont_ie');
+	function visibilityChanged(video) {
+		if (video.isVisible == true && video.isPlaying == false) {
+			video.play();
+		} else if (video.isPlaying == true) {
+			video.pause();
 		}
+	}
 
-		$(vidPlayerDivSelector).each(function(i, div) {
-			if (isMobileDomain && !isLargeDisplay()) {
-				// Add mobile-specific css
-				$(div).parent().addClass('whvid_cont_mobile');
+	function updateItemVisibility(item) {
+		var wasVisible = item.isVisible;
+		var viewportHeight = (window.innerHeight || document.documentElement.clientHeight);
+		var rect = item.element.getBoundingClientRect();
+
+		if (!isInViewport(rect, viewportHeight, false)) {
+			item.isVisible = false;
+		} else {
+			var visiblePercent = getVisibilityPercent(rect, viewportHeight) * 100;
+			item.isVisible = visiblePercent >= VISIBILITY_PERCENT;
+		}
+		// check viewport size + additional 20% so we load before the video is in view
+		if ( item.isLoaded == false && isInViewport(rect, viewportHeight, true)) {
+			item.load();
+		}
+		if (item.isVisible != wasVisible && item.autoplay) {
+			visibilityChanged(item);
+		}
+	}
+
+	// this function is only called if we know the element is in view
+	// therefore we can do fewer checks on the element in order to calculate
+	// what percentage is visible
+	// @param rect - the result of calling  of getBoundingClientRect() on the target element
+	// @param viewportHeight - the current viewport height
+	function getVisibilityPercent(rect, viewportHeight) {
+
+		if (rect.height == 0) return 0;
+
+		// if the element is larger than the viewport and the full thing is in view
+		// we will call that 100% for purposes of playing the videos
+		if (rect.top < TOP_MENU_HEIGHT && rect.bottom > viewportHeight) {
+			return 1;
+		}
+		// if top is in view
+		if (rect.top > TOP_MENU_HEIGHT && rect.top < viewportHeight) {
+			if (rect.bottom < viewportHeight ) {
+				// if bottom is also in view.. then the entire thing is in view
+				return 1;
+			} else {
+				// bottom must be below the bottom of the viewport
+				return (viewportHeight - rect.top) / rect.height;
 			}
-			if (!isMobileDevice() && !isOldIE) {
-				// Turn off controls for desktop version of player
-				$('.fp-ui').css('display', 'none !important');
-			}
-		});
-		// Only initialize if we find whvid_cont classes
-		if ($('div.whvid_cont').length) {
-			$.ajaxSetup({cache: true}); // Turn off ajax cache busting
+		} else if (rect.bottom > TOP_MENU_HEIGHT ) {
+			// if the top is not in view .. then the bottom must be in view
+			return (rect.bottom - TOP_MENU_HEIGHT)  / rect.height;
+		}
+	}
 
-			if (isSlowDevice() || isOldIE || !isVideoCapable()) {
-				displayFallbackImages();
-				return;
-			}
+	// this is registered by the scroll handler
+	function updateVisibility() {
+		for (var i = 0; i < videos.length; i++ ) {
+			updateItemVisibility(videos[i]);
+		}
+	}
 
-			// Global conf
-			var conf = {
-				key: '$472025115616477, $338652611203983, $336265611125012',
-				swf: '/extensions/wikihow/common/flowplayer/flowplayer.swf',
-				loop: true
-			};
+	// check if either the top or the bottom of the video element is in view
+	// taking into account the 40px header and 40px TOC
+	// of loading the video, in which case we add 20% to the size of the viewport
+	// so the videos load before you scroll to them
+	// @param rect - the result of calling  of getBoundingClientRect() on the target element
+	// @param viewportHeight - the current viewport height
+	// @param forLoading - adds 20% to viewport size
+	function isInViewport(rect, viewportHeight, forLoading) {
+		var screenTop = TOP_MENU_HEIGHT;
 
-			if (isLargeDisplay()) {
-				conf['logo'] = 'http://pad1.whstatic.com/skins/WikiHow/images/wikihow_watermark_new.png';
-			}
+		if (rect.height == 0) return false;
 
-			// Set specific width for ipad for formatting reason
-			if (isLargeDisplay() && isMobileDomain) {
-				$('.whvid_cont').css('width', '550px');
-			}
+		if (forLoading) {
+			var offset = viewportHeight * 0.2;
+			screenTop = 0 - offset;
+			viewportHeight = viewportHeight + offset;
+		}
+		if (rect.top >= screenTop && rect.top <= viewportHeight) {
+			return true;
+		}
+		if (rect.bottom >= screenTop && rect.bottom <= viewportHeight) {
+			return true;
+		}
+		return false;
+	}
 
-			if (isMobileDomain || isMobileDevice()) {
-				// Do a splash setup for mobile for faster loading
-				conf.splash = true;
-				flowplayer.conf = conf;
-				flowplayer(function(api, root) {
-					// Handle errors by loading the fallback image
-					api.bind("error", function () {
-						var imgDiv = $(this).parent().children(imgSelector).first();
-						$(this).unload();
-						$(this).remove();
-						displayFallbackImage(imgDiv);
-					});
+	function videoControlSetup(video) {
+		if (video.playButton) {
+			video.playButton.addEventListener('click', function() {
+				video.toggle();
+			});
+			if (video.summaryVideo && "onloadstart" in window) {
+				video.element.addEventListener( 'loadstart', function() {
+					setTimeout(function(){
+						if ( !video.isPlaying ) {
+							video.playButton.style.visibility = 'visible';
+						}
+					}, 200);
 				});
 			} else {
-				flowplayer.conf = conf;
-				flowplayer(function (api, root) {
-				   api.bind("ready", function () {
-						if(isScrolledIntoView(root)) {
-							// Adjust watermark for  16:9 videos
-							var vid = $(root).find('video').get(0);
-							if (vid.videoHeight / vid.videoWidth == flowplayer.defaults.ratio) {
-								$(root).find('.fp-logo').css('right', '15px');
-							}
-							// Play videos when initialized
-							playVid(root);
-						}
-					});
-					// Hack for firefox to loop videos in flash player.  Doesn't fire for html5 video 
-					// since the loop attribute is set
-					api.bind("finish", function (e) {
-						flowplayer(e.target).play();
-					});
-
-					// Handle errors by loading the fallback image
-					api.bind("error", function () {
-						var imgDiv = $(this).parent().children(imgSelector).first();
-						$(this).remove();
-						displayFallbackImage(imgDiv);
-					});
-				});
+				video.playButton.style.visibility = 'visible';
 			}
-
-			// Used to control initialization of players
-			$(vidPlayerDivSelector).each(function(i, div) {
-				var divId = $(div).attr('id');
-				playersInit[divId] = false;
-			});
-			
-			// Call once at first to initialize any videos that are currently visible
-			toggleVideos();
-
-			// On scroll complete toggle viewable videos to play state
-			$(window).bind('scroll',function () {
-				clearTimeout(timer);
-				timer = setTimeout(toggleVideos, WAIT_INTERVAL);
+		}
+		if (video.summaryOutro) {
+			video.element.addEventListener('ended', function() {
+				video.element.load();
 			});
 		}
-	};
+		video.element.addEventListener('play', function() {
+			if (video.playButton) {
+				video.playButton.style.visibility = 'hidden';
+			}
+			if (video.summaryOutro) {
+				video.element.poster = video.summaryOutro;
+			}
+		});
+		video.element.addEventListener('pause', function() {
+			if (video.playButton) {
+				video.playButton.style.visibility = 'visible';
+			}
+		});
+		if (video.seek) {
+			// Event listener for the seek bar
+			video.seek.addEventListener("change", function() {
+				// Calculate the new time
+				var time = video.element.duration * (video.seek.value / 100);
 
-	function initPlayer(div) {
-		if (isMobileDomain || isMobileDevice()) {
-			// Set splash background
-			var	imgIdPrefix = isLargeDisplay() ? 'lrgimgurl' : 'smlimgurl';
-			var imgPath = $('#' + imgIdPrefix + '-' + $(div).attr('id').replace('player-', '')).text();
-			$(div).css('background',  'url(' + imgPath + ') center no-repeat');
+				// Update the video time
+				video.element.currentTime = time;
+			});
+			// Update the seek bar as the video plays
+			video.element.addEventListener("timeupdate", function() {
+				// Calculate the slider value
+				var value = (100 / video.element.duration) * video.element.currentTime;
+
+				// Update the slider value
+				video.seek.value = value;
+			});
+			// Pause the video when the slider handle is being dragged
+			video.seek.addEventListener("mousedown", function() {
+				video.pause();
+			});
+			// Play the video when the slider handle is dropped
+			video.seek.addEventListener("mouseup", function() {
+				video.play();
+			});
 		}
-		
-		// Add video and source tags
-		var vidPath = $('#vidurl-' + $(div).attr('id').replace('player-', '')).text();
-		$(div).html('<video loop><source type="video/mp4" src="' + vidPath + '"><source type="video/flash" src="' + vidPath + '"></source></video>');
-
-		// Initialize flowplayer
-		$(div).flowplayer();
-		log('initialize player: ' + $(div).attr('id'));
-	}
-
-	function playVid(div) {
-		flowplayer(div).play();
-		log('play vid: ' + $(div).attr('id'));
-	}
-
-	function pauseVid(div) {
-		flowplayer(div).pause();
-		log('pause vid: ' + $(div).attr('id'));
-	}
-
-	function getState(div) {
-		var api = flowplayer(div);
-		var state = undefined;
-		if (!api) {
-			state = undefined;
-		} else if (api.playing) {
-			state = 'PLAYING';
-		} else if (api.paused) {
-			state = 'PAUSED';
-		} else if (api.loading) {
-			state = 'LOADING';
-		} else if (api.seeking) {
-			state = 'SEEKING';
-		} else {
-			state = undefined;
+		// Event listener for the volume bar
+		if (video.volumeBar) {
+			video.volumeBar.addEventListener("change", function() {
+				  // Update the video volume
+				  video.volume = volumeBar.value;
+			});
 		}
-		return state;
 	}
 
-	var toggleVideos = function() {
-		$(vidPlayerDivSelector).each(function(i, div) {
-			var api = flowplayer(div);
-
-			var divId = $(div).attr('id');
-			var state = getState(div);
-			if(isScrolledIntoView(div)) {
-				if (!playersInit[divId] && api == undefined) {
-					playersInit[divId] = true;
-					initPlayer(div);
-				} else if (api != undefined && api.ready && state != 'PLAYING') {
-					if (!isMobileDomain && !isOldIE && !isMobileDevice()) {
-						playVid(div);
+	function Video(mVideo) {
+		this.isLoaded = false;
+		this.isVisible = false;
+		this.isPlaying = false;
+		this.pausedQueued = false;
+		this.element = mVideo;
+		this.summaryVideo = false;
+		this.controls = null;
+        this.poster = this.element.getAttribute('data-poster');
+        this.summaryOutro = this.element.getAttribute('data-summary-outro');
+		if (this.poster && this.poster.split('.').pop() == 'jpg' &&  WH.shared.webpSupport) {
+			this.poster = this.poster + '.webp';
+		}
+		this.summaryVideo = this.element.getAttribute('data-summary') == 1;
+		this.autoplay = !this.summaryVideo;
+		for (var i = 0; i < this.element.parentNode.children.length; i++) {
+			var el = this.element.parentNode.children[i];
+			if (el.className == 'm-video-controls') {
+				this.controls = el;
+				for (var j = 0; j < this.controls.children.length; j++) {
+					var child = this.controls.children[j];
+					if (child.className == 'm-video-play') {
+						this.playButton = child;
+					} else if (child.className == 'm-video-play-old') {
+						this.playButton = child;
+					} else if (child.className == 'm-video-seek') {
+						this.seek = child;
+					} else if (child.className == 'm-video-volume') {
+						this.volumeBar = child;
 					}
 				}
+			}
+		}
+		this.play = function() {
+			var video = this;
+			this.playPromise = this.element.play();
+			if (this.playPromise !== undefined) {
+				this.playPromise.then(function(value) {
+					video.isPlaying = true;
+				}).catch(function() {});
 			} else {
-				if (api != undefined && api.ready) {
-					pauseVid(div);
+				this.isPlaying = true;
+			}
+			if (this.summaryVideo) {
+				this.element.setAttribute('controls', 'true');
+			}
+		};
+		this.pause = function() {
+			var video = this;
+			if (this.playPromise !== undefined && !this.pausedQueued) {
+				this.pausedQueued = true;
+				this.playPromise.then(function(value) {
+					video.element.pause();
+					video.pausedQueued = false;
+					video.isPlaying = false;
+				}).catch(function() {});
+			} else {
+				this.element.pause();
+				this.isPlaying = false;
+				this.pausedQueued = false;
+			}
+		};
+		this.toggle = function() {
+			if (!this.isLoaded) {
+				this.load();
+				if (this.summaryVideo) {
+					//this.element.volume = "1";
+					this.element.removeAttribute('muted');
 				}
 			}
-		});
-	};
-
-	function isScrolledIntoView(elem) {
-		var docViewTop = $(window).scrollTop();
-		var docViewBottom = docViewTop + $(window).height();
-
-		var elemTop = $(elem).offset().top;
-		var elemBottom = elemTop + $(elem).height();
-
-		log('doctop ' + docViewTop);
-		log('docbottom ' + docViewBottom);
-		log('elemTop ' + elemTop);
-		log('elemBottom ' + elemBottom);
-
-		// add 400 so we can init videos that are just below the fold giving and 
-		// making it appear the videos load vaster
-  		return ((elemBottom >= docViewTop) && (elemTop <= docViewBottom + 400)
-      		|| (elemBottom <= docViewBottom) &&  (elemTop >= docViewTop));
-	}
-
-	function log(msg) {
-		//console.log(msg);
-	}
-
-	function isLargeDisplay() {
-		var largeDisplay = true;
-		var isLandscape = (document.documentElement.clientHeight < document.documentElement.clientWidth);
-		if ((document.documentElement.clientWidth < 600) || (document.documentElement.clientHeight < 421 && isLandscape)) { 
-			largeDisplay = false;
-		}
-		return largeDisplay;
-	}
-
-	function isMobileDevice() {
-		if (null == isMobile) {
-			log ('isMobile is null');
-			if (navigator.userAgent.match(/iPhone/i)
-				|| navigator.userAgent.match(/iPad/i)
-				|| navigator.userAgent.match(/Android/i)
-				|| navigator.userAgent.match(/Silk/i)
-				|| navigator.userAgent.match(/webOS/i)
-				|| navigator.userAgent.match(/iPod/i)
-				|| navigator.userAgent.match(/BlackBerry/i)
-				|| navigator.userAgent.match(/Windows Phone/i)
-				|| navigator.userAgent.match(/Opera Mini/i)
-				|| navigator.userAgent.match(/IEMobile/i)) {
-				isMobile = true;
+			if (this.isPlaying) {
+				this.pause();
 			} else {
-				isMobile = false;
+				this.play();
 			}
 		}
-		return isMobile;
-	}
+		this.load = function() {
+			var videoUrl = cdnRoot + this.element.getAttribute('data-src');
+			this.element.setAttribute('src', videoUrl);
+			this.element.setAttribute('poster', this.poster);
+			this.isLoaded = true;
+		};
 
-	/*
-	* Returns true if h264 or flash support is available, false otherwise
-	*/
-	function isVideoCapable() {
-		var testEl = document.createElement("video");
-		var h264 = false;
-		if ( testEl.canPlayType ) {
-			// Check for h264 support
-			h264 = "" !== (testEl.canPlayType('video/mp4; codecs="avc1.42E01E"')
-				|| testEl.canPlayType('video/mp4; codecs="avc1.42E01E, mp4a.40.2"'));
-		}
-
-		return h264 || flowplayer.support.flashVideo; 
-	}
-
-
-	/*
-	* Check for certain older os versions as a proxy for old, slow hardware that won't 
-	* perform well with video.
-	*/
-	function isSlowDevice() {
-		var isSlowDevice = false;
-
-		var matches = navigator.userAgent.match(/\bAndroid (\d+)\./i);
-		// We'll call any android device slow if they have a version less than 4
-		if (matches != null && matches[0] < 4) {
-			isSlowDevice = true;
-		}
-
-		// All blackberries
-		if (navigator.userAgent.match(/Blackberry/i) != null) {
-			isSlowDevice = true;
-		}
-
-		// First gen kindle
-		if (navigator.userAgent.match(/AppleWebKit\/533.1/) != null) {
-			isSlowDevice = true;
-		}
-
-		return isSlowDevice;
-	}
-
-	function displayFallbackImages() {
-		$(imgSelector).each(function(i, div) {
-			displayFallbackImage(div);
+		var video = this;
+		this.element.addEventListener('click', function() {
+			video.toggle();
 		});
+
+		if (this.controls) {
+			videoControlSetup(video);
+		}
 	}
 
-	function displayFallbackImage(div) {
-		var img = $('<img />'); 
-		img.attr('src', $(div).text());
-		$(div).after(img);
+	function Gif(mVideo) {
+		this.isLoaded = false;
+		this.isVisible = false;
+		this.isPlaying = false;
+		this.gifSrc = mVideo.getAttribute('data-gifsrc');
+		this.gifFirstSrc = mVideo.getAttribute('data-giffirstsrc');
+		this.play = function() {
+			this.element.setAttribute('src', this.gifSrc);
+			this.isPlaying = true;
+		};
+		this.pause = function() {
+			// we could switch back to the static image for a fake pause effect
+			// but for now do nothing
+		};
+		this.load = function() {
+			// this will pre load the gif
+			var image = new Image();
+			image.src = this.gifSrc;
+			this.isLoaded = true;
+		}
+
+		// set height of parent so no flicker when we replace the element
+		mVideo.parentNode.parentNode.style.minHeight = mVideo.offsetHeight + "px";
+
+		// create an img element to show the gif
+		var image = window.document.createElement('img');
+		image.setAttribute('class', 'whvgif whcdn');
+		image.setAttribute('src', mVideo.getAttribute('data-giffirstsrc'));
+		mVideo.parentNode.replaceChild(image, mVideo);
+		this.element = image;
 	}
 
-})(jQuery);
+	function start() {
+		if (window.WH.isMobile) {
+			mobile = true;
+		}
+        if (WH.shared) {
+            autoPlayVideo = WH.shared.autoPlayVideo;
+        }
+		var isHTML5Video = (typeof(document.createElement('video').canPlayType) != 'undefined');
+		if (!isHTML5Video) {
+			imageFallback = false;
+		}
+
+		if (window.location.href.indexOf("gif=1") > 0) {
+			autoPlayVideo = false;
+		}
+		if (window.location.protocol === 'https:') {
+			// set cdnRoot to more expensive cloudfront bucket if on https
+			cdnRoot = '//d5kh2btv85w9n.cloudfront.net';
+		}
+		// we can use the dev bucket for testing if the video is in the dev s3 account (uncommon)
+		//cdnRoot= '//d2mnwthlgvr25v.cloudfront.net'
+        if (WH.shared) {
+            window.addEventListener('scroll', WH.shared.throttle(updateVisibility, 100));
+        }
+	}
+
+	function add(mVideo) {
+		var item = null;
+		var summaryVideo = mVideo.getAttribute('data-summary') == 1;
+		if (imageFallback) {
+			var newId = "img-" + mVideo.id;
+			var src = mVideo.getAttribute('poster');
+			mVideo.parentElement.innerHTML = "<img id='" + newId + "' src='"+ src + "'></img>";
+		} else if (autoPlayVideo || summaryVideo) {
+			item = new Video(mVideo);
+			videos.push(item);
+			updateItemVisibility(item);
+		} else {
+			item = new Gif(mVideo);
+			videos.push(item);
+			updateItemVisibility(item);
+		}
+	}
+
+	return {
+		'start':start,
+		'add': add,
+	};
+})();
+WH.video.start();

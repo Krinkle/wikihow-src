@@ -1,31 +1,47 @@
-h1 { 
-	padding-left: 10px;
-	padding-top: 65px;
+#docviewer_sample {
+	border: 1px solid #DDD;
+	-moz-border-radius: 5px;
+	-webkit-border-radius: 5px;
+	border-radius: 5px;
+	background-color: #FFF;
+	margin: 0 auto 1em;
+	max-width: 600px;
+}
+
+.preview_head {
+	background-color: #7cd6f8;
+	padding: 5px;
+	text-align: center;
+	font-size: .9em;
+	color: #FFF;
+	font-weight: bold;
 }
 
 #docviewer_choices {
-	padding: 10px 10px 60px 10px;
+	padding: 10px;
+	border: 1px solid #DDD;
+	-moz-border-radius: 5px;
+	-webkit-border-radius: 5px;
+	border-radius: 5px;
+	background-color: #FFF;
+	max-width: 580px;
+	margin: 0 auto;
 }
 
 	#docviewer_choices h4 {
-		font-size: 1.1em;
-		color: #FFF;
-		background-color: #435f2c;
-		margin: 25px 5px 15px -4px;
-		padding: 6px 16px;
 	}
-	
-	#docviewer_choices .back_link { 
+
+	#docviewer_choices .back_link {
 		padding-top: 3em;
-		font-weight: bold; 
+		font-weight: bold;
 	}
-	
+
 	#docviewer_choices .button { margin:0 auto; }
-	
+
 	ul#dv_dls {
 		padding: 5px 0;
 	}
-	
+
 		#dv_dls li {
 			list-style: none;
 			list-style-image: none;
@@ -42,20 +58,19 @@ h1 {
 		#dv_dls li.dv_dl_doc:hover { background-position: 0 -210px; }
 		#dv_dls li.dv_dl_txt { background-position: 0 -280px; }
 		#dv_dls li.dv_dl_txt:hover { background-position: 0 -352px; }
-		#dv_dls li.dv_dl_gdoc { background-position: 0 -417px; }
-		#dv_dls li.dv_dl_gdoc:hover { background-position: 0 -483px; }
 		#dv_dls li.dv_dl_xls { background-position: 0 -558px; }
 		#dv_dls li.dv_dl_xls:hover { background-position: 0 -630px; }
-		
-		#dv_dls p { 
+
+		#dv_dls p {
 			padding: 8px 0 0 55px;
+			line-height: 1.5em;
 		}
-		
+
 		#dv_dls span {
 			font-size: 1.3em;
 			font-weight: bold;
 		}
-		
+
 		#dv_dls .dv_dl_block {
 			display: block;
 			height: 50px;
@@ -76,16 +91,10 @@ h1 {
 			-webkit-border-radius: 6px;
 		}
 
-#sample_img { 
-	border: 1px solid #111; 
-	margin: 10px;
-	width: 95%;
-}
-
 
 /********************RESPONSIVE PART*/
 /* SCREEN < 599 PIXELS (PORTRAIT WIDTH OR LANDSCAPE HEIGHT) */
-@media only screen and (max-width: 599px), 
+@media only screen and (max-width: 599px),
 	only screen and (max-height: 420px) and (orientation:landscape) {
 
 	h1 { padding-top: 55px; }

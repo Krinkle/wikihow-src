@@ -1,4 +1,4 @@
-<?
+<?php
 $messages = array();
 $messages['en'] = array(
 			'iia_stats_today_label' => 'Today',

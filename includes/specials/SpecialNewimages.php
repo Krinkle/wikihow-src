@@ -26,6 +26,14 @@ class SpecialNewFiles extends IncludableSpecialPage {
 	}
 
 	public function execute( $par ) {
+		// Reuben, wikiHow (May 22, 2015): remove access to Special:NewFiles
+		// for anonymous users. This page is slow and has been a target
+		// for recent DDoS attacks.
+		if ($this->getUser()->isAnon()) {
+			$this->getOutput()->loginToUse();
+			return;
+		}
+
 		$this->setHeaders();
 		$this->outputHeader();
 
@@ -137,10 +145,18 @@ class NewFilesPager extends ReverseChronologicalPager {
 
 	function formatRow( $row ) {
 		$name = $row->img_name;
-		$user = User::newFromId( $row->img_user );
+
+		// 2/29/2015 Lojjik Braughler changed to make anonymous uploads (UCI)
+		// show correct attribution in the gallery on Special:Newfiles
+		$user = User::newFromName( $row->img_user_text );
 
 		$title = Title::makeTitle( NS_FILE, $name );
-		$ul = Linker::link( $user->getUserpage(), $user->getName() );
+		if ( $user ) {
+			$ul = Linker::link( $user->getUserpage(), $user->getName() );
+		} else {
+			$ul = Linker::link( Title::makeTitle( NS_USER, $row->img_user_text ), $row->img_user_text );
+		}
+
 		$time = $this->getLanguage()->userTimeAndDate( $row->img_timestamp, $this->getUser() );
 
 		$this->gallery->add(

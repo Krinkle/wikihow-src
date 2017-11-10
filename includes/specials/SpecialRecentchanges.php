@@ -143,7 +143,7 @@ class SpecialRecentChanges extends ChangesListSpecialPage {
 
 	public function validateOptions( FormOptions $opts ) {
 		global $wgFeedLimit;
-		$opts->validateIntBounds( 'limit', 0, $this->feedFormat ? $wgFeedLimit : 5000 );
+		$opts->validateIntBounds( 'limit', 0, $this->feedFormat ? $wgFeedLimit : 2000 );
 		parent::validateOptions( $opts );
 	}
 
@@ -760,5 +760,14 @@ class SpecialRecentChanges extends ChangesListSpecialPage {
 
 	public function isIncludable() {
 		return true;
+	}
+
+	// WIKIHOW added this function for mobile use
+	public function isMobileCapable() {
+		if ($this->getContext()->getRequest()->getVal('feed') == 'atom') {
+			return true;
+		}
+
+		return false;
 	}
 }

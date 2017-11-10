@@ -1,6 +1,4 @@
-<?
-
-if (!defined('MEDIAWIKI')) die();
+<?php
 
 global $IP;
 require_once("$IP/extensions/wikihow/dashboard/DashboardWidget.php");
@@ -69,12 +67,12 @@ class AdminCommunityDashboard extends UnlistedSpecialPage {
 		if ($key != WH_COMDASH_SECRET_API_KEY) exit;
 
 		if ($req == 'restart') {
-			$cmd = "/usr/local/wikihow/suid-wrap /usr/local/wikihow/control-dashboard-refresh.$req.sh";
+			$cmd = "/opt/wikihow/scripts/suid-wrap /opt/wikihow/scripts/control_dashboard_refresh.$req.sh";
 			exec($cmd); // no output since restart is daemonized
 			$msg = '<span class="dlabel">reset status:</span> command dispatched';
 			$result = array('error' => '', 'status' => $msg);
 		} elseif ($req == 'status') {
-			$cmd = "/usr/local/wikihow/control-dashboard-refresh.$req.sh";
+			$cmd = "/opt/wikihow/scripts/control_dashboard_refresh.$req.sh";
 			exec($cmd, $output);
 			$result = array('error' => '', 'status' => join("\n", $output));
 		} else { exit; }
@@ -101,7 +99,6 @@ class AdminCommunityDashboard extends UnlistedSpecialPage {
 			}
 		}
 
-		wfLoadExtensionMessages('CommunityDashboard');
 		$this->dashboardData = new DashboardData();
 
 		if ($wgRequest->wasPosted()) {
@@ -143,7 +140,7 @@ class AdminCommunityDashboard extends UnlistedSpecialPage {
 	 * Display the admin settings form.
 	 */
 	private function showSettingsForm() {
-		global $wgOut, $wgWidgetList;
+		global $wgOut, $wgWidgetList, $wgMobileOnlyWidgetList;
 
 		$opts = $this->dashboardData->loadStaticGlobalOpts();
 		$titles = DashboardData::getTitles();
@@ -156,6 +153,9 @@ class AdminCommunityDashboard extends UnlistedSpecialPage {
 		$rwidgets = array_flip($wgWidgetList);
 		$order = $priorities;
 		foreach ($priorities as $widget) {
+			unset($rwidgets[$widget]);
+		}
+		foreach ($wgMobileOnlyWidgetList as $widget) {
 			unset($rwidgets[$widget]);
 		}
 		foreach ($rwidgets as $widget => $i) {

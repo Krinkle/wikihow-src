@@ -205,10 +205,6 @@ class OutputPage extends ContextSource {
 	var $mPageTitleActionText = '';
 	var $mParseWarnings = array();
 
-	//for adding wikiHow JS & CSS
-	var $mJSminCodes = array();
-	var $mCSSminCodes = array();
-
 	// Cache stuff. Looks like mEnableClientCache
 	var $mSquidMaxage = 0;
 
@@ -218,6 +214,10 @@ class OutputPage extends ContextSource {
 	/// should be private. To include the variable {{REVISIONID}}
 	var $mRevisionId = null;
 	private $mRevisionTimestamp = null;
+
+	// Added by Aaron at wikiHow to fix a bug where revisionTimestamp is incorrect
+	// see notes on the getter/setter for details
+	private $mFetchedRevisionTimestamp = null;
 
 	var $mFileVersion = null;
 
@@ -268,6 +268,18 @@ class OutputPage extends ContextSource {
 	private $mEnableTOC = true;
 
 	/**
+	 * @var string contains any scripts / html deferred from loading in <head>
+	 * @note Reuben added so that we can defer ResourceLoader startup on page
+	 */
+	private $mDeferHeadScripts = '';
+
+	/**
+	 * @var string Reuben added code for debugging. See references to this variable
+	 *   below for details.
+	 */
+	private $mRedirectSource = '';
+
+	/**
 	 * Constructor for OutputPage. This should not be called directly.
 	 * Instead a new RequestContext should be created and it will implicitly create
 	 * a OutputPage tied to that context.
@@ -291,6 +303,10 @@ class OutputPage extends ContextSource {
 		# Strip newlines as a paranoia check for header injection in PHP<5.1.2
 		$this->mRedirect = str_replace( "\n", '', $url );
 		$this->mRedirectCode = $responsecode;
+
+		# For debugging where a redirect is coming from. Please feel free to remove this code whenever.
+		# - Reuben 1/6/2014
+		$this->mRedirectSource = wfBacktrace();
 	}
 
 	/**
@@ -436,20 +452,6 @@ class OutputPage extends ContextSource {
 	 */
 	function getScript() {
 		return $this->mScripts . $this->getHeadItems();
-	}
-
-	/**
-	 * wikiHow's preferred way to add JS and CSS to the page
-	 */
-	function addJScode($code) { 
-		if (!in_array($code,$this->mJSminCodes)) {
-			$this->mJSminCodes[] = $code; 
-		}
-	}
-	function addCSScode($code) { 
-		if (!in_array($code,$this->mCSSminCodes)) {
-			$this->mCSSminCodes[] = $code;
-		}
 	}
 
 	/**
@@ -1441,6 +1443,34 @@ class OutputPage extends ContextSource {
 	}
 
 	/**
+	 * Added by Aaron at wikiHow
+	 * Set the timestamp of the revision which was fetched
+	 * there is a bug where the setRevisionTimestamp will not set the
+	 * timestamp of the fetched revision but instead sets it of the latest revision
+	 * since it is set by Article.php using the getTimestamp function which
+	 * is defined in the Page class in WikiPage.php which in turn loads the last edit
+	 *
+	 * @param $timestamp Mixed: string, or null
+	 * @return Mixed: previous value
+	 */
+	public function setFetchedRevisionTimestamp( $timestamp ) {
+		return wfSetVar( $this->mFetchedRevisionTimestamp, $timestamp );
+	}
+
+	/**
+	 * Added by Aaron at wikiHow
+	 * Get the timestamp of the fetched revision. the mRevisionTimestamp
+	 * comments indicate that it is the display revision timestamp
+	 * but this is not the case
+	 * This will be null if not filled by setFetchedRevisionTimestamp().
+	 *
+	 * @return String or null
+	 */
+	public function getFetchedRevisionTimestamp() {
+		return $this->mFetchedRevisionTimestamp;
+	}
+
+	/**
 	 * Get the timestamp of displayed revision.
 	 * This will be null if not filled by setRevisionTimestamp().
 	 *
@@ -2037,6 +2067,7 @@ class OutputPage extends ContextSource {
 					$url = htmlspecialchars( $redirect );
 					print "<html>\n<head>\n<title>Redirect</title>\n</head>\n<body>\n";
 					print "<p>Location: <a href=\"$url\">$url</a></p>\n";
+					print $this->mRedirectSource; // wikiHow: for redirect debugging
 					print "</body>\n</html>\n";
 				} else {
 					$response->header( 'Location: ' . $redirect );
@@ -2099,10 +2130,11 @@ class OutputPage extends ContextSource {
 			wfRunHooks( 'BeforePageDisplay', array( &$this, &$sk ) );
 
 			wfProfileIn( 'Output-skin' );
-			// WHMWUP -- Reuben 11/19: big hack to get body of html within our highly customized
-			// SkinWikihowskin
+			// Reuben, wikiHow 11/19/2014: We need to send cache control headers early
+			// because the later point in the code isn't always reached.
 			$this->sendCacheControl();
-			$sk->outputPage($this);
+
+			$sk->outputPage();
 			wfProfileOut( 'Output-skin' );
 		}
 
@@ -2542,7 +2574,8 @@ $templates
 			// Our XML declaration is output by Html::htmlHeader.
 			// http://www.whatwg.org/html/semantics.html#attr-meta-http-equiv-content-type
 			// http://www.whatwg.org/html/semantics.html#charset
-			$ret .= Html::element( 'meta', array( 'charset' => 'UTF-8' ) ) . "\n";
+			// ARG wikihow changed utf-8 to be lowercase for amp validation
+			$ret .= Html::element( 'meta', array( 'charset' => 'utf-8' ) ) . "\n";
 		}
 
 		$ret .= Html::element( 'title', null, $this->getHTMLTitle() ) . "\n";
@@ -2798,12 +2831,17 @@ $templates
 	function getHeadScripts() {
 		global $wgResourceLoaderExperimentalAsyncLoading;
 
-		// Startup - this will immediately load jquery and mediawiki modules
-		$startupScript = $this->makeResourceLoaderLink( 'startup', ResourceLoaderModule::TYPE_SCRIPTS, true, array(), false );
 
-		// AG added hook here to optionally replace the script link with an inline script
-		wfRunHooks( 'HeadScriptsStartupScript', array( $this, &$startupScript ) );
-		$scripts = $startupScript;
+		// 2015/08/06 Jordan - Add the wh_an query string parameter to the startup module if
+		// an Android request is made.  This allows us to inject a tiny js snippet that will
+		// instrument ajax requests with the same parameter
+		$query = array();
+		if (class_exists('AndroidHelper') && AndroidHelper::isAndroidRequest()) {
+			$query = array(AndroidHelper::QUERY_STRING_PARAM => 1);
+		}
+
+		// Startup - this will immediately load jquery and mediawiki modules
+		$scripts = $this->makeResourceLoaderLink( 'startup', ResourceLoaderModule::TYPE_SCRIPTS, true, $query );
 
 		// Load config before anything else
 		$scripts .= Html::inlineScript(
@@ -2838,7 +2876,26 @@ $templates
 			$scripts .= $this->getScriptsForBottomQueue( true );
 		}
 
+		// Reuben, 8/20/2014: Defer all ResourceLoader JS as far as possible
+		// in the page for certain requests.
+		$deferHeadScripts = false;
+		wfRunHooks( 'DeferHeadScripts', array( $this, &$deferHeadScripts ) );
+		if ( $deferHeadScripts ) {
+			$this->mDeferHeadScripts = $scripts;
+			$scripts = '';
+		}
+
 		return $scripts;
+	}
+
+	/**
+	 * Get any scripts that were deferred from being added to <head>
+	 *
+	 * @return string snippet of html, possibly empty string
+	 * @note Reuben added so that we can defer ResourceLoader startup on page
+	 */
+	function getDeferHeadScripts() {
+		return $this->mDeferHeadScripts;
 	}
 
 	/**
@@ -3370,8 +3427,12 @@ $templates
 			) );
 		}
 
+		// WIKIHOW - added this hook to be able to update the head links array
+		wfRunHooks( 'OutputPageAfterGetHeadLinksArray', array( &$tags, $this ) );
+
 		return $tags;
 	}
+
 
 	/**
 	 * @return string HTML tag links to be put in the header.

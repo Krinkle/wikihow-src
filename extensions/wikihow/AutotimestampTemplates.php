@@ -26,7 +26,7 @@ function wfAutotimestamp(&$article, &$user, &$text, &$summary, $minor, $watch, $
 	if (strpos($text, "{{") !== false) {
 		$t1 = preg_replace('/\<nowiki\>.*<\/nowiki>/', '', $text); 
 		preg_match_all('/{{[^}]*}}/im', $t1, $matches);
-		$templates = split(' ',  strtolower(wfMsg('templates_needing_autotimestamps')));
+		$templates = explode( ' ', strtolower(wfMessage('templates_needing_autotimestamps')->text()) );
 		$templates = array_flip($templates);
 		foreach($matches[0] as $m) {
 			$mm = preg_replace('/\|[^}]*/', '', $m);

@@ -122,7 +122,7 @@ class WebRequest {
 				}
 
 				global $wgArticlePath;
-				if ( $wgArticlePath ) {
+				if ( $wgArticlePath && !QADomain::isQADomain() ) {
 					$router->add( $wgArticlePath );
 				}
 
@@ -203,9 +203,12 @@ class WebRequest {
 	 * @return array
 	 */
 	public static function detectProtocol() {
+		// Reuben, wikiHow, Sept 4, 2015: Detect HTTPS in our own custom way
+		global $wgIsSecureSite;
 		if ( ( isset( $_SERVER['HTTPS'] ) && $_SERVER['HTTPS'] == 'on' ) ||
 			( isset( $_SERVER['HTTP_X_FORWARDED_PROTO'] ) &&
-			$_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https' ) ) {
+			$_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https' ) ||
+			$wgIsSecureSite ) {
 			return 'https';
 		} else {
 			return 'http';

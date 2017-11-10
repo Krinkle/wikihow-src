@@ -1,4 +1,5 @@
 <?php
+
 class CommunityExpert extends UnlistedSpecialPage {
 	function __construct() {
 		parent::__construct("CommunityExpert");	
@@ -11,7 +12,7 @@ class CommunityExpert extends UnlistedSpecialPage {
 			return(false);	
 		}
 	}
-	function execute() {
+	function execute($par) {
 		global $wgOut, $wgRequest;             
 		require_once('dedupQuery.php');
 

@@ -1,4 +1,4 @@
-<?
+<?php
 
 class APIAppAdmin extends UnlistedSpecialPage {
 	var $ts = null;
@@ -24,7 +24,7 @@ class APIAppAdmin extends UnlistedSpecialPage {
 			$result = array();
 			$result['debug'][] = "posted to apiappadmin";
 			if ($wgRequest->getVal("action") == "default") {
-				$this->testQuery(&$result);
+				$this->testQuery($result);
 			} else if ($wgRequest->getVal("action") == "getpage") {
 				//nothing yet
 			}
@@ -35,13 +35,13 @@ class APIAppAdmin extends UnlistedSpecialPage {
 		$wgOut->setPageTitle('APIAppAdmin');
 		EasyTemplate::set_path( dirname(__FILE__).'/' );
 
-		$vars['css'] = HtmlSnips::makeUrlTags('css', array('apiappadmin.css'), 'extensions/wikihow/apiappsupport', true);
-		$wgOut->addScript(HtmlSnips::makeUrlTags('js', array('apiappadmin.js'), 'extensions/wikihow/apiappsupport', true));
+		$vars['css'] = HtmlSnips::makeUrlTag('/extensions/wikihow/apiappsupport/apiappadmin.css', true);
+		$wgOut->addScript( HtmlSnips::makeUrlTag('/extensions/wikihow/apiappsupport/apiappadmin.js', true) );
 		$html = EasyTemplate::html('APIAppAdmin', $vars);
 		$wgOut->addHTML($html);
 	}
 
-	private function testQuery($result) {
+	private function testQuery(&$result) {
 		$result['debug'][] =  "hi";
 	}
 

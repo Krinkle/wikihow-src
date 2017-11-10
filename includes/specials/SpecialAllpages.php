@@ -84,8 +84,6 @@ class SpecialAllpages extends IncludableSpecialPage {
 		$request = $this->getRequest();
 		$out = $this->getOutput();
 		$this->setHeaders();
-		// JRS 01/23/14 manually overriding default robot policy to index,follow
-		$out->setRobotPolicy('index,follow');
 
 		$this->outputHeader();
 		$out->allowClickjacking();

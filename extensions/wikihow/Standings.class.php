@@ -27,7 +27,6 @@ abstract class StandingsIndividual {
 		$today 	= number_format($this->mStats['today'], 0, '.', ",");
 		$week 	= number_format($this->mStats['week'], 0, '.', ",");
 		$all	= number_format($this->mStats['all'], 0, '.', ",");
-		wfLoadExtensionMessages('Standings');
 
 		$table = "<table>
 		<tr>
@@ -40,7 +39,7 @@ abstract class StandingsIndividual {
 		</tr>";
 		if ($this->showTotal()) {
 			$table .= "<tr>
-					<td><a href='/Special:Leaderboard/{$this->mLeaderboardKey}'>" . wfMessage('iia_stats_total_label')->text() . "</a></td>
+					<td><a href='/Special:Leaderboard/{$this->mLeaderboardKey}?period=31'>" . wfMessage('iia_stats_total_label')->text() . "</a></td>
 					<td class='stats_count' id='iia_stats_all_{$this->mLeaderboardKey}'>{$all}</td></tr>";
 		}
 		$table .= "<tr>
@@ -267,7 +266,7 @@ abstract class StandingsGroup {
 			$sk = $this->mContext->getSkin();
 		}
 
-		$wgOut->addHTML("<style type='text/css' media='all'>/*<![CDATA[*/ @import '" . wfGetPad('/extensions/min/f/extensions/wikihow/Leaderboard.css?rev=') . WH_SITEREV . "'; /*]]>*/</style>");
+		$wgOut->addModules('ext.wikihow.leaderboard');
 
 		$display = "
 		<div class='iia_stats'>
@@ -546,6 +545,144 @@ class RCPatrolStandingsGroup extends StandingsGroup  {
 	}
 }
 
+class KBGuardianStandingsGroup extends StandingsGroup  {
+	function __construct() {
+		parent::__construct("kbguardian_standings");
+	}
+
+	function getSQL($ts) {
+		global $wgSharedDB;
+		$sql = "SELECT user_name, count(*) as C ".
+			"FROM logging left join ".$wgSharedDB.".user on log_user = user_id ".
+			"WHERE log_type = 'kbguardian' and log_action != 'skip' and log_timestamp >= '$ts' ".
+			"and log_user != 0 GROUP BY user_name ORDER by C desc limit 25";
+		return $sql;
+	}
+
+	function getField() {
+		return "user_name";
+	}
+
+	function getTitle() {
+		return wfMessage('kbguardianstats_leaderboard_title')->text();
+	}
+}
+
+class UnitGuardianStandingsGroup extends StandingsGroup  {
+	function __construct() {
+		parent::__construct("unitguardian_standings");
+	}
+
+	function getSQL($ts) {
+		global $wgSharedDB;
+		$sql = "SELECT user_name, count(*) as C ".
+			"FROM logging left join ".$wgSharedDB.".user on log_user = user_id ".
+			"WHERE log_type = 'unitguardian' and log_action != 'maybe' and log_timestamp >= '$ts' ".
+			"GROUP BY user_name ORDER by C desc limit 25";
+		return $sql;
+	}
+
+	function getField() {
+		return "user_name";
+	}
+
+	function getTitle() {
+		return wfMessage('unitguardianstats_leaderboard_title')->text();
+	}
+}
+
+class SortQuestionsStandingsGroup extends StandingsGroup  {
+	function __construct() {
+		parent::__construct("sortquestions_standings");
+	}
+
+	function getSQL($ts) {
+		global $wgSharedDB;
+		$sql = "SELECT user_name, count(*) as C ".
+			"FROM logging left join ".$wgSharedDB.".user on log_user = user_id ".
+			"WHERE log_type = 'sort_questions_tool' and log_timestamp >= '$ts' ".
+			"GROUP BY user_name ORDER by C desc limit 25";
+		return $sql;
+	}
+
+	function getField() {
+		return "user_name";
+	}
+
+	function getTitle() {
+		return wfMessage('sortquestionsstats_leaderboard_title')->text();
+	}
+}
+
+class TechFeedbackStandingsGroup extends StandingsGroup  {
+	function __construct() {
+		parent::__construct("techfeedback_standings");
+	}
+
+	function getSQL($ts) {
+		global $wgSharedDB;
+		$sql = "SELECT user_name, count(*) as C ".
+			"FROM logging left join ".$wgSharedDB.".user on log_user = user_id ".
+			"WHERE log_user <> '' and log_type = 'tech_update_tool' and log_timestamp >= '$ts' ".
+			"GROUP BY user_name ORDER by C desc limit 25";
+		return $sql;
+	}
+
+	function getField() {
+		return "user_name";
+	}
+
+	function getTitle() {
+		return wfMessage('specialtechfeedbackleaderboardtitle')->text();
+	}
+}
+
+class DuplicateTitlesStandingsGroup extends StandingsGroup  {
+	function __construct() {
+		parent::__construct("duplicatetitles_standings");
+	}
+
+	function getSQL($ts) {
+		global $wgSharedDB;
+		$sql = "SELECT user_name, count(*) as C ".
+			"FROM logging left join ".$wgSharedDB.".user on log_user = user_id ".
+			"WHERE log_user <> '' and log_type = 'duplicatetitles' and log_timestamp >= '$ts' ".
+			"GROUP BY user_name ORDER by C desc limit 25";
+		return $sql;
+	}
+
+	function getField() {
+		return "user_name";
+	}
+
+	function getTitle() {
+		return wfMessage('duplicatetitlesleaderboardtitle')->text();
+	}
+}
+
+class TechVerifyStandingsGroup extends StandingsGroup  {
+	function __construct() {
+		parent::__construct("techverify_standings");
+	}
+
+	function getSQL($ts) {
+		global $wgSharedDB;
+		$sql = "SELECT user_name, count(*) as C ".
+			"FROM logging left join ".$wgSharedDB.".user on log_user = user_id ".
+			"WHERE log_user <> '' and log_type = 'test_tech_articles' and log_timestamp >= '$ts' ".
+			"GROUP BY user_name ORDER by C desc limit 25";
+		return $sql;
+	}
+
+	function getField() {
+		return "user_name";
+	}
+
+	function getTitle() {
+		return wfMessage('stvleaderboardtitle')->text();
+	}
+}
+
 class SpellcheckerStandingsGroup extends StandingsGroup  {
 	function __construct() {
 		parent::__construct("spellchecker_standings");
@@ -556,7 +693,7 @@ class SpellcheckerStandingsGroup extends StandingsGroup  {
 		$sql = "SELECT user_name, count(*) as C ".
 			"FROM logging left join ".$wgSharedDB.".user on log_user = user_id ".
 			"WHERE log_type = 'spellcheck' and log_timestamp >= '$ts' ".
-			"GROUP BY user_name ORDER by C desc limit 25";
+			"AND log_user != 0 GROUP BY user_name ORDER by C desc limit 25";
 		return $sql;
 	}
 
@@ -566,6 +703,29 @@ class SpellcheckerStandingsGroup extends StandingsGroup  {
 
 	function getTitle() {
 		return wfMessage('spellcheckerstats_leaderboard_title')->text();
+	}
+}
+
+class RateToolStandingsGroup extends StandingsGroup  {
+	function __construct() {
+		parent::__construct("ratetool_standings");
+	}
+
+	function getSQL($ts) {
+		global $wgSharedDB;
+		$sql = "SELECT user_name, count(*) as C ".
+			"FROM logging left join ".$wgSharedDB.".user on log_user = user_id ".
+			"WHERE log_type = 'ratetool' and log_timestamp >= '$ts' ".
+			"AND log_user != 0 GROUP BY user_name ORDER by C desc limit 25";
+		return $sql;
+	}
+
+	function getField() {
+		return "user_name";
+	}
+
+	function getTitle() {
+		return wfMessage('ratetoolstats_leaderboard_title')->text();
 	}
 }
 
@@ -637,6 +797,195 @@ class RCPatrolStandingsIndividual extends StandingsIndividual {
 
 }
 
+class KBGuardianStandingsIndividual extends StandingsIndividual {
+
+	function __construct() {
+		$this->mLeaderboardKey = "kbguardian_indiv_stats";
+	}
+
+	function getTable() {
+		return "logging";
+	}
+
+	function getTitle() {
+		return wfMessage('kbguardianstats_currentstats')->text();
+	}
+
+	function getOpts($ts = null) {
+		global $wgUser;
+		$opts = array();
+		$opts['log_user'] =$wgUser->getID();
+		$opts['log_type'] ='kbguardian';
+		$opts[] = "log_action != 'skip'";
+
+		if ($ts) {
+			$opts[]= "log_timestamp >'{$ts}'";
+		}
+		return $opts;
+	}
+
+	function getGroupStandings() {
+		return new KBGuardianStandingsGroup();
+	}
+}
+
+class UnitGuardianStandingsIndividual extends StandingsIndividual {
+
+	function __construct() {
+		$this->mLeaderboardKey = "unitguardian_indiv_stats";
+	}
+
+	function getTable() {
+		return "logging";
+	}
+
+	function getTitle() {
+		return wfMessage('unitguardianstats_currentstats')->text();
+	}
+
+	function getOpts($ts = null) {
+		global $wgUser;
+		$opts = array();
+		$opts['log_user'] =$wgUser->getID();
+		$opts['log_type'] ='unitguardian';
+		$opts[] = "log_action != 'maybe'";
+
+		if ($ts) {
+			$opts[]= "log_timestamp >'{$ts}'";
+		}
+		return $opts;
+	}
+
+	function getGroupStandings() {
+		return new UnitGuardianStandingsGroup();
+	}
+}
+
+
+class SortQuestionsStandingsIndividual extends StandingsIndividual {
+
+	function __construct() {
+		$this->mLeaderboardKey = "sortquestions_indiv_stats";
+	}
+
+	function getTable() {
+		return "logging";
+	}
+
+	function getTitle() {
+		return wfMessage('sortquestions_currentstats')->text();
+	}
+
+	function getOpts($ts = null) {
+		global $wgUser;
+		$opts = array();
+		$opts['log_user'] =$wgUser->getID();
+		$opts['log_type'] ='sort_questions_tool';
+
+		if ($ts) {
+			$opts[]= "log_timestamp >'{$ts}'";
+		}
+		return $opts;
+	}
+
+	function getGroupStandings() {
+		return new SortQuestionsStandingsGroup();
+	}
+}
+
+class TechFeedbackStandingsIndividual extends StandingsIndividual {
+
+	function __construct() {
+		$this->mLeaderboardKey = "techfeedbackreviewed";
+	}
+
+	function getTable() {
+		return "logging";
+	}
+
+	function getTitle() {
+		return wfMessage('specialtechfeedbackcurrentstats')->text();
+	}
+
+	function getOpts($ts = null) {
+		global $wgUser;
+		$opts = array();
+		$opts['log_user'] =$wgUser->getID();
+		$opts['log_type'] ='tech_update_tool';
+		if ($ts) {
+			$opts[]= "log_timestamp >'{$ts}'";
+		}
+		return $opts;
+	}
+
+	function getGroupStandings() {
+		return new TechFeedbackStandingsGroup();
+	}
+
+}
+
+class DuplicateTitlesStandingsIndividual extends StandingsIndividual {
+
+	function __construct() {
+		$this->mLeaderboardKey = "duplicatetitles";
+	}
+
+	function getTable() {
+		return "logging";
+	}
+
+	function getTitle() {
+		return wfMessage('duplicatetitlescurrentstats')->text();
+	}
+
+	function getOpts($ts = null) {
+		global $wgUser;
+		$opts = array();
+		$opts['log_user'] =$wgUser->getID();
+		$opts['log_type'] ='duplicatetitles';
+		if ($ts) {
+			$opts[]= "log_timestamp >'{$ts}'";
+		}
+		return $opts;
+	}
+
+	function getGroupStandings() {
+		return new DuplicateTitlesStandingsGroup();
+	}
+
+}
+
+class TechVerifyStandingsIndividual extends StandingsIndividual {
+
+	function __construct() {
+		$this->mLeaderboardKey = "techarticletested";
+	}
+
+	function getTable() {
+		return "logging";
+	}
+
+	function getTitle() {
+		return wfMessage('stvcurrentstats')->text();
+	}
+
+	function getOpts($ts = null) {
+		global $wgUser;
+		$opts = array();
+		$opts['log_user'] =$wgUser->getID();
+		$opts['log_type'] ='test_tech_articles';
+		if ($ts) {
+			$opts[]= "log_timestamp >'{$ts}'";
+		}
+		return $opts;
+	}
+
+	function getGroupStandings() {
+		return new TechVerifyStandingsGroup();
+	}
+
+}
+
 class SpellcheckerStandingsIndividual extends StandingsIndividual {
 
 	function __construct() {
@@ -664,6 +1013,37 @@ class SpellcheckerStandingsIndividual extends StandingsIndividual {
 
 	function getGroupStandings() {
 		return new SpellcheckerStandingsGroup();
+	}
+
+}
+
+class RateToolStandingsIndividual extends StandingsIndividual {
+
+	function __construct() {
+		$this->mLeaderboardKey = "ratetool";
+	}
+
+	function getTable() {
+		return "logging";
+	}
+
+	function getTitle() {
+		return wfMessage('ratetoolstats_currentstats')->text();
+	}
+
+	function getOpts($ts = null) {
+		global $wgUser;
+		$opts = array();
+		$opts['log_user'] =$wgUser->getID();
+		$opts['log_type'] ='ratetool';
+		if ($ts) {
+			$opts[]= "log_timestamp >'{$ts}'";
+		}
+		return $opts;
+	}
+
+	function getGroupStandings() {
+		return new RateToolStandingsGroup();
 	}
 
 }
@@ -771,7 +1151,6 @@ class WelcomeWagonStandingsIndividual extends StandingsIndividual {
 	}
 
 	function getTitle() {
-		wfLoadExtensionMessages('WelcomeWagon');
 		return wfMessage('welcomewag_stats_title')->text();
 	}
 
@@ -788,67 +1167,6 @@ class WelcomeWagonStandingsIndividual extends StandingsIndividual {
 	function getGroupStandings() {
 		return new WelcomeWagonStandingsGroup();
 	}
-
-}
-
-class MethodGuardianStandingsIndividual extends StandingsIndividual {
-
-	function __construct() {
-		$this->mLeaderboardKey = "methodguardiantool_indiv1";
-	}
-
-	function getTable() {
-		return "logging";
-	}
-
-	function getTitle() {
-		return wfMessage('methodguardian_stats_title')->text();
-	}
-
-	function getOpts($ts = null) {
-		global $wgUser;
-		$opts = array();
-		$opts['log_user'] =$wgUser->getId();
-		$opts['log_type'] = "methgua";
-		if ($ts) {
-			$opts[]= "log_timestamp >'{$ts}'";
-		}
-		return $opts;
-	}
-
-	function getGroupStandings() {
-		return new MethodGuardianStandingsGroup();
-	}
-
-}
-
-class MethodEditorStandingsIndividual extends StandingsIndividual {
-
-    function __construct() {
-        $this->mLeaderboardKey = "methodeditor";
-    }
-
-    function getTable() {
-        return MethodEditor::LOGGING_TABLE_NAME;
-    }
-
-    function getTitle() {
-        return wfMessage('methodeditor_stats_title')->text();
-    }
-
-    function getOpts($ts = null) {
-        global $wgUser;
-        $opts = array();
-        $opts['mel_user'] =$wgUser->getId();
-        if ($ts) {
-            $opts[]= "mel_timestamp >'{$ts}'";
-        }
-        return $opts;
-    }
-
-    function getGroupStandings() {
-        return new MethodEditorStandingsGroup();
-    }
 
 }
 
@@ -924,8 +1242,13 @@ class QCStandingsIndividual extends StandingsIndividual {
 		return "qc_vote";
 	}
 
+	function getArchiveTable() {
+		return 'qc_vote_archive';
+	}
+
+
+
 	function getTitle() {
-		wfLoadExtensionMessages('qc');
 		return wfMessage('qc_stats_title')->text();
 	}
 
@@ -937,6 +1260,44 @@ class QCStandingsIndividual extends StandingsIndividual {
 			$opts[]= "qc_timestamp >'{$ts}'";
 		}
 		return $opts;
+	}
+
+	function fetchStats() {
+		global $wgUser, $wgMemc, $wgLang;
+
+		wfProfileIn(__METHOD__);
+		$dbr = wfGetDB(DB_SLAVE);
+
+		$ts_today = $dbr->timestamp(strtotime('today'));
+		$ts_week = $dbr->timestamp(strtotime('7 days ago'));
+
+		$timecorrection = $wgUser->getOption( 'timecorrection' );
+		$ts_today = $wgLang->userAdjust( $ts_today, $timecorrection );
+		$ts_week = $wgLang->userAdjust( $ts_week, $timecorrection );
+
+		$tbl = $this->getTable();
+
+		$today 	= $dbr->selectField($tbl, 'count(*)',  $this->getOpts($ts_today), __METHOD__);
+		$week 	= $dbr->selectField($tbl, 'count(*)',  $this->getOpts($ts_week), __METHOD__);
+
+		if ($this->showTotal()) {
+			$current = $dbr->selectField($tbl, 'COUNT(*)',  $this->getOpts(), __METHOD__);
+			$archived = $dbr->selectField($this->getArchiveTable(), 'COUNT(*)', $this->getOpts(), __METHOD__);
+			$all = $current + $archived;
+		}
+
+		$standing = $this->getStanding($wgUser);
+
+		$s_arr = array(
+			'today' => $today,
+			'week' => $week,
+			'all' => $all,
+			'standing' => $standing,
+		);
+
+		$this->mStats = $s_arr;
+		wfProfileOut(__METHOD__);
+		return $this->mStats;
 	}
 
 	function getGroupStandings() {
@@ -956,7 +1317,6 @@ class NFDStandingsIndividual extends StandingsIndividual {
 	}
 
 	function getTitle() {
-		wfLoadExtensionMessages('nfdGuardian');
 		return wfMessage('nfd_stats_title')->text();
 	}
 
@@ -1050,7 +1410,7 @@ class UCIPatrolStandingsGroup extends StandingsGroup  {
 		$sql = "SELECT user_name, count(*) as C ".
 			"FROM logging left join ".$wgSharedDB.".user on log_user = user_id ".
 			"WHERE log_type = 'ucipatrol' and log_timestamp >= '$ts' ".
-			"GROUP BY user_name ORDER by C desc limit 25";
+			"AND log_user != 0 GROUP BY user_name ORDER by C desc limit 25";
 		return $sql;
 	}
 
@@ -1108,52 +1468,6 @@ class WelcomeWagonStandingsGroup extends StandingsGroup  {
 	function getTitle() {
 		return wfMessage('welcomewag_leaderboard_title')->text();
 	}
-}
-
-class MethodGuardianStandingsGroup extends StandingsGroup  {
-	function __construct() {
-		parent::__construct("methodguardian_standings2");
-	}
-
-	function getSQL($ts) {
-		global $wgSharedDB;
-		$sql = "SELECT user_name, count(*) as C ".
-			"FROM logging left join ".$wgSharedDB.".user on log_user = user_id ".
-			"WHERE log_type = 'methgua' and log_timestamp >= '$ts' ".
-			"GROUP BY user_name ORDER by C desc limit 25";
-		return $sql;
-	}
-
-	function getField() {
-		return "user_name";
-	}
-
-	function getTitle() {
-		return wfMessage('methodguardian_leaderboard_title')->text();
-	}
-}
-
-class MethodEditorStandingsGroup extends StandingsGroup  {
-    function __construct() {
-        parent::__construct("methodeditor_standings2");
-    }
-
-    function getSQL($ts) {
-		global $wgSharedDB;
-        $sql = "SELECT user_name, count(*) as C ".
-            "FROM " . MethodEditor::LOGGING_TABLE_NAME . " left join ".$wgSharedDB.".user on mel_user = user_id ".
-            "WHERE mel_timestamp >= '$ts' ".
-            "GROUP BY user_name ORDER by C desc limit 25";
-        return $sql;
-    }
-
-    function getField() {
-        return "user_name";
-    }
-
-    function getTitle() {
-        return wfMessage('methodeditor_leaderboard_title')->text();
-    }
 }
 
 class CategorizationStandingsGroup extends StandingsGroup  {

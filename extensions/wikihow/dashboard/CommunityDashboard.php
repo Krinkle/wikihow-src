@@ -1,4 +1,4 @@
-<?
+<?php
 
 if (!defined('MEDIAWIKI')) die();
     
@@ -39,26 +39,33 @@ $wgExtensionMessagesFiles['CommunityDashboardAliases'] = dirname(__FILE__) . '/C
  * defined in $wgWidgetShortCodes below.
  */
 $wgWidgetList = array(
+	'TechFeedbackAppWidget',
+	//'TechVerifyAppWidget',
 	'WriteAppWidget',
-	/*'AddImagesAppWidget',*/
 	'RecentChangesAppWidget',
 	'CategorizerAppWidget',
 	'FormatAppWidget',
 	'CopyeditAppWidget',
 	'CleanupAppWidget',
-	'StubAppWidget',
+	// 'StubAppWidget',
 	'QcAppWidget',
 	'AddVideosAppWidget',
 	'NabAppWidget',
 	'TopicAppWidget',
 	'NfdAppWidget',
-	/*'TweetItForwardWidget',*/
 	'TipsPatrolWidget',
+	'TipsGuardianAppWidget',
 	'SpellcheckerAppWidget',
-    'MethodGuardianAppWidget',
-    'MethodEditorAppWidget',
-	// disabled until this feature is live
-	//'UCIPatrolWidget',
+	'CategoryGuardianAppWidget',
+	// 'KBGuardianAppWidget',
+	'UCIPatrolWidget',
+	'WelcomeWagonWidget',
+	// 'RateAppWidget',
+	'UnitGuardianAppWidget',
+	// 'QAPatrolWidget',
+	'SortQuestionsAppWidget',
+	'AnswerQuestionsAppWidget',
+	'DuplicateTitlesAppWidget',
 );
 
 /**
@@ -68,23 +75,54 @@ $wgWidgetList = array(
 $wgWidgetShortCodes = array(
 	'RecentChangesAppWidget' => 'rc',
 	'NabAppWidget' => 'nab',
-	/*'AddImagesAppWidget' => 'img',*/
 	'AddVideosAppWidget' => 'vid',
 	'WriteAppWidget' => 'wri',
 	'FormatAppWidget' => 'for',
 	'CopyeditAppWidget' => 'cop',
 	'CleanupAppWidget' => 'cln',
 	'CategorizerAppWidget' => 'cat',
-	'StubAppWidget' => 'stu',
+	// 'StubAppWidget' => 'stu',
 	'QcAppWidget' => 'qc',
 	'TopicAppWidget' => 'tpc',
 	'NfdAppWidget' => 'nfd',
-	/*'TweetItForwardWidget' => 'tif',*/
 	'TipsPatrolWidget' => 'tip',
+	'TipsGuardianAppWidget' => 'tg',
 	'SpellcheckerAppWidget' => 'spl',
-    'MethodGuardianAppWidget' => 'amg',
-    'MethodEditorAppWidget' => 'ame',
+	'CategoryGuardianAppWidget' => 'catch',
+	// 'KBGuardianAppWidget' => 'kbg',
 	'UCIPatrolWidget' => 'uci',
+	'WelcomeWagonWidget' => 'welcomewagon',
+	// 'RateAppWidget' => 'rat',
+	'UnitGuardianAppWidget' => 'ung',
+	// 'QAPatrolWidget' => 'qap',
+	'SortQuestionsAppWidget' => 'sqt',
+	'AnswerQuestionsAppWidget' => 'aq',
+	'TechFeedbackAppWidget' => 'tf',
+	//'TechVerifyAppWidget' => 'tv',
+	'DuplicateTitlesAppWidget' => 'dt'
+);
+
+/*top mobile widgets*/
+$wgMobilePriorityWidgetList = array(
+	'SortQuestionsAppWidget',
+	'TechFeedbackAppWidget',
+	'SpellcheckerAppWidget',
+);
+
+/*bottom mobile widgets*/
+$wgMobileWidgetList = array(
+	'CategoryGuardianAppWidget',
+	'TipsGuardianAppWidget',
+	'UCIPatrolWidget',
+	'RecentChangesAppWidget',
+	'UnitGuardianAppWidget',
+);
+
+/*widgets that SHOULD NOT show on desktop*/
+$wgMobileOnlyWidgetList = array(
+	'TipsGuardianAppWidget',
+	'UnitGuardianAppWidget',
+	'SortQuestionsAppWidget',
 );
 
 /**
@@ -102,13 +140,16 @@ $wgHooks['NABArticleFinished'][] = array("wfMarkCompleted", "NabAppWidget"); //n
 $wgHooks['ArticleSaveComplete'][] = array("wfMarkCompletedWrite"); //write articles
 $wgHooks['EditFinderArticleSaveComplete'][] = array("wfMarkCompletedEF"); //stub, format, cleanup, copyedit
 $wgHooks['CategoryHelperSuccess'][] = array("wfMarkCompleted", "CategorizerAppWidget"); //categorizer
-//$wgHooks['IntroImageAdderUploadComplete'][] = array("wfMarkCompleted", "AddImagesAppWidget"); //add images
 $wgHooks['VAdone'][] = array("wfMarkCompleted", "AddVideosAppWidget"); //add videos
 $wgHooks['QCVoted'][] = array("wfMarkCompleted", "QcAppWidget"); //qc
 $wgHooks['NFDVoted'][] = array("wfMarkCompleted", "NfdAppWidget"); //nfd
 $wgHooks['Spellchecked'][] = array("wfMarkCompleted", "SpellcheckerAppWidget"); //spellchecker
-$wgHooks['MethodGuarded'][] = array("wfMarkCompleted", "MethodGuardianAppWidget"); //alt method guardian
-$wgHooks['MethodEdited'][] = array("wfMarkCompleted", "MethodEditorAppWidget"); //alt method patrol
+$wgHooks['TipsPatrolled'][] = array("wfMarkCompleted", "TipsPatrolWidget");
+$wgHooks['PicturePatrolled'][] = array("wfMarkCompleted", "UCIPatrolWidget");
+$wgHooks['WelcomeWagonMessageSent'][] = array("wfMarkCompleted", "WelcomeWagonWidget");
+$wgHooks['SpecialTechFeedbackItemCompleted'][] = array("wfMarkCompleted", "TechFeedbackAppWidget"); //spellchecker
+//$wgHooks['SpecialTechVerifyItemCompleted'][] = array("wfMarkCompleted", "TechVerifyAppWidget");
+$wgHooks["IsEligibleForMobileSpecial"][] = array("wfCDIsEligibleForMobile");
 
 function wfMarkCompleted($appName) {
 	$dashboardData = new DashboardData();
@@ -155,5 +196,14 @@ function wfMarkCompletedWrite($article, $user, $text, $summary, $p5, $p6, $p7) {
 	} catch (Exception $e) {
 		return true;
 	}
+	return true;
+}
+
+function wfCDIsEligibleForMobile(&$isEligible) {
+	global $wgTitle;
+	if($wgTitle && strrpos($wgTitle->getText(), "CommunityDashboard") === 0) {
+		$isEligible = true;
+	}
+
 	return true;
 }

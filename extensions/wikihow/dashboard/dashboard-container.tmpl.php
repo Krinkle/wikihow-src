@@ -27,9 +27,16 @@ WH.dashboard.appShortCodes = <?= json_encode($appShortCodes) ?>;
 			<div class="sandbox" id="comdash-sb-answerrequests">
 				<?= wfMsgWikiHtml('cd-welcome-cta2'); ?>
 			</div>
-			<div class="sandbox" id="comdash-sb-addimages">
-				<?= wfMsg('cd-welcome-cta1', $tipsLink); ?>
-			</div>
+			<?php if($needBoosterAlert): ?>
+				<div id="NABcount"><div><?=$NABcount?></div></div>
+				<div class="sandbox" id="comdash-sb-boosteralert">
+					<div id="boostMsg"><?= wfMsgWikiHtml('cd-welcome-cta3', wfMessage('Comm-dashboard-NABmessage-threshold')); ?></div>
+				</div>
+			<?php else: ?>
+				<div class="sandbox" id="comdash-sb-addimages">
+					<?= wfMsg('cd-welcome-cta1', $tipsLink); ?>
+				</div>
+			<? endif; ?>
 			<div class="clearall"></div>
 		</div>
 	</div>
@@ -72,7 +79,7 @@ WH.dashboard.appShortCodes = <?= json_encode($appShortCodes) ?>;
 		<ul class="cd-customize-sortable"><?php // list items go here ?></ul>
 	</div>
 	<div class="cd-bottom-buttons">
-		<a class="cd-customize-cancel" href="#"><?= wfMsg('cd-cancel') ?></a>
+		<a class="cd-customize-cancel button secondary" href="#"><?= wfMsg('cd-cancel') ?></a>
 		<input class="button primary cd-customize-save" value="<?= wfMsg('cd-save') ?>" />
 	</div>
 </div>

@@ -1,6 +1,6 @@
-<?
+<?php
 //
-// Class used to manage title tests, to display the correct title and meta 
+// Class used to manage title tests, to display the correct title and meta
 // description data based on which test is being run.
 //
 
@@ -21,26 +21,28 @@ class TitleTests {
 	const TITLE_CUSTOM = 100;
 	const TITLE_SITE_PREVIOUS = 101;
 
-	const MAX_TITLE_LENGTH = 65;
+	const MAX_TITLE_LENGTH = 66;
 
 	var $title;
 	var $row;
 	var $cachekey;
 
-	// called by factory method
+	// Flag can be set to avoid using memcache altogether
+	static $forceNoCache = false;
+
+	// Constructor called by factory method
 	protected function __construct($title, $row) {
 		$this->title = $title;
 		$this->row = $row;
 	}
 
-	// get memcache key
 	private static function getCachekey($pageid) {
-		return wfMemcKey('titletests', $pageid);
+		return !self::$forceNoCache ? wfMemcKey('titletests', $pageid) : '';
 	}
 
-	// factory function to create a new object using pageid
+	// Create a new TitleTest object using pageid
 	public static function newFromTitle($title) {
-		global $wgMemc, $wgLanguageCode;
+		global $wgMemc;
 
 		if (!$title || !$title->exists()) {
 			// cannot create class
@@ -54,7 +56,7 @@ class TitleTests {
 		}
 
 		$cachekey = self::getCachekey($pageid);
-		$row = $wgMemc->get($cachekey);
+		$row = $cachekey ? $wgMemc->get($cachekey) : false;
 		if (!is_array($row)) {
 			$dbr = wfGetDB(DB_SLAVE);
 			$row = $dbr->selectRow(
@@ -63,7 +65,7 @@ class TitleTests {
 				array('tt_pageid' => $pageid),
 				__METHOD__);
 			$row = $row ? (array)$row : array();
-			$wgMemc->set($cachekey, $row);
+			if ($cachekey) $wgMemc->set($cachekey, $row);
 		}
 
 		$obj = new TitleTests($title, $row);
@@ -73,7 +75,7 @@ class TitleTests {
 	public function getTitle() {
 		$tt_test = isset($this->row['tt_test']) ? $this->row['tt_test'] : '';
 		$tt_custom = isset($this->row['tt_custom']) ? $this->row['tt_custom'] : '';
-	
+
 		return self::genTitle($this->title, $tt_test, $tt_custom);
 	}
 
@@ -100,9 +102,14 @@ class TitleTests {
 		return array($wikitext, $stepsText);
 	}
 
-	private static function getTitleExtraInfo($wikitext, $stepsText) {
+	private static function getTitleExtraInfo($wikitext, $stepsText, $title) {
 		$numSteps = Wikitext::countSteps($stepsText);
 		$numPhotos = Wikitext::countImages($wikitext);
+		$numVideos = Wikitext::countVideos($wikitext);
+
+		// for the purpose of title info, we are counting videos as images
+		// since we default to showing images with the option of showing video under them
+		$numPhotos = intval($numPhotos) + intval($numVideos);
 
 		$showWithPictures = false;
 		if ($numSteps >= 5 && $numSteps <= 25) {
@@ -120,10 +127,10 @@ class TitleTests {
 
 	private static function makeTitleInner($howto, $numSteps, $withPictures) {
 		global $wgLanguageCode;
-		
-		if ($wgLanguageCode == "en") {
-			$ret = $howto 
-				. ($numSteps > 0 ? ($numSteps == 1 ? ": 1 Step" : ": " . $numSteps . " Steps") : "")
+
+		if ($wgLanguageCode == 'en') {
+			$ret = $howto
+				. ($numSteps > 0 && $numSteps <= 15 ? ($numSteps == 1 ? ": 1 Step" : ": $numSteps Steps") : "")
 				. ($withPictures ? " (with Pictures)" : "");
 		} else {
 			if (wfMessage('title_inner', $howto, $numSteps, $withPictures)->isBlank()) {
@@ -133,14 +140,14 @@ class TitleTests {
 			}
 			$ret = preg_replace("@ +$@", "", $inner);
 		}
-		return($ret);
+		return $ret;
 	}
 
 	private static function makeTitleWays($ways, $titleTxt) {
 		global $wgLanguageCode;
-		
+
 		if ($wgLanguageCode == "en") {
-			$ret = $ways . " Ways to " . $titleTxt;	
+			$ret = $ways . " Ways to " . $titleTxt;
 		} else {
 			if (wfMessage('title_ways', $ways, $titleTxt)->isBlank()) {
 				$ret = $titleTxt;
@@ -153,36 +160,33 @@ class TitleTests {
 
 	private static function genTitle($title, $test, $custom) {
 		global $wgLanguageCode;
-		$maxTitleLength = intVal(wfMessage("max_title_length")->plain());
+		// MediaWiki:max_title_length is used for INTL
+		$maxTitleLength = (int)wfMessage("max_title_length")->plain();
 		if (!$maxTitleLength) {
-			$maxTitleLength = self::MAX_TITLE_LENGTH;	
+			$maxTitleLength = self::MAX_TITLE_LENGTH;
 		}
 		$titleTxt = $title->getText();
 		$howto = wfMessage('howto', $titleTxt)->text();
-		
+
 		list($wikitext, $stepsText) = self::getWikitext($title);
 		switch ($test) {
 		case self::TITLE_CUSTOM: // Custom
 			$title = $custom;
 			break;
+
 		case self::TITLE_SITE_PREVIOUS: // How to XXX: N Steps (with Pictures) - wikiHow
-			list($numSteps, $withPictures) = self::getTitleExtraInfo($wikitext, $stepsText);
+			list($numSteps, $withPictures) = self::getTitleExtraInfo($wikitext, $stepsText, $title);
 			$inner = self::makeTitleInner($howto, $numSteps, $withPictures);
 			$title = wfMessage('pagetitle', $inner)->text();
 			break;
+
 		default: // How to XXX: N Steps (with Pictures) - wikiHow
-		// From Chris's Mar 25 email
-//		case 5: // default, but not "with Pictures"
-//		case 6: // n Tips on How to ... "with Pictures"
-//		case 7: // n Tips on How to ... but not "with Pictures"
-//		case 8: // How to ...: Step-by-Step Instructions "with Pictures"
-//		case 9: // How to ...: Step-by-Step Instructions but not "with Pictures"
- 
+
 			$methods = Wikitext::countAltMethods($stepsText);
-			
+
 			$mw = MagicWord::get( 'parts' );
 			$hasParts = ($mw->match($wikitext));
-			
+
 			if ($methods >= 3 && !$hasParts) {
 				$inner = self::makeTitleWays($methods, $titleTxt);
 				$title = wfMessage('pagetitle', $inner)->text();
@@ -190,18 +194,7 @@ class TitleTests {
 					$title = $inner;
 				}
 			} else {
-				list($numSteps, $withPictures) = self::getTitleExtraInfo($wikitext, $stepsText);
-//				$forceNoWithPictures = in_array($test, array(5, 7, 9));
-//				$withPictures = !$forceNoWithPictures ? $withPictures : false;
-//				if ($test == 6 || $test == 7) {
-//					$inner = $numSteps > 1 ? "$numSteps Tips on $howto" : $howto;
-//				} elseif ($test == 8 || $test == 9) {
-//					$inner = $numSteps > 0 ? "$howto: Step-by-Step Instructions" : $howto;
-//				} else {
-//					if ($numSteps > 1) $inner = "$howto: $numSteps Steps";
-//					elseif ($numSteps == 1) $inner = "$howto: 1 Step";
-//					else $inner = $howto;
-//				}
+				list($numSteps, $withPictures) = self::getTitleExtraInfo($wikitext, $stepsText, $title);
 				$inner = self::makeTitleInner($howto, $numSteps, $withPictures);
 				$title = wfMessage('pagetitle', $inner)->text();
 				// first, try articlename + metadata + wikihow
@@ -209,15 +202,6 @@ class TitleTests {
 					// next, try articlename + metadata
 					$title = $inner;
 					if ($numSteps > 0 && strlen($title) > $maxTitleLength) {
-//						if ($test == 6 || $test == 7) {
-//							$title = "$numSteps Tips on $howto";
-//						} elseif ($test == 8 || $test == 9) {
-//							$title = "$howto: Step-by-Step Instructions";
-//						} else {
-//							if ($numSteps > 1) $title = "$howto: $numSteps Steps";
-//							elseif ($numSteps == 1) $title = "$howto: 1 Step";
-//						}
-
 						// next, try articlename + steps
 						$title = self::makeTitleInner($howto, $numSteps, 0);
 					}
@@ -232,37 +216,6 @@ class TitleTests {
 				}
 			}
 			break;
-
-		// start of new Title Tests from Chris's March 29 email
-		//case 12: // How to XXX: N Tips - wikiHow
-		//case 13: // N Tips on How to XXX - wikiHow
-		//case 14: // How to XXX: Step-by-Step Instructions
-		//case 15: // How to XXX: N Methods - wikiHow
-		//case 16: // N Ways to XXX - wikiHow
-		//case 17: // How to XXX with Step-by-Step Pictures
-
-		// start of new title tests from Chris's Oct 2 email
-		/*case 18: // How to XXX with Step-by-Step Pictures
-			$inner = '';
-			$methods = Wikitext::countAltMethods($stepsText);
-			if ($methods >= 4) {
-				$inner = "$methods Ways to $titleTxt";
-			} else {
-				$steps = Wikitext::countSteps($stepsText);
-				if (3 <= $steps && $steps < 15) {
-					$inner = "$steps Tips on $howto";
-				}
-			}
-			if (!$inner) {
-				$inner = "$howto: Step-by-Step Instructions";
-			}
-
-			$title = wfMsg('pagetitle', $inner);
-			if (strlen($title) > self::MAX_TITLE_LENGTH) {
-				$title = $inner;
-			}
-			break;*/
-
 		}
 		return $title;
 	}
@@ -280,7 +233,7 @@ class TitleTests {
 	}
 
 	/**
-	 * Adds a new record to the title_tests db table.  Called by 
+	 * Adds a new record to the title_tests db table.  Called by
 	 * importTitleTests.php.
 	 */
 	public static function dbAddRecord(&$dbw, $title, $test) {
@@ -289,13 +242,13 @@ class TitleTests {
 			throw new Exception('TitleTests: bad title for DB call');
 		}
 		$pageid = $title->getArticleId();
-		$dbw->replace('title_tests', 'tt_pageid', 
+		$dbw->replace('title_tests', 'tt_pageid',
 			array('tt_pageid' => $pageid,
 				'tt_page' => $title->getDBkey(),
 				'tt_test' => $test),
 			__METHOD__);
 		$cachekey = self::getCachekey($pageid);
-		$wgMemc->delete($cachekey);
+		if ($cachekey) $wgMemc->delete($cachekey);
 	}
 
 	/**
@@ -316,7 +269,7 @@ class TitleTests {
 				'tt_custom_note' => $custom_note),
 			__METHOD__);
 		$cachekey = self::getCachekey($pageid);
-		$wgMemc->delete($cachekey);
+		if ($cachekey) $wgMemc->delete($cachekey);
 	}
 
 	/**
@@ -324,7 +277,7 @@ class TitleTests {
 	 */
 	public static function dbListCustomTitles(&$dbr) {
 		$res = $dbr->select('title_tests',
-			array('tt_pageid', 'tt_page', 'tt_custom', 'tt_custom_note'), 
+			array('tt_pageid', 'tt_page', 'tt_custom', 'tt_custom_note'),
 			array('tt_test' => self::TITLE_CUSTOM),
 			__METHOD__);
 		$pages = array();
@@ -347,7 +300,7 @@ class TitleTests {
 			array('tt_pageid' => $pageid),
 			__METHOD__);
 		$cachekey = self::getCachekey($pageid);
-		$wgMemc->delete($cachekey);
+		if ($cachekey) $wgMemc->delete($cachekey);
 	}
 
 }

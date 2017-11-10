@@ -1,3 +1,4 @@
+(function($, mw) {
 
 function Slider() {
 	this.m_link = '/Special:StarterTool';
@@ -10,8 +11,8 @@ Slider.prototype.init = function () {
 	if (!slider.test_on) {
 		return;
 	}
-		
 	
+	$('#sliderbox').show();
 	$('#sliderbox').animate({
 		right: '+=500',
 		bottom: '+=300'
@@ -49,12 +50,6 @@ Slider.prototype.closeSlider = function() {
 		right: '-500px',
 		bottom: '-310px'
 	});
-	
-	//set a 30-day cookie
-/*	var exdate = new Date();
-	var expiredays = 30;
-	exdate.setDate(exdate.getDate()+expiredays);
-	document.cookie = "sliderbox=2;expires="+exdate.toGMTString();*/
 }
 
 //let's log the choice in the database
@@ -63,5 +58,8 @@ Slider.prototype.log = function(action) {
 	$.get(url);
 }
 
+// Export this global so it can be used from wikihowbits.js
+window.slider = new Slider();
 
-var slider = new Slider();
+})(jQuery, mw);
+

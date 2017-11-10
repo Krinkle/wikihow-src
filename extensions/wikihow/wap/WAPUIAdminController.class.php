@@ -64,8 +64,26 @@ abstract class WAPUIAdminController extends WAPUIController {
 				case "remove_tag_articles":
 					$this->removeTagArticles();
 					break;
+				case "validate_notes_articles":
+					$this->validateNotesArticles();
+					break;
+				case "add_notes_articles":
+					$this->addNotesArticles();
+					break;
+				case "add_csv_notes_articles":
+					$this->addCSVNotesArticles();
+					break;
+				case "clear_notes_articles":
+					$this->removeNotesArticles();
+					break;
 				case "remove_tag_system":
 					$this->removeTagSystem();
+					break;
+				case "deactivate_tag_system":
+					$this->deactivateTagSystem();
+					break;
+				case "activate_tag_system":
+					$this->activateTagSystem();
 					break;
 				case "tag_users":
 					$this->tagUsers();
@@ -75,6 +93,9 @@ abstract class WAPUIAdminController extends WAPUIController {
 					break;
 				case "remove_users":
 					$this->removeUsers();
+					break;
+				case "deactivate_users":
+					$this->deactivateUsers();
 					break;
 				case "remove_excluded":
 					$this->removeExcludedArticles();
@@ -88,9 +109,8 @@ abstract class WAPUIAdminController extends WAPUIController {
 				case "article_details":
 					$this->articleDetails();
 					break;
-				  default:
-					$wgOut->setArticleBodyOnly(true);
-					echo "invalid action";
+				default:
+					$this->handleOtherActions();
 			}
 		} else {
 			switch ($par) {
@@ -108,6 +128,9 @@ abstract class WAPUIAdminController extends WAPUIController {
 					break;
 				case "removeUser":
 					$this->outputRemoveUsersHtml();
+					break;
+				case "deactivateUser":
+					$this->outputDeactivateUsersHtml();
 					break;
 				case "assignUser":
 					$this->outputAssignUserHtml();
@@ -130,6 +153,12 @@ abstract class WAPUIAdminController extends WAPUIController {
 				case "removeTagSystem":
 					$this->outputRemoveTagSystemHtml();
 					break;
+				case "deactivateTagSystem":
+					$this->outputDeactivateTagSystemHtml();
+					break;
+				case "activateTagSystem":
+					$this->outputActivateTagSystemHtml();
+					break;
 				case "customReport":
 					$this->outputCustomReportHtml();
 					break;
@@ -139,10 +168,33 @@ abstract class WAPUIAdminController extends WAPUIController {
 				case "assignedReport":
 					$this->outputAssignedReportHtml();
 					break;
+				case "addNotes":
+					$this->outputAddNotesHtml();
+					break;
+				case "clearNotes":
+					$this->outputClearNotesHtml();
+					break;
 				default:
-					$this->outputAdminMenuHtml();
+					$this->handleOtherRequests($par);
 			}
 		}
+	}
+
+	/*
+	 * May be overwritten by subclass to define system-specific actions
+	 */
+	protected function handleOtherActions() {
+		global $wgOut;
+
+		$wgOut->setArticleBodyOnly(true);
+		echo "invalid action";
+	}
+
+	/*
+	 * May be overwritten by subclass to define system-specific requests
+	 */
+	protected function handleOtherRequests($par) {
+		$this->outputAdminMenuHtml();
 	}
 
 	protected function validateUser() {
@@ -184,9 +236,20 @@ abstract class WAPUIAdminController extends WAPUIController {
 		$vars['users'] = $this->wapDB->getUsers();
 
 		$system = $this->config->getSystemName();
-		$wgOut->setPageTitle("Remove Users from $system");
+		$wgOut->setPageTitle("Remove User");
 		$tmpl = new WAPTemplate($this->dbType);
 		$wgOut->addHtml($tmpl->getHtml('remove_users.tmpl.php', $vars));
+	}
+
+	function outputDeactivateUsersHtml() {
+		global $wgOut;
+		$vars = $this->getDefaultVars($this->dbType);
+		$vars['users'] = $this->wapDB->getUsers();
+
+		$system = $this->config->getSystemName();
+		$wgOut->setPageTitle("Deactivate User");
+		$tmpl = new WAPTemplate($this->dbType);
+		$wgOut->addHtml($tmpl->getHtml('deactivate_users.tmpl.php', $vars));
 	}
 
 	function outputAddUserHtml() {
@@ -211,14 +274,33 @@ abstract class WAPUIAdminController extends WAPUIController {
 		$wgOut->addHtml($tmpl->getHtml('tag_users.tmpl.php', $vars));
 	}
 
+	function outputDeactivateTagSystemHtml() {
+		global $wgOut;
+		$vars = $this->getDefaultVars($this->dbType);
+		$vars['tags'] = $this->getAllTags(WAPTagDB::TAG_ACTIVE);
+		$vars['title'] = 'Deactivate';
+		$vars['buttonId'] = 'deactivate_tag_system';
+		$wgOut->setPageTitle("Deactivate Tags");
+		$tmpl = new WAPTemplate($this->dbType);
+		$wgOut->addHtml($tmpl->getHtml('deactivate_activate_tag_system.tmpl.php', $vars));
+	}
+
+	function outputActivateTagSystemHtml() {
+		global $wgOut;
+		$vars = $this->getDefaultVars($this->dbType);
+		$vars['tags'] = $this->getAllTags(WAPTagDB::TAG_DEACTIVATED);
+		$vars['title'] = 'Activate';
+		$vars['buttonId'] = 'activate_tag_system';
+		$wgOut->setPageTitle("Activate Tags");
+		$tmpl = new WAPTemplate($this->dbType);
+		$wgOut->addHtml($tmpl->getHtml('deactivate_activate_tag_system.tmpl.php', $vars));
+	}
 
 	function outputRemoveTagSystemHtml() {
 		global $wgOut;
 		$vars = $this->getDefaultVars($this->dbType);
 		$vars['tags'] = $this->getUnassignedTags();
-
-		$system = $this->config->getSystemName();
-		$wgOut->setPageTitle("Remove Tags from $system");
+		$wgOut->setPageTitle("Remove Tags");
 		$tmpl = new WAPTemplate($this->dbType);
 		$wgOut->addHtml($tmpl->getHtml('tag_system.tmpl.php', $vars));
 	}
@@ -244,6 +326,24 @@ abstract class WAPUIAdminController extends WAPUIController {
 		global $wgOut;
 		$wgOut->setPageTitle('Assigned Report Generator');
 		$this->outputReportByLanguageHtml('rpt_assigned_articles_admin');
+	}
+
+	function outputAddNotesHtml() {
+		global $wgOut;
+		$vars = $this->getDefaultVars($this->dbType);
+		$vars['add'] = true;
+		$wgOut->setPageTitle('Add Notes to Articles');
+		$tmpl = new WAPTemplate($this->dbType);
+		$wgOut->addHtml($tmpl->getHtml('bulk_notes.tmpl.php', $vars));
+	}
+
+	function outputClearNotesHtml() {
+		global $wgOut;
+		$vars = $this->getDefaultVars($this->dbType);
+		$vars['add'] = false;
+		$wgOut->setPageTitle('Clear Notes from Articles');
+		$tmpl = new WAPTemplate($this->dbType);
+		$wgOut->addHtml($tmpl->getHtml('bulk_notes.tmpl.php', $vars));
 	}
 
 	function outputAssignedArticlesReport() {
@@ -303,13 +403,21 @@ abstract class WAPUIAdminController extends WAPUIController {
 	}
 
 	function removeUsers() {
-		global $wgRequest, $IP;
+		global $wgRequest;
 		$this->wapDB->removeUsers($wgRequest->getArray('users'));
 		$this->outputSuccessHtml("Users successfully removed");
 	}
 
+	function deactivateUsers() {
+		global $wgRequest;
+		$user = $wgRequest->getArray('users');
+		$ret = $this->wapDB->deactivateUser(array_pop($user));
+		$msg = $ret ? "User successfully deactivated" : "User NOT deactivated. Please release assigned articles from the user in order to deactivate.";
+		$this->outputSuccessHtml($msg);
+	}
+
 	function addUser() {
-		global $wgRequest, $IP;
+		global $wgRequest;
 		if ($this->wapDB->addUser($wgRequest->getVal('url'))) {
 			$message = 'User added';
 		} else {
@@ -319,17 +427,52 @@ abstract class WAPUIAdminController extends WAPUIController {
 	}
 
 	function removeTagSystem() {
-		global $wgRequest, $IP;
+		global $wgRequest;
 		$tags = $wgRequest->getArray('tags');
-		WAPUtil::createTagArrayFromRequestArray($tags);
+        WAPUtil::createTagArrayFromRequestArray($tags);
+        if (!$tags) {
+            $this->outputSuccessHtml(
+                'No valid tags received. Note that a tag must be empty before removal.');
+            return;
+        }
 		$assignedTags = $this->wapDB->removeTagsFromSystem($tags);
 		$this->outputRemovedSystemTagsHtml($assignedTags);
+	}
+	function activateTagSystem() {
+		global $wgRequest;
+		$tags = $wgRequest->getArray('tags');
+		WAPUtil::createTagArrayFromRequestArray($tags);
+		if (!$tags) {
+			$this->outputSuccessHtml(
+				'No valid tags received.');
+			return;
+		}
+		$this->wapDB->activateTags($tags);
+		$this->outputSuccessHtml("Tags successfully activated");
+	}
+
+	function deactivateTagSystem() {
+		global $wgRequest;
+		$tags = $wgRequest->getArray('tags');
+		WAPUtil::createTagArrayFromRequestArray($tags);
+		if (!$tags) {
+			$this->outputSuccessHtml(
+				'No valid tags received.');
+			return;
+		}
+		$this->wapDB->deactivateTags($tags);
+		$this->outputSuccessHtml("Tags successfully deactivated");
 	}
 
 	function tagUsers() {
 		global $wgRequest, $IP;
 		$tags = $wgRequest->getArray('tags');
 		WAPUtil::createTagArrayFromRequestArray($tags);
+        if (!$tags) {
+            $this->outputSuccessHtml(
+                'No valid tags received.');
+            return;
+        }
 		$this->wapDB->tagUsers($wgRequest->getArray('users'), $tags);
 		$this->outputSuccessHtml("Arist(s) successfully tagged");
 	}
@@ -340,9 +483,9 @@ abstract class WAPUIAdminController extends WAPUIController {
 		return $tags;
 	}
 
-	function getAllTags() {
+	function getAllTags($tagType = WAPTagDB::TAG_ACTIVE) {
 		$ctu = $this->wapDB->getUserTagDB();
-		return $ctu->getAllTags();
+		return $ctu->getAllTags($tagType);
 	}
 
 	function getUnassignedTags() {
@@ -354,6 +497,7 @@ abstract class WAPUIAdminController extends WAPUIController {
 		global $wgOut;
 		$vars = $this->getDefaultVars($this->dbType);
 		$vars['tags'] = $this->getAssignedArticleTags();
+		$vars['deactivatedTags'] = $this->getAllTags(WAPTagDB::TAG_DEACTIVATED);
 		$vars['users'] = $this->wapDB->getUsers();
 
 		$system = $this->config->getSystemName();
@@ -365,6 +509,7 @@ abstract class WAPUIAdminController extends WAPUIController {
 	function outputRemovedSystemTagsHtml(&$assignedTags) {
 		global $wgOut;
 		$wgOut->setArticleBodyOnly(true);
+        $vars = $this->getDefaultVars($this->dbType);
 		$vars['tags'] = $assignedTags;
 
 		$tmpl = new WAPTemplate($this->dbType);
@@ -462,6 +607,11 @@ abstract class WAPUIAdminController extends WAPUIController {
 		$aids = $wgRequest->getArray('aids');
 		$tags = $wgRequest->getArray('tags');
 		WAPUtil::createTagArrayFromRequestArray($tags);
+        if (!$tags) {
+            $this->outputSuccessHtml(
+                'No valid tags received.');
+            return;
+        }
 		foreach ($aids as $lang => $langIds) {
 			$this->wapDB->tagArticles($langIds, $lang, $tags);
 		}
@@ -478,6 +628,11 @@ abstract class WAPUIAdminController extends WAPUIController {
 		global $wgRequest, $IP;
 		$tags = $wgRequest->getArray('tags');
 		WAPUtil::createTagArrayFromRequestArray($tags);
+        if (!$tags) {
+            $this->outputSuccessHtml(
+                'No valid tags received.');
+            return;
+        }
 		$this->wapDB->removeTagsFromUsers($wgRequest->getArray('users'), $tags);
 		$this->outputSuccessHtml("Tag(s) successfully removed");
 	}
@@ -516,11 +671,72 @@ abstract class WAPUIAdminController extends WAPUIController {
 		$urlList = Misc::getUrlDecodedData($wgRequest->getVal('urls'));
 		$tags = $wgRequest->getArray('tags');
 		WAPUtil::createTagArrayFromRequestArray($tags);
+        if (!$tags) {
+            $this->outputSuccessHtml(
+                'No valid tags received.');
+            return;
+        }
 		$langs = $this->config->getSupportedLanguages();
 		foreach ($langs as $lang) {
 			$this->wapDB->removeTagsFromArticles($urlList, $lang, $tags);
 		}
 		$this->outputSuccessHtml("Tag(s) successfully removed");
+	}
+
+	function validateNotesArticles() {
+		global $wgRequest;
+		$urls = $this->wapDB->processUrlList($wgRequest->getVal('urls'));
+		$this->outputArticlesValidationHtml($urls, 'add_notes_articles', 'Apply Notes to Articles');
+	}
+
+	function addNotesArticles() {
+		global $wgRequest;
+		$aids = $wgRequest->getArray('aids');
+		$notes = $wgRequest->getVal('notes');
+		foreach ($aids as $lang => $langIds) {
+			$this->wapDB->addNotesToArticles($langIds, $lang, $notes);
+		}
+
+		$this->outputSuccessHtml("Notes successfully applied to URL(s)");
+	}
+
+	function addCSVNotesArticles() {
+		global $wgRequest;
+		$csv = $wgRequest->getVal('csv');
+		$csvArray = WAPUtil::parse_csv($csv);
+		$results = $this->wapDB->addSeparateNotesToArticles($csvArray);
+
+		$outputString =
+			"Notes successfully updated for "
+			. $results['added'] . " article(s)";
+
+		if ($results['lengthError'] > 0) {
+			$outputString .=
+				"\n<br />" . $results['lengthError']
+				. " line(s) ignored (bad syntax)";
+		}
+
+		if (count($results['notFound']) > 0) {
+			$outputString .=
+				"\n<br />" . count($results['notFound'])
+				. " article(s) not found in the system:";
+			foreach ($results['notFound'] as $entry) {
+				$outputString .=
+					"\n<br />" . $entry['langCode'] . ": " . $entry['url'];
+			}
+		}
+
+		$this->outputSuccessHtml($outputString);
+	}
+
+	function removeNotesArticles() {
+		global $wgRequest;
+		$urlList = Misc::getUrlDecodedData($wgRequest->getVal('urls'));
+		$langs = $this->config->getSupportedLanguages();
+		foreach ($langs as $lang) {
+			$this->wapDB->removeNotesFromArticles($urlList, $lang);
+		}
+		$this->outputSuccessHtml("Notes successfully removed");
 	}
 
 	function articleDetails() {
@@ -534,12 +750,11 @@ abstract class WAPUIAdminController extends WAPUIController {
 			$ca = $articleClass::newFromUrl($url, $lang, $this->dbType);
 			$vars['lang']  = $lang;
 			$vars['article'] = $ca;
-			$vars['user'] = $ca->getUser(); 
-			$vars['tags'] = $ca->getTags();
+			$vars['user'] = is_null($ca) ? null : $ca->getUser(); 
+			$vars['tags'] = is_null($ca) ? null : $ca->getTags(WAPArticleTagDB::TAG_ALL);
 
 			$tmpl = new WAPTemplate($this->dbType);
 			$wgOut->addHtml($tmpl->getHtml('article_details_admin.tmpl.php', $vars));
-			$wgOut->addHtml($html);
 		}
 	}
 

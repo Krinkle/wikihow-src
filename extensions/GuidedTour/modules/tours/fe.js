@@ -38,7 +38,8 @@
 					}
 				}
 			} ],
-			allowAutomaticOkay: false
+			allowAutomaticOkay: false,
+			xButton: true
 		}, {
 			titlemsg: 'guidedtour-tour-fe-editing-title',
 			descriptionmsg: 'guidedtour-tour-fe-editing-description',
@@ -54,7 +55,8 @@
 			closeOnClickOutside: false,
 			buttons: [{
 				action: 'next'
-			}]
+			}],
+			xButton: true
 
 		}, {
 			titlemsg: 'guidedtour-tour-fe-preview-title',
@@ -70,7 +72,8 @@
 			buttons: [ {
 				action: 'next'
 			} ],
-			allowAutomaticOkay: false
+			allowAutomaticOkay: false,
+			xButton: true
 		},  {
 			titlemsg: 'guidedtour-tour-fe-summary-title',
 			descriptionmsg: 'guidedtour-tour-fe-summary-description',
@@ -85,6 +88,7 @@
 			buttons: [ {
 				action: 'next'
 			} ],
+			xButton: true
 		},  {
 			titlemsg: 'guidedtour-tour-fe-save-title',
 			descriptionmsg: 'guidedtour-tour-fe-save-description',
@@ -97,21 +101,25 @@
 				return !gt.isReviewing() && !gt.isEditing();
 			},
 			buttons: [ {
-				namemsg: 'guidedtour-okay-button',
-				onclick: function () {
-						mw.libs.guiders.hideAll();
-						mw.guidedTour.endTour();
-				}
-			} ]
-		},  {
-			titlemsg: 'guidedtour-tour-fe-end-title',
-			descriptionmsg: 'guidedtour-tour-fe-end-description',
-			overlay: true,
-			buttons: [ {
+				// namemsg: 'guidedtour-okay-button',
+				// onclick: function () {
+						// mw.libs.guiders.hideAll();
+						// mw.guidedTour.endTour();
+				// }
 				action: 'end'
-			}],
-			closeOnClickOutside: false
-		} ]
+			} ],
+			xButton: true
+		}
+		// ,  {
+			// titlemsg: 'guidedtour-tour-fe-end-title',
+			// descriptionmsg: 'guidedtour-tour-fe-end-description',
+			// overlay: true,
+			// buttons: [ {
+				// action: 'end'
+			// }],
+			// closeOnClickOutside: false
+		// } 
+		]
 	} );
 
 } (window, document, jQuery, mediaWiki, mediaWiki.guidedTour ) );

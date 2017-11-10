@@ -1,8 +1,4 @@
-<?
-if (!defined('MEDIAWIKI')) die();
-
-global $IP;
-require_once("$IP/skins/WikiHowSkin.php");
+<?php
 
 class Slider extends UnlistedSpecialPage {
 
@@ -14,18 +10,17 @@ class Slider extends UnlistedSpecialPage {
 		//global $wgTitle;
 	
 		// First try to see if we have a recommendation
-		$html = self::getRecBox();
-		if($html) {
-			return($html);	
-		}
+		//$html = self::getRecBox();
+		//if($html) {
+		//	return($html);	
+		//}
 		// Contribute to wikiHow slider
 		return self::getBox_08();
 	}
 	
 	//original slider
 	public function getBox_01() {
-		global $wgOut, $wgLanguageCode, $wgServer, $wgTitle;
-		wfLoadExtensionMessages('Slider');
+		global $wgLanguageCode;
 
         // Remove background for non-english sites. Unfortunate, but bg image has English in it.
         $slider_thanks_intl = "";
@@ -33,9 +28,7 @@ class Slider extends UnlistedSpecialPage {
             $slider_thanks_intl = "class='slider_thanks_intl'";
         }
 
-		$url = urlencode($wgServer . "/" . $wgTitle->getPrefixedURL());
-		
-		$theBox = "<div id='sliderbox'>
+		$theBox = "<div id='sliderbox' style='display:none'>
 						<div id='slider_thanks' $slider_thanks_intl>
 							<a href='#' id='slider_close_button'>x</a>
 							<div class='tta_plus1'><g:plusone size='tall'></g:plusone></div>
@@ -51,9 +44,8 @@ class Slider extends UnlistedSpecialPage {
 	
 	//wikihow logo slider
 	public function getBox_02() {
-		wfLoadExtensionMessages('Slider');
 		
-		$theBox = "<div id='sliderbox'>
+		$theBox = "<div id='sliderbox' style='display:none'>
 						<div id='slider_thanks_02'>
 							<a href='#' id='slider_close_button'>x</a>
 							<div class='tta_plus1_02'><g:plusone size='tall'></g:plusone></div>
@@ -69,9 +61,8 @@ class Slider extends UnlistedSpecialPage {
 	
 	//circle slider
 	public function getBox_03() {
-		wfLoadExtensionMessages('Slider');
 		
-		$theBox = "<div id='sliderbox' class='sliderbox_03'>
+		$theBox = "<div id='sliderbox' class='sliderbox_03' style='display:none'>
 							<div id='slider_thanks_outer_03'>
 						<div id='slider_thanks_03'>
 								<a href='#' id='slider_close_button'>x</a>
@@ -90,14 +81,13 @@ class Slider extends UnlistedSpecialPage {
 	/* Note: this box CANNOT be used without adding caching in WikihowShare::getPinterestImage($wgTitle)
 	//circle slider [pinterest]
 	public function getBox_04() {
-		global $wgServer, $wgTitle;
-		wfLoadExtensionMessages('Slider');
+		global $wgCanonicalServer, $wgTitle;
 
-		$url = urlencode($wgServer . "/" . $wgTitle->getPrefixedURL());
+		$url = urlencode($wgCanonicalServer . "/" . $wgTitle->getPrefixedURL());
 		$img = urlencode(WikihowShare::getPinterestImage($wgTitle));
 		$desc = urlencode(wfMessage('Pinterest_text', $wgTitle->getText())->text());
 		
-		$theBox = "<div id='sliderbox' class='sliderbox_03'>
+		$theBox = "<div id='sliderbox' class='sliderbox_03' style='display:none'>
 							<div id='slider_thanks_outer_03'>
 						<div id='slider_thanks_03'>
 								<a href='#' id='slider_close_button'>x</a>
@@ -114,13 +104,13 @@ class Slider extends UnlistedSpecialPage {
 	}
 	*/
 	
+/*
 	//circle slider
 	public function getBox_05() {
-		wfLoadExtensionMessages('Slider');
 		
-		$ar = new ArticleRatingDesktopView();
+		//$ar = new ArticleRatingDesktopView();
 		$body =  $ar->getHtml();
-		$theBox = "<div id='sliderbox' class='sliderbox_rating'>
+		$theBox = "<div id='sliderbox' class='sliderbox_rating' style='display:none'>
 							<div id='slider_thanks_02'>
 									<a href='#' id='slider_close_button'>x</a>
 									<div class='tta_text_05'>
@@ -133,12 +123,12 @@ class Slider extends UnlistedSpecialPage {
 
 		return $theBox;
 	}
+*/
 	
 	//circle slider that follows our G+ page
 	public function getBox_06() {
-		wfLoadExtensionMessages('Slider');
 		
-		$theBox = "<div id='sliderbox' class='sliderbox_06'>
+		$theBox = "<div id='sliderbox' class='sliderbox_06' style='display:none'>
 							<div id='slider_thanks_outer_03'>
 						<div id='slider_thanks_06'>
 								<a href='#' id='slider_close_button'>x</a>
@@ -156,9 +146,8 @@ class Slider extends UnlistedSpecialPage {
 	
 	//circle slider with official G+ Follow Button
 	public function getBox_07() {
-		wfLoadExtensionMessages('Slider');
 		
-		$theBox = "<div id='sliderbox' class='sliderbox_06'>
+		$theBox = "<div id='sliderbox' class='sliderbox_06' style='display:none'>
 							<div id='slider_thanks_outer_03'>
 						<div id='slider_thanks_06'>
 								<a href='#' id='slider_close_button'>x</a>
@@ -176,9 +165,8 @@ class Slider extends UnlistedSpecialPage {
 	
 	//circle slider with Become an Author link
 	public function getBox_08() {
-		wfLoadExtensionMessages('Slider');
 		
-		$theBox = "<div id='sliderbox' class='sliderbox_08'>
+		$theBox = "<div id='sliderbox' class='sliderbox_08' style='display:none'>
 						<div id='slider_thanks_08'>
 							<a href='#' id='slider_close_button'></a>
 							<div class='slider_become_main'>
@@ -194,9 +182,8 @@ class Slider extends UnlistedSpecialPage {
 	
 	//circle slider with Try Out Editing link 
 	public function getBox_09() {
-		wfLoadExtensionMessages('Slider');
 		
-		$theBox = "<div id='sliderbox' class='sliderbox_08'>
+		$theBox = "<div id='sliderbox' class='sliderbox_08' style='display:none'>
 						<div id='slider_thanks_08'>
 							<a href='#' id='slider_close_button'></a>
 							<div class='slider_become_main'>
@@ -210,30 +197,6 @@ class Slider extends UnlistedSpecialPage {
 		return $theBox;
 	}
 
-	public function getRecBox() {
-		global $wgUser;
-
-		wfLoadExtensionMessages('Slider');
-
-		if($wgUser->getId() == 0 || !class_exists('RecommendationPresenter')) {
-			return(false);
-		}
-		
-		$t = RecommendationPresenter::getRecommendation($wgUser);
-		if(!$t) {
-			return(false);	
-		}
-
-		$theBox = "<div id='sliderbox' class='sliderbox_08'>
-						<div id='slider_thanks_08'>
-							<a href='#' id='slider_close_button'></a>
-							<div class='slider_become_main'>
-								<p class='slider_editing_text'>Can you help edit...</p><a href=\"" . $t['url'] . "&action=edit\">" . str_replace('-',' ',$t['page_title']) . "</a>
-						</div>
-					</div>";
-		return($theBox);
-	}
-	
 	/**
 	 * EXECUTE
 	 **/

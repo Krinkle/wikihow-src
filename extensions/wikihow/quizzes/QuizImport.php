@@ -3,6 +3,11 @@
  * Usage: php QuizImport.php
  *
  * Imports our quiz spreadsheet and inserts it into the database *
+ * THIS CODE NO LONGER WORKS
+ * it is still here as a reference or in case someone wants to fix it
+ * but for now it is broken since logging into google as a client no longer works
+ * instead you have to use a dservice account.  shouldn't be too hard to fix but
+ * not going to do it now
  */
 
 global $IP;
@@ -17,13 +22,63 @@ class QuizImport {
 	private static $quiz_name, $quiz_icon, $quiz_question, $quiz_answer, $quiz_reason;
 	private static $import_array = array();
 
+
+	// moved this over from the GoogleSpreadsheet class but have not tested it yet
+	public function getHeaders( $gs, $worksheet ) {
+		$url = "https://spreadsheets.google.com/feeds/cells/" . $worksheet . "/private/full";
+		$url .= "?access_token=" . $gs->getToken();
+
+		$res = $gs->doAtomXmlRequest($url,array("max-row"=>1));
+		$n = 0;
+		$xml = simplexml_load_string( $res );
+		$cols = array();
+		foreach( $xml->entry as $e ) {
+			$cols[] = trim( ( string )$e->content );
+		}
+		return( $cols );
+	}
+
+	// moved this over from the GoogleSpreadsheet class but have not tested it yet
+	public function getColsWithSpaces( $gs, $worksheet, $startCol, $endCol, $startRow = 1 ) {
+		$url="https://spreadsheets.google.com/feeds/cells/" . $worksheet . "/private/full";
+		$url .= "?access_token=" . $gs->getToken();
+		$res = $gs->doAtomXmlRequest($url,array("min-row"=>$startRow,"min-col"=>$startCol,"max-col"=>$endCol));
+		$xml = simplexml_load_string($res);
+		$row = array();
+		$cols = array();
+		$last_pos = 'A';
+		foreach($xml->entry as $e) {
+			$pos = strtoupper((string)$e->title);
+			//new row?
+			if (substr($pos,-1,1) !== substr($last_pos,-1,1) && $pos != 'A2') {
+				$cols[] = $row;
+				$row = array();
+			}
+			else {
+				//did we skip an empty cell?
+				$diff = (ord(substr($pos,0,1)) - ord(substr($last_pos,0,1)));
+				for ($i=1; $i < $diff; $i++) {
+					$row[] = '';
+				}
+			}
+
+			$row[] = (string)$e->content;
+			$last_pos = $pos;
+		}
+		$cols[] = $row;
+		return($cols);
+	}
+
 	public function main() {
 		print "Getting quizzes\n";
 		try {
 			$gs = new GoogleSpreadsheet();
 			$gs->login(WH_TREBEK_GOOGLE_LOGIN, WH_TREBEK_GOOGLE_PW);
 			
-			$headers = $gs->getHeaders(WH_QUIZZES_GOOGLE_DOC);
+			// TODO in order for this to work the quizzes google doc must be
+			// shared with our new google service account that we use for auth.
+
+			$headers = $this->getHeaders( $gs, WH_QUIZZES_GOOGLE_DOC );
 			self::parseHeaders($headers);
 			
 			$quiz_data = array();

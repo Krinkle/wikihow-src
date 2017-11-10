@@ -1,6 +1,4 @@
-<?
-
-if (!defined('MEDIAWIKI')) die();
+<?php
 
 class AdminUserCompletedImages extends UnlistedSpecialPage {
 	private $specialPage;
@@ -18,7 +16,7 @@ class AdminUserCompletedImages extends UnlistedSpecialPage {
 	/**
 	 * Execute special page. Only available to wikiHow staff.
 	 */
-	public function execute() {
+	public function execute($par) {
 		global $wgRequest, $wgOut, $wgUser, $wgLang, $wgLanguageCode, $wgHooks;
 
 		$wgHooks['ShowSideBar'][] = array($this, 'removeSideBarCallback');
@@ -54,7 +52,7 @@ class AdminUserCompletedImages extends UnlistedSpecialPage {
 	}
 
 	private function genAdminForm($timeCutoff, $after, $rowsPerPage, $gridView, $copyVioFilter) {
-		global $wgRequest, $wgServer;
+		global $wgRequest, $wgCanonicalServer;
 
 		$columnsPerRow = $this->defaultColumnsPerRow;
 		$totalImages = $rowsPerPage * ($gridView ? $columnsPerRow : 1);
@@ -161,7 +159,7 @@ HHTML;
 					}
 
 					if ($wgRequest->getVal('updateDBFileURLs')) {
-						$fileURL = $wgServer . $file->getUrl();
+						$fileURL = $wgCanonicalServer . $file->getUrl();
 						$dbw = wfGetDB(DB_MASTER);
 						$dbw->update(
 							'user_completed_images',

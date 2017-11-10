@@ -672,4 +672,16 @@ class SpecialPage {
 		// Needed for b/c in getFinalGroupName
 		return '-';
 	}
+
+	/**
+	 * Is it ok for this page to be viewed on mobile
+	 * we can use this to decide whether to redirect to the desktop site
+	 *
+	 * @return bool
+	 *
+	 * WIKIHOW added this function
+	 */
+	public function isMobileCapable() {
+		return false;
+	}
 }

@@ -12,11 +12,11 @@ $('.cp_search_input').keypress(function (evt) {
 <form action='/Special:CreatePage'  method='POST'>
 <div class="wh_block">
 	<input type='hidden' name='create_redirects' value='1'/>
-	<h3>Enter Article Title:</h3>
+	<h3><?=wfMsg('createpage_enter_title')?>:</h3>
 	<div>
 		<br />
 		<?=wfMsg('howto','')?> <input type='text' id='createpage_title' value="<?=$step1_title?>" name='createpage_title' class='search_input' />
-		<input type='button' value='Search Again' onclick='document.getElementById("cp_next").disabled = true; searchTopics();' class='button createpage_button secondary' />
+		<input type='button' value='<?=wfMsg('createpage_search_again')?>' onclick='document.getElementById("cp_next").disabled = true; searchTopics();' class='button createpage_button secondary' />
 	</div>
 
 	<div id='createpage_search_results'>
@@ -24,8 +24,8 @@ $('.cp_search_input').keypress(function (evt) {
 	</div>
 
 	<div id="createpage_buttons">
-		<input type='submit' value='Next' id='cp_next' class='button primary' />
-		<input type='button' onclick='window.location="/Special:CreatePage";' value='Cancel' class='button secondary' />
+		<input type='submit' value='<?=wfMsg('createpage_next')?>' id='cp_next' class='button primary' />
+		<input type='button' onclick='window.location="/Special:CreatePage";' value='<?=wfMsg('createpage_cancel')?>' class='button secondary' />
 	</div>
 	<br class="clearall" />
 </div>

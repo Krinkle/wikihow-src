@@ -88,7 +88,7 @@ class NabAppWidget extends DashboardWidget {
 	 */
 	function getLeaderboardData(&$dbr, $starttimestamp){
 
-		$data = Leaderboard::getArticlesNABed($starttimestamp);
+		$data = LeaderboardStats::getArticlesNABed($starttimestamp);
 		arsort($data);
 
 		return $data;

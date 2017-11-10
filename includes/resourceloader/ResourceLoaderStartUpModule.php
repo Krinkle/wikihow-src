@@ -37,7 +37,7 @@ class ResourceLoaderStartUpModule extends ResourceLoaderModule {
 	 */
 	protected function getConfig( $context ) {
 		global $wgLoadScript, $wgScript, $wgStylePath, $wgScriptExtension,
-			$wgArticlePath, $wgScriptPath, $wgServer, $wgContLang,
+			$wgArticlePath, $wgScriptPath, $wgServer, $wgCanonicalServer, $wgContLang,
 			$wgVariantArticlePath, $wgActionPaths, $wgVersion,
 			$wgEnableAPI, $wgEnableWriteAPI, $wgDBname,
 			$wgSitename, $wgFileExtensions, $wgExtensionAssetsPath,
@@ -76,6 +76,7 @@ class ResourceLoaderStartUpModule extends ResourceLoaderModule {
 			// becoming [] instead of {} in JS (bug 34604)
 			'wgActionPaths' => (object)$wgActionPaths,
 			'wgServer' => $wgServer,
+			'wgCanonicalServer' => $wgCanonicalServer, // added for wikiHow
 			'wgUserLanguage' => $context->getLanguage(),
 			'wgContentLanguage' => $wgContLang->getCode(),
 			'wgVersion' => $wgVersion,

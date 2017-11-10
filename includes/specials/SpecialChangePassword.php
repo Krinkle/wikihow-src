@@ -124,7 +124,7 @@ class SpecialChangePassword extends FormSpecialPage {
 		global $wgAuth;
 
 		$request = $this->getRequest();
-		
+
 		//XXCHANGEDXX - gotta go false here if we're coming from the header or the main-page [sc]
 		if ( $request->getCheck( 'wpLoginToken' ) || $request->getCheck( 'sitelogin' ) == 1 ) {
 			// This comes from Special:Userlogin when logging in with a temporary password
@@ -188,10 +188,23 @@ class SpecialChangePassword extends FormSpecialPage {
 		global $wgPasswordAttemptThrottle;
 
 		$isSelf = ( $this->mUserName === $this->getUser()->getName() );
+
 		if ( $isSelf ) {
 			$user = $this->getUser();
 		} else {
 			$user = User::newFromName( $this->mUserName );
+		}
+
+		if ( !$user->getId() && User::isValidEmailAddr( $this->mUserName ) ) { // maybe an email?
+			list( $user, $count ) = WikihowUser::newFromEmailAddress( $this->mUserName );
+
+			if ( is_null( $user ) ) {
+				if ( $count < 1 ) {
+					throw new PasswordError( $this->msg( 'noemail_login' ) );
+				} else {
+					throw new PasswordError( $this->msg( 'multipleemails_login' ) );
+				}
+			}
 		}
 
 		if ( !$user || $user->isAnon() ) {

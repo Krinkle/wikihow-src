@@ -1,14 +1,34 @@
-<?
+<?php
+
+/*
+CREATE TABLE `editfinder` (
+  `ef_page` int(8) DEFAULT NULL,
+  `ef_title` varchar(255) DEFAULT NULL,
+  `ef_edittype` varchar(255) DEFAULT NULL,
+  `ef_skip` mediumint(8) DEFAULT NULL,
+  `ef_skip_ts` varchar(14) DEFAULT NULL,
+  `ef_last_viewed` varchar(14) DEFAULT NULL,
+  UNIQUE KEY `idx_ef` (`ef_page`,`ef_edittype`)
+);
+
+CREATE TABLE `editfinder_skip` (
+  `efs_page` int(10) unsigned DEFAULT NULL,
+  `efs_user` int(10) unsigned DEFAULT '0',
+  `efs_visitor_id` varbinary(20) NOT NULL DEFAULT '',
+  `efs_timestamp` varchar(14) DEFAULT NULL,
+  KEY `efs_user` (`efs_user`)
+);
+*/
 
 class EditFinder extends UnlistedSpecialPage {
 	var $topicMode = false;
 
-	function __construct() {
+	public function __construct() {
 		global $wgHooks;
 		parent::__construct( 'EditFinder');
-		$wgHooks['getToolStatus'][] = array('Misc::defineAsTool');
+		$wgHooks['getToolStatus'][] = array('SpecialPagesHooks::defineAsTool');
 	}
-	
+
 	/**
 	 * Set html template path for EditFinder actions
 	 */
@@ -22,10 +42,10 @@ class EditFinder extends UnlistedSpecialPage {
 			$count = $dbr->selectField(
 				array('page', 'templatelinks'),
 				'count(*) as count',
-				array('tl_title' => 'Stub', 'tl_from=page_id', 'page_namespace' => '0'),
+				array('tl_title' => 'Stub', 'tl_from=page_id', 'page_namespace' => NS_MAIN),
 				__METHOD__);
 			return $count;
-				
+
 		case 'Format':
 			$count = $dbr->selectField(
 				array('page', 'templatelinks'),
@@ -60,17 +80,23 @@ class EditFinder extends UnlistedSpecialPage {
 
 		return 0;
 	}
-	
-	function getNextArticle() {
-		global $wgRequest;
-		
+
+	private function isTemplateTest($aid) {
+		$pages = array( 'Test-Copyvio', 'Test-Copyviobot', 'Test-Cleanup', 'Test-Copyedit', 'Test-Stub' );
+		$title = Title::newFromID($aid);
+
+		return $title && in_array( $title->getDBkey(), $pages );
+	}
+
+	private function getNextArticle() {
 		//skipping something?
-		$skip_article = $wgRequest->getVal('skip');
-		
+		$skip_article = $this->getRequest()->getVal('skip');
+
 		//flip through a few times in case we run into problem articles
 		for ($i = 0; $i < 30; $i++) {
-			$pageid = $this->topicMode ? $this->getNextByInterest($skip_article) : $this->getNext($skip_article);
-			if (!$this->hasProblems($pageid)) {
+			$pageid = $this->getNext($skip_article);
+
+			if (!$this->hasProblems($pageid) && !$this->isTemplateTest($pageid)) {
 				return $this->returnNext($pageid);
 			} else {
 				// If there's a problem, come back to it later
@@ -80,54 +106,31 @@ class EditFinder extends UnlistedSpecialPage {
 		return $this->returnNext('');
 	}
 
-
-	function getNextByInterest($skip_article) {
-		global $wgRequest, $wgUser;
-
-		wfProfileIn(__METHOD__); 
+	private function getNextByInterest() {
+		wfProfileIn(__METHOD__);
 
 		$dbw = wfGetDB(DB_MASTER);
 
-		// mark skipped 
-		if (!empty($skip_article)) {
-			$t = is_int($skip_article) ? 
-				Title::newFromID($skip_article) : Title::newFromText($skip_article);
-				
-			if (!$t) exit;
-			$id = $t->getArticleID();
-			
-			//mark the db for this user
-			if (!empty($id)) {
-				$dbw->insert(
-					'editfinder_skip',
-					array('efs_page' => $id,
-						'efs_user' => $wgUser->getID(),
-						'efs_timestamp' => wfTimestampNow()),
-					__METHOD__);
-			}
-		}
-	
-		$aid = $wgRequest->getInt('id');
-		
+		$aid = $this->getRequest()->getInt('id');
+
 		if ($aid) {
 			//get a specific article
-			$sql = "SELECT page_id from page WHERE page_id = $aid LIMIT 1";
-		} 
-		else {
-			$timediff = date("YmdHis", strtotime("-1 hour"));
+			$sql = "SELECT page_id from page WHERE page_id = " . intval($aid) . " LIMIT 1";
+		} else {
 			$sql = "SELECT page_id from page p INNER JOIN categorylinks c ON c.cl_from = page_id WHERE page_namespace = 0 ";
 			$sql .= $this->getSkippedArticles('page_id');
-			$sql .= $this->getUserInterests();
-			
+			$sql .= " AND ".$this->getUserInterests();
+
 			$sql .= " ORDER BY p.page_random LIMIT 1;";
 		}
-		
-		$res = $dbw->query($sql, __METHOD__); 
 
-		while ($row = $res->fetchObject()) {
+		$res = $dbw->query($sql, __METHOD__);
+
+		foreach ($res as $row) {
 			$pageid = $row->page_id;
+			$cat = $row->cl_to;
 		}
-		
+
 		if ($pageid) {
 			//not a specified an article, right?
 			if (empty($aid)) {
@@ -142,49 +145,71 @@ class EditFinder extends UnlistedSpecialPage {
 		return $pageid;
 	}
 
-	function getNext($skip_article) {
-		global $wgRequest, $wgUser;
+	private function getNext($skip_article) {
+		$user = $this->getUser();
+		$req = $this->getRequest();
 
 		$dbw = wfGetDB(DB_MASTER);
 
-		// mark skipped 
+		// mark skipped
 		if (!empty($skip_article)) {
-			$t = is_int($skip_article) ? 
+			$t = is_int($skip_article) ?
 				Title::newFromID($skip_article) : Title::newFromText($skip_article);
-				
+
 			$id = $t->getArticleID();
-			
+
 			//mark the db for this user
-			if (!empty($id))
-				$dbw->insert('editfinder_skip', array('efs_page'=>$id,'efs_user'=>$wgUser->getID(),'efs_timestamp'=>wfTimestampNow() ));
+			if (!empty($id)) {
+
+				$cond = array(
+					'efs_page'=>$id,
+					'efs_timestamp'=>wfTimestampNow()
+				);
+				$cond['efs_user'] = $user->getId() ? $user->getId() : 0;
+				if ($user->isAnon()) {
+					$cond['efs_visitor_id'] = WikihowUser::getVisitorId();
+				}
+				$dbw->insert('editfinder_skip', $cond, __METHOD__);
+			}
 		}
-	
-		$aid = $wgRequest->getInt('id');
-		
+
+		$aid = $req->getInt('id');
+
 		if ($aid) {
 			//get a specific article
-			$sql = "SELECT ef_edittype, ef_page from editfinder WHERE 
-				ef_page = $aid LIMIT 1";
+			$sql = "SELECT ef_page from editfinder WHERE ef_page = " . intval($aid) . " LIMIT 1";
 		} else {
-			$edittype = strtolower($wgRequest->getVal( 'edittype' ));
-			
-			$timediff = date("YmdHis", strtotime("-1 hour"));
-			$sql = "SELECT ef_edittype, ef_page from editfinder 
-					INNER JOIN page p ON p.page_id = ef_page
-					WHERE ef_last_viewed < ". $dbw->addQuotes($timediff) ."
-					AND lower(ef_edittype) = ".$dbw->addQuotes($edittype)
-					.$this->getSkippedArticles();
 
-			$sql .= $this->getUserCats() . " ";
-			
+			$timediff = date("YmdHis", strtotime("-1 hour"));
+			$sql = "SELECT ef_page from editfinder ".
+					" INNER JOIN page p ON page_id = ef_page ";
+
+			if ($this->topicMode) {
+				$sql .= "  INNER JOIN categorylinks c ON c.cl_from = page_id ".
+						" WHERE ".$this->getUserInterests();
+			} else {
+				$edittype = ucfirst( strtolower( $req->getVal('edittype') ) );
+				// Possible values, from DB, are: 'Format','Stub','Copyedit','Copyeditbot','Introduction','Cleanup','Clarity'
+				$sql .= " WHERE ef_edittype = " . $dbw->addQuotes($edittype);
+			}
+
+			$sql .= " AND ef_last_viewed < ". $dbw->addQuotes($timediff)." ".
+				"AND page_namespace = ".NS_MAIN." ".
+				$this->getSkippedArticles()." ".
+				$this->getUserCats();
+
+			if ($this->topicMode) {
+				$sql .= " ORDER BY ef_edittype DESC ";
+			}
+
 			$sql .= " LIMIT 1";
 		}
-		
-		$res = $dbw->query($sql, __METHOD__); 
-		while ($row = $res->fetchObject()) {
+
+		$res = $dbw->query($sql, __METHOD__);
+		foreach ($res as $row) {
 			$pageid = $row->ef_page;
 		}
-		
+
 		if ($pageid) {
 			//not a specified an article, right?
 			if (empty($aid)) {
@@ -199,18 +224,22 @@ class EditFinder extends UnlistedSpecialPage {
 					$pageid = '';
 				}
 			}
+		} else {
+			//no page id?
+			if ($this->topicMode) {
+				//Topic Greenhouse; grab from main page table
+				$pageid = $this->getNextByInterest();
+			}
 		}
+
 		return $pageid;
 	}
-	
-	function returnNext($pageid) {
-		global $wgOut, $Title;
-		
+
+	private function returnNext($pageid) {
 		if (empty($pageid)) {
 			//nothing? Ugh.
 			$a['aid'] = '';
-		}
-		else {
+		} else {
 			if (!$this->topicMode) {
 				//touch db
 				$dbw = wfGetDB(DB_MASTER);
@@ -222,22 +251,21 @@ class EditFinder extends UnlistedSpecialPage {
 			}
 
 			$a = array();
-			
+
 			$t = Title::newFromID($pageid);
-			
+
 			$a['aid'] = $pageid;
 			$a['title'] = $t->getText();
 			$a['url'] = $t->getLocalURL();
+			$a['cat'] = CategoryInterests::getUsedCat($t);
 		}
-			
-		//return array
-		return( $a );	 
-	}	
-	
-	function confirmationModal($type,$id) {
-		global $wgOut, $Title;
 
-		wfProfileIn(__METHOD__); 
+		//return array
+		return $a;
+	}
+
+	private function confirmationModal($type, $id) {
+		wfProfileIn(__METHOD__);
 
 		$t = Title::newFromID($id);
 		$titletag = "[[".$t->getText()."|".wfMsg('howto', $t->getText())."]]";
@@ -247,18 +275,16 @@ class EditFinder extends UnlistedSpecialPage {
 			<p>Would it be appropriate to remove the <span class='template_type'>".strtoupper($type)."</span> from this article?</p>
 			<div style='clear:both'></div>
 			<span style='float:right'>
-			<input class='button primary submit_button' type='button' value='".wfMsg('editfinder_confirmation_yes')."' onclick='editFinder.closeConfirmation(true);return false;' >
-			<input class='button secondary submit_button' type='button' value='".wfMsg('editfinder_confirmation_no')."' onclick='editFinder.closeConfirmation(false);return false;' >
+			<input class='button secondary submit_button' id='ef_modal_no' type='button' value='".wfMsg('editfinder_confirmation_no')."' />
+			<input class='button primary submit_button' id='ef_modal_yes' type='button' value='".wfMsg('editfinder_confirmation_yes')."' />
 			</span>
 			</div>";
-		$wgOut->addHTML($content);
-		wfProfileOut(__METHOD__); 
+		$this->getOutput()->addHTML($content);
+		wfProfileOut(__METHOD__);
 	}
-	
-	function cancelConfirmationModal($id) {
-		global $wgOut, $Title;
 
-		wfProfileIn(__METHOD__); 
+	private function cancelConfirmationModal($id) {
+		wfProfileIn(__METHOD__);
 
 		$t = Title::newFromID($id);
 		$titletag = "[[".$t->getText()."|".wfMsg('howto', $t->getText())."]]";
@@ -271,48 +297,55 @@ class EditFinder extends UnlistedSpecialPage {
 			<input class='button blue_button_100 submit_button' onmouseover='button_swap(this);' onmouseout='button_unswap(this);' type='button' value='".wfMsg('editfinder_confirmation_no')."' id='efcc_no'>
 			</p>
 			</div>";
-		$wgOut->addHTML($content);
-		wfProfileOut(__METHOD__); 
+		$this->getOutput()->addHTML($content);
+		wfProfileOut(__METHOD__);
 	}
 
-	
-	/**	
+	/**
 	 * articleInUse
 	 * check to see if {{inuse}} or {{in use}} is in the article
 	 * returns boolean
 	 **/
-	function articleInUse($aid) {
+	private function articleInUse($aid) {
 		$dbr = wfGetDB(DB_SLAVE);
 		$r = Revision::loadFromPageId( $dbr, $aid );
-		
-		if (strpos($r->getText(),'{{inuse') === false)
+
+		if (strpos($r->getText(),'{{inuse') === false) {
 			$result = false;
-		else
-			$result = true;	
+		} else {
+			$result = true;
+		}
 		return $result;
 	}
-		
-	function getUserInterests() {
-		$interests = CategoryInterests::getCategoryInterests();	
+
+	private function getUserInterests() {
+		$interests = CategoryInterests::getCategoryInterests();
 		$interests = array_merge($interests, CategoryInterests::getSubCategoryInterests($interests));
 		$interests = array_values(array_unique($interests));
 
+		$dbr = wfGetDB(DB_SLAVE);
+
 		$fn = function(&$value) {
-			$dbr = wfGetDB(DB_SLAVE);
-			$value = $dbr->strencode($value);
+			$value = str_replace(' ','-',$value);
 		};
 		array_walk($interests, $fn);
-		$sql = " AND c.cl_to IN ('" . implode("','", $interests) . "') ";
+		$sql = empty($interests) ? "c.cl_to = ''" : " c.cl_to IN (" . $dbr->makeList($interests) . ") ";
 		return $sql;
 	}
 
-	/**	
+	private function getUserInterestCount() {
+		$interests = CategoryInterests::getCategoryInterests();
+		return count($interests);
+	}
+
+	/**
 	 * getUserCats
 	 * grab categories specified by the user
 	 * returns sql string
 	 **/
-	function getUserCats() {
-		global $wgUser, $wgCategoryNames;
+	private function getUserCats() {
+		global $wgCategoryNames;
+		$user = $this->getUser();
 		$cats = array();
 		$catsql = '';
 		$bitcat = 0;
@@ -322,16 +355,16 @@ class EditFinder extends UnlistedSpecialPage {
 		$row = $dbr->selectRow(
 			'suggest_cats',
 			array('*'),
-			array('sc_user' => $wgUser->getID()),
+			array('sc_user' => $user->getID()),
 			__METHOD__);
 
 		if ($row) {
 			$field = $row->sc_cats;
-			$cats = preg_split("@,@", $field, 0, PREG_SPLIT_NO_EMPTY);			
+			$cats = preg_split("@,@", $field, 0, PREG_SPLIT_NO_EMPTY);
 		}
-		
+
 		$topcats = array_flip($wgCategoryNames);
-		
+
 		foreach ($cats as $key => $cat) {
 			foreach ($topcats as $keytop => $cattop) {
 				$cat = str_replace('-',' ',$cat);
@@ -346,191 +379,199 @@ class EditFinder extends UnlistedSpecialPage {
 		}
 		return $catsql;
 	}
-	
-	/**	
+
+	/**
 	 * getSkippedArticles
 	 * grab articles that were already "skipped" by the user
 	 * returns sql string
 	 **/
-	function getSkippedArticles($column = 'ef_page') {
-		global $wgUser;
+	private function getSkippedArticles($column = 'ef_page') {
+		$user = $this->getUser();
 		$skipped = '';
 		$dbw = wfGetDB(DB_MASTER);
+
+		$cond = array();
+		$cond['efs_user'] = $user->getId() ? $user->getId() : 0;
+		if ($user->isAnon()) {
+			$cond['efs_visitor_id'] = WikihowUser::getVisitorId();
+		}
+
 		$res = $dbw->select(
 			'editfinder_skip',
 			array('efs_page'),
-			array('efs_user' => $wgUser->getID()),
+			$cond,
 			__METHOD__);
 
-		while ($row = $res->fetchObject()) {
+		foreach ($res as $row) {
 			$skipped_ary[] = $row->efs_page;
 		}
-		if (count($skipped_ary) > 0)
-			$skipped = ' AND ' . $column . ' NOT IN ('. implode(',',$skipped_ary) .') ';
+		if (count($skipped_ary) > 0) {
+			$skipped = ' AND ' . $column . ' NOT IN ('. $dbw->makeList($skipped_ary) .') ';
+		}
 
 		return $skipped;
 	}
-	
-	
-	/**	
+
+	/**
 	 * hasProblems
 	 * (returns TRUE if there's a problem)
 	 * - Makes sure last edit has been patrolled
 	 **/
-	function hasProblems($pageid) {
+	private function hasProblems($pageid) {
 		if (empty($pageid)) return true;
-		
+
 		$t = Title::newFromId($pageid);
 		if (!$t) return true;
-		
+
 		//last edit patrolled?
 		if (!GoodRevision::patrolledGood($t)) return true;
-		
+
 		//all clear?
 		return false;
 	}
-	
-	/**
-	 * cuteCUTE
-	 **/
-	function execute($par) {
-		global $wgRequest, $wgOut, $wgUser, $wgLang, $wgParser, $efType, $wgTitle;
-		$target = isset( $par ) ? $par : $wgRequest->getVal( 'target' );
-		wfLoadExtensionMessages('EditFinder');
-		
+
+	public function execute($par) {
+		global $wgParser, $efType;
+
+		$req = $this->getRequest();
+		$out = $this->getOutput();
+		$user = $this->getUser();
+
+		$target = isset($par) ? $par : $req->getVal( 'target' );
+
 		self::setTemplatePath();
 
-		if ($wgUser->isBlocked()) {
-			$wgOut->blockedPage();
+		if ($user->isBlocked()) {
+			$out->blockedPage();
 			return;
 		}
 
-		if ($wgUser->getID() == 0) {
-			$wgOut->setRobotpolicy( 'noindex,nofollow' );
-			$wgOut->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
-			return;
-		}
+		$this->topicMode = strtolower($target) == 'topic' || strtolower($req->getVal('edittype')) == 'topic';
 
-		$this->topicMode = strtolower($par) == 'topic' || strtolower($wgRequest->getVal('edittype')) == 'topic';
+		if ($req->getVal( 'fetchArticle' )) {
+			$out->setSquidMaxage(0);
+			$out->setArticleBodyOnly(true);
 
-		if ($wgRequest->getVal( 'fetchArticle' )) {
-			$wgOut->setArticleBodyOnly(true);
-			echo json_encode($this->getNextArticle());
+			print json_encode($this->getNextArticle());
 			return;
-			
-		} elseif ($wgRequest->getVal( 'show-article' )) {
-			$wgOut->setArticleBodyOnly(true);
-			
-			if ($wgRequest->getInt('aid') == '') {
+
+		} elseif ($req->getVal( 'show-article' )) {
+			$out->setArticleBodyOnly(true);
+
+			if ($req->getInt('aid') == '') {
 				$catsJs = $this->topicMode ? "editFinder.getThoseInterests();" : "editFinder.getThoseCats();";
 				$catsTxt = $this->topicMode ? "interests" : "categories";
-				$wgOut->addHTML('<div class="article_inner">No articles found.  <a href="#" onclick="' . $catsJs . '">Select more ' . $catsTxt . '</a> and try again.</div>');
+				$out->addHTML('<br />');
 				return;
 			}
-			
-			$t = Title::newFromID($wgRequest->getInt('aid'));
-			
+
+			$t = Title::newFromID($req->getInt('aid'));
+
 			$articleTitleLink = $t->getLocalURL();
 			$articleTitle = $t->getText();
 			//$edittype = $a['edittype'];
-						
+
 			//get article
 			$a = new Article($t);
-			
-            $r = Revision::newFromTitle($t);
-            $popts = $wgOut->parserOptions();
-            $popts->setTidy(true);
-            $popts->enableLimitReport();
-            $parserOutput = $wgParser->parse( $r->getText(), $t, $popts, true, true, $a->getRevIdFetched() );
-            $popts->setTidy(false);
-            $popts->enableLimitReport( false );
+
+			$r = Revision::newFromTitle($t);
+			$popts = $out->parserOptions();
+			$popts->setTidy(true);
+			$popts->enableLimitReport();
+			$parserOutput = $wgParser->parse( $r->getText(), $t, $popts, true, true, $a->getRevIdFetched() );
+			$popts->setTidy(false);
+			$popts->enableLimitReport( false );
 			$magic = WikihowArticleHTML::grabTheMagic($r->getText());
-            $html = WikihowArticleHTML::processArticleHTML($parserOutput->getText(), array('no-ads' => true, 'ns' => NS_MAIN, 'magic-word' => $magic));
-			$wgOut->addHTML($html);
+			$html = WikihowArticleHTML::processArticleHTML($parserOutput->getText(), array('no-ads' => true, 'ns' => NS_MAIN, 'magic-word' => $magic));
+			$out->addHTML($html);
 			return;
-			
-		} elseif ($wgRequest->getVal( 'edit-article' )) {
+
+		} elseif ($req->getVal( 'edit-article' )) {
 			// SHOW THE EDIT FORM
-			$wgOut->setArticleBodyOnly(true);
-			$t = Title::newFromID($wgRequest->getInt('aid'));
+			$out->setArticleBodyOnly(true);
+			$t = Title::newFromID($req->getInt('aid'));
 			$a = new Article($t);
 			$editor = new EditPage( $a );
 			$editor->edit();
 			return;
-			
-		} elseif ($wgRequest->getVal( 'action' ) == 'submit') {
-			$wgOut->setArticleBodyOnly(true);
-			
-			$efType = strtolower($wgRequest->getVal('type'));
-			
-			$t = Title::newFromID($wgRequest->getInt('aid'));
+
+		} elseif ($req->getVal( 'action' ) == 'submit') {
+			$out->setArticleBodyOnly(true);
+
+			$efType = strtolower($req->getVal('type'));
+
+			$t = Title::newFromID($req->getInt('aid'));
 			$a = new Article($t);
-			
+
 			//log it
-			$params = array($efType);            
+			$params = array($efType);
 			$log = new LogPage( 'EF_'. substr($efType, 0, 7), false ); // false - dont show in recentchanges
 
 			$log->addEntry('', $t, 'Repaired an article -- '.strtoupper($efType).'.', $params);
-			
-			$text = $wgRequest->getVal('wpTextbox1');
-			$sum = $wgRequest->getVal('wpSummary');
+
+			$text = $req->getVal('wpTextbox1');
+			$sum = $req->getVal('wpSummary');
 
 			//save the edit
 			$a->doEdit($text,$sum,EDIT_UPDATE);
-			wfRunHooks("EditFinderArticleSaveComplete", array($a, $text, $sum, $wgUser, $efType));
+			wfRunHooks("EditFinderArticleSaveComplete", array($a, $text, $sum, $user, $efType));
 			return;
-			
-		} elseif ($wgRequest->getVal( 'confirmation' )) {
-			$wgOut->setArticleBodyOnly(true);
-			echo $this->confirmationModal($wgRequest->getVal('type'),$wgRequest->getInt('aid')) ;
-        	wfProfileOut(__METHOD__);
+
+		} elseif ($req->getVal( 'confirmation' )) {
+			$out->setArticleBodyOnly(true);
+			print $this->confirmationModal($req->getVal('type'),$req->getInt('aid')) ;
+			wfProfileOut(__METHOD__);
 			return;
-			
-		} elseif ($wgRequest->getVal( 'cancel-confirmation' )) {
-			$wgOut->setArticleBodyOnly(true);
-			echo $this->cancelConfirmationModal($wgRequest->getInt('aid')) ;
-        	wfProfileOut(__METHOD__);
+
+		} elseif ($req->getVal( 'cancel-confirmation' )) {
+			$out->setArticleBodyOnly(true);
+			print $this->cancelConfirmationModal($req->getInt('aid')) ;
+			wfProfileOut(__METHOD__);
 			return;
-			
+
 		} else { //default view (same as most of the views)
-			$sk = $wgUser->getSkin();
-			$wgOut->setArticleBodyOnly(false);
-		
+			$sk = $user->getSkin();
+			$out->setArticleBodyOnly(false);
+
+			//custom topic from querystring
+			$qs_topic = $this->getRequest()->getVal('topic');
+			if ($qs_topic != '') CategoryInterests::addCategoryInterest($qs_topic);
+
 			$efType = strtolower($target);
 			if (strpos($efType,'/') !== false) {
 				$efType = substr($efType,0,strpos($efType,'/'));
 			}
 			if ($efType == '') {
 				//no type specified?  send 'em to format...
-				$wgOut->redirect('/Special:EditFinder/Format');
+				$out->redirect('/Special:EditFinder/Format');
+			} elseif ($efType == 'stub') {
+				//Stub is deprecated. send 'em to topic...
+				$out->redirect('/Special:EditFinder/Topic');
 			}
 
-			// Add min group for Article Greenhouses
-			$wgOut->addJSCode('ag');
-		
-			
+			$out->addModules('ext.wikihow.greenhouse');
+			$out->addModuleStyles('ext.wikihow.greenhouse.styles');
+
 			//add main article info
 			$vars = array('pagetitle' => wfMsg('app-name').': '.wfMsg($efType),'question' => wfMsg('editfinder-question'),
 				'yep' => wfMsg('editfinder_yes'),'nope' => wfMsg('editfinder_no'),'helparticle' => wfMsg('help_'.$efType));
-			$vars['uc_categories'] = $this->topicMode ? 'Interests' : 'Categories';
 			$vars['lc_categories'] = $this->topicMode ? 'interests' : 'categories';
 			$vars['editfinder_edit_title'] = wfMsg('editfinder_edit_title');
 			$vars['editfinder_skip_title'] = wfMsg('editfinder_skip_title');
-			$vars['css'] = HtmlSnips::makeUrlTags('css', array('editfinder.css'), 'extensions/wikihow/editfinder', false);
-			$vars['css'] .= HtmlSnips::makeUrlTags('css', array('suggestedtopics.css'), 'extensions/wikihow', false);
+			$vars['ef_num_cats'] = $this->topicMode ? $this->getUserInterestCount() : 0;
+			$vars['edittype'] = strtolower($efType);
 
 			$html = EasyTemplate::html('editfinder_main',$vars);
-			$wgOut->addHTML($html);
-			
-			$wgOut->setHTMLTitle(wfMsg('app-name').': '.wfMsg($efType).' - wikiHow');
-			$wgOut->setPageTitle(wfMsg('app-name').': '.wfMsg($efType).' - wikiHow');
+			$out->addHTML($html);
+
+			$out->setHTMLTitle(wfMsg('app-name').': '.wfMsg($efType).' - wikiHow');
+			$out->setPageTitle(wfMsg('app-name').': '.wfMsg($efType));
 		}
-		
+
 		$stats = new EditFinderStandingsIndividual($efType);
-        $stats->addStatsWidget();
+		$stats->addStatsWidget();
 		$standings = new EditFinderStandingsGroup($efType);
 		$standings->addStandingsWidget();
 	}
 
 }
-

@@ -1,11 +1,10 @@
 <?
 
-if ( !defined('MEDIAWIKI') ) die();
-
 /**
  * Follows something like the active record pattern.
  */
 class Wikitext {
+	const SUMMARIZED_HEADINGS_KEY = 'wh_summarized_section_headings';
 
 	/**
 	 * Get the first [[Image: ...]] tag from an article, and return it as a
@@ -114,7 +113,7 @@ class Wikitext {
 		$text = preg_replace('@[\']{2,}@', '', $text);
 
 		// remove other special wikitext stuff
-		$text = preg_replace('@(__FORCEADV__|__TOC__|#REDIRECT)@i', '', $text);
+		$text = preg_replace('@(__FORCEADV__|__TOC__|#REDIRECT|__PARTS__)@i', '', $text);
 
 		// convert special HTML characters into spaces
 		$text = preg_replace('@(<br[^>]*>|&nbsp;)+@i', ' ', $text);
@@ -136,6 +135,19 @@ class Wikitext {
 		$text = preg_replace('@\[[0-9]{1,2}\]@', '', $flattenedText);
 		return $text;
 	}
+	
+	/**
+	 * Remove http:// links from text
+	 * (sometimes caused by <ref> links
+	 */
+	public static function stripLinkUrls($text, $includeHttps = false) {
+		$regex = '@http://.+? @';
+		if ($includeHttps) {
+			$regex = '@http(s)?://.+? @';
+		}
+		$text = preg_replace($regex, ' ', $text);
+		return $text;
+	}
 
 	/**
 	 * Extract the intro from the wikitext of an article
@@ -144,6 +156,32 @@ class Wikitext {
 		global $wgParser;
 		$intro = $wgParser->getSection($wikitext, 0);
 		return $intro;
+	}
+
+	public static function hasSummary($wikitext) {
+		return strpos($wikitext, '__SUMMARIZED__') !== false;
+	}
+
+	/**
+	 * Get the summarized section wikitext if exists. Return empty string otherwise.
+	 */
+	public static function getSummarizedSection($wikitext) {
+		global $wgParser;
+		wfProfileIn(__METHOD__);
+		$content = '';
+		$headings = explode("\n", ConfigStorage::dbGetConfig(self::SUMMARIZED_HEADINGS_KEY));
+		for ($i = 1; $i < 100; $i++) {
+			$section = $wgParser->getSection($wikitext, $i);
+			if (empty($section)) break;
+			if (preg_match('@^\s*==\s*([^=]+)\s*==\s*$((.|\n){0,1000})@m', $section, $m)) {
+				if (preg_grep('@' . trim($m[1]) . '@i', $headings)) {
+					$content = $section;
+					break;
+				}
+			}
+		}
+		wfProfileOut(__METHOD__);
+		return $content;
 	}
 
 	/**
@@ -259,6 +297,14 @@ class Wikitext {
 	}
 
 	/**
+	 * Count the number of wikivid in a block of wikitext
+	 */
+	public static function countVideos($wikitext) {
+		$num_videos = preg_match_all('/\{\{whvid\|/im', $wikitext, $m);
+		return $num_videos;
+	}
+
+	/**
 	 * Extract a particular section from the wikitext of an article.
 	 *
 	 * WARNING: if you pass $withHeader == false to this method,
@@ -275,8 +321,12 @@ class Wikitext {
 		for ($i = 1; $i < 100; $i++) {
 			$section = $wgParser->getSection($wikitext, $i);
 			if (empty($section)) break;
-			if (preg_match('@^\s*==\s*([^=\s]+)\s*==\s*$((.|\n){0,1000})@m', $section, $m)) {
-				if ($m[1] == $sectionMsg) {
+			//removed the space so we can grab "Sources and Citations" as well as "Tips"
+			//if (preg_match('@^\s*==\s*([^=\s]+)\s*==\s*$((.|\n){0,1000})@m', $section, $m)) {
+			if (preg_match('@^\s*==\s*([^=]+)\s*==\s*$((.|\n){0,1000})@m', $section, $m)) {
+                // remove zero width spaces which sometimes appear
+                $x = str_replace("\xE2\x80\x8B", "", $m[1]);
+				if (trim($x) == $sectionMsg) {
 					$content = $withHeader ? $section : trim($m[2]);
 					$id = $i;
 					break;
@@ -285,6 +335,22 @@ class Wikitext {
 		}
 		wfProfileOut(__METHOD__);
 		return array($content, $id);
+	}
+
+	/**
+	 * Remove a particular section from wikitext
+	 */
+	public static function removeSection($wikitext, $sectionMsg) {
+		global $wgParser;
+		$section = self::getSection($wikitext, $sectionMsg, true);
+		if (empty($section[0]) || empty($section[1])) {
+			//fail gracefully
+			//throw new Exception("couldn't find $sectionMsg section");
+		}
+		else {
+			$wikitext = $wgParser->replaceSection($wikitext, $section[1], "");
+		}
+		return $wikitext;
 	}
 
 	/**
@@ -309,8 +375,9 @@ class Wikitext {
 	 * Split an alternate method, or the Steps section, into different 
 	 * steps (returned as an array).
 	 */
-	public static function splitSteps($wikitext) {
-		$steps = preg_split('@^#@m', $wikitext);
+	public static function splitSteps($wikitext, $includeSubsteps = true) {
+		$regex = $includeSubsteps ? '@^#@m' : '@^#[^*]@m';
+		$steps = preg_split($regex, $wikitext);
 		for ($i = 1; $i < count($steps); $i++) {
 			$steps[$i] = "#" . $steps[$i];
 		}
@@ -557,17 +624,17 @@ class Wikitext {
 	 *   2nd element is number of images found/changed
 	 */
 	public static function enlargeImages($title, $recenter, $px, $introPx = 0) {
-		static $dbr = null;
-		if (!$dbr) $dbr = wfGetDB(DB_SLAVE);
+		// use master DB to sort out a likely db-lag related race condition
+		$dbw = wfGetDB(DB_MASTER);
 
 		$err = '';
 		$numImages = 0;
 		$stepsText = '';
 
-		$wikitext = self::getWikitext($dbr, $title);
+		$wikitext = self::getWikitext($dbw, $title);
 //debugging
 //$t = Title::newFromText('Assess Your Relationship Stage');
-//$r = Revision::loadFromTitle($dbr, $t, 7607372);
+//$r = Revision::loadFromTitle($dbw, $t, 7607372);
 //$wikitext = $r->getText();
 		if ($wikitext) {
 			list($stepsText, $sectionID) = 
@@ -727,13 +794,34 @@ class Wikitext {
 			if (!empty($matches_lgimg[1])) $matches = $matches_lgimg[1];
 		}
 
-		// Check for wikivideos and pull images from there
 		if (empty($matches)) {
-			//{{whvid|...|...}}
 			wfProfileIn(__METHOD__.'-whvidmatch');
-			preg_match_all("@\{\{whvid\|[^\||\}]+\|([^\||\}]+)\}\}@im", $steps[0], $matches_whvid);
+			preg_match_all("@(\{\{whvid\|[^\}]*\}\})@im", $steps[0], $matches_whvid);
 			wfProfileOut(__METHOD__.'-whvidmatch');
-			if (!empty($matches_whvid[1])) $matches = $matches_whvid[1];
+			$whvid = array();
+			if (!empty($matches_whvid[1])) {
+				$matches = array();
+				$whvid = $matches_whvid[1];
+			}
+
+			// just look through all the elements of the whvid templates
+			foreach ( $whvid as $match ) {
+				$params = explode( "|", $match );
+				$preview = null;
+				$img = null;
+				// each param of each {{whvid|...|...}} block
+				foreach ( $params as $param ) {
+					if ( substr_compare( $param, 'preview.jpg',  -strlen( 'preview.jpg' ) ) === 0 ) {
+						$preview = $param;
+					} else if ( substr($param, -4) == ".jpg" ) {
+						$default = $param;
+					}
+				}
+				if ( $default == null ) {
+					$default = $preview;
+				}
+				$matches[] = $default;
+			}
 		}
 
 		if ($matches) {
@@ -748,7 +836,7 @@ class Wikitext {
 		wfProfileOut(__METHOD__);
 	}
 
-	public static function getDefaultTitleImage($title, $wide = false) {
+	public static function getDefaultTitleImage($title = null, $wide = false) {
 		global $wgLanguageCode;
 
 		wfProfileIn(__METHOD__);
@@ -794,5 +882,48 @@ class Wikitext {
 		return $result;
 	}
 
+	/*
+	 * remove references to a list of given image titles from an article
+	 *
+	 * @param string $fromTitleText - the origin article's title that we want to remove from
+	 * @param array $imageTitles - an array of Title objects that correspond to
+	 * 		image File titles to be removed
+	 * @return the result of doEditContent for the editing
+	 */
+	public function removeImageLinksFromTitle($fromTitleText, $imageTitles, $asUser) {
+		global $wgUser;
+		$tempUser = $wgUser;
+		$wgUser = $asUser;
+		$fromTitle = Title::newFromText($fromTitleText);
+		if (!$fromTitle || !$fromTitle->exists()) return false;
+		$revision = Revision::newFromTitle($fromTitle);
+		if (!$revision) return false;
+		$text = $revision->getText();
+		foreach($imageTitles as $imageTitle) {
+			$text = preg_replace(
+					'@(<\s*br\s*[\/]?>)*\s*\[\['.
+					preg_quote( $imageTitle->getFullText() ) .'([^\]]*)\]\]@im',
+					'',
+					$text);
+
+			$text = preg_replace(
+					'@(<\s*br\s*[\/]?>)*\s*\[\[Image:'.
+					preg_quote( $imageTitle->getDBKey() ) .'([^\]]*)\]\]@im',
+					'',
+					$text);
+
+			$text = preg_replace(
+					'@(<\s*br\s*[\/]?>)*\s*\{\{largeimage|'.
+					preg_quote( $imageTitle->getText() ) .'([^\}]*)\}\}@im',
+					'',
+					$text);
+		}
+		$content = ContentHandler::makeContent($text, $fromTitle);
+		$summary = "removing unlicensed images";
+		$page = WikiPage::factory( $fromTitle );
+		$result = $page->doEditContent( $content, $summary, EDIT_FORCE_BOT, false, $asUser);
+		$wgUser = $tempUser;
+		return $result;
+	}
 }
 

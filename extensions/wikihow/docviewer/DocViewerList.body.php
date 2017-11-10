@@ -1,4 +1,5 @@
-<?
+<?php
+
 class DocViewerList extends UnlistedSpecialPage {
 	
 	function __construct() {
@@ -20,11 +21,7 @@ class DocViewerList extends UnlistedSpecialPage {
 		return $html;
 	}
 	
-
-	/**
-	 * EXECUTE
-	 **/
-	function execute () {
+	function execute($par) {
 		global $wgOut;
 	
 		$html = self::getSamplesList();

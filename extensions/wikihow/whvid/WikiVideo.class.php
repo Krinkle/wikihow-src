@@ -3,7 +3,16 @@
 class WikiVideo {
 
 	const AWS_PROD_BUCKET = 'wikivideo-prod';
-	//const AWS_PROD_BUCKET = 'wikivideo-prod-test';
+	const AWS_PROD_TEST_BUCKET = 'wikivideo-prod-test';
+
+	public static function getBucket() {
+		global $wgIsDevServer;
+		if ($wgIsDevServer) {
+			return self::AWS_PROD_TEST_BUCKET;
+		}
+
+		return self::AWS_PROD_BUCKET;
+	}
 
 	private static $s3 = null;
 
@@ -23,7 +32,7 @@ class WikiVideo {
 		$filePath = '';
 		$s3 = self::getS3();
 		$uri = WHVid::getVidFilePath($filename);
-		if ($info = $s3->getObjectInfo(self::AWS_PROD_BUCKET, $uri)) {
+		if ($info = $s3->getObjectInfo(self::getBucket(), $uri)) {
 			$filePath = $uri;
 		}
 
@@ -45,7 +54,7 @@ class WikiVideo {
 		}
 
 		$s3 = self::getS3();
-		$bucket = self::AWS_PROD_BUCKET;
+		$bucket = self::getBucket();
 		$uri = WHVid::getVidFilePath($filename); 
 		$result = $s3->copyObject($srcBucket, $srcUri, $bucket, $uri, S3::ACL_PUBLIC_READ);
 		if (!$result) {

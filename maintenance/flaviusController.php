@@ -100,7 +100,7 @@ class FlaviusController {
 			$subject = "Flavius error";
 			$msg = "Flavius encountered the following exception:\n\n" . print_r($ex,true) . "\n"; 
 			$to = implode(',', $this->errorEmails);
-			$from = "alerts@wikihow.com";
+			$from = "alerts@titus.wikiknowhow.com";
 			$headers = 'From: ' . $from;
 			print "Sending message(" . $subject . ") :\n" . $msg;
 			mail($to,$subject,$msg,$headers);
@@ -281,7 +281,6 @@ if($argv[0] == '-yesterday') {
 else {
 	$fc = new FlaviusController();
 }
-$fc->addErrorEmail("gershon@wikihow.com");
 $fc->addErrorEmail("reuben@wikihow.com");
 
 if($argv[0] == '--fullrun') {

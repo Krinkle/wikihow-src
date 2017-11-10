@@ -31,7 +31,6 @@ ul.ui-corner-all {
 }
 
 #cat_search {
-	padding: 5px;
 	width: 375px;
 }
 /*
@@ -245,3 +244,9 @@ ul#cat_subcats_list li {
 	overflow: auto;
 	padding-top: 6px;
 }
+
+#cat_head_outer h1 {
+	margin-bottom:50px;
+}
+
+#eoq_box { padding-top: 1.5em; }

@@ -24,6 +24,11 @@ class ImportvideoHowcast extends Importvideo {
 		$data = new SimpleXMLElement($results);
 		$entries = get_object_vars($data->entries);
 		$entries = $entries["entry"];
+
+		if (!$entries) {
+			return;
+		}
+
 		foreach ($entries as $entry) {
 			$entry = get_object_vars($entry);
 			if ($entry["resource-type"] == "Howto") {
@@ -60,8 +65,8 @@ class ImportvideoHowcast extends Importvideo {
 			$text = "{{Curatevideo|howcast|$id|{$titletext}|{$tags}|{$v['description']}||{$desc}}}
 {{VideoDescription|{{{1}}} }}";
 			$editSummary = wfMessage('importvideo_addingvideo_summary')->text();
-			$this->updateVideoArticle($title, $text, $editSummary);
-			$this->updateMainArticle($target, $editSummary);
+			Importvideo::updateVideoArticle($title, $text, $editSummary);
+			ImportVideo::updateMainArticle($target, $editSummary);
 			return;
 		}
 
@@ -106,8 +111,8 @@ class ImportvideoHowcast extends Importvideo {
 		global $wgOut, $wgRequest;
 
 		$url = $v['resource-url'];
-		$id = end(split("/", $url));
-		$id = array_shift(split('-', $id));
+		$id = end(explode("/", $url));
+		$id = array_shift(explode('-', $id));
 		$min = min(strlen($v['description']), 255);
 		$snippet = substr($v['description'], 0, $min);
 		if ($min == 255) $snippet .= "...";
@@ -126,7 +131,7 @@ class ImportvideoHowcast extends Importvideo {
 					<td>
 						<b>" . wfMsg('importvideo_description') . ": </b>{$snippet}<br /><br />
 						<div class='embed_button'>
-							<input class='button primary' type='button' value='" . wfMsg('importvideo_embedit') . "' onclick='importvideo(\"{$id}\"); gatTrack(\"Registered_Editing\",\"Import_video\",\"Editing_page\");'/>
+							<input class='button primary' type='button' value='" . wfMsg('importvideo_embedit') . "' onclick='WH.ImportVideo.importvideo(\"{$id}\"); gatTrack(\"Registered_Editing\",\"Import_video\",\"Editing_page\");'/>
 						</div>
 					</td>
 				</tr>

@@ -1,4 +1,5 @@
-<?
+<?php
+
 class Categorizer extends UnlistedSpecialPage {
 
 	var $pageIdsKey = null;
@@ -10,11 +11,11 @@ class Categorizer extends UnlistedSpecialPage {
 	var $halfHour = 0;
 	var $oneWeek = 0;
 
-	function __construct() { 
+	public function __construct() {
 		global $wgUser, $wgHooks;
 		parent::__construct( 'Categorizer' );
 
-		$wgHooks['getToolStatus'][] = array('Misc::defineAsTool');
+		$wgHooks['getToolStatus'][] = array('SpecialPagesHooks::defineAsTool');
 
 		$userId = $wgUser->getId();
 		$this->pageIdsKey = wfMemcKey("cattool_pageids1");
@@ -26,10 +27,9 @@ class Categorizer extends UnlistedSpecialPage {
 		$this->oneHour = 60 * 60;
 		$this->oneWeek = 60 * 60 * 24 * 7;
 	}
-	
-	function execute($par) {
+
+	public function execute($par) {
 		global $wgOut, $wgRequest, $wgUser;
-		wfLoadExtensionMessages('Categorizer');
 
 		$fname = 'Categorizer::execute';
 		wfProfileIn( $fname );
@@ -40,7 +40,12 @@ class Categorizer extends UnlistedSpecialPage {
 			return;
 		}
 
-		
+		# Check blocks
+		$user = $this->getUser();
+		if ( $user->isBlocked() ) {
+			throw new UserBlockedError( $user->getBlock() );
+		}
+
 		$action = $wgRequest->getVal('a', 'default');
 		$pageId = $wgRequest->getVal('id', -1);
 		switch ($action) {
@@ -86,7 +91,7 @@ class Categorizer extends UnlistedSpecialPage {
 		return($msgs);
 	}
 
-	function getNext() {
+	public function getNext() {
 		global $wgMemc;
 
 		$t = null;
@@ -101,7 +106,7 @@ class Categorizer extends UnlistedSpecialPage {
 		return $t;
 	}
 
-	function getNextArticleId() {
+	public function getNextArticleId() {
 		global $wgMemc, $wgLanguageCode;
 		$key = $this->pageIdsKey;
 		$pageIds = $wgMemc->get($key);
@@ -134,7 +139,7 @@ class Categorizer extends UnlistedSpecialPage {
 		$inUseIds = $wgMemc->get($this->inUseKey);
 		$diff = array();
 		if (is_array($pageIds) && is_array($inUseIds)) {
-			$diff = array_diff($pageIds, $inUseIds);	
+			$diff = array_diff($pageIds, $inUseIds);
 		}
 		if (empty($diff)) {
 			$ret = true;
@@ -147,7 +152,7 @@ class Categorizer extends UnlistedSpecialPage {
 		$key = $this->skippedKey;
 		$val = $wgMemc->get($key);
 		if(is_array($val)) {
-			$val[] = $pageId;	
+			$val[] = $pageId;
 		} else {
 			$val = array($pageId);
 		}
@@ -168,7 +173,7 @@ class Categorizer extends UnlistedSpecialPage {
 		$val = $wgMemc->get($key);
 		return $val ? in_array($pageId, $val) : false;
 	}
-	
+
 	function unmarkInUse($page) {
 		global $wgMemc;
 		$key = $this->inUseKey;
@@ -182,7 +187,7 @@ class Categorizer extends UnlistedSpecialPage {
 					break;
 				}
 			}
-		} 
+		}
 	}
 
 	function markInUse($pageId) {
@@ -207,14 +212,13 @@ class Categorizer extends UnlistedSpecialPage {
 		$vars = array();
 		$this->setVars($vars, $t);
 		$wgOut->setArticleBodyOnly($this->editPage);
+
 		if (!$this->editPage) {
-			$msgs = array();
-			$wgOut->addJSCode('ctt');
-			$wgOut->addCSSCode('cttc');
+			$wgOut->addModules('ext.wikihow.categorizer');
 		}
 		$msgs = $this->getJSMsgs($msgs);
 		$wgOut->addHTML(Wikihow_i18n::genJSMsgs($msgs));
-		
+
 		$vars['article'] = $this->getArticleHtml($t);
 		EasyTemplate::set_path(dirname(__FILE__).'/');
 		$html = $this->editPage ? EasyTemplate::html('Categorizer_editpage', $vars) : EasyTemplate::html('Categorizer', $vars);
@@ -241,12 +245,13 @@ class Categorizer extends UnlistedSpecialPage {
 				$parserOutput = $wgOut->parse($revision->getText(), $t, $popts);
 				$magic = WikihowArticleHTML::grabTheMagic($revision->getText());
 				return WikihowArticleHTML::processArticleHTML($parserOutput, array('no-ads' => true, 'ns' => NS_MAIN, 'magic-word' => $magic));
-			} else {
-				return '';
 			}
 		}
 
-		return "";
+		//still here? end of queue
+		$eoq = new EndOfQueue();
+		$html = $eoq->getMessage('cat');
+		return $html;
 	}
 
 	function getHeadHtml(&$t, &$vars = array()) {
@@ -262,8 +267,7 @@ class Categorizer extends UnlistedSpecialPage {
 		} else {
 			// No title to display. See Categorizer::getNext()
 			$vars['pageId'] = -1;
-			$vars['title'] = wfMsg('cat_no_articles');
-			$vars['titleUrl'] = '#';
+			return '<div id="cat_aid">'.$vars['pageId'].'</div>';
 		}
 		$vars['cat_help_url'] = wfMsg('cat_help_url');
 		EasyTemplate::set_path(dirname(__FILE__).'/');
@@ -288,7 +292,7 @@ class Categorizer extends UnlistedSpecialPage {
 		$vars['cat_search_label'] = wfMsg('cat_search_label');
 		$vars['cat_subcats_label'] = wfMsg('cat_subcats_label');
 		if ($this->editPage) {
-			$vars['js'] = HtmlSnips::makeUrlTags('js', array('categorizer.js'), '/extensions/wikihow/cattool');
+			$vars['js'] = HtmlSnips::makeUrlTag('/extensions/wikihow/cattool/categorizer.js');
 		}
 	}
 
@@ -305,7 +309,8 @@ class Categorizer extends UnlistedSpecialPage {
 		$html = "";
 		$cats = array_reverse($this->getCategories($t));
 		foreach ($cats as $cat) {
-			if (!CatSearch::ignoreCategory($cat)) {
+			$isSticky = CategorizerUtil::isStickyCat($cat) && $this->editPage; //on guided editor we want to show the sticky categories
+			if ( $isSticky || !CatSearch::ignoreCategory($cat)) {
 				$html .= "<span class='ui-widget-content ui-corner-all cat_category  cat_category_initial'><span class='cat_txt'>$cat</span><span class='cat_close'>x</span></span>";
 			}
 		}
@@ -316,7 +321,7 @@ class Categorizer extends UnlistedSpecialPage {
 		global $wgContLang;
 
 		$parentCats = array_keys($t->getParentCategories());
-		$templates = split("\n", wfMsgForContent('templates_further_editing'));
+		$furtherEditingCats = CategorizerUtil::getFurtherEditingCats();
 		$cats = array();
 		foreach ($parentCats as $parentCat) {
 			$parentCat = str_replace("-", " ", $parentCat);
@@ -324,30 +329,31 @@ class Categorizer extends UnlistedSpecialPage {
 			$parentCat = str_replace("$catNsText:", "", $parentCat);
 			// Trim category text in case someone manually entered a category and left some leading whitespace
 			$parentCat = trim($parentCat);
-			if (false === array_search($parentCat, $templates)) { 
+			if (false === array_search($parentCat, $furtherEditingCats)) {
 				$cats[] = $parentCat;
 			}
 		}
 		return $cats;
 	}
 
-	function getUncategorizedPageIds() {
+	function getStickyCategoriesOnly(Title &$title): array {
+		$allArticleCats = $this->getCategories($title);
+		$stickyArticleCats = [];
+		foreach (CategorizerUtil::getStickyCats() as $stickyCat) {
+			$stickyCat = str_replace('-', ' ', $stickyCat);
+			if (in_array($stickyCat, $allArticleCats)) {
+				$stickyArticleCats[] = $stickyCat;
+			}
+		}
+		return $stickyArticleCats;
+	}
+
+	public function getUncategorizedPageIds($getCount=false) {
 		global $wgMemc;
 
-		$templates = wfMsgForContent('templates_further_editing');
-		$templates = split("\n", $templates);
-		$notIn  = " AND cl_to NOT IN ('" . implode("','", $templates) . "')";
-		$dbr = wfGetDB(DB_SLAVE);
-		$sql = "SELECT page_id FROM page LEFT JOIN categorylinks ON page_id = cl_from $notIn 
-			WHERE cl_from IS NULL and page_id != 1548 AND page_namespace = 0 AND page_is_redirect = 0 ORDER BY page_touched LIMIT 500";
-		$res = $dbr->query($sql, __METHOD__);
-		$pageIds = array();
-		while ($row = $dbr->fetchObject($res)) {
-			$pageIds[] = $row->page_id;
-		}
-
+		$pageIds = CategorizerUtil::getUncategorizedPagesIds();
 		if (empty($pageIds)) {
-			// No more articles to categorize. Let's hold off on checking for 30 min 
+			// No more articles to categorize. Let's hold off on checking for 30 min
 			// to give the DB a break
 			$wgMemc->set($this->noMoreArticlesKey, 1, $this->halfHour);
 		}
@@ -367,7 +373,7 @@ class Categorizer extends UnlistedSpecialPage {
 					break;
 				}
 			}
-		} 
+		}
 		$this->categorize($page);
 		$this->unmarkInUse($page);
 	}
@@ -375,7 +381,7 @@ class Categorizer extends UnlistedSpecialPage {
 	function categorize($aid) {
 		global $wgRequest;
 
-		$t = Title::newFromId($aid);	
+		$t = Title::newFromId($aid);
 		if ($t && $t->exists()) {
 			$dbr = wfGetDB(DB_MASTER);
 			$wikitext = Wikitext::getWikitext($dbr, $t);
@@ -383,9 +389,11 @@ class Categorizer extends UnlistedSpecialPage {
 			$intro = Wikitext::getIntro($wikitext);
 			$intro = $this->stripCats($intro);
 
-			$cats = array_reverse($wgRequest->getArray('cats', array()));
+			$stickyCats = $this->getStickyCategoriesOnly($t);
+			$submittedCats = array_reverse($wgRequest->getArray('cats', array()));
+			$cats = array_merge($stickyCats, $submittedCats);
+
 			$intro .= $this->getCatsWikiText($cats);
-			
 			$wikitext = Wikitext::replaceIntro($wikitext, $intro);
 			$result = Wikitext::saveWikitext($t, $wikitext, 'categorization');
 
@@ -400,7 +408,7 @@ class Categorizer extends UnlistedSpecialPage {
 		global $wgContLang;
 		$text = "";
 		foreach ($cats as $cat) {
-			$text .= "\n[[" . $wgContLang->getNSText(NS_CATEGORY) . ":$cat]]";	
+			$text .= "\n[[" . $wgContLang->getNSText(NS_CATEGORY) . ":$cat]]";
 		}
 		return $text;
 	}
@@ -409,7 +417,7 @@ class Categorizer extends UnlistedSpecialPage {
 		global $wgContLang;
 		return preg_replace("/\[\[" . $wgContLang->getNSText(NS_CATEGORY) . ":[^\]]*\]\]/im", "", $text);
 	}
-	
+
 	function makeDBKey($cat) {
 		//return str_replace(" ", "-", $cat);
 		return $cat;

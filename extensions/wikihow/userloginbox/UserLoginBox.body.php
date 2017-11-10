@@ -1,50 +1,50 @@
-<?
-
-if (!defined('MEDIAWIKI')) die();
-
+<?php
 
 class UserLoginBox extends UnlistedSpecialPage {
 
 	public function __construct() {
 		parent::__construct('UserLoginBox');
 	}
-	
-	public function getSocialLogin($suffix='') {
-		$html = '<div id="fb_connect'.$suffix.'"><a id="fb_login'.$suffix.'" href="#" ><span></span></a></div>
-				<div id="gplus_connect'.$suffix.'"><a id="gplus_login'.$suffix.'" href="#"><span></span></a></div>';
-	
-		return $html;
-	}
-	
-	public function getLogin($isHead = false) {
-		global $wgTitle;
-		
-		$action_url = '/index.php?title=Special:Userlogin&action=submitlogin&'.
-					'type=login&returnto='.urlencode($wgTitle->getPrefixedURL()).
-					'&sitelogin=1';
-					
-		if (SSL_LOGIN_DOMAIN) $action_url = 'https://' . SSL_LOGIN_DOMAIN . $action_url;
-		if($isHead) {
-			$head_suffix = "_head";	
-		}
-		else {
-			$head_suffix = "";	
-		}
-		$tmpl = new EasyTemplate( dirname(__FILE__) );
+
+	/**
+	 * getLogin()
+	 * -----------------
+	 * returns html of the login box used for things like desktop nav pulldown & desktop homepage
+	 *
+	 * - $isHead (t/f) = is the desktop nav
+	 * - $isLogin (t/f)
+	 *			true = assumes user is logging in w/ their account (alt link for sign up)
+	 *			false = assumes user needs to create an account (alt link for log in w/ acct)
+	 * - $returnto (string) = page to which to return the user after login/signup
+	 */
+	public function getLogin($isHead = false, $isLogin = true, $returnto = '') {
+		global $wgSecureLogin;
+		$ctx = RequestContext::getMain();
+
+		$from_http = $wgSecureLogin && $ctx->getRequest()->getProtocol() == 'http' ? '&fromhttp=1' : '';
+
+		$return_link = $returnto ?: $ctx->getTitle()->getPrefixedURL();
+
+		$tmpl = new EasyTemplate( __DIR__ );
 		$tmpl->set_vars(array(
-			'social_buttons' => self::getSocialLogin($head_suffix),
-			'suffix' => ($isHead) ? '_head' : '',
-			'action_url' => htmlspecialchars($action_url),
+			'suffix' => $isHead ? '_head' : '',
+			'from_http' => $from_http,
+			'return_to' => $return_link,
+			'hdr_txt' => $isLogin ? wfMessage('ulb_login')->text() : wfMessage('ulb_joinwh')->text(),
+			'btn_link_type' => $isLogin ? 'login' : 'signup',
+			'bottom_link_type' => $isLogin ? 'signup' : 'login',
+			'bottom_txt_1' => $isLogin ? wfMessage('ulb_nologin')->text() : wfMessage('ulb_haveacct')->text(),
+			'bottom_txt_2' => $isLogin ? wfMessage('nologinlink')->text() : wfMessage('ulb_login')->text(),
+			'wh_txt' => $isLogin ? wfMessage('ulb_whacct')->text() : wfMessage('ulb_email')->text(),
+			'is_login' => $isLogin ? 'ulb_login' : 'ulb_signup'
 		));
 		$html = $tmpl->execute('userloginbox.tmpl.php');
 
+		$ctx->getOutput()->addModules('ext.wikihow.userloginbox');
 		return $html;
 	}
 
-	public function execute() {
-		global $wgRequest, $wgOut, $wgUser, $wgLang;
-
-		$wgOut->setArticleBodyOnly(true);
-		
+	public function execute($par) {
+		$this->getOutput()->setArticleBodyOnly(true);
 	}
 }

@@ -1,5 +1,8 @@
 <?php
 
+global $IP;
+require_once("$IP/extensions/wikihow/FeaturedRSSFeed.php");
+
 class Generatefeed extends UnlistedSpecialPage {
 
 	public function __construct() {
@@ -12,8 +15,6 @@ class Generatefeed extends UnlistedSpecialPage {
 		return $source;
 	}
 
-	// I re-used this code without copying it in the mobile MobileWikihow
-	// class. -Reuben
 	public static function getArticleSummary(&$article, &$title) {
 		global $wgParser;
 		$summary = Article::getSection($article->getContent(true), 0);
@@ -28,8 +29,7 @@ class Generatefeed extends UnlistedSpecialPage {
 		return $summary;
 	}
 
-	function getImages(&$article, &$title) {
-		global $wgParser;
+	public function getImages(&$article, &$title) {
 		$content = $article->getContent(true);
 
 		$images = array();
@@ -70,36 +70,23 @@ class Generatefeed extends UnlistedSpecialPage {
 	}
 
 	public function execute($par) {
-		global $wgUser, $wgOut, $wgLang, $wgContLang, $wgTitle, $wgMemc;
-		global $IP, $wgDBname, $wgParser;
-		global $wgRequest, $wgSitename, $wgLanguageCode, $wgContLanguageCode;
-		global $wgFeedClasses, $wgUseRCPatrol;
-		global $wgScriptPath, $wgServer;
-		global $wgSitename, $wgFeedClasses, $wgContLanguageCode;
-		global $messageMemc, $wgDBname, $wgFeedCacheTimeout;
-		global $wgFeedClasses, $wgTitle, $wgSitename, $wgContLanguageCode, $wgLanguageCode;
-
-		$fname = 'wfSpecialGeneratefeed';
+		global $wgOut, $wgParser, $wgRequest, $wgCanonicalServer;
 
 		$fullfeed = 0;
 		$mrss = 0;
 		if ($par == 'fullfeed') $fullfeed = 1;
 		else if ($par == 'mrss') $mrss = 1;
 
-		require_once("$IP/extensions/wikihow/FeaturedRSSFeed.php");
-
 		header('Content-Type: text/xml');
 		$wgOut->setSquidMaxage(60);
 		$feedFormat = 'rss';
-		$timekey = "$wgDBname:rcfeed:$feedFormat:timestamp";
-		$key = "$wgDBname:rcfeed:$feedFormat:limit:$limit:minor:$hideminor";
 
 		$feedTitle = wfMsg('Rss-feedtitle');
 		$feedBlurb = wfMsg('Rss-feedblurb');
 		$feed = new FeaturedRSSFeed(
 			$feedTitle,
 			$feedBlurb,
-			"$wgServer$wgScriptPath/Main-Page"
+			"$wgCanonicalServer/Main-Page"
 		);
 
 		if ($mrss) {
@@ -109,18 +96,13 @@ class Generatefeed extends UnlistedSpecialPage {
 			//$feed->outHeader();
 			$feed->outHeaderFullFeed();
 		}
- 
+
 		// extract the number of days below -- this is default
 		$days = 6;
 
 		date_default_timezone_set('UTC');
-		if ($wgRequest->getVal('micro', null) == 1) {
-			$days = FeaturedArticles::getNumberOfDays($days, 'RSS-Microblog-Feed');
-			$feeds = FeaturedArticles::getFeaturedArticles($days, 'RSS-Microblog-Feed');
-		} else {
-			$days = FeaturedArticles::getNumberOfDays($days);
-			$feeds = FeaturedArticles::getFeaturedArticles($days);
-		}
+		$days = FeaturedArticles::getNumberOfDays($days);
+		$feeds = FeaturedArticles::getFeaturedArticles($days, 12);
 
 		$now = time();
 		$itemcount = 0;
@@ -131,18 +113,15 @@ class Generatefeed extends UnlistedSpecialPage {
 			if ($d > $now) continue;
 			if (!$url) continue;
 
-			$url = str_replace('http://wiki.ehow.com/', '', $url);
-			$url = str_replace('http://www.wikihow.com/', '', $url);
-			$url = str_replace($wgServer . $wgScriptPath . '/', '', $url);
+			$url = preg_replace('@^(https?:)?//[^/]+/@', '', $url);
 			$title = Title::newFromURL(urldecode($url));
 			$summary = '';
 			$content = '';
-			if ($title == null) {
-				echo "title is null for $url";
-				exit;
+			if ($title == null) { // skip if article not found
+				continue;
 			}
-			
-			//from the Featured Articles
+
+			// from the Featured Articles
 			if ($title->getArticleID() > 0) {
 				$article = GoodRevision::newArticleFromLatest($title);
 				$summary = self::getArticleSummary($article, $title);
@@ -152,25 +131,13 @@ class Generatefeed extends UnlistedSpecialPage {
 				if (!$mrss) {
 					$content = $article->getContent(true);
 					$content = preg_replace('/\{\{[^}]*\}\}/', '', $content);
-					$output = $wgParser->parse($content, $title, new ParserOptions() );
+					$output = $wgParser->parse($content, $title, new ParserOptions());
 					$content = self::addTargetBlank($output->getText());
-					$content = preg_replace('/href="\//', 'href="'.$wgServer.'/', $content);
-					$content = preg_replace('/src="\//', 'src="'.$wgServer.'/', $content);
-					$content = preg_replace('/<span id="gatEditSection" class="editsection1">(.*?)<\/span>/', '', $content);
-					$content = preg_replace('/<h2> <a target="_blank" href="(.*?)>edit<\/a>/', '<h2>', $content);
-					$content = preg_replace('/<img src="(.*?)\/skins\/common\/images\/magnify-clip.png"(.*?)\/>/', '', $content);
-
-					$linkEmail = $wgServer .'/index.php?title=Special:EmailLink&target='. $title->getPrefixedURL() ;
-
-					$backlinks = "\n<div id='articletools'><div class='SecL'></div><div class='SecR'></div><a name='articletools'></a><h2> <span>".wfMsg('RSS-fullfeed-articletools')."</span></h2> </div>";
-					$backlinks .= "<ul>\n";
-					$backlinks .= "<li type='square'><a target='_blank' href='".$wgServer."/".$title->getPrefixedURL()."'>".wfMsg('RSS-fullfeed-articletools-read')."</a></li>\n";
-					$backlinks .= "<li type='square'><a target='_blank' href='".$linkEmail."'>".wfMsg('RSS-fullfeed-articletools-email')."</a></li>\n";
-					$backlinks .= "<li type='square'><a target='_blank' href='".$wgServer.$title->getEditURL()."'>".wfMsg('RSS-fullfeed-articletools-edit')."</a></li>\n";
-					$backlinks .= "<li type='square'><a target='_blank' href='".$wgServer."/".$title->getTalkPage()."'>".wfMsg('RSS-fullfeed-articletools-discuss')."</a></li>\n";
-					$backlinks .= "<ul>\n";
-
-					$content .= $backlinks;
+					$content = preg_replace('@href="/@', 'href="'.$wgCanonicalServer.'/', $content);
+					$content = preg_replace('@src="/@', 'src="'.$wgCanonicalServer.'/', $content);
+					$content = preg_replace("@<a target='_blank' href='([^']*)'>Edit</a>@",'',$content);
+					$content = preg_replace('@(<h[2-4]>)<a target="_blank" href="([^"]*)" title="([^"]*)" class="editsection" onclick="([^"]*)">Edit</a>@', '$1', $content);
+					$content = preg_replace('@<img src="([^"]*)/skins/common/images/magnify-clip.png"([^/]*)/>@', '', $content);
 				}
 			} else {
 				continue;
@@ -186,15 +153,15 @@ class Generatefeed extends UnlistedSpecialPage {
 				$title_text = $f[2];
 			} else {
 				$title_text = wfMsg('howto', $title_text);
-				}
+			}
 
 			$item = new FeedItem(
 				$title_text,
 				$summary,
-				$title->getFullURL(),
+				$title->getFullURL('', false, PROTO_CANONICAL),
 				$d,
 				null,
-				$talkpage->getFullURL()
+				$talkpage->getFullURL('', false, PROTO_CANONICAL)
 			);
 
 			if ($mrss) {
@@ -209,4 +176,3 @@ class Generatefeed extends UnlistedSpecialPage {
 		$feed->outFooter();
 	}
 }
-

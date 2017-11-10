@@ -12,7 +12,7 @@ class Welcome extends UnlistedSpecialPage {
 	}
 
 	function sendWelcomeUser($user) {
-		global $wgServer, $wgOutputEncoding;
+		global $wgCanonicalServer;
 
 		if ($user->getID() == 0) {
 			wfDebug("Welcome email:User must be logged in.\n");
@@ -38,24 +38,27 @@ class Welcome extends UnlistedSpecialPage {
 		$to_name = $user->getName();
 		$to_real_name = $user->getRealName();
 		if ($to_real_name != "") {
-			$to_name = $real_name;
+			$to_name = $to_real_name;
 		}
 		$username = $to_name;
 		$email = $user->getEmail();
 
 		$validEmail = $email;
-		$to_name .= " <$email>";
+		$to_name .= " <$email>"; // Foo Bar <foo@bar>
 
-		//server,username,talkpage,username
+		// append unsubscribe link to bottom of email (make sure on-site MediaWiki message is updated for fifth parameter)
+		$link = UnsubscribeLink::newFromId($user->getId());
+
+		//server,username,talkpage,username,optout link
 		$body = wfMsg('welcome-email-body',
-			$wgServer, $username,
-			$wgServer .'/'. preg_replace('/ /','-',$user->getTalkPage()),
-			$user->getName() );
+			$wgCanonicalServer, $username,
+			$wgCanonicalServer .'/'. preg_replace('/ /','-',$user->getTalkPage()),
+			$user->getName(), $link->getLink() );
 
 		$from = new MailAddress($from_name);
 		$to = new MailAddress($to_name);
-		$content_type = "text/html; charset={$wgOutputEncoding}";
-		if (!UserMailer::send($to, $from, $subject, $body, false, $content_type)) {
+		$content_type = "text/html; charset=UTF-8";
+		if (!UserMailer::send($to, $from, $subject, $body, null, $content_type, "welcome")) {
 			wfDebug( "Welcome email: got an en error while sending.\n");
 		};
 
@@ -64,29 +67,32 @@ class Welcome extends UnlistedSpecialPage {
 	}
 
 	function execute($par) {
-		global $wgUser, $wgRequest, $wgOut, $wgServer;
-		wfLoadExtensionMessages('Welcome');
+		global $wgUser, $wgRequest, $wgOut, $wgCanonicalServer;
 		$fname = 'Welcome';
 
 		$wgOut->setArticleBodyOnly(true);
 
-		$username = $wgRequest->getVal('u', null);
+		$username = htmlspecialchars( strip_tags( $wgRequest->getVal('u', null) ) );
 
 		if ($username != '') {
 			$u = new User();
 			$u->setName($username);
 		} else {
-			echo 'Sorry invalid request.<br />';
+			print 'Sorry invalid request.<br />';
 			return;
 		}
 
-		//server,username,talkpage,username
-		$body = wfMsg('welcome-email-body',
-			$wgServer, $username,
-			$wgServer .'/'. preg_replace('/ /','-',$u->getTalkPage()),
-			$username );
+		// since this just gets echoed, we don't need to add an unsubscribe link to it.
+		// but it still needs that fifth parameter, so let's just pass null (the link won't go anywhere)
 
-		echo $body;
+		//server,username,talkpage,username
+		$body = wfMessage('welcome-email-body',
+			$wgCanonicalServer, $username,
+			$wgCanonicalServer .'/'. preg_replace('/ /','-',$u->getTalkPage()),
+			$username, null)
+				->text();
+
+		print $body;
 	}
 }
 

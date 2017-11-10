@@ -8,13 +8,13 @@ class WikihowUser extends User {
 	 * Factory method to fetch user obj via an email address.
 	 *
 	 * @param $addr (string) the email address
-	 * @return array($user, $count) Returns an array where the 1st 
-	 *   parameter is the new User object (or null if there is not 
+	 * @return array($user, $count) Returns an array where the 1st
+	 *   parameter is the new User object (or null if there is not
 	 *   precisely 1 user account with that email address), and
 	 *   the 2nd parameter is the number of user account with that email
 	 *   address attached
 	 */
-	static function newFromEmailAddress( $addr ) {
+	static function newFromEmailAddress($addr) {
 		$result = self::getEmailCount($addr);
 		$u = null;
 		if ($result && $result['count'] == 1) {
@@ -120,14 +120,14 @@ class WikihowUser extends User {
 		$botsCached = $bots;
 		return $bots;
 	}
-	
+
 	static function isGPlusAuthor($userName) {
 		$u = User::newFromName($userName);
 		if ($u)
 			$u->load();
 		else
 			return 0;
-			
+
 		if ($u->isGPlusUser() && $u->getOption('show_google_authorship')) {
 			return true;
 		}
@@ -135,21 +135,101 @@ class WikihowUser extends User {
 			return false;
 		}
 	}
-	
-	static function isValidUserName( $name, &$result ) {
+
+	static function onUserValidateName($name, &$result) {
 		//let's assume we have a good name
 		$result = true;
-		
+
 		//disallow usernames that start with _
 		if (preg_match('/^_/',$name)) $result = false;
-		
+
 		//no usernames with multiple spaces
 		if ($result && preg_match('/(\s|-)(\s+|-+)/',$name)) $result = false;
-		
+
 		//no usernames with multiple underscores
 		if ($result && preg_match('/__+/',$name)) $result = false;
-		
+
 		return true;
+	}
+
+	/**
+	 * Return true if the username is already in use.
+	 */
+	static function usernameTaken($dbr, $username) {
+		return $dbr->selectField('user', 'count(*)', array('user_name' => $username)) > 0;
+	}
+
+	/**
+	 * Return an array with username suggestions, or an empty array if no available
+	 * usernames were found. For example, if the base name is "Bob", the returned
+	 * array might be ["Bob3", "Amazing_Bob"].
+	 */
+	static function getUsernameSuggestions($dbr, $baseName) {
+		return array_filter(array(
+			Static::getIntegerUsernameSuggestion($dbr, $baseName),
+			Static::getStringUsernameSuggestion($dbr, $baseName)
+		));
+	}
+
+	// Return a username suggestion like 'Bob3', or null if no available
+	// username was found.
+	private static function getIntegerUsernameSuggestion($dbr, $baseName) {
+		// Try appending small integers
+		for ($i = 1; $i <= 10; $i++) {
+			if (!Static::usernameTaken($dbr, $baseName . $i)) {
+				return $baseName . $i;
+			}
+		}
+
+		// Try appending larger random integers
+		for ($i = 0; $i < 10; $i++) {
+			$suggestion = $baseName . rand(11, 999);
+			if (!Static::usernameTaken($dbr, $suggestion)) {
+				return $suggestion;
+			}
+		}
+		return null;
+	}
+
+	// Return a username suggestion like 'Incredible_Bob', or null if no
+	// available username was found.
+	private static function getStringUsernameSuggestion($dbr, $baseName) {
+		// Try prefixing with adjectives
+		$prefixes = array(
+			'Amazing_', 'Awesome_', 'Fabulous_',
+			'Fantastic_', 'Incredible_',
+			'Outstanding_', 'Splendid_', 'Super_',
+		);
+		shuffle($prefixes);
+		foreach ($prefixes as $prefix) {
+			if (!Static::usernameTaken($dbr, $prefix . $baseName)) {
+				return $prefix . $baseName;
+			}
+		}
+		return null;
+	}
+
+	public static function getVisitorId() {
+		global $wgRequest, $wgIsDevServer;
+		if (!$wgIsDevServer) {
+			$visitorId = $wgRequest->getHeader('x-visitor');
+		} else {
+			// The X-Visitor header is usually set by Fastly/varnish after
+			// the "whv" cookie is deleted from the request. This code
+			// simulates that for the dev environment that doesn't have
+			// a varnish layer for caching.
+			//
+			// Note: We intentionally set this cookie without the usual
+			// prefix.
+			// Note 2 (electric boogaloo): varnish char set includes two chars that aren't included for dev -- (-,_)
+			$visitorId = @$_COOKIE['whv'];
+			if (!$visitorId) {
+				global $wgCookiePath, $wgCookieDomain, $wgCookieSecure;
+				$visitorId = Misc::genRandomString(20);
+				setcookie('whv', $visitorId, time() + 12 * 30 * 24 * 60 * 60, $wgCookiePath, '.' . $wgCookieDomain, $wgCookieSecure);
+			}
+		}
+		return $visitorId;
 	}
 
 }

@@ -13,6 +13,8 @@ if ( !defined( 'MEDIAWIKI' ) ) die();
 
 $wgAvailableRights[] = 'renameuser';
 $wgGroupPermissions['bureaucrat']['renameuser'] = true;
+# Reuben, wikiHow May 8, 2017: giving rename user permission to admins, per bug #1947
+$wgGroupPermissions['sysop']['renameuser'] = true;
 
 $wgExtensionCredits['specialpage'][] = array(
 	'path' => __FILE__,

@@ -4,7 +4,7 @@ require_once("$IP/extensions/wikihow/titus/Titus.class.php");
 require_once("$IP/extensions/wikihow/DatabaseHelper.class.php");
 
 $dbw = DatabaseBase::factory('mysql');
-$dbw->open(TITUS_DB_HOST, WH_DATABASE_MAINTENANCE_USER, WH_DATABASE_MAINTENANCE_PASSWORD, TitusDB::getDBName());
+$dbw->open(TitusDB::getDBHost(), WH_DATABASE_MAINTENANCE_USER, WH_DATABASE_MAINTENANCE_PASSWORD, TitusDB::getDBName());
 
 $rows = DatabaseHelper::batchSelect('titus_intl', 
 			'ti_page_id', 

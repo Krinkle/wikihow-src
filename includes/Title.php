@@ -3570,18 +3570,19 @@ class Title {
 	 * @return Array of String the URLs
 	 */
 	public function getSquidURLs() {
-		global $wgContLang;
-
+		global $wgLanguageCode, $wgIsDevServer;
 		$urls = array();
 
+		// NOTE: this core change should be moved to wikiHow's 
+		// PageHooks::onTitleSquidURLsPurgeVariants -- Reuben
 		$mainUrl = $this->getInternalURL();
-		if(IS_PROD_EN_SITE) {
-			//on spare1 the server is localhost. Since lots of maintenance scripts
-			//run off spare1, we want to purge the www version instead
-			//also want to purge the mobile version
+		if (!$wgIsDevServer) {
+			// On the tools and data servers the Host is localhost. Since a lot of
+			// maintenance scripts run off these servers, we want to purge the
+			// canonical urls for the desktop and mobile sites instead.
 			$partialUrl = preg_replace("@^https?://[^/]+/@", "/", $mainUrl);
-			$mainUrl = 'http://www.wikihow.com' . $partialUrl;
-			$mobileUrl = 'http://m.wikihow.com' . $partialUrl;
+			$mainUrl = Misc::getLangBaseURL($wgLanguageCode, false) . $partialUrl;
+			$mobileUrl = Misc::getLangBaseURL($wgLanguageCode, true) . $partialUrl;
 			
 			$urls[] = $mobileUrl;
 		}

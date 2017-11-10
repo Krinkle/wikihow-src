@@ -4,14 +4,30 @@ class ProfileBox extends UnlistedSpecialPage {
 
 	static $featuredArticles = array();
 
-	function __construct() {
+	public function __construct() {
 		parent::__construct( 'ProfileBox' );
 	}
 
-	function getPBTitle() {
+	public static function getUserPageHeaderHTML() {
+		$html = '';
+
+		$req = RequestContext::getMain()->getRequest();
+		$action = $req->getVal('action', 'view');
+
+		$profileBoxName = wfMessage('profilebox-name')->text();
+		if ($action == 'view') {
+			$html = "
+<div id='gatEditRemoveButtons'>
+	<a href='/index.php?title=Special:ProfileBox' id='gatProfileEditButton'>" . wfMessage('edit')->plain() . "</a>
+	| <a href='#' id='remove_user_page'>" . wfMessage('remove')->plain() . " $profileBoxName</a>
+</div>";
+		}
+		return $html;
+	}
+
+	private function getPBTitle() {
 		global $wgUser, $wgOut, $wgLang, $wgTitle, $wgScriptPath, $wgStylePath;
 
-		wfLoadExtensionMessages('ProfileBox');
 
 		$name = "";
 
@@ -29,317 +45,12 @@ class ProfileBox extends UnlistedSpecialPage {
 		$heading = $avatar . "<div id='avatarNameWrap'><h1 class=\"firstHeading\">" . $name . "</h1><div id='regdate'>" . wfMessage('pb-joinedwikihow', $pbDate)->text() . "</div></div><div style='clear: both;'> </div>";
 
 		return $heading;
-
 	}
 
-	function getStatsDisplay($stats, $username, $created_count = 0) {
-		global $wgUser;
-
-		wfLoadExtensionMessages('ProfileBox');
-
-		$isLoggedIn = $wgUser && !$wgUser->isAnon();
-
-		$display = "";
-
-		if($stats['nab'] == 1 || $stats['admin'] == 1 || $stats['fa'] == 1 || $stats['created'] != 0 || $stats['edited'] != 0 || $stats['patrolled'] != 0 || $stats['viewership'] != 0){
-
-			$display = "<div id='profileBoxStats' class='pb-stats minor_section'>
-						<h2>" . wfMessage('pb-mystats')->text() . "</h2><table id='profileBoxStatsContent' class='section_text'>";
-
-			$contribsPage = SpecialPage::getTitleFor( 'Contributions', $username );
-
-			$count = 0;
-
-			$display .= "<tr>";
-			if($stats['created'] != 0){
-				$text = wfMessage('pb-articlesstarted')->text();
-				if ($isLoggedIn) {
-					$text = Linker::linkKnown( $contribsPage , $text );
-				}
-				//$created_count only counts main namespaces and the like
-				//use that number
-				//$display .= "<td class='" . ($count%2==0?"left":"right") . "'>" . $stats['created'] . " " . $text . "</td>";
-				$display .= "<td class='" . ($count%2==0?"left":"right") . "'>" . $created_count . " " . $text . "</td>";
-				$count++;
-			}
-			if($stats['edited'] != 0){
-				$display .= "<td class='" . ($count%2==0?"left":"right") . "'>" . wfMessage('pb-articleedits',$stats['edited'])->text() . "</a></td>";
-				$count++;
-			}
-
-			if($count == 2)
-				$display .= "</tr><tr>";
-			if($stats['patrolled'] != 0){
-				$text = wfMessage('pb-editspatrolled')->text();
-				if ($isLoggedIn) {
-					$text = "<a href='/Special:Log?type=patrol&user=" . $username . "'>$text</a>";
-				}
-				$display .= "<td class='" . ($count%2==0?"left":"right") . "'>" . $stats['patrolled'] . " " . $text . "</td>";
-				$count++;
-			}
-			if($count == 2)
-				$display .= "</tr><tr>";
-			if($stats['viewership'] != 0){
-				$display .= "<td class='" . ($count%2==0?"left":"right") . "'>" . wfMessage('pb-articleviews',$stats['viewership'])->text() . "</td>";
-				$count++;
-			}
-
-			$display .= "</tr></table></div>";
-
-		}
-
-		return $display;
-	}
-
-	function showProfileData($u) {
-		global $wgUser, $wgOut, $wgLang, $wgTitle, $wgScriptPath, $wgStylePath;
-
-		wfLoadExtensionMessages('ProfileBox');
-
-		$display = "";
-
-		$display .= self::getRecentHistory($u->getID());
-
-		$t = Title::newFromText($u->getUserPage() . '/profilebox-aboutme');
-		if ($t->getArticleId() > 0) {
-			$r = Revision::newFromTitle($t);
-			$aboutme = $r->getText();
-			$aboutme = strip_tags($aboutme, '<p><br><b><i>');
-			$aboutme = preg_replace('/\\\\r\\\\n/s',"\n",$aboutme);
-			$aboutme = stripslashes($aboutme);
-		}
-		if ($u->getOption('profilebox_stats') == 1) { $checkStats = 'true'; }
-		else { $checkStats = 'false'; }
-
-		if ($u->getOption('profilebox_startedEdited') == 1) { $checkStartedEdited = 'true'; }
-		else { $checkStartedEdited = 'false'; }
-
-		if ($u->getOption('profilebox_favs') == 1) { $checkFavs = 'true'; }
-		else { $checkFavs = 'false'; }
-
-		$profilebox_name = wfMessage('profilebox-name')->text();
-		$profilebox_contributions = wfMessage('profilebox-contributions')->text();
-		$profilebox_edited_more = wfMessage('profilebox-edited-more')->text();
-
-		$display .= "
-<script language='javascript' src='" . wfGetPad('/extensions/wikihow/profilebox/profilebox.js?') . WH_SITEREV . "'></script>
-<link rel='stylesheet' media='all' href='" . wfGetPad('/extensions/wikihow/profilebox/profilebox.css?') . WH_SITEREV . "' type='text/css' />
-
-<script language='javascript'>
-	var profilebox_username = '".$u->getName()."';
-	var profilebox_name = '$profilebox_name';
-	var msg_contributions = '$profilebox_contributions';
-	var msg_edited_more = '$profilebox_edited_more';
-	var pbstats_check = $checkStats;
-	var pbstartededited_check = $checkStartedEdited;
-	var pbfavs_check = false;
-</script>\n";
-		$display .= "<div id='profileBoxID'>\n";
-		$display .= "<div class='article_inner'>";
-
-		if ($aboutme != '') {
-			$display .= "<p id='pb-aboutme'><strong>About me. </strong>".$aboutme."</p>\n";
-		}
-
-		if($checkStats == 'true' || $checkStartedEdited == 'true')
-			$stats = self::fetchStats("User:" . $u->getName());
-		if ($checkStats == 'true'){
-
-			$display .= ProfileBox::getStatsDisplay($stats, $u->getName());
-		}
-
-		$display .="</div><!--end article_inner-->";
-
-		if ($checkStartedEdited == 'true') {
-			$dbr = wfGetDB(DB_SLAVE);
-			$data = self::fetchCreatedData($dbr->strencode("User:" . $wgTitle->getText()), 6);
-			$hasMoreCreated = count($data) > 5 ? true : false;
-
-			$tmpl = new EasyTemplate( dirname(__FILE__) );
-			$tmpl->set_vars(array('data' => $data));
-
-			$display .= $tmpl->execute('started.tmpl.php');
-
-			$display .= "
-				<table class='pb-articles' id='pb-created' cellspacing='0' cellpadding='0'>
-					<thead><tr>
-						<th class='first pb-title'><strong>" . wfMessage('pb-articlesstarted')->text() ."</strong> (" . $stats['created'] . ")</th>
-						<th class='middle pb-star'>Rising Stars</th>
-						<th class='middle pb-feature'>Featured</th>
-						<th class='last pb-view'>Views</th></tr></thead>";
-
-			$display .= "<tbody>" . $createdHtml . "</tbody>";
-			$display .= "<tfoot>";
-			if($hasMoreCreated)
-				$display .= "<tr><td class='pb-title'><a href='#' id='created_more' onclick='pbShow_articlesCreated(\"more\"); return false;'>View more &raquo;</a><a href='#' id='created_less' style='display:none;' onClick='pbShow_articlesCreated(); return false;'>&laquo; View Less</a></td><td colspan='3' class='pb-view'>&nbsp;</td></tr>";
-			$display .= "</tfoot>";
-			$display .="</table>";
-			if (class_exists('ThumbsUp')) {
-				$dataThumbs = self::fetchThumbsData($dbr->strencode("User:" . $wgTitle->getText()), 6);
-				$hasMoreThumbs = count($dataThumbs) > 5 ? true : false;
-				$thumbsHtml = self::fetchThumbed($dataThumbs, 5);
-
-				$display .= "
-					<table class='pb-articles' id='pb-thumbed' cellspacing='0' cellpadding='0'>
-						<thead><tr>
-							<th class='first pb-title'><strong>Thumbed Up Edits</strong></th>
-							<!--<th class='middle pb-feature'>My Edit</th>
-							<th class='last pb-view'>Thumbs</th>-->
-							<th class='last pb-view'>Date</th>
-						</tr></thead>";
-				$display .= "<tbody>" . $thumbsHtml . "</tbody>";
-				$display .= "<tfoot>";
-				if($hasMoreThumbs)
-					$display .= "<tr><td class='pb-title'><a href='#' id='thumbed_more' onclick='pbShow_Thumbed(\"more\"); return false;'>View more &raquo;</a><a href='#' id='thumbed_less' style='display:none;' onClick='pbShow_Thumbed(); return false;'>&laquo; View Less</a></td><td colspan='1' class='pb-view'>&nbsp;</td></tr>";
-				$display .= "</tfoot>";
-				$display .="</table>";
-			}
-		}
-
-		$display .="
-<div id='pbTalkpage' style='float:right; padding-top:10px; margin-right:27px; padding-bottom:10px;'><a href='/".$u->getTalkPage()."'>Go to My Talk Page &raquo;</a></div>
-<div style='clear:both'></div>
-
-<script language='javascript'>
-if (typeof jQuery == 'undefined') {
-	Event.observe(window, 'load', pbInit);
-} else {
-	jQuery(window).load(pbInit);
-}
-</script>
-
-</div> ";
-
-		return $display;
-	}
-
-	/***************************
-	 ** outputs html for the users displaybox
-	 ** u - user to act on
-	 ** displayAsArticle - if true it wraps the stats in articleInner div
-	 ***************************/
-	function displayBox($u, $displayAsArticle=true) {
-		wfLoadExtensionMessages('ProfileBox');
-
-		$display = "";
-
-		$t = Title::newFromText($u->getUserPage() . '/profilebox-aboutme');
-		if ($t->getArticleId() > 0) {
-			$r = Revision::newFromTitle($t);
-			$aboutme = $r->getText();
-			$aboutme = strip_tags($aboutme, '<p><br><b><i>');
-			$aboutme = preg_replace('/\\\\r\\\\n/s',"\n",$aboutme);
-			$aboutme = stripslashes($aboutme);
-		}
-		if ($u->getOption('profilebox_stats') == 1) { $checkStats = 'true'; }
-		else { $checkStats = 'false'; }
-
-		if ($u->getOption('profilebox_startedEdited') == 1) { $checkStartedEdited = 'true'; }
-		else { $checkStartedEdited = 'false'; }
-
-		if ($u->getOption('profilebox_favs') == 1) { $checkFavs = 'true'; }
-		else { $checkFavs = 'false'; }
-
-		$profilebox_name = wfMessage('profilebox-name')->text();
-		$profilebox_contributions = wfMessage('profilebox-contributions')->text();
-		$profilebox_edited_more = wfMessage('profilebox-edited-more')->text();
-
-		$display .= "
-<script language='javascript' src='" . wfGetPad('/extensions/wikihow/profilebox/profilebox.js?') . WH_SITEREV . "'></script>
-<link rel='stylesheet' media='all' href='" . wfGetPad('/extensions/wikihow/profilebox/profilebox.css?') . WH_SITEREV . "' type='text/css' />
-
-<script language='javascript'>
-	var profilebox_username = '".$u->getName()."';
-	var profilebox_name = '$profilebox_name';
-	var msg_contributions = '$profilebox_contributions';
-	var msg_edited_more = '$profilebox_edited_more';
-	var pbstats_check = $checkStats;
-	var pbstartededited_check = $checkStartedEdited;
-	var pbfavs_check = false;
-</script>\n";
-		$display .= "<div id='profileBoxID'>\n";
-		if ($displayAsArticle) {
-			$display .= "<div class='article_inner'>";
-		}
-		if ($aboutme != '') {
-			$display .= "<p id='pb-aboutme'><strong>About me. </strong>".$aboutme."</p>\n";
-		}
-
-		if($checkStats == 'true' || $checkStartedEdited == 'true')
-			$stats = self::fetchStats("User:" . $u->getName());
-		if ($checkStats == 'true'){
-
-			$display .= ProfileBox::getStatsDisplay($stats, $u->getName());
-		}
-
-		if ($displayAsArticle) {
-			$display .= "<div class='clearall'></div>";
-			$display .="</div><!--end article_inner-->";
-		}
-
-		if ($checkStartedEdited == 'true') {
-			$dbr = wfGetDB(DB_SLAVE);
-			$data = self::fetchCreatedData($dbr->strencode("User:" . $u->getName()), 6);
-			$hasMoreCreated = count($data) > 5 ? true : false;
-			$createdHtml = self::fetchCreated($data, 5);
-
-			$display .= "
-				<table class='pb-articles' id='pb-created' cellspacing='0' cellpadding='0'>
-					<thead><tr>
-						<th class='first pb-title'><strong>" . wfMessage('pb-articlesstarted')->text() . "</strong> (" . $stats['created'] . ")</th>
-						<th class='middle pb-star'>Rising Stars</th>
-						<th class='middle pb-feature'>Featured</th>
-						<th class='last pb-view'>Views</th></tr></thead>";
-
-			$display .= "<tbody>" . $createdHtml . "</tbody>";
-			$display .= "<tfoot>";
-			if($hasMoreCreated)
-				$display .= "<tr><td class='pb-title'><a href='#' id='created_more' onclick='pbShow_articlesCreated(\"more\"); return false;'>View more &raquo;</a><a href='#' id='created_less' style='display:none;' onClick='pbShow_articlesCreated(); return false;'>&laquo; View Less</a></td><td colspan='3' class='pb-view'>&nbsp;</td></tr>";
-			$display .= "</tfoot>";
-			$display .="</table>";
-			if (class_exists('ThumbsUp')) {
-				$dataThumbs = self::fetchThumbsData($dbr->strencode("User:" . $u->getName()), 6);
-				$hasMoreThumbs = count($dataThumbs) > 5 ? true : false;
-				$thumbsHtml = self::fetchThumbed($dataThumbs, 5);
-
-				$display .= "
-					<table class='pb-articles' id='pb-thumbed' cellspacing='0' cellpadding='0'>
-						<thead><tr>
-							<th class='first pb-title'><strong>Thumbed Up Edits</strong></th>
-							<!--<th class='middle pb-feature'>My Edit</th>
-							<th class='last pb-view'>Thumbs</th>-->
-							<th class='last pb-view'>Date</th>
-						</tr></thead>";
-				$display .= "<tbody>" . $thumbsHtml . "</tbody>";
-				$display .= "<tfoot>";
-				if($hasMoreThumbs)
-					$display .= "<tr><td class='pb-title'><a href='#' id='thumbed_more' onclick='pbShow_Thumbed(\"more\"); return false;'>View more &raquo;</a><a href='#' id='thumbed_less' style='display:none;' onClick='pbShow_Thumbed(); return false;'>&laquo; View Less</a></td><td colspan='1' class='pb-view'>&nbsp;</td></tr>";
-				$display .= "</tfoot>";
-				$display .="</table>";
-			}
-		}
-
-		$display .="
-<div id='pbTalkpage' style='float:right; padding-top:10px; margin-right:27px; padding-bottom:10px;'><a href='/".$u->getTalkPage()."'>Go to My Talk Page &raquo;</a></div>
-<div style='clear:both'></div>
-
-<script language='javascript'>
-if (typeof jQuery == 'undefined') {
-	Event.observe(window, 'load', pbInit);
-} else {
-	jQuery(window).load(pbInit);
-}
-</script>
-
-</div> ";
-
-		return $display;
-	}
-
-	function displayForm() {
+	private function displayForm() {
 		global $wgUser, $wgOut, $wgLang, $wgTitle, $wgScriptPath, $wgStylePath, $wgLanguageCode;
 
-		$wgOut->addHTML('<div class="minor_section">');
+		$wgOut->addHTML('<div class="section_text">');
 		$wgOut->addHTML($this->getPBTitle());
 		$wgOut->addHTML('</div>');
 
@@ -367,6 +78,7 @@ if (typeof jQuery == 'undefined') {
 
 			if ($wgUser->getOption('profilebox_stats') == 1) { $checkStats = 'CHECKED'; }
 			if ($wgUser->getOption('profilebox_startedEdited') == 1) { $checkStartedEdited = 'CHECKED'; }
+			if ($wgUser->getOption('profilebox_questions_answered',1) == 1) { $checkQuestionsAnswered = 'CHECKED'; }
 			if ($wgUser->getOption('profilebox_favs') == 1) { $checkFavs = 'CHECKED'; }
 
 			if ($t = Title::newFromID($wgUser->getOption('profilebox_fav1'))) {
@@ -391,6 +103,7 @@ if (typeof jQuery == 'undefined') {
 		} else {
 			$checkStats = 'CHECKED';
 			$checkStartedEdited = 'CHECKED';
+			$checkQuestionsAnswered = 'CHECKED';
 			$checkFavs = 'CHECKED';
 		}
 
@@ -400,57 +113,46 @@ if (typeof jQuery == 'undefined') {
 <link rel='stylesheet' media='all' href='" . wfGetPad('/extensions/wikihow/profilebox/profilebox.css?') . WH_SITEREV . "' type='text/css' />
 
 <form method='post' name='profileBoxForm'>
-<div class='minor_section'>
-<strong>" . wfMessage('pb-demographic')->text() . "</strong><br /><br />
-<table width='100%' >
-<tr>
-	<td width='120'>" . wfMessage('pb-location')->text() . "</td>
-	<td width='530'><input class='loginText input_med' type='text' name='live' value='".$live."'></td>
-</tr>
-<tr>
-	<td>" . ($wgLanguageCode == "en" ? wfMessage('pb-website-entry')->text() : wfMessage('pb-website')->text()) . "</td>
-	<td><input class='loginText input_med' type='text' name='occupation' value='".$occupation."'></td>
-</tr>
-<tr>
-	<td valign='top'>" . wfMessage('pb-aboutme')->text() . "</td>
-	<td><textarea class='textarea_med' name='aboutme' cols='55' rows='5' style='overflow:auto;' >".$aboutme."</textarea></td>
-</tr>
-</table>
+<div class='section_text'><div class='altblock'></div>" .wfMessage('pb-demographic')->text() . "
+
+<div class='pb_block'>" .wfMessage('pb-location')->text() . "<br />
+<input class='input_med' type='text' name='live' value='".$live."' placeholder='" .wfMessage('pb-location-ph')->text() . "'>
 </div>
 
-<div class='minor_section'>
-<strong>" . wfMessage('pb-displayinfo')->text() . "</strong> <br /><br />
+<div class='pb_block'>" .
+($wgLanguageCode == "en" ? wfMessage('pb-website-entry')->text() : wfMessage('pb-website')->text()) . "<br />
+<input class='input_med' type='text' name='occupation' value='".$occupation."' placeholder='" .wfMessage('pb-website-ph')->text() . "'>
+</div>
+
+<div class='pb_block'>" .
+wfMessage('pb-aboutme')->text() . "<br />
+<textarea class='textarea_med' name='aboutme' cols='55' rows='3' style='overflow:auto;' placeholder='".wfMessage('pb-aboutme-ph')->text()."' >".$aboutme."</textarea>
+</div>
+
+</div>
+<br />
+<div class='section_text'><div class='altblock'></div>" .
+wfMessage('pb-displayinfo')->text() . "<br /><br />
 <input type='checkbox' name='articleStats' id='articleStats' ".$checkStats."> <label for='articleStats'>".wfMessage('profilebox-checkbox-stats')->text()."</label><br /><br />
-<input type='checkbox' name='articleStartedEdited' id='articleStartedEdited' ".$checkStartedEdited."> <label for='articleStartedEdited'>".wfMessage('profilebox-checkbox-startededited')->text()."</label><br />
+<input type='checkbox' name='articleStartedEdited' id='articleStartedEdited' ".$checkStartedEdited."> <label for='articleStartedEdited'>".wfMessage('pb-checkbox-articlesstartededited')->text()."</label><br /><br />
+<input type='checkbox' name='questionsAnswered' id='questionsAnswered' ".$checkQuestionsAnswered."> <label for='questionsAnswered'>".wfMessage('pb-checkbox-questionsanswered')->text()."</label><br />
 ");
-/*
-<input type='checkbox' name='articleFavs' ".$checkFavs." > ".wfMessage('profilebox-checkbox-favs')->text()."<br />
-				<input type='text' id='pbFav1' name='pbFav1' value='".$fav1."' class='selectFavs'> <a onclick='deleteFav(1);'>X</a><br />
-				<div id='autocomplete_choices1' class='autocomplete'></div>
-				<input type='text' id='pbFav2' name='pbFav2' value='".$fav2."' class='selectFavs'> <a onclick='deleteFav(2);'>X</a><br />
-				<div id='autocomplete_choices2' class='autocomplete'></div>
-				<input type='text' id='pbFav3' name='pbFav3' value='".$fav3."' class='selectFavs'> <a onclick='deleteFav(3);'>X</a><br />
-				<div id='autocomplete_choices3' class='autocomplete'></div>
-<input type='hidden' id='fav1' name='fav1' value='".$fav1id."' >
-<input type='hidden' id='fav2' name='fav2' value='".$fav2id."' >
-<input type='hidden' id='fav3' name='fav3' value='".$fav3id."' >
-*/
 
 $wgOut->addHTML("
+<!-- <input type='checkbox' name='recentTalkpage'> Most recent talk page messages<br /> -->
+</div>
 <br />
 
 <div class='profileboxform_btns'>
-	<a href='/".$wgUser->getUserPage()."' class='button secondary'>" . wfMessage('cancel')->text() . "</a> 
+	<a href='/".$wgUser->getUserPage()."' class='button secondary'>" . wfMessage('cancel')->text() . "</a>
 	<input class='button primary' type='submit' id='gatProfileSaveButton' name='save' value='" . wfMessage('pb-save')->text() . "' />
-</div>
-<!-- <input type='checkbox' name='recentTalkpage'> Most recent talk page messages<br /> -->
 </div>
 
 </form>
 ");
 	}
 
-	function initProfileBox($user){
+	public static function onInitProfileBox($user) {
 		$user->setOption('profilebox_fav1', "");
 		$user->setOption('profilebox_fav2', "");
 		$user->setOption('profilebox_fav3', "");
@@ -458,10 +160,13 @@ $wgOut->addHTML("
 		$user->setOption('profilebox_stats', 1);
 
 		$user->setOption('profilebox_startedEdited', 1);
+		$user->setOption('profilebox_questions_answered', 1);
 
 		$user->setOption('profilebox_display', 1);
 
 		$user->saveSettings();
+
+		return true;
 	}
 
 	function pbConfig() {
@@ -530,6 +235,12 @@ $wgOut->addHTML("
 			$wgUser->setOption('profilebox_startedEdited', 0);
 		}
 
+		if ($wgRequest->getVal('questionsAnswered') == 'on') {
+			$wgUser->setOption('profilebox_questions_answered', 1);
+		} else {
+			$wgUser->setOption('profilebox_questions_answered', 0);
+		}
+
 /*
 		if ( ($wgRequest->getVal('articleFavs') == 'on') &&
 				($wgRequest->getVal('fav1') || $wgRequest->getVal('fav2') || $wgRequest->getVal('fav3')) )
@@ -546,12 +257,9 @@ $wgOut->addHTML("
 
 	}
 
-	/***************************
-	 ** Used in a maintenance script
-	 ** deleteBannedPages.php
-	 ***************************/
-
-	static function removeUserData($user) {
+	 // Used in a maintenance script
+	 // deleteBannedPages.php
+	public static function removeUserData($user) {
 		$removed = false;
 
 		$t = Title::newFromText($user->getUserPage() . '/profilebox-live');
@@ -589,6 +297,7 @@ $wgOut->addHTML("
 
 		$user->setOption('profilebox_stats', 0);
 		$user->setOption('profilebox_startedEdited', 0);
+		$user->setOption('profilebox_questions_answered', 0);
 		$user->setOption('profilebox_favs', 0);
 
 		$user->setOption('profilebox_fav1', 0);
@@ -610,7 +319,7 @@ $wgOut->addHTML("
 	}
 
 	function fetchStats($pagename) {
-		global $wgUser;
+		global $wgUser, $wgReadOnly;
 
 		$dbr = wfGetDB(DB_SLAVE);
 		$t = Title::newFromText($pagename);
@@ -653,9 +362,15 @@ $wgOut->addHTML("
 			$updateflag = 1;
 		}
 
-		if ($updateflag) {
-			$conds = array('fe_user' => $u->getID());
-			$created = $dbr->selectField('firstedit', 'count(*)', $conds, __METHOD__);
+		if (!$wgReadOnly && $updateflag) {
+			$conds = array(
+				'fe_page=page_id',
+				'fe_user' => $u->getID(),
+				"page_title not like 'Youtube%'",
+				'page_is_redirect' => 0,
+				'page_namespace' => NS_MAIN
+			);
+			$created = $dbr->selectField(['firstedit','page'], 'count(*)', $conds, __METHOD__);
 
 			$conds = array('log_user' => $u->getID(), 'log_type' => 'patrol');
 			$patrolled = $dbr->selectField('logging', 'count(*)', $conds, __METHOD__);
@@ -690,119 +405,20 @@ $wgOut->addHTML("
 
 		}
 
+		$answered_count = $dbr->selectField(
+			TopAnswerers::TABLE_ANSWERER_STATS,
+			['qas_answers_count'],
+			['qas_user_id' => $u->getID()],
+			__METHOD__
+		);
+		$response['qa_answered'] = number_format($answered_count, 0, "", ",");
+
+
 		//check badges
 		$badges = ProfileStats::genBadges($dbr, $u);
 		$response = array_merge($response, $badges);
 
 		return $response;
-	}
-
-	function fetchThumbed($data, $limit = 5) {
-		$result = self::getThumbsTableHtml($data, $limit);
-		return $result;
-	}
-
-	function fetchThumbsData($username, $limit) {
-		global $wgMemc;
-
-		$username = urldecode($username);
-		$cacheKey = wfMemcKey('pb_thumbs', $username, $limit);
-		$result = $wgMemc->get($cacheKey);
-		if ($result) {
-			return $result;
-		}
-
-		$dbr = wfGetDB(DB_SLAVE);
-
-		$u = User::newFromName(stripslashes($username));
-
-		$order = array();
-		$order['GROUP BY'] = 'thumb_rev_id';
-		$order['ORDER BY'] = 'rev_id DESC';
-		if ($limit) {
-			$order['LIMIT'] = $limit;
-		}
-		$res = $dbr->select(
-			array('thumbs', 'page', 'revision'),
-			array('page_namespace', 'page_id', 'page_title', 'count(thumb_rev_id) as cnt', 'thumb_rev_id', 'rev_timestamp'),
-			array('thumb_recipient_id' => $u->getID(), 'thumb_exclude' => 0, 'thumb_page_id=page_id', 'thumb_rev_id=rev_id'),
-			__METHOD__,
-			$order);
-
-		foreach ($res as $row) {
-			$results[] = (array)$row;
-		}
-		$res->free();
-
-		$wgMemc->set($cacheKey, $results, 60*10);
-		return $results;
-	}
-
-	function fetchTopEditData($username) {
-		$dbr = wfGetDB(DB_SLAVE);
-
-		$u = User::newFromName($username);
-
-		$order = array();
-		$order['GROUP BY'] = 'thumb_rev_id';
-		$order['ORDER BY'] = 'cnt DESC';
-		if ($limit) {
-			$order['LIMIT'] = 1;
-		}
-		$res = $dbr->select(
-			array('thumbs', 'page'),
-			array('page_namespace', 'page_id', 'page_title', 'count(thumb_rev_id) as cnt', 'thumb_rev_id'),
-			array('thumb_recipient_id' => $u->getID(), 'thumb_exclude' => 0, 'thumb_page_id=page_id'),
-			__METHOD__,
-			$order);
-
-		return $res;
-	}
-
-	function getThumbsTableHtml(&$data, $limit = '') {
-		global $wgUser, $wgTitle;
-		wfLoadExtensionMessages('ProfileBox');
-
-		$isLoggedIn = $wgUser && !$wgUser->isAnon();
-
-		$html = '';
-
-		// Show the most recent thumbs up
-		$count = 0;
-		if(count($data) > 0) {
-			foreach($data as $row) {
-				if($limit != '' && $count >= $limit)
-					break;
-				$t = Title::makeTitle($row['page_namespace'], $row['page_title']);
-
-				if ($t->getArticleID() > 0) {
-					$html .= self::getThumbsRowHtml($t, $row, $isLoggedIn);
-				}
-				$count++;
-			}
-		}
-
-		if (!$html) {
-			$profileOwner = $wgUser->getId() != 0 && $wgUser->getName() == $wgTitle->getText();
-			if($profileOwner)
-				$html .= "<tr><td class='pb-title'>3" . wfMsgWikiHtml('pb-noedits') . "</td><td class='pb-view'>&nbsp;</td></tr>";
-			else
-				$html .= "<tr><td class='pb-title'>4" . wfMessage('pb-noarticles-anon')->text() . "</td><td class='pb-view'>&nbsp;</td></tr>";
-		}
-		return $html;
-	}
-
-	function getThumbsRowHtml(&$t, &$row, $isLoggedIn) {
-		$text = wfTimeAgo($row['rev_timestamp']);
-		if ($isLoggedIn) {
-			$text = Linker::linkKnown($t, $text, array(), array('diff' => $row['thumb_rev_id'], 'oldid' => 'PREV'));
-		}
-		$html = "";
-		$html .= "  <tr>";
-		$html .= "    <td class='pb-title'><a href='/".$t->getPartialURL()."'>" . $t->getFullText() . "</a></td>\n";
-		$html .= "    <td class='pb-view'>$text</td>\n";
-		$html .= "  </tr>\n";
-		return $html;
 	}
 
 	function getFeaturedArticles() {
@@ -831,125 +447,6 @@ $wgOut->addHTML("
 		return self::$featuredArticles;
 	}
 
-	function fetchCreated(&$data, $limit = '') {
-		$dbr = wfGetDB(DB_SLAVE);
-		return self::getTableHtml($data, $limit, $dbr);
-	}
-
-	function getTableHtml(&$data, $limit, &$dbr){
-		global $wgUser, $wgTitle;
-		wfLoadExtensionMessages('ProfileBox');
-
-		$html = "";
-		$count = 0;
-
-		$fas = self::getFeaturedArticles();
-		if(count($data) > 0){
-			foreach ($data as $row) {
-				if($limit != '' && $count >= $limit)
-					break;
-
-				$t = Title::makeTitle($row->page_namespace, $row->page_title);
-				$rs = $dbr->selectField('pagelist', array('count(*)'), array('pl_page'=>$t->getArticleID(), 'pl_list'=>'risingstar'), __METHOD__) > 0;
-				$risingstar = "";
-				if ($rs) {
-					$risingstar = "<img src='/extensions/wikihow/profilebox/star-green.png' height='20px' width='20px'>";
-				}
-				else{
-					$risingstar = "&nbsp;";
-				}
-
-				if ($fas[ $t->getDBKey() ]) {
-					$featured = "<img src='/extensions/wikihow/profilebox/star-blue.png' height='17px' width='21px'>";
-				} else {
-					$featured = "&nbsp";
-				}
-
-				if ($t->getArticleID() > 0)  {
-					$html .= "  <tr>";
-					$html .= "    <td class='pb-title'><a href='/".$t->getPartialURL()."'>" . $t->getFullText() . "</a></td>\n";
-					$html .= "    <td class='pb-star'>$risingstar</td>";
-					$html .= "    <td class='pb-feature'>$featured</td>";
-					$html .= "    <td class='pb-view'>".number_format($row->page_counter, 0, '',',') ."</td>\n";
-					$html .= "  </tr>\n";
-				}
-
-				$count++;
-			}
-		}
-
-		if ($html == "") {
-			$profileOwner = $wgUser->getId() != 0 && $wgUser->getName() == $wgTitle->getText();
-			if ($profileOwner) {
-				$html .= "<tr><td class='pb-title' colspan='3'>" . wfMsgWikiHtml('pb-noarticles') . "</td><td class='pb-view'>&nbsp;</td></tr>";
-			} else {
-				$html .= "<tr><td class='pb-title' colspan='3'>" . wfMessage('pb-noarticles-anon')->text() . "</td><td class='pb-view'>&nbsp;</td></tr>";
-			}
-		}
-		return $html;
-	}
-
-	/**
-	 * Gets the sql result for articles created by the given user
-	 */
-	function fetchCreatedData($username, $limit){
-		global $wgMemc, $wgUser;
-
-		$dbr = wfGetDB(DB_SLAVE);
-
-		$u = User::newFromName(stripslashes($username));
-
-		$order = array();
-		$order['ORDER BY'] = 'fe_timestamp DESC';
-		if ($limit) {
-			$order['LIMIT'] = $limit;
-		}
-		$res = $dbr->select(
-			array('firstedit','page'),
-			array('page_id', 'page_title', 'page_namespace', 'fe_timestamp', 'page_counter'),
-			array('fe_page=page_id', 'fe_user' => $u->getID(), "page_title not like 'Youtube%'", 'page_is_redirect' => 0, 'page_namespace' => NS_MAIN),
-			__METHOD__,
-			$order);
-
-		foreach ($res as $row) {
-			$results[] = $row;
-		}
-
-		$res->free();
-
-		$fas = self::getFeaturedArticles();
-		foreach ($results as $row) {
-			if($fas[$row->page_title])
-				$row->fa = true;
-			else
-				$row->fa = false;
-
-			$title = Title::makeTitle($row->page_namespace, $row->page_title);
-			$rs = $dbr->selectField('pagelist', 'count(*)', array('pl_page'=>$title->getArticleID(), 'pl_list'=>'risingstar'), __METHOD__) > 0;
-			if ($rs)
-				$row->rs = true;
-			else
-				$row->rs = false;
-
-			$row->title = $title;
-		}
-
-		return $results;
-	}
-
-	function fetchEdited($pagename, $limit = '') {
-		$dbr = wfGetDB(DB_SLAVE);
-		$t = Title::newFromText($pagename);
-
-		$res = self::fetchEditedData($dbr->strencode($pagename), $limit);
-
-		return self::getTableHtml($res, $dbr);
-	}
-
-	/*
-	 * This function is used above for determining the
-	 * category interests of a user
-	 */
 	function fetchEditedData($username, $limit){
 		$dbr = wfGetDB(DB_SLAVE);
 
@@ -1026,58 +523,62 @@ $wgOut->addHTML("
 		return;
 	}
 
-	function execute($par) {
-		global $wgOut, $wgRequest;
+	public function execute($par) {
+		global $wgCookiePrefix, $wgCookiePath, $wgCookieDomain, $wgLanguageCode;
 
+		$out = $this->getOutput();
+		$request = $this->getRequest();
 		$user = $this->getContext()->getUser();
+
 		if (!$user || $user->isBlocked()) {
-			$wgOut->blockedPage();
+			$out->blockedPage();
 			return;
 		}
 
-		if( $user->getID() == 0) {
-			$wgOut->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
+		$type = $request->getVal('type');
+		if ($user->getID() == 0 && $type != 'ajax') {
+			$out->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
 			return;
 		}
 
-		$type = $wgRequest->getVal('type');
-		$wgOut->setArticleBodyOnly(true);
+		$out->setArticleBodyOnly(true);
 
-		//Just Display Box - Can probably delete now that it's being loaded in the skin.
-		if ($type == 'display') {
-			$username = $wgRequest->getVal('u');
-			$u = User::newFromName(stripslashes($username));
-			$wgOut->addHTML($this->displayBox($u));
-			return;
-		} else if ($type == 'favsselector') {
-			$wgOut->setArticleBodyOnly(true);
+		if ($type == 'favsselector') {
+			$out->setArticleBodyOnly(true);
 			$this->favsTitleSelector();
 			return;
 		} else if ($type == 'ajax') {
-			$wgOut->setArticleBodyOnly(true);
-			$element = $wgRequest->getVal('element');
+			$out->setArticleBodyOnly(true);
+			$element = $request->getVal('element');
 			$dbr = wfGetDB(DB_SLAVE);
-			$pagename = $dbr->strencode($wgRequest->getVal('pagename'));
+			$pagename = $dbr->strencode($request->getVal('pagename'));
 			if (($element != '') && ($pagename != '')) {
+
+				$t = Title::newFromText($pagename);
+				$pageuser = User::newFromName($t->getText());
+				$stats = new ProfileStats($pageuser);
+
 				switch($element) {
-					case 'thumbed':
-						$data = self::fetchThumbsData($pagename, 5);
-						echo $this->fetchThumbed($data, 5);
+					case 'thumbed_less':
+						echo json_encode($stats->fetchThumbsData(5));
 						break;
-					case 'thumbedall':
-						$data = self::fetchThumbsData($pagename, 100);
-						echo $this->fetchThumbed($data, 100);
+					case 'thumbed_more':
+						echo json_encode($stats->fetchThumbsData(100));
 						break;
 					case 'stats':
 						echo $this->fetchStats($pagename);
 						break;
-					case 'created':
-						$data = self::fetchCreatedData($pagename, 5);
-						echo $this->fetchCreated($data, 5);
+					case 'created_less':
+						echo json_encode($stats->fetchCreatedData(5));
 						break;
-					case 'createdall':
-						$data = self::fetchCreatedData($pagename, 100);
-						echo $this->fetchCreated($data, 100);
+					case 'created_more':
+						echo json_encode($stats->fetchCreatedData(100));
+						break;
+					case 'answered_less':
+						echo json_encode($stats->fetchAnsweredData(5));
+						break;
+					case 'answered_more':
+						echo json_encode($stats->fetchAnsweredData(100));
 						break;
 					case 'favs':
 						echo $this->fetchFavs($pagename);
@@ -1089,27 +590,26 @@ $wgOut->addHTML("
 			return;
 		}
 
-		$wgOut->setArticleBodyOnly(true);
+		$out->setArticleBodyOnly(true);
 
-		if ($wgRequest->wasPosted()) {
-			$wgOut->setArticleBodyOnly(true);
+		if ($request->wasPosted()) {
+			$out->setArticleBodyOnly(true);
 			$this->pbConfig();
 
 			$t = $user->getUserPage();
-			$wgOut->redirect($t->getFullURL());
+			$out->redirect($t->getFullURL());
 		} else if ($type == 'remove') {
-			$wgOut->setArticleBodyOnly(true);
+			$out->setArticleBodyOnly(true);
 			$this->removeData();
-			$wgOut->addHTML("SUCCESS");
+			$out->addHTML("SUCCESS");
 		} else {
-			$wgOut->setArticleBodyOnly(false);
-			$this->displayForm() ;
+			$out->setArticleBodyOnly(false);
+			$this->displayForm();
 		}
 	}
 
-	static function getPageTop($u){
-		global $wgUser, $wgRequest, $wgLang;
-		wfLoadExtensionMessages('ProfileBox');
+	static function getPageTop($u, $isMobile = false){
+		global $wgUser, $wgRequest, $wgLang, $wgOut;
 
 		$realName = User::whoIsReal($u->getId());
 		if ($u->getRegistration() != '') {
@@ -1123,7 +623,7 @@ $wgOut->addHTML("
 		$t = Title::newFromText($u->getUserPage() . '/profilebox-live');
 		if ($t->getArticleId() > 0) {
 			$r = Revision::newFromTitle($t);
-			$pb_live = $r->getText();
+			if ($r) $pb_live = $r->getText();
 			if ($pb_live) $pb_showlive = true;
 		}
 
@@ -1132,7 +632,7 @@ $wgOut->addHTML("
 		$t = Title::newFromText($u->getUserPage() . '/profilebox-occupation');
 		if ($t->getArticleId() > 0) {
 			$r = Revision::newFromTitle($t);
-			$pb_work = $r->getText();
+			if ($r) $pb_work = $r->getText();
 			if ($pb_work) $pb_showwork = true;
 		}
 
@@ -1140,17 +640,19 @@ $wgOut->addHTML("
 		$pb_aboutme = '';
 		if ($t->getArticleId() > 0) {
 			$r = Revision::newFromTitle($t);
-			$pb_aboutme = $r->getText();
-			$pb_aboutme = strip_tags($pb_aboutme, '<p><br><b><i>');
-			$pb_aboutme = preg_replace('/\\\\r\\\\n/s',"\n",$pb_aboutme);
-			$pb_aboutme = stripslashes($pb_aboutme);
+			if ($r) {
+				$pb_aboutme = $r->getText();
+				$pb_aboutme = strip_tags($pb_aboutme, '<p><br><b><i>');
+				$pb_aboutme = preg_replace('/\\\\r\\\\n/s',"\n",$pb_aboutme);
+				$pb_aboutme = stripslashes($pb_aboutme);
+			}
 		}
-		
+
 		$social = self::getSocialLinks();
-		
+
 		$vars = array(
 			'pb_user_name' => $u->getName(),
-			'pb_display_name' => ($realName) ? $realName : $u->getName(),
+			'pb_display_name' => htmlspecialchars($realName ? $realName : $u->getName()),
 			'pb_display_show' => $u->getOption('profilebox_display'),
 			'pb_regdate' => $pb_regdate,
 			'pb_showlive' => $pb_showlive,
@@ -1165,12 +667,15 @@ $wgOut->addHTML("
 		$tmpl = new EasyTemplate( dirname(__FILE__) );
 		$tmpl->set_vars($vars);
 
-		return $tmpl->execute('header.tmpl.php');
+		$tmpl_file = ($isMobile) ? 'header_mobile.tmpl.php' : 'header.tmpl.php';
+
+		$wgOut->addModules('jquery.ui.dialog');
+
+		return $tmpl->execute($tmpl_file);
 	}
 
 	static function getMemberLength($joinDate){
-		wfLoadExtensionMessages('Misc');
-		
+
 		if ($joinDate == '') return wfMessage('since-unknown')->text();
 
 		$now = time();
@@ -1205,7 +710,7 @@ $wgOut->addHTML("
 
 		$stats = self::fetchStats('User:'.$user);
 
-		if ($stats) {
+		if ($stats && is_array($stats)) {
 			$desc = wfMessage('user_meta_description_extended',
 					$user,
 					$stats['created'],
@@ -1217,6 +722,7 @@ $wgOut->addHTML("
 		return $desc;
 	}
 
+	/* Not used since at least October 2017 - Alberto
 	function getRecentHistory($userId) {
 		$html = '<div class="sidebox" id="rcwidget_profile">';
 		$html .= RCWidget::getProfileWidget();
@@ -1225,68 +731,83 @@ $wgOut->addHTML("
 
 		return $html;
 	}
-
-	static function getDisplayCreatedData($data, $maxCount) {
-		global $wgUser, $wgTitle;
-		wfLoadExtensionMessages("ProfileBox");
-		
-		$profileOwner = $wgUser->getId() != 0 && $wgUser->getName() == $wgTitle->getText();
-		
-		$tmpl = new EasyTemplate( dirname(__FILE__) );
-		$tmpl->set_vars(array('data' => $data, 'max' => $maxCount, 'isOwner' => $profileOwner));
-
-		return $tmpl->execute('started.tmpl.php');
-	}
-
-	static function getDisplayThumbData($data, $maxCount) {
-		global $wgUser, $wgTitle;
-		wfLoadExtensionMessages("ProfileBox");
-		$profileOwner = $wgUser->getId() != 0 && $wgUser->getName() == $wgTitle->getText();
-		
-		$tmpl = new EasyTemplate( dirname(__FILE__) );
-		$tmpl->set_vars(array('data' => $data, 'max' => $maxCount, 'isOwner' => $profileOwner));
-
-		return $tmpl->execute('thumb.tmpl.php');
-	}
+	*/
 
 	static function getDisplayBadge($data) {
-		global $wgUser;
+		global $wgUser, $wgLanguageCode;
 
 		$isLoggedIn = $wgUser->getID() != 0;
 		$display = "";
 
-		$right = 15;
+		$side = 'right';
+		if (in_array($wgLanguageCode, array('ar'))) {
+			$side = 'left';
+		}
+		$distance = 15;
+
 		if($data['welcome'] == 1) {
-			$inner = "<div class='pb-welcome pb-badge' style='right:{$right}px'></div>";
+			$inner = "<div class='pb-welcome pb-badge' style='{$side}:{$distance}px'></div>";
 			$display .= $isLoggedIn ? "<a href='/Special:ProfileBadges'>$inner</a>" : $inner;
-			$right += 75;
+			$distance += 75;
 		}
 		if($data['nab'] == 1) {
-			$inner = "<div class='pb-nab pb-badge' style='right:{$right}px'></div>";
+			$inner = "<div class='pb-nab pb-badge' style='{$side}:{$distance}px'></div>";
 			$display .= $isLoggedIn ? "<a href='/Special:ProfileBadges'>$inner</a>" : $inner;
-			$right += 75;
+			$distance += 75;
 		}
 		if($data['admin'] == 1){
-			$inner = "<div class='pb-admin pb-badge' style='right:{$right}px'></div>";
+			$inner = "<div class='pb-admin pb-badge' style='{$side}:{$distance}px'></div>";
 			$display .= $isLoggedIn ? "<a href='/Special:ProfileBadges'>$inner</a>" : $inner;
-			$right += 75;
+			$distance += 75;
 		}
 		if($data['fa'] == 1){
-			$inner = "<div class='pb-fa pb-badge' style='right:{$right}px'></div>";
+			$inner = "<div class='pb-fa pb-badge' style='{$side}:{$distance}px'></div>";
 			$display .= $isLoggedIn ? "<a href='/Special:ProfileBadges'>$inner</a>" : $inner;
-			$right += 75;
+			$distance += 75;
 		}
 
 		return $display;
 	}
-	
+
+	static function getDisplayBadgeMobile($data) {
+		global $wgUser;
+
+		$display = '';
+		$isLoggedIn = $wgUser->getID() != 0;
+
+		if($data['nab'] == 1) {
+			$inner = "<div class='pb-nab pb-badge'><div><p>".wfMessage('pb-badge-nab')->text()."</p></div></div>";
+			$display .= $isLoggedIn ? "<a href='/Special:ProfileBadges'>$inner</a>" : $inner;
+		}
+		if($data['admin'] == 1){
+			$inner = "<div class='pb-admin pb-badge'><div><p>".wfMessage('pb-badge-admin')->text()."</p></div></div>";
+			$display .= $isLoggedIn ? "<a href='/Special:ProfileBadges'>$inner</a>" : $inner;
+		}
+		if($data['fa'] == 1){
+			$inner = "<div class='pb-fa pb-badge'><div><p>".wfMessage('pb-badge-fa')->text()."</p></div></div>";
+			$display .= $isLoggedIn ? "<a href='/Special:ProfileBadges'>$inner</a>" : $inner;
+		}
+		if($data['welcome'] == 1) {
+			$inner = "<div class='pb-welcome pb-badge'><div><p>".wfMessage('pb-badge-welcome')->text()."</p></div></div>";
+			$display .= $isLoggedIn ? "<a href='/Special:ProfileBadges'>$inner</a>" : $inner;
+		}
+
+		if ($display) {
+			$display = '<div class="section_text userpage_section pb_badge_section">'.
+						$display.
+						'<div class="clearall"></div></div>';
+		}
+
+		return $display;
+	}
+
 	function getFinalStats($contributions, $views) {
 		$html = '<div class="minor_section" id="pb_finalstats">'.
 				$contributions.$views.
 				'</div>';
 		return $html;
 	}
-	
+
 	function getPageViews() {
 		global $wgLang, $wgTitle;
 		$a = new Article($wgTitle);
@@ -1295,23 +816,27 @@ $wgOut->addHTML("
 		$s = wfMessage( 'viewcountuser', $countFormatted )->text();
 		return $s;
 	}
-	
+
 	function getSocialLinks() {
 		global $wgTitle, $wgUser;
 		$socialLinked = "";
 		if ($u = User::newFromName($wgTitle->getDBKey())) {
 			if(UserPagePolicy::isGoodUserPage($wgTitle->getDBKey())) {
-				if (class_exists('FBLogin') && class_exists('FBLink') && $u->getID() == $wgUser->getId() && !$wgUser->isGPlusUser()) {
+				if (class_exists('FBLogin') && class_exists('FBLink') && $u->getID() == $wgUser->getId() && !$wgUser->isGPlusUser() && !$wgUser->isCivicUser()) {
 					//show or offer FB link
 					$socialLinked = !$wgUser->isFacebookUser() ? FBLink::showCTAHtml() : FBLink::showCTAHtml('FBLink_linked');
 				}
 				elseif ($u->isGPlusUser()) {
-					//G+ -- are we showing authorship?
-					if ($u->getOption('show_google_authorship')) {
-						$gp_id = $u->getOption('gplus_uid');
+					if ($u->getID() == $wgUser->getId()) {
+						// Show link to disconnect Google account
+						$loginEnabledMsg = wfMessage('pb-google-login-enabled');
+						$unlinkMsg = wfMessage('pb-unlink-google-account');
+						$socialLinked = "<div id='gplus_disconnect'>$loginEnabledMsg (<a>$unlinkMsg</a>)</div>";
+					} elseif ($u->getOption('show_google_authorship')) {
+						// Show link to G+
+						$gplusUrl = 'https://plus.google.com/' . $u->getOption('gplus_uid');
 						$name = $u->getRealName() ? $u->getRealName() : $u->getName();
-						$gplus_link = '<a href="https://plus.google.com/'.$gp_id.'" rel="me">'. $name .' on Google+</a>';
-						$socialLinked = '<div class="pb-gp-link">'.$unlink_link.$gplus_link.'</div>';
+						$socialLinked = "<div class='pb-gp-link'><a href='$gplusUrl' rel='me'>$name on Google</a></div>";
 					}
 				}
 			}
@@ -1325,6 +850,8 @@ class ProfileStats {
 	var $user;
 	var $isOwnPage;
 	const CACHE_PREFIX = "pb";
+	const MIN_RECORDS = 1;
+	const MAX_RECORDS = 200;
 
 	public function __construct($user) {
 		global $wgUser;
@@ -1332,55 +859,49 @@ class ProfileStats {
 		$this->isOwnPage = $wgUser->getID() == $this->user->getID();
 	}
 
-	public function getArticlesCreated($limit) {
-		$dbr = wfGetDB(DB_SLAVE);
-
+	public function fetchCreatedData($limit) {
 		global $wgMemc;
-		$MAX_INITIAL_DISPLAYED = 5;
 
 		$cacheKey = wfMemcKey(ProfileStats::CACHE_PREFIX, 'created', $this->user->getID(), $limit);
 		$result = $wgMemc->get($cacheKey);
+		if (!$this->isOwnPage && $result) return $result;
 
-		if (!$this->isOwnPage && $result) {
-			return $result;
-		}
+		if (empty($limit)) $limit = self::MIN_RECORDS;
+		if ($limit > self::MAX_RECORDS) $limit = self::MAX_RECORDS;
 
-		$order = array();
-		$order['ORDER BY'] = 'fe_timestamp DESC';
-		if ($limit) {
-			$order['LIMIT'] = $limit;
-		}
+		$dbr = wfGetDB(DB_SLAVE);
+
 		$res = $dbr->select(
-			array('firstedit','page'),
-			array ('page_id', 'page_title', 'page_namespace', 'fe_timestamp', 'page_counter'),
-			array ('fe_page=page_id', 'fe_user' => $this->user->getID(), "page_title not like 'Youtube%'", 'page_is_redirect' => 0, 'page_namespace' => NS_MAIN),
+			['firstedit','page'],
+			['page_id', 'page_title', 'page_namespace', 'fe_timestamp', 'page_counter'],
+			[
+				'fe_page = page_id',
+				'fe_user' => $this->user->getID(),
+				"page_title not like 'Youtube%'",
+				'page_is_redirect' => 0,
+				'page_namespace' => NS_MAIN
+			],
 			__METHOD__,
-			$order
+			[
+				'ORDER BY' => 'fe_timestamp DESC',
+				'LIMIT' => $limit + 1
+			]
 		);
 
 		if ($res) {
-			foreach($res as $row) {
-				$results[] = $row;
-			}
-		}
-
-		if ($results) {
 			$fas = ProfileBox::getFeaturedArticles();
-			foreach($results as $i => $row) {
-				$row->fa = isset($fas[ $row->page_title ]) ? (bool)$fas[ $row->page_title ] : false;
+			foreach($res as $row) {
+				$created = get_object_vars($row);
+				$created['views'] = number_format($row->page_counter, 0, '',',');
+				$created['fa'] = isset($fas[ $row->page_title ]) ? (bool)$fas[ $row->page_title ] : false;
 
 				$title = Title::makeTitle($row->page_namespace, $row->page_title);
-				$rs = $dbr->selectField('pagelist', array('count(*)'), array('pl_page'=>$title->getArticleID(), 'pl_list'=>'risingstar'), __METHOD__) > 0;
-				if ($rs)
-					$row->rs = true;
-				else
-					$row->rs = false;
+				$created['title'] = $title->getText();
 
-				$row->title = $title;
+				$rs = RisingStar::isRisingStar($title->getArticleID(), $dbr);
+				$created['rs'] = (bool)$rs;
 
-				// People like Ttrimm can have 1200+ articles created, so we
-				// want to make sure we don't generate that many db queries
-				if ($i >= $MAX_INITIAL_DISPLAYED) break;
+				$results[] = $created;
 			}
 		}
 
@@ -1390,46 +911,99 @@ class ProfileStats {
 	}
 
 	function fetchThumbsData($limit) {
-		global $wgMemc, $wgUser;
-
-		$isLoggedIn = $wgUser && !$wgUser->isAnon();
+		global $wgMemc;
 
 		$cacheKey = wfMemcKey(ProfileStats::CACHE_PREFIX, 'thumbs', $this->user->getID(), $limit);
 		$result = $wgMemc->get($cacheKey);
+		if (!$this->isOwnPage && $result) return $result;
 
-		if (!$this->isOwnPage && $result) {
-			return $result;
-		}
+		if (empty($limit)) $limit = self::MIN_RECORDS;
+		if ($limit > self::MAX_RECORDS) $limit = self::MAX_RECORDS;
 
 		$dbr = wfGetDB(DB_SLAVE);
 
-		$order = array();
-		$order['GROUP BY'] = 'thumb_rev_id';
-		$order['ORDER BY'] = 'rev_id DESC';
-		if ($limit) {
-			$order['LIMIT'] = $limit + 1;
-		}
 		$res = $dbr->select(
-			array('thumbs','page', 'revision'),
-			array('page_namespace', 'page_id', 'page_title', 'count(thumb_rev_id) as cnt', 'thumb_rev_id', 'rev_timestamp'),
-			array('thumb_recipient_id' => $this->user->getID(), 'thumb_exclude' => 0, 'thumb_page_id=page_id', 'thumb_rev_id=rev_id'),
+			['thumbs','page', 'revision'],
+			['page_namespace', 'page_id', 'page_title', 'count(thumb_rev_id) as cnt', 'thumb_rev_id', 'rev_timestamp'],
+			[
+				'thumb_recipient_id' => $this->user->getID(),
+				'thumb_exclude' => 0,
+				'thumb_page_id=page_id',
+				'thumb_rev_id=rev_id'
+			],
 			__METHOD__,
-			$order);
+			[
+				'GROUP BY' => 'thumb_rev_id',
+				'ORDER BY' => 'rev_id DESC',
+				'LIMIT' => $limit + 1
+			]
+		);
 
-		$results = array();
+		$user = RequestContext::getMain()->getUser();
+		$isLoggedIn = $user && !$user->isAnon();
+
+		$results = [];
 		if ($res) {
 			foreach ($res as $row) {
-				$results[] = $row;
+				$t = Title::newFromID($row->page_id);
+				$page = get_object_vars($row);
+				$page['title'] = $t->getText();
+
+				if ($isLoggedIn) {
+					$page['ago'] = Linker::linkKnown($t, wfTimeAgo($row->rev_timestamp), [], ['diff' => $row->thumb_rev_id, 'oldid' => 'PREV']);
+				}
+				else {
+					$page['ago'] = wfTimeAgo($row->rev_timestamp);
+				}
+
+				$results[] = $page;
 			}
 			$res->free();
 		}
 
-		foreach ($results as $row) {
-			$row->title = Title::newFromID($row->page_id);
-			$row->text = wfTimeAgo($row->rev_timestamp);
-			if ($isLoggedIn) {
-				$row->text = Linker::linkKnown($row->title, $row->text, array(), array('diff' => $row->thumb_rev_id, 'oldid' => 'PREV'));
+		$wgMemc->set($cacheKey, $results, 60*10);
+
+		return $results;
+	}
+
+	public function fetchAnsweredData($limit) {
+		global $wgMemc;
+
+		$cacheKey = wfMemcKey(ProfileStats::CACHE_PREFIX, 'answered', $this->user->getID(), $limit);
+		$result = $wgMemc->get($cacheKey);
+		if (!$this->isOwnPage && $result) return $result;
+
+		if (empty($limit)) $limit = self::MIN_RECORDS;
+		if ($limit > self::MAX_RECORDS) $limit = self::MAX_RECORDS;
+
+		$dbr = wfGetDB(DB_SLAVE);
+
+		$res = $dbr->select(
+			TopAnswerers::TABLE_ANSWERER_CATEGORIES,
+			[
+				'qac_category',
+				'qac_count'
+			],
+			['qac_user_id' => $this->user->getID()],
+			__METHOD__,
+			[
+				'ORDER BY' => 'qac_count DESC',
+				'LIMIT' => $limit + 1
+			]
+		);
+
+		$templates = TopAnswerers::badTemplates(true);
+
+		$results = [];
+		if ($res) {
+			foreach ($res as $row) {
+				if (in_array($row->qac_category,$templates)) continue;
+
+				$cat = get_object_vars($row);
+				$cat['url'] = '/Category:'.str_replace(' ','-',$row->qac_category);
+				$results[] = $cat;
 			}
+			$res->free();
 		}
 
 		$wgMemc->set($cacheKey, $results, 60*10);
@@ -1438,6 +1012,9 @@ class ProfileStats {
 	}
 
 	function getBadges() {
+		//no badges for anons
+		if ($this->user->isAnon()) return;
+
 		$dbr = wfGetDB(DB_SLAVE);
 		return self::genBadges($dbr, $this->user);
 	}
@@ -1498,19 +1075,20 @@ class ProfileStats {
 		$badgeCache[$userID] = $response;
 		return $response;
 	}
-	
+
 	function getContributions() {
 		global $wgTitle, $wgUser;
-		
+
 		$user = $this->user;
 		$username = $user->getName();
 		$real_name = User::whoIsReal($user->getId());
 		$real_name = $real_name ? $real_name : $username;
+		$real_name = htmlspecialchars($real_name);
 		$contribsPage = SpecialPage::getTitleFor( 'Contributions', $username );
-		
+
 		// check if viewing user is logged in
 		$isLoggedIn = $wgUser && $wgUser->getID() > 0;
-		
+
 		$userstats = "<div id='userstats'>";
 		if ($user && $user->getID() > 0) {
 			$editsMade = number_format(WikihowUser::getAuthorStats($username), 0, "", ",");
@@ -1526,7 +1104,7 @@ class ProfileStats {
 			}
 		}
 		$userstats .= "</div>";
-		
+
 		return $userstats;
 	}
 

@@ -1,7 +1,5 @@
 <?php
-
-global $IP;
-require_once("$IP/extensions/wikihow/RisingStar.php");
+if (!defined('MEDIAWIKI')) die();
 
 abstract class ArticleViewer extends ContextSource {
 	var $articles, $articles_start_char;
@@ -166,7 +164,7 @@ class WikihowCategoryViewer extends ArticleViewer {
 					if (preg_match('/title="(.*?)"/', $articles[$index], $matches)) {
 						if ($rf_count < 30) {
 							$f = Title::newFromText($matches[1]);
-							$rf .= $this->getSkin()->featuredArticlesLineWide($f);
+							$rf .= FeaturedArticles::featuredArticlesLineWide($f);
 							$rf_break++;
 							$rf_count++;
 							$rf_show = true;
@@ -220,7 +218,7 @@ class WikihowCategoryViewer extends ArticleViewer {
 
 						if (preg_match('/title="([^"]*)"/', $randomFAs[$i], $matches)) {
 							$f = Title::newFromText($matches[1]);
-							$rf .= $this->getSkin()->featuredArticlesLineWide($f);
+							$rf .= FeaturedArticles::featuredArticlesLineWide($f);
 							$rf_show = true;
 							$rf_count++;
 						}
@@ -390,13 +388,22 @@ class WikihowCategoryViewer extends ArticleViewer {
 			$this->flip = false;
 		}
 
+		$user = $this->getUser();
+		if ( RobotPolicy::isIndexable($this->title) && !$user->isLoggedIn()) {
+			$indexConditions = 'AND ii_policy = ' . RobotPolicy::POLICY_DONT_CHANGE; //for articles, we store this value, not POLICY_INDEX_FOLLOW
+		} else {
+			$indexConditions = '';
+		}
+
 		$sql = "SELECT page_title, page_namespace, page_len, page_further_editing,
-				cl1.cl_sortkey, page_counter, page_is_featured
-			FROM (page, categorylinks cl1)
+				cl1.cl_sortkey, page_counter, page_is_featured, page_id as pageid
+			FROM (page, categorylinks cl1) LEFT JOIN index_info
+			ON ii_page = page_id
 			WHERE $pageCondition
-				AND cl1.cl_from = page_id
+			AND cl1.cl_from = page_id
 				AND cl1.cl_to = " . $dbr->addQuotes($this->title->getDBKey()) . "
 				AND page_namespace != 14
+				$indexConditions
 			GROUP BY page_id
 			ORDER BY " . ($this->flip ? 'cl1.cl_sortkey DESC' : 'cl1.cl_sortkey') . "
 			LIMIT " . ($this->limit + 1);
@@ -405,6 +412,10 @@ class WikihowCategoryViewer extends ArticleViewer {
 		$count = 0;
 		$this->nextPage = null;
 		foreach ($res as $x) {
+			if ( !wfRunHooks( "WikihowCategoryViewerQueryBeforeProcessTitle", array( $x->pageid ) ) ) {
+				continue;
+			}
+
 			if (!$this->processRow($x, $count)) {
 				break;
 			}

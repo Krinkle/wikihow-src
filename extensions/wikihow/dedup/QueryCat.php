@@ -1,4 +1,7 @@
-<?php                                                                           
+<?php
+
+// This extension was disabled by Alberto on September 1, 2016 - Changeset: 50cddec
+
 if ( ! defined( 'MEDIAWIKI' ) )
   die();
 

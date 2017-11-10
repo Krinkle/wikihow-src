@@ -1,14 +1,13 @@
-<?
+<?php
 
 class ManageRelated extends UnlistedSpecialPage {
 
-	function __construct() {
+	public function __construct() {
 		parent::__construct('ManageRelated');
 	}
 
-	function execute($par) {
-		global $wgRequest, $wgSitename, $wgLanguageCode, $IP;
-		global $wgDeferredUpdateList, $wgOut, $wgUser, $wgServer;
+	public function execute($par) {
+		global $wgRequest, $wgOut, $wgUser;
 
 		$this->setHeaders();
 
@@ -42,12 +41,12 @@ class ManageRelated extends UnlistedSpecialPage {
 			}
 
 			// construct the related wikihow section
-			$rel_array = split("\|", $wgRequest->getVal('related_list'));
+			$rel_array = explode('|', $wgRequest->getVal('related_list'));
 			$result = "";
 			foreach ($rel_array as $rel) {
 				$rel = urldecode(trim($rel));
 				if (!$rel) continue;
-				$result .= "*  [[" . $rel . "|" . wfMsg('howto', $rel) . "]]\n";
+				$result .= "* [[" . $rel . "]]\n";
 			}
 
 			if (strpos($text, "\n== "  . wfMsg('relatedwikihows') .  " ==\n") !== false) {
@@ -90,14 +89,14 @@ class ManageRelated extends UnlistedSpecialPage {
 			$tail = '';
 			$text = $article->getContent();
 
-			// figure out which section to replace if related wikihows 
+			// figure out which section to replace if related wikihows
 			// don't exist
 			$just_append = false;
 			if ($section <= 0) {
 				if ($ext_links_section > 0) {
 					// related wikihows have to go before external links
 					$section = $ext_links_section;
-					// glue external links and related wikihows together 
+					// glue external links and related wikihows together
 					// and replace external links
 					$result = $result . "\n" . $article->getSection($content, $section);
 				} else {
@@ -107,12 +106,12 @@ class ManageRelated extends UnlistedSpecialPage {
 				}
 			} else {
 				$s = $article->getSection($content, $section);
-				$lines = split("\n", $s);
+				$lines = explode("\n", $s);
 				for ($i = 1; $i < sizeof($lines); $i++) {
 					$line = $lines[$i];
 					if (strpos($line, "*") !== 0) {
 						// not a list item
-						$tail .= "\n" . $line ;
+						$tail .= "\n" . $line;
 					}
 				}
 			}
@@ -153,45 +152,37 @@ class ManageRelated extends UnlistedSpecialPage {
 		$text = $article->getContent();
 
 		$relwh = $whow->getSection("related wikihows");
+
 		if ($relwh != "") {
 			$related_vis = "show";
-			$relatedHTML = $relwh;
-			$relatedHTML = str_replace("*", "", $relatedHTML);
-			$relatedHTML = str_replace("[[", "", $relatedHTML);
-			$relatedHTML = str_replace("]]", "", $relatedHTML);
-			$lines = split("\n", $relatedHTML);
-			$relatedHTML = "";
-			foreach ($lines as $line) {
-				$xx = strpos($line, "|");
-				if ($xx !== false) {
-					$line = substr($line, 0, $xx);
+			preg_match_all( '/\[\[([^[]*)\]\]/i', $relwh, $matches );
+
+			$wikilinks = $matches[1];
+
+			if (count($wikilinks) > 0) {
+				foreach ($wikilinks as $wikilink) {
+					$linkParts = explode( '|', $wikilink );
+					$linkPage = trim($linkParts[0]);
+					$relatedHTML .= "<option value=\"" . str_replace("\"", "&quote", $linkPage) . "\">$linkPage</option>\n";
+
 				}
-
-				$line = trim($line);
-				if ($line == "") continue;
-
-				$relatedHTML .= "<option value=\"" . str_replace("\"", "&quote", $line)
-					. "\">$line</option>\n";
 			}
+
 		}
 
 		$me = Title::makeTitle(NS_SPECIAL, "ManageRelated");
+		$wgOut->addModules(['ext.wikihow.ManageRelated']);
 
-		$cssFile = wfGetPad('/extensions/min/f/extensions/wikihow/ManageRelated/managerelated.css?rev=') . WH_SITEREV;
-		$jsFile = wfGetPad('/extensions/min/?f=extensions/wikihow/ManageRelated/managerelated.js,extensions/wikihow/common/jquery.scrollTo/jquery.scrollTo.js&rev=') . WH_SITEREV;
 		$targetEnc = htmlspecialchars($target, ENT_QUOTES);
 
 		$wgOut->addHTML(<<<EOHTML
 	<style type='text/css' media='all'>/*<![CDATA[*/ @import '{$cssFile}'; /*]]>*/</style>
-	<script type='text/javascript'>
-		var wgServer = "{$wgServer}";
-	</script>
 	<script type='text/javascript' src='{$jsFile}'></script>
 
 	<form method='POST' action='{$me->getFullURL()}' name='temp' onsubmit='return WH.ManageRelated.check();'>
 
 	You are currently editing related wikiHows for the article
-	<a href='{$titleObj->getFullURL()}' target='new'>How to {$titleObj->getFullText()}</a>.<br/>
+	<a href='{$titleObj->getFullURL()}' target='new'>{$titleObj->getFullText()}</a>.<br/>
 
 	<table style='padding: 10px 5px 25px 5px;'>
 	<tr><td valign='top'>
@@ -237,12 +228,12 @@ EOHTML
 
 class PreviewPage extends UnlistedSpecialPage {
 
-	function __construct() {
+	public function __construct() {
 		parent::__construct('PreviewPage');
 	}
 
-	function execute($par) {
-		global $wgRequest, $wgUser, $wgOut;
+	public function execute($par) {
+		global $wgRequest, $wgOut;
 
 		$wgOut->setArticleBodyOnly(true);
 		$wgOut->clearHTML();

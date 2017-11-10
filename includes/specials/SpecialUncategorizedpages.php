@@ -47,6 +47,10 @@ class UncategorizedPagesPage extends PageQueryPage {
 	}
 
 	function getQueryInfo() {
+		// wikiHow [Alberto, 2016-11]
+		$ns = $this->requestedNamespace !== false ? $this->requestedNamespace : MWNamespace::getContentNamespaces();
+		return CategorizerUtil::getQueryInfoForUncategorizedPagesPage((array)$ns);
+
 		return array(
 			'tables' => array( 'page', 'categorylinks' ),
 			'fields' => array( 'namespace' => 'page_namespace',

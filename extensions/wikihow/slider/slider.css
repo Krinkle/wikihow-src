@@ -226,6 +226,7 @@ a#slider_close_button:hover { text-decoration: none; }
 .sliderbox_08 .slider_button { margin-top: 1em; }
 .sliderbox_08 .slider_button a { margin-right: 0; }
 .sliderbox_08 #slider_close_button { 
+	/* @embed */
 	background: url(/skins/owl/images/ico-x.png) no-repeat 0 0;
 	width: 14px;
 	height: 14px;

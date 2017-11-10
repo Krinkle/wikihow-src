@@ -1,8 +1,7 @@
 <?php 
+
 class WHVid {
    
-	const S3_DOMAIN_DEV = 'http://d2mnwthlgvr25v.cloudfront.net/'; //wikivideo-prod-test
-	const S3_DOMAIN_PROD = 'http://d5kh2btv85w9n.cloudfront.net/'; //wikivideo-prod
 	const NUM_DIR_LEVELS = 2;
 
 	public static function setParserFunction () { 
@@ -17,47 +16,243 @@ class WHVid {
         return true;
     }
 
-    public static function parserFunction($parser, $vid=null, $img=null, $mobileImg=null) {
-		global $wgTitle, $wgContLang;
-		wfLoadExtensionMessages('WHVid');
+	public static function getVidFullPathForAmp( $context, $vidSrc ) {
+		$root  = 'https://d5kh2btv85w9n.cloudfront.net';
+		return $root.$vidSrc;
+	}
 
-        if ($vid === null || $img === null) {
+	// checks if a gif name exists as a title and file
+	public static function gifExists( $gifName ) {
+		$gifTitle = Title::newFromText( $gifName, NS_IMAGE );
+		$gifFile = RepoGroup::singleton()->findFile( $gifTitle );
+		if ( $gifFile && $gifFile->exists() ) {
+			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * we want our default images to be 16:9 but some default images
+	 * in our system are 4:3 ratio..if this is the case, then chose the
+	 * preview image if it is available since this will be at the correct aspect ratio
+	 * @param $img String which is an image name
+	 * @return true if the image exists and has a close to 4:3 aspect ratio
+	 */
+	public static function isLargeAspectRatio( $img ) {
+		if ( !$img ) {
+			return false;
+		}
+
+		$imgTitle = Title::newFromText( $img, NS_IMAGE );
+		$imgFile = RepoGroup::singleton()->findFile( $imgTitle );
+
+		if ( !$imgFile || !$imgFile->exists() ) {
+			return false;
+		}
+
+		$width = $imgFile->getWidth();
+		$height = $imgFile->getHeight();
+
+		if ( !$width || $width <= 0 ) {
+			return false;
+		}
+
+		$ratio = $height / $width;
+
+		// ratio of 0.56 is 16:9 aspect ratio
+		// ratio of 0.66 is 4:3 aspect ratio
+		if ( $ratio > 0.62 ) {
+			return true;
+		}
+
+		return false;
+	}
+
+
+	/**
+	 * Get img and url for the default image for use in the whvid template
+	 * we will try to use the static image but fallback to the previewImg
+	 *
+	 * @param string $staticImg : name of Image to show before video loads
+	 * @param string $previewImg name of Image which is part of mp4 video.
+	 *        it was the old default but now is a fallback
+	 * @return array returns the name of the default image and url to large and small thumbs of it
+	 */
+	private static function getDefaultImg( $staticImg, $previewImg ) {
+		global $wgLanguageCode;
+
+		$previewFallback = false;
+
+		$img = null;
+		$imgFile = null;
+		$defaultImg = null;
+
+		$largeRatio = self::isLargeAspectRatio( $staticImg );
+		if ( !$staticImg || ( $largeRatio && $previewImg ) ) {
+			$previewFallback = true;
+		}
+
+		if ( $previewFallback == false ) {
+			$img = Title::newFromText( $staticImg, NS_IMAGE);
+			$imgFile = RepoGroup::singleton()->findFile( $img );
+			if ( $imgFile && $imgFile->getMediaType() != "ARCHIVE" && ( $wgLanguageCode != "en" || $img->exists() ) ) {
+				$defaultImg = $staticImg;
+			} else {
+				$previewFallback = true;
+			}
+		}
+
+		if ( $previewFallback == true ) {
+			$img = Title::newFromText( $previewImg, NS_IMAGE);
+			$imgFile = RepoGroup::singleton()->findFile( $img );
+			if ( $imgFile && $imgFile->getMediaType() != "ARCHIVE" && ( $wgLanguageCode != "en" || $img->exists() ) ) {
+				$defaultImg = $previewImg;
+			}
+		}
+
+		$smallImgUrl = '';
+		$largeImgUrl = '';
+		if ( !$imgFile ) {
+			return array( $defaultImg, $smallImgUrl, $largeImgUrl );
+		}
+
+		$params = array(
+			'width' => 550,
+			'height' => 309,
+			WatermarkSupport::NO_WATERMARK => true,
+		);
+		$thumb = $imgFile->transform( $params, $flags );
+		$largeImgUrl = $thumb->getUrl();
+
+		$thumb = $imgFile->getThumbnail( 300 );
+		$smallImgUrl = $thumb->getUrl();
+
+		return array( $defaultImg, $smallImgUrl, $largeImgUrl );
+
+	}
+
+	private static function getSummaryImageThumbUrl( $image, $width ) {
+		$params = array(
+			'width' => $width,
+			WatermarkSupport::NO_WATERMARK => true,
+		);
+		$flags = 0;
+		$thumb = $image->transform( $params, $flags );
+		return $thumb->getUrl();
+	}
+
+	/**
+	 *
+	 * @param string $image the string name of the MW image file
+	 */
+	public static function getSummaryImage( $image ) {
+		$result = null;
+
+		$img = Title::newFromText( $image, NS_IMAGE);
+		if ( !$img )  {
+			return $result;
+		}
+		$imgFile = RepoGroup::singleton()->findFile( $img );
+		if ( !$imgFile )  {
+			return $result;
+		}
+		return $imgFile;
+	}
+	/**
+	 * Parser function for whvid template
+	 *
+	 * @param Parser $parser the parser object we will be using
+	 * @param string $vid the mp4 video name
+	 * @param string $previewImg name of Image which is part of mp4 video.
+	 *        it was the old default but now is a fallback
+	 * @param string $staticImg (Optional): name of Image to show before video loads
+	 * @param string $gif (Optional): name of gif image for use on mobile
+	 * @param string $gifFirst (Optional): name of first frame of gif image to show before gif loads
+	 * @return string Parser tag which will be replaced in the output plus any wikitext for fallbacks
+	 *         see Parser.php insertStripItem for details
+	 */
+	public static function parserFunction( $parser, $vid = null, $previewImg = null, $staticImg = null, $gif = null, $gifFirst = null ) {
+		if ( $vid === null || $previewImg === null ) {
 			return '<div class="errorbox">'.wfMsg('missing-params').'</div>';
 		}
 
-        $vid = htmlspecialchars($vid);
-		$divId = "whvid-" . md5($vid . mt_rand(1,1000));
-		$vidUrl = self::getVidUrl($vid);
-
-		$imgTitle = Title::newFromText($img, NS_IMAGE);
-		$imgUrl = null;
-		if ($imgTitle) {
-			$imgFile = RepoGroup::singleton()->findFile($imgTitle);
-			$smallImgUrl = '';
-			$largeImgUrl = '';
-			if ($imgFile) {
-				$width = 550;
-				$height = 309;
-				$thumb = $imgFile->getThumbnail($width, $height);
-				$largeImgUrl = wfGetPad($thumb->getUrl());
-
-				$width = 240;
-				//$height = 135;
-				$thumb = $imgFile->getThumbnail($width);
-				$smallImgUrl = wfGetPad($thumb->getUrl());
-			}
+		$watermark = true;
+		$summaryVideo = false;
+		$summaryIntroImage = null;
+		$summaryOutroImage = null;
+		if ( strstr( $vid, ' Step 0' ) )  {
+			$isSummaryVideo = true;
+			$watermark = false;
+			$summaryIntroImage = self::getSummaryImage( $previewImg );
+			$summaryOutroImage = self::getSummaryImage( $staticImg );
 		}
 
-		$altImgTitle = '';
-		if ($mobileImg) {
-			$imgTitle = Title::newFromText($mobileImg, NS_IMAGE);
-			if ($imgTitle && $imgTitle->exists()) {
-				$altImgTitle = $mobileImg;
-			}
+		// we use the static image as the default image if it is available
+		list ( $defaultImg, $smallImgUrl, $largeImgUrl ) = self::getDefaultImg( $staticImg, $previewImg );
+
+		if ( !$defaultImg ) {
+			return "";
 		}
 
-		return $parser->insertStripItem(wfMsgForContent('embed-html', $divId, $vidUrl, $largeImgUrl, $smallImgUrl, $altImgTitle));
+		if ( $parser->getTitle() && WatermarkSupport::isRestricted( $parser->getTitle()->getArticleID() ) ) {
+			$watermark = false;
+		}
+
+		$divId = "whvid-" . md5( $vid . mt_rand( 1,1000 ) );
+		$vidUrl = self::getVidUrl( $vid );
+
+		list( $gifUrl, $gifSize ) = self::getGifInfo( $gif );
+		list( $gifFirstUrl ) = self::getGifInfo( $gifFirst );
+		$html = self::getVideoHtml( $vidUrl, $largeImgUrl, $gifUrl, $gifFirstUrl, $watermark, $isSummaryVideo, $summaryIntroImage, $summaryOutroImage );
+		$parserItem = $parser->insertStripItem( $html );
+		$wt = "[[Image:$defaultImg|center|550px]]";
+
+		return $parserItem.$wt;
     }
+
+	/*
+	 * create the html5 video element, with poster image and data attributes
+	 * used by mobile and desktop
+	 */
+	private static function getVideoHtml( $vidUrl, $defaultImg, $gifSrc, $gifFirstSrc, $watermark, $isSummaryVideo, $summaryIntroImage, $summaryOutroImage ) {
+		$id = 'mvid-' . wfRandomString(10);
+		$attr = array(
+			'playsinline' => '',
+			'webkit-playsinline' => '',
+			'class' => 'm-video',
+			'id' => $id,
+			'data-poster' => $defaultImg,
+			'data-src' => $vidUrl,
+			'data-gifsrc' => $gifSrc,
+			'data-giffirstsrc' => $gifFirstSrc,
+			'controlsList' => 'nodownload',
+			'data-watermark' => $watermark,
+			'data-controls' => true,
+		);
+
+		if ( $isSummaryVideo ) {
+			$attr['data-summary'] = true;
+		} else {
+			$attr['muted'] = '';
+			$attr['loop'] = '';
+		}
+
+		if ( $summaryIntroImage ) {
+			$attr['data-poster'] = self::getSummaryImageThumbUrl( $summaryIntroImage, 1000 );
+			$attr['data-poster-mobile'] = self::getSummaryImageThumbUrl( $summaryIntroImage, 460 );
+		}
+
+		if ( $summaryOutroImage ) {
+			$attr['data-summary-outro'] = self::getSummaryOutroThumbUrl( $summaryOutroImage, 728 );
+			$attr['data-summary-outro-mobile'] = self::getSummaryOutroThumbUrl( $summaryOutroImage, 460 );
+		}
+
+		$element = Html::element( 'video', $attr );
+
+		// the script which adds the video to js for loading
+		$script = "<script>if(WH.video)WH.video.add(document.getElementById('$id'));</script>";
+		return $element.$script;
+	}
 
 	public static function getVidDirPath($filename) {
 		return FileRepo::getHashPathForLevel($filename, self::NUM_DIR_LEVELS);
@@ -68,32 +263,103 @@ class WHVid {
 	}
 
 	public static function getVidUrl($filename) {
-		$domain = self::S3_DOMAIN_PROD;
+		return '/' . self::getVidFilePath($filename);
+	}
 
-		// Uncomment below line if you are doing Wilma testing on doh and don't want
-		// to upload videos to productions. Make sure to also change AWS_UPLOAD_BUCKET
-		// to 'wikivideo-upload-test' in wikivideoProcessVideos.php
-		//$domain = self::S3_DOMAIN_DEV;
+	public static function onBeforePageDisplay(OutputPage &$out, Skin &$skin ) {
+		// TODO: needs to be refactored to only add this module when wikivideo is present on page
+		$out->addModules(array('ext.wikihow.wikivid'));	
+		return true;
+	}
 
-		return $domain . self::getVidFilePath($filename);
+	/**
+	 * Get a gif url and file size from the gif file name
+	 * @param $gif String which is the gif name
+	 * @return array the gif url and file size if the gif exists
+	 */
+	private static function getGifInfo( $gif ) {
+		$result = array( null, null );
+		if ( !$gif ) {
+			// this optional line will try to look for a gif based on the mp4 name
+			// if one is not provided to the function arguments it was originally
+			// how the gifs were designed to work and might be replaced again in the future..
+			// it's just for reference now
+			//$gif = str_replace( "mp4", "gif", $vid );
+
+			return $result;
+		}
+
+		$gifTitle = Title::newFromText( $gif, NS_IMAGE );
+
+		$gifFile = RepoGroup::singleton()->findFile( $gifTitle );
+
+		if ( !$gifFile || !$gifFile->exists() ) {
+			return $result;
+		}
+
+		// get the url of the gif to put into html
+		$gifUrl = $gifFile->getUrl();
+
+		// get size in MB of the gif so it's available to js on the page
+		$gifSize = round( $gifFile->getSize() / 1024 / 1024, 3 );
+
+		return array( $gifUrl, $gifSize );
 	}
 
 	/*
-	* Handle optional wikiphoto image parameter included in the {{whvid}} template
-	*/
-	public static function handleAlternateMobileImages() {
-		global $wgParser, $wgTitle;
-		$whvids = pq('.whvid_cont');
-		foreach ($whvids as $whvid) {
-			$altImg = pq($whvid)->find('.altimg-whvid');
-			if (strlen($altImg->text())) {
-				$wikitext = "[[Image:{$altImg->text()}|center|550px]]";
-				$title = Title::newFromText("{$altImg->text()}", NS_IMAGE);
-				$html = $wgParser->parse($wikitext, $wgTitle, new ParserOptions())->getText();
-				pq($html)->insertBefore($whvid);
-				pq($whvid)->remove();
-			}
-		}
+	 * used by desktop to make a fake watermark on video
+	 */
+	public static function getVideoWatermarkHtml( $title ) {
+		$img = Html::element( 'img', ['class' => 'm-video-wm-img', 'src' => '/skins/WikiHow/images/WH_logo.svg'] );
+		$titleText = Html::element( 'span', [], "to " . $title->getText() );
+		$wrap = Html::rawElement( 'div', ['class' => 'm-video-wm'], $img . $titleText );
+		return $wrap;
 	}
 
+	// TODO temporary while we get the play button just right
+	public static function getVideoControlsSummaryHtml() {
+		$playContents= Html::element( 'div', ['class' => 'm-video-play-count-triangle' ] );
+		$playButton = Html::rawElement( 'div', ['class' => 'm-video-play'], $playContents . $playCount );
+		$volumeAttributes = array(
+			'type' => 'range',
+			'value' => '1',
+			'class' => 'm-video-volume'
+		);
+
+		$contents = $playButton;
+		$wrap = Html::rawElement( 'div', ['class' => 'm-video-controls'], $contents );
+		return $wrap;
+	}
+	public static function getVideoControlsHtml() {
+		$playButton = Html::rawElement( 'div', ['class' => 'm-video-play-old'], $playCount );
+		$volumeAttributes = array(
+			'type' => 'range',
+			'value' => '1',
+			'class' => 'm-video-volume'
+		);
+
+		$contents = $playButton;
+		$wrap = Html::rawElement( 'div', ['class' => 'm-video-controls'], $contents );
+		return $wrap;
+	}
+
+	public static function onAddTopEmbedJavascript( &$paths ) {
+		global $wgTitle;
+
+		if ( !$wgTitle ) {
+			return;
+		}
+		if ( !( $wgTitle->getNamespace() == NS_SPECIAL || $wgTitle->getNamespace() == NS_MAIN ) ) {
+			return;
+		}
+		if ( pq('.m-video')->length <= 0 ) {
+			return;
+		}
+
+		static $isIncluded = false;
+		if (!$isIncluded) {
+			$paths[] = __DIR__ . '/whvid.compiled.js';
+			$isIncluded = true;
+		}
+	}
 }

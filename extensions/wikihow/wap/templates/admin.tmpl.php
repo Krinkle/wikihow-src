@@ -16,11 +16,16 @@
 <ul>
 	<li><a href='/Special:<?=$adminPage?>/addUser'>Add User to <?=$system?></a></li>
 	<li><a href='/Special:<?=$adminPage?>/removeUser'>Remove User from <?=$system?></a></li>
+	<li><a href='/Special:<?=$adminPage?>/deactivateUser'>Deactivate User from <?=$system?></a></li>
 	<li><a href='/Special:<?=$adminPage?>/removeTagSystem'>Remove Tags from <?=$system?></a></li>
+	<li><a href='/Special:<?=$adminPage?>/activateTagSystem'>Activate Tags from <?=$system?></a></li>
+	<li><a href='/Special:<?=$adminPage?>/deactivateTagSystem'>Deactivate Tags from <?=$system?></a></li>
 	<li><a href='/Special:<?=$adminPage?>/removeExcluded'>Remove Excluded Articles from <?=$system?></a></li>
 	<li><a href='/Special:<?=$adminPage?>/removeArticles'>Remove Articles from <?=$system?></a></li>
+	<li><a href='/Special:<?=$adminPage?>/addNotes'>Add Notes to Articles in <?=$system?></a></li>
+	<li><a href='/Special:<?=$adminPage?>/clearNotes'>Clear Notes from Articles in <?=$system?></a></li>
 </ul>
-<h3>Tag Lists</h3>
+<h3>Active Tag Lists</h3>
 <div>
 <?
 if (sizeof($tags)) {
@@ -31,6 +36,18 @@ if (sizeof($tags)) {
 	echo "No articles assigned to tags";
 }
 ?>
+</div>
+<h3>Deactivated Tags</h3>
+<div>
+	<?
+			if (sizeof($deactivatedTags)) {
+		echo "<ul class='wap_multi_col'><li>";
+		echo implode("</li>\n<li>", $linker->linkTags($deactivatedTags));
+		echo "</li></ul>";
+	} else {
+		echo "No deactivated tags";
+	}
+	?>
 </div>
 <h3>User Details</h3>
 <div>

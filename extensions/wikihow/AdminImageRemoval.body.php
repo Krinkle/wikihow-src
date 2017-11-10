@@ -1,71 +1,67 @@
 <?php
 
+global $IP;
+require_once "$IP/extensions/wikihow/titus/TitusQueryTool.php";
+
 class AdminImageRemoval extends UnlistedSpecialPage {
 
-	static $imagesRemoved; //array to keep the name of each image that we remove
+	static $imagesRemoved; // array to keep the name of each image that we remove
 
-	function __construct() {
+	public function __construct() {
 		parent::__construct( 'AdminImageRemoval' );
 	}
 
-	function execute($par) {
-		global $wgOut, $wgUser, $wgRequest;
+	public function execute($par) {
+		$out = $this->getOutput();
+		$req = $this->getRequest();
+		$user = $this->getUser();
 
-		$userGroups = $wgUser->getGroups();
-		if ($wgUser->isBlocked() || !in_array('staff', $userGroups)) {
-			$wgOut->setRobotpolicy('noindex,nofollow');
-			$wgOut->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
+		$userGroups = $user->getGroups();
+		if ($user->isBlocked() || !in_array('staff', $userGroups)) {
+			$out->setRobotpolicy('noindex,nofollow');
+			$out->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
 			return;
 		}
 
-		if($wgRequest->wasPosted()) {
-			$wgOut->setArticleBodyOnly(true);
+		if ($req->wasPosted()) {
+			$out->setArticleBodyOnly(true);
 
-			$urlList = $wgRequest->getVal("urls");
-			$urlArray = explode("\n", $urlList);
+			self::$imagesRemoved = array();
 
-			AdminImageRemoval::$imagesRemoved = array();
-
-			$urlArray = array_map("urldecode", $urlArray);
-			$pages = Misc::getPagesFromURLs($urlArray);
-
-			foreach($pages as $page) {
-				if($page['lang'] == "en") {
-					$this->removeImagesFromArticle($page['page_id']);
-				}
-			}
+			$urlList = $req->getVal("urls");
+			$pages = TitusQueryTool::getIdsFromUrls($urlList);
 
 			$errors = array();
 
-			foreach($urlArray as $article) {
-				if(!array_key_exists($article, $pages)){
-					$errors[] = $article;
+			foreach ($pages as $page) {
+				if ($page['language'] == "en" && $page['page_id'] > 0) {
+					$this->removeImagesFromArticle($page['page_id']);
+				} else {
+					$errors[] = $page['url'];
 				}
 			}
 
-			if(count($errors) > 0) {
+			if (count($errors) > 0) {
 				$result['success'] = false;
 				$result['errors'] = $errors;
-			}
-			else {
+			} else {
 				$result['success'] = true;
 			}
 
-			echo json_encode($result);
+			print json_encode($result);
 
+			// Write to temp file to keep track of what we removed
 			$filePath = "/tmp/images-removal-" . date('Ymd') . ".txt";
 			$fo = fopen($filePath, 'a');
-
-			foreach(AdminImageRemoval::$imagesRemoved as $fileName) {
+			foreach (self::$imagesRemoved as $fileName) {
 				fwrite($fo, "Image:{$fileName}\n");
 			}
-
 			fclose($fo);
 
 			return;
 		}
 
-		$wgOut->addJScode('airj');
+		$out->addModules('ext.wikihow.image_removal');
 
 		$s = Html::openElement( 'form', array( 'action' => '', 'id' => 'imageremoval' ) ) . "\n";
 		$s .= Html::element('p', array(''), 'Input full URLs (e.g. http://www.wikihow.com/Kiss) for articles that should have images removed from them.');
@@ -78,14 +74,13 @@ class AdminImageRemoval extends UnlistedSpecialPage {
 		$s .= Html::closeElement( 'form' );
 		$s .= Html::element('div', array('id' => 'imageremoval_results'));
 
-		$wgOut->addHTML($s);
-
+		$out->addHTML($s);
 	}
 
 	private function removeImagesFromArticle($articleId) {
 		$title = Title::newFromID($articleId);
 
-		if($title) {
+		if ($title) {
 			$revision = Revision::newFromTitle($title);
 
 			$text = $revision->getText();
@@ -98,10 +93,10 @@ class AdminImageRemoval extends UnlistedSpecialPage {
 				function($matches) {
 					$image = $matches[2];
 					$pipeLoc = strpos($image, "|");
-					if($pipeLoc !== false) {
+					if ($pipeLoc !== false) {
 						$image = substr($image, 0, $pipeLoc);
 					}
-					AdminImageRemoval::$imagesRemoved[] = $image;
+					self::$imagesRemoved[] = $image;
 					return '';
 				},
 				$text
@@ -110,7 +105,7 @@ class AdminImageRemoval extends UnlistedSpecialPage {
 				'@(<\s*br\s*[\/]?>)*\s*\{\{largeimage\|([^\}]*)\}\}@im',
 				function($matches) {
 					$image = $matches[2];
-					AdminImageRemoval::$imagesRemoved[] = $image;
+					self::$imagesRemoved[] = $image;
 					return '';
 				},
 				$text
@@ -118,7 +113,7 @@ class AdminImageRemoval extends UnlistedSpecialPage {
 			$text = preg_replace('@(<\s*br\s*[\/]?>)*\s*\{\{largeimage\|[^\}]*\}\}@im', '', $text);
 
 			$article = new Article($title);
-			$saved = $article->doEdit($text, 'Removing all images from article.');
+			$saved = $article->doEdit($text, 'Removing all images from article');
 		}
 	}
 }

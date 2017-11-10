@@ -8,8 +8,8 @@
 
 .pb-articles thead { font-size: .75em; }
 
-.pb-articles th { 
-	border:none; 
+.pb-articles th {
+	border:none;
 	padding-top: 1em;
 	padding-bottom: 1em;
 }
@@ -29,6 +29,20 @@
 	padding:5px 0;
 	width:72px;
 }
+.intl .pb-star { display: none; }
+
+.pb-icon {
+	width: 22px;
+	height: 20px;
+	margin: 0 auto;
+	background-size: cover;
+}
+.pb-rising-icon {
+	background-image: url(star-green.png);
+}
+.pb-featured-icon {
+	background-image: url(star-blue.png);
+}
 
 .pb-feature{
 	text-align: center;
@@ -36,6 +50,7 @@
 	padding:5px 0 5px 15px;
 	width:50px;
 }
+.intl .pb-feature { display: none; }
 
 .pb-view{
 	text-align: right;
@@ -84,45 +99,15 @@
 	background-position: -210px 0;
 }
 
-.pb-gp-link {
-	margin: 8px;
-	background: url(/skins/WikiHow/images/social.png) no-repeat 0 -247px;
-	padding: 1px 0 0 23px;
-	float: right;
-	z-index: 2;
-	position: relative;
-}
-
-.pb-moreless { font-size: .75em; }
-
 .profileboxform_btns { text-align: right; }
 .profileboxform_btns .button { margin: 0 0 0 10px; }
+.profileboxform_btns a { padding: 14px 16px; }
 
-/*
-.profileBox {
-	border:1px solid #BBB;
-	padding:10px;
-	margin:10px 10px;
-	font-size:1.1em;
+.stats_stat {
+	float: left;
+	width: 46%;
+	padding: 1% 2%;
 }
-
-.profileBox td {
-	padding-bottom:10px;
-	font-size:16px;
-}
-*/
-
-/*.profileBoxStats {
-	border:1px solid #dfdace;
-	padding:15px;
-	margin:0px ;
-	width:135px;
-	float:right;
-}*/
-/*
-.pb-stats span {
-	margin-left:10px;
-}*/
 
 .profileBoxInfo {
 	float:right;
@@ -136,11 +121,6 @@
 	padding:10px 27px 0 23px;
 	margin:0;
 }
-
-#profileBoxStatsContent td {
-	padding: 5px 5px 5px 15px;
-}
-
 
 #pbTabsContent {
 	border-right:1px solid #999999;
@@ -156,11 +136,11 @@
 	border-bottom: 1px #999999 solid;
 	padding-bottom: .4em;
 	margin:0;
-	}	
+	}
 ul.menu_tabbed li {
 	display: inline;
 	margin-left: 10px;
-	}	
+	}
 ul.menu_tabbed li a {
 	color:#999999;
 	-moz-border-radius-topleft:0.5em;
@@ -172,19 +152,19 @@ ul.menu_tabbed li a {
 	border: 1px #CCCCCC solid;
 	border-bottom: none;
 	padding: 5px 7px;
-	}	
+	}
 ul.menu_tabbed li a.selected {
 	color:#666666;
 	background:#FFFFFF;
 	border: 1px #999999 solid;
 	border-bottom: 2px #FFFFFF solid;
-	padding: 5px 7px ;	
-}	
+	padding: 5px 7px ;
+}
 
 ul.menu_tabbed li a:hover {
-	padding: 5px 7px ;	
+	padding: 5px 7px ;
 	color:#666666;
-	}		
+	}
 
 .selectFavs {
 	margin-left: 30px;
@@ -205,7 +185,7 @@ div.autocomplete ul {
   padding:0;
 }
 
-div.autocomplete ul li.selected { 
+div.autocomplete ul li.selected {
 	background-color: #ffb;
 }
 
@@ -271,8 +251,8 @@ div.autocomplete ul li {
 	height:auto;
 }
 
-.pb_userdata { 
-	font-size: .8em; 
+.pb_userdata {
+	font-size: .8em;
 	line-height: 1.7em;
 }
 .pb_userdata span { font-weight: bold; }
@@ -293,19 +273,10 @@ div.autocomplete ul li {
 #pb_finalstats a { font-weight: bold; }
 #userstats { padding-bottom: .5em; }
 
-#fl_linked_acct {
-/*	position: absolute;
-	padding: 5px;
-	left: 540px;
-	color: #878787;
-	width: 195px;*/
+#fl_linked_acct, #fl_enable_acct {
 	cursor: pointer;
 	float: right;
-}
-
-#fl_enable_acct { 
-	cursor: pointer;
-	float: right; 
+	margin-top: 12px;
 }
 
 #fl_linked_img {
@@ -316,3 +287,60 @@ div.autocomplete ul li {
 }
 
 .fl_linked_txt { font-size: .75em; }
+
+.pb-gp-link, #gplus_disconnect {
+	margin-top: 12px;
+	background: url(/skins/WikiHow/images/social.png) no-repeat 0 -245px;
+	padding: 1px 0 0 23px;
+	float: right;
+	z-index: 2;
+	position: relative;
+}
+
+#gplus_disconnect {
+	padding: 4px 0px 0px 22px;
+}
+
+#gplus_disconnect > a:hover {
+	cursor: pointer;
+}
+
+#gplus_disconnect, .pb-gp-link > a {
+	font-size: .75em;
+}
+
+iframe[src^="https://apis.google.com"] {
+  display: none;
+}
+
+.pb_block {
+	margin: 1em 0;
+}
+
+.minor_section form .pb_block .input_med {
+	width: 50%;
+	border: 1px solid #E5E5E5;
+	margin-top: 5px;
+	font-size: 14px;
+}
+
+.pb_block .textarea_med {
+	width: 95%;
+	padding: 11px;
+	border: 1px solid #E5E5E5;
+	border-radius: 5px;
+	resize: none;
+	font-size: 14px;
+	margin-top: 5px;
+}
+
+.altblock {
+	height: 1em;
+	width: 1em;
+}
+
+.view_toggle { font-size: .75em; }
+
+.pb-empty-text {
+	padding: 1em;
+}

@@ -60,7 +60,7 @@ function pue_Handler() {
 			document.editform.wpTextbox1.focus();
 
 			addShortcutBindings();
-			restoreToolbarButtons();
+			WH.Editor.restoreToolbarButtons();
 			//window.onbeforeunload = confirmExit;
 		}
 	}
@@ -143,8 +143,8 @@ function pue_SubmitForm() {
 			parameters += "&";
 		}
 		if (element.name == 'wpSave' && !pue_preview) {
-			if (typeof handleQESubmit == 'function') {
-				handleQESubmit();
+			if (typeof WH.RCPatrol != 'undefined' && typeof WH.RCPatrol.handleQESubmit == 'function') {
+				WH.RCPatrol.handleQESubmit();
 			}
 			pue_close = true;
 		}
