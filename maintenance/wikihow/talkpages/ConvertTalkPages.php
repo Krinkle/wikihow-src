@@ -66,7 +66,7 @@ class TalkPageConverter extends Maintenance {
 	}
 
 	public function getPages( $last ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$pages = array();
 		$result = $dbr->select( array(
 			'page'
@@ -184,7 +184,7 @@ class TalkPageConverter extends Maintenance {
 			$type = 'user talk';
 		}
 
-		$text = $rev->getText();
+		$text = ContentHandler::getContentText( $rev->getContent() );
 		$fixed = $this->convert( $text );
 
 		if ( $fixed ) {

@@ -1,4 +1,4 @@
-<?
+<?php
 if (!defined('MEDIAWIKI')) {
 	die();
 }
@@ -146,6 +146,7 @@ $wgResourceModules['ext.wikihow.methodhelpfulness.widget'] = array(
 );
 
 $wgExtensionMessagesFiles['MethodHelpfulness'] = __DIR__ . '/MethodHelpfulness.i18n.php';
+$wgExtensionMessagesFiles['MethodHelpfulnessAliases'] = __DIR__ . '/MethodHelpfulness.alias.php';
 
 $wgHooks['RatingsCleared'][] = array('MethodHelpfulness\Controller::onRatingsCleared');
 

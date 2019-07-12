@@ -1,20 +1,17 @@
 <?php
 
 /**
- * Tells when things are going to rollout with the rollout functionalit
+ * Tells when things are going to rollout with the rollout functionality
  */
 class RolloutTool extends UnlistedSpecialPage {
 
-	private $_languageInfo;
-
 	public function __construct() {
-		parent::__construct('RolloutTool');	
+		parent::__construct('RolloutTool');
 	}
 
 	/**
 	 * Get rollout time of rollout for percentileRollout
 	 * @return Timestamp when article will be rolled out
-	 *
 	 */
 	private static function getRolloutDate($startTime, $duration, $titleText) {
 		$titleText = str_replace('-', ' ', $titleText);
@@ -24,31 +21,35 @@ class RolloutTool extends UnlistedSpecialPage {
 	}
 
 	public function execute($par) {
-		global $wgRequest, $wgOut, $wgUser, $wgActiveLanguages;
+		global $wgActiveLanguages;
 
-		$userGroups = $wgUser->getGroups();
-		if ($wgUser->isBlocked() ||  !in_array('staff', $userGroups)) {
-			$wgOut->setRobotpolicy('noindex,nofollow');
-			$wgOut->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
+		$req = $this->getRequest();
+		$out = $this->getOutput();
+		$user = $this->getUser();
+
+		$userGroups = $user->getGroups();
+		if ($user->isBlocked() ||  !in_array('staff', $userGroups)) {
+			$out->setRobotPolicy('noindex,nofollow');
+			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;
-        }
+		}
 
-		$startDate = $wgRequest->getVal('startDate');
-		$duration = $wgRequest->getVal('duration');
+		$startDate = $req->getVal('startDate');
+		$duration = $req->getVal('duration');
 
 		if ($startDate) {
-			ini_set('memory_limit', '1024m');
+			ini_set('memory_limit', '1024M');
 			$startDate = strtotime($startDate);
 
 			$langs = array();
 			$allLangs = $wgActiveLanguages;
 			$allLangs[] = 'en';
 			foreach ($allLangs as $lang) {
-				if ($wgRequest->getVal('filter_' . $lang) == $lang) {
+				if ($req->getVal('filter_' . $lang) == $lang) {
 					$langs[] = $lang;
 				}
 			}
-			$dbr = wfGetDB(DB_SLAVE);
+			$dbr = wfGetDB(DB_REPLICA);
 			$pages = array();
 			foreach ($langs as $lang) {
 				$sql = "select page_title from " . Misc::getLangDB($lang) . ".page where page_namespace=0 and page_is_redirect=0 group by page_title";
@@ -58,7 +59,7 @@ class RolloutTool extends UnlistedSpecialPage {
 				}
 			}
 			header("Content-Type: text/tsv");
-			header('Content-Disposition: attachment; filename="out.xls"');                                                                                                                           
+			header('Content-Disposition: attachment; filename="out.xls"');
 			print "URL\tRollout Date\n";
 			$n = 0;
 			set_time_limit(0);
@@ -68,14 +69,13 @@ class RolloutTool extends UnlistedSpecialPage {
 				print $url . "\t" . $ts . "\n";
 			}
 		} else {
-            EasyTemplate::set_path(dirname(__FILE__).'/');
+			EasyTemplate::set_path(__DIR__.'/');
 
-            $vars = array('languages' => Misc::getActiveLanguageNames() );
+			$vars = array('languages' => Misc::getActiveLanguageNames() );
 
-            $html = EasyTemplate::html('RolloutTool.tmpl.php', $vars);
-            $wgOut->addHTML($html);                                                                                                                                                                 
+			$html = EasyTemplate::html('RolloutTool.tmpl.php', $vars);
+			$out->addHTML($html);
 		}
 	}
 
 }
-

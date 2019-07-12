@@ -28,7 +28,7 @@ class ConfigStorage {
 	 * List all current config keys.
 	 */
 	public static function dbListConfigKeys() {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->select('config_storage', 'cs_key', '', __METHOD__);
 		$keys = array();
 		foreach ($res as $row) {
@@ -42,7 +42,7 @@ class ConfigStorage {
 	 *
 	 */
 	private static function dbGetConfigFromDatabase($key, $useEnDB = false) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$table = 'config_storage';
 		if ( $useEnDB ) {
 			$table = WH_DATABASE_NAME_EN . '.' . $table;
@@ -74,7 +74,7 @@ class ConfigStorage {
 	// and should probably be refactored to combine the information fetch if it
 	// is going to be called often.
 	public static function dbGetIsArticleList($key) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->selectField('config_storage', 'cs_article_list', array('cs_key' => $key), __METHOD__);
 		return $res == "1";
 	}
@@ -92,10 +92,10 @@ class ConfigStorage {
 	 * Set the new config key in the database (along with the config value).
 	 * Clear the memcache key too.
 	 */
-	public static function dbStoreConfig($key, $config, $isArticleList, &$error, $allowArticleErrors = true, $newTagProb = 0) {
+	public static function dbStoreConfig($key, $config, $isArticleList, &$error, $allowArticleErrors = true, $newTagProb = 0, $logIt = true) {
 		global $wgMemc, $wgUser;
 
-		if ( !self::checkUserRestrictions($key) ) {
+		if ( !self::hasUserRestrictions($key) ) {
 			$error = "Your username '" . $wgUser->getName() . "' cannot modify this key. Ping Elizabeth. :)";
 			return false;
 		}
@@ -105,13 +105,18 @@ class ConfigStorage {
 			if (!$allowArticleErrors && $error) {
 				return false;
 			}
-			wfRunHooks( 'ConfigStorageStoreConfig', array( $key, $pages, $newTagProb, &$error) );
+			Hooks::run( 'ConfigStorageStoreConfig', array( $key, $pages, $newTagProb, &$error) );
 		}
 
 		$cachekey = self::getMemcKey($key);
 		$wgMemc->delete($cachekey);
 
 		$dbw = wfGetDB(DB_MASTER);
+
+		if ($logIt) {
+			$old_config = self::dbGetConfigFromDatabase($key);
+		}
+
 		$dbw->replace('config_storage', 'cs_key',
 			[
 				['cs_key' => $key, 'cs_config' => $config,
@@ -119,19 +124,30 @@ class ConfigStorage {
 			],
 			__METHOD__);
 
-        wfRunHooks( 'ConfigStorageAfterStoreConfig', array( $key, $config) );
+		Hooks::run( 'ConfigStorageAfterStoreConfig', array( $key, $config) );
+
+		if ($logIt) {
+			ConfigStorageHistory::dbChangeConfigStorage($key, $old_config, $config);
+		}
 
 		return $dbw->affectedRows() > 0;
 	}
 
 	public static function dbDeleteConfig($key) {
 		global $wgMemc;
+
+		$old_config = self::dbGetConfigFromDatabase($key);
+
 		$cachekey = self::getMemcKey($key);
 		$wgMemc->delete($cachekey);
 
 		$dbw = wfGetDB(DB_MASTER);
 		$dbw->delete('config_storage', ['cs_key' => $key], __METHOD__);
-		return $dbw->affectedRows() > 0;
+		$success = $dbw->affectedRows() > 0;
+
+		ConfigStorageHistory::dbDeleteConfigStorage($key, $old_config);
+
+		return $success;
 	}
 
 	// consistently generate a memcache key
@@ -148,7 +164,7 @@ class ConfigStorage {
 		return $result;
 	}
 
-	public static function checkUserRestrictions($key) {
+	public static function hasUserRestrictions($key) {
 		global $wgUser;
 
 		// if they are using a maintenance process, saving is always allowed
@@ -158,22 +174,49 @@ class ConfigStorage {
 
 		$user = $wgUser->getName();
 
-		// Elizabeth can edit any message
 		$rules = [
-			[ 'keys' => ['editfish-article-exclude-list'],
-			  'users' => ['ElizabethD', 'Chris H'] ],
-			[ 'keys' => ['picture_patrol_whitelist', 'picture_patrol_blacklist'],
-			  'users' => ['ElizabethD', 'AlissaB', 'Argutier', 'Anna'] ],
-			[ 'keys' => ['qa_article_ids', 'qa_blacklisted_article_ids', 'qa_box_article_ids', 'qa_category_blacklist'],
-			  'users' => ['ElizabethD', 'AlissaB'] ],
-			[ 'keys' => ['wikiphoto-article-exclude-list'],
-			  'users' => ['ElizabethD', 'WikiPhoto', 'Wikivisual', 'Wikiphoto'] ],
+			[ // rule 1
+			  'keys' => [
+				'UserPageWhitelist', 'deindexed_link_removal_whitelist', 'difficult-articles', 'editfish-article-exclude-list',
+				'expert_inline_articles', 'fresh_q&a_pages', 'header-test', 'header-test2',
+				'hide-ratings', 'howyougetfit.com', 'howyoulivelife.com', 'lazyload_destkop_images_disabled',
+				'lazyloadstutest', 'notable_coauthor', 'opti_desktop', 'opti_header',
+				'opti_mobile', 'picture_patrol_blacklist', 'picture_patrol_whitelist', 'quickanswers_garden_donotedit',
+				'quickanswers_how_donotedit', 'quickanswers_love_donotedit', 'quickanswers_pet_donotedit', 'reverification_older_than_date',
+				'staff_reviewed_articles', 'staff_reviewed_articles_handpicked', 'userreview_whitelist', 'wikihow.fitness',
+				'wikihow.health', 'wikihow.life', 'wikihow.mom', 'wikihow.pet',
+				'wikihow.tech', 'wikihow-fun.com', 'wikihowanswers_donotedit', 'qa_blacklisted_article_ids', 'qa_box_article_ids',
+				'qa_category_blacklist', 'ad-exclude-list', 'amp_disabled_pages', 'staff_reviewers',
+			  ],
+			  'users' =>
+			    ['Anna', 'Chris H', 'ElizabethD', 'Argutier'] // Anna, Chris, Eliz == ACE!
+			],
+
+			[ // rule 2
+			  'keys' =>
+			    [ 'opti_header', 'opti_desktop', 'opti_mobile', ],
+			  'users' =>
+			    [ 'Bsteudel' ], // Bebeth needs access to these
+			],
+			//[ 'keys' => ['wikiphoto-article-exclude-list'],
+			//  'users' => ['ElizabethD', 'WikiPhoto', 'Wikivisual', 'Wikiphoto'] ],
 		];
 
+		// * IF the key is covered by any of the rules above AND the user is not given
+		//   permission for that key in any rule, then user cannot edit the key
+		// * IF the key is not covered by any rule OR the user is given permission for
+		//   the specific key, then they can edit the key
+		$coveredRule = false;
 		foreach ($rules as $rule) {
 			if ( in_array($key, $rule['keys']) ) {
-				return in_array($user, $rule['users']);
+				$coveredRule = true;
+				if ( in_array($user, $rule['users']) ) {
+					return true;
+				}
 			}
+		}
+		if ($coveredRule) {
+			return false;
 		}
 
 		// any staff or existing special page restrictions are still in effect

@@ -96,7 +96,12 @@ function wfThumbHandle404() {
 
 	$params = wfExtractThumbRequestInfo( $matches['title'] ); // basic wiki URL param extracting
 	if ( $params == null ) {
-		wfThumbError( 400, 'The specified thumbnail parameters are not recognized.' );
+		// Reuben, Feb 14, 2018: changed a number of 400 errors to 404 so that
+		// Googlebot would see these pages as "Not Found" rather than reporting
+		// them as server errors. This was done as part of the SEO changes and
+		// Google Search Console cleanup.
+		// Example bad url: https://www.wikihow.com/images/thumb/6/69/Choose-
+		wfThumbError( 404, 'The specified thumbnail parameters are not recognized.' );
 		return;
 	}
 
@@ -196,7 +201,7 @@ function wfStreamThumb( array $params ) {
 		$params = wfExtractThumbParams( $img, $params );
 	}
 	if ( $params == null ) {
-		wfThumbError( 400, 'The specified thumbnail parameters are not recognized.' );
+		wfThumbError( 404, 'The specified thumbnail parameters are not recognized.' );
 		return;
 	}
 
@@ -270,7 +275,7 @@ function wfStreamThumb( array $params ) {
 	try {
 		$thumbName = $img->thumbName( $params );
 		if ( !strlen( $thumbName ) ) { // invalid params?
-			wfThumbError( 400, 'The specified thumbnail parameters are not valid.' );
+			wfThumbError( 404, 'The specified thumbnail parameters are not valid.' );
 			return;
 		}
 		$thumbName2 = $img->thumbName( $params, array(), File::THUMB_FULL_NAME ); // b/c; "long" style

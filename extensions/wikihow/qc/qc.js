@@ -48,7 +48,6 @@ function QG_byUserName(name) {
 	$.cookie('qg_byusername',$.trim(name));
 }
 
-
 function loadResult(result) {
 	// clear stuff out
 	$('#qccontents').remove();
@@ -141,6 +140,10 @@ function loadResult(result) {
 		}
 	}
 }
+
+$(document).bind('rcdataloaded', function () {
+	WH.showEmbedVideos();
+});
 
 function submitResponse() {
 	disableButtons();

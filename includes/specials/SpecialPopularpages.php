@@ -87,10 +87,10 @@ class PopularPagesPage extends QueryPage {
 		return 'wiki';
 	}
 
-	// JRS 01/23/14 manually overriding default robot policy to index,follow
+	// JRS 01/23/14 manually overriding default robot policy to noindex,follow
 	function setHeaders() {
 		parent::setHeaders();
 		$out = $this->getOutput();
-		$out->setRobotPolicy('index,follow');
+		$out->setRobotPolicy('noindex,follow');
 	}
 }

@@ -16,7 +16,7 @@
 				<input class="qa_aq_search" placeholder="Type your query here"/>
 			</div>
 			<a id="qa_add_curated_question">{{qa_add_curated}}</a>
-			<ul id="qa_article_questions" class="qa_questions qa_aqs {{#qa_show_more_answered}}qa_waittheresmore{{/qa_show_more_answered}}">
+			<ul id="qa_article_questions" class="qa_questions qa_aqs {{#qa_show_more_answered}}qa_waittheresmore{{/qa_show_more_answered}} {{#qa_fresh}}qa_fresh{{/qa_fresh}}">
 			{{#article_questions}}
 				{{> qa_article_question_item}}
 			{{/article_questions}}
@@ -57,7 +57,9 @@
 					</ul>
 					<div id="qa_submitted_spinner" class="qa_spinner"></div>
 					<a id="qa_submitted_link"></a>
-					<a id="qa_show_more_submitted">{{qa_show_more_submitted}}</a>
+					{{#qa_show_more_submitted}}
+						<a id="qa_show_more_submitted">{{qa_show_more_submitted}}</a>
+					{{/qa_show_more_submitted}}
 				</div>
 				<div class="qa_divider"></div>
 			{{/submitted_questions.0}}
@@ -68,6 +70,7 @@
 			<input id="qa_asked_question" type="text" maxlength="{{qa_asked_question_maxlength}}" placeholder="{{qa_asked_question_placeholder}}"/>
 			<div id="qa_asked_count">{{qa_asked_count}}</div>
 			<input id="qa_email" type="text" placeholder="{{qa_email_placeholder}}"/>
+			<div id="qa_email_prompt">{{qa_email_prompt}}</div>
 			<a id="qa_submit_button" class="button primary">{{qa_submit_button}}</a>
 		</div>
 

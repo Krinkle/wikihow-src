@@ -1,4 +1,4 @@
-<?
+<?php
 class WAPArticlePager {
 	const NUM_ROWS = 500;
 	protected $dbType = null;
@@ -18,7 +18,7 @@ class WAPArticlePager {
 	}
 
 	public function getUserAssignedRows(WAPUser &$u, $offset, $rows = NUM_ROWS) {
-		global $wgUser; 
+		global $wgUser;
 
 		$vars['u'] = $u;
 		$vars['articles'] = $u->getAssignedArticles($offset, $rows);

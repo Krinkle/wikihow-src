@@ -51,12 +51,12 @@ class Randomizer extends SpecialPage {
 	 * Check if the wikitext intro contains one of the templates listed.
 	 */
 	private static function excludeViaTemplates($intro) {
-		// list was taken from: this google doc: "Template Categories 
+		// list was taken from: this google doc: "Template Categories
 		// on articles on wikiHow"
 		// https://docs.google.com/document/d/1y-CA80c2KYIXTYYz81nnhfbEAGY9IlfIMRHT2K5_9tE/edit#
 		$templates = array(
-			'attention', 'copyedit', 'nfd', 'stub', 'merge', 'format', 
-			'accuracy', 'cleanup', 'pictures', 'character', 'copyvio', 
+			'attention', 'copyedit', 'nfd', 'stub', 'merge', 'format',
+			'accuracy', 'cleanup', 'pictures', 'character', 'copyvio',
 			'inuse', 'personal', 'title', 'speedy'
 		);
 		$regexp = '@\{\{(' . join('|', $templates) . ')\W@i';
@@ -72,7 +72,7 @@ class Randomizer extends SpecialPage {
 		if (!$rev) {
 			return false;
 		}
-		$wikitext = $rev->getText();
+		$wikitext = ContentHandler::getContentText( $rev->getContent() );
 		return $wikitext;
 	}
 
@@ -88,7 +88,7 @@ class Randomizer extends SpecialPage {
 
 		$res = $dbr->query($sql, $fname);
 		$rows = array();
-		foreach ($res as $obj) {	
+		foreach ($res as $obj) {
 			$rows[] = (array)$obj;
 		}
 
@@ -161,7 +161,7 @@ class Randomizer extends SpecialPage {
 
 	/**
 	 * List the articles with at least 10 ratings, 90% accuracy.  This set
-	 * contains about 4500 items and the query takes approx. 5 seconds. 
+	 * contains about 4500 items and the query takes approx. 5 seconds.
 	 * (This is as of May 19 2011.)
 	 */
 	private static function loadHighlyRated(&$dbr) {
@@ -187,8 +187,8 @@ class Randomizer extends SpecialPage {
 		}
 		$sql = 'SELECT page_id, page_title, page_catinfo
 			FROM page
-			WHERE page_is_redirect = 0 AND 
-			page_namespace = ' . NS_MAIN . 
+			WHERE page_is_redirect = 0 AND
+			page_namespace = ' . NS_MAIN .
 			$timeClause;
 		$articles = self::loadRows($dbr, $sql, '', __METHOD__);
 		return $articles;
@@ -239,7 +239,7 @@ CREATE TABLE page_randomizer (
 	}
 
 	/**
-	 * Process all articles.  Add or remove each main namespace article from 
+	 * Process all articles.  Add or remove each main namespace article from
 	 * the randomizer set.
 	 */
 	public static function processAllArticles() {
@@ -247,7 +247,7 @@ CREATE TABLE page_randomizer (
 	}
 
 	/**
-	 * Process only recent articles, from the last hour.  Add or remove 
+	 * Process only recent articles, from the last hour.  Add or remove
 	 * each main namespace article that matches this criterion.
 	 */
 	public static function processRecentArticles() {
@@ -263,7 +263,7 @@ CREATE TABLE page_randomizer (
 	 *   means the epoch.
 	 */
 	private static function processArticles($from) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$articles = self::loadArticles($dbr, $from);
 		foreach ($articles as &$article) {
@@ -305,7 +305,7 @@ CREATE TABLE page_randomizer (
 					$reason[] = 'does-not-exist';
 				}
 			}
-			
+
 			if ($wikitext) {
 				$intro = Wikitext::getIntro($wikitext);
 				list($steps, ) = Wikitext::getStepsSection($wikitext);
@@ -320,7 +320,7 @@ CREATE TABLE page_randomizer (
 					}
 					if ($images && isset($rising[$id])) {
 						$reason[] = 'rising';
-					} 
+					}
 					if ($images && isset($rated[$id])) {
 						$reason[] = 'highly-rated';
 					}
@@ -375,31 +375,26 @@ CREATE TABLE page_randomizer (
 	 * @return Title the title object result
 	 */
 	public static function getRandomTitle() {
-		global $wgUser; 
-
-		$fname = __METHOD__;
-		wfProfileIn($fname);
-
 		$NUM_TRIES = 5;
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		for ($i = 0; $i < $NUM_TRIES; $i++) {
-			$randstr = wfRandom();
+			// $randstr = wfRandom(); // Alberto - 2018-06-27
+			$randstr = random_int(0, PHP_INT_MAX - 1) / PHP_INT_MAX;
 			$sql = "SELECT pr_title
 				FROM page_randomizer
 				WHERE pr_random >= $randstr
 				ORDER BY pr_random";
 			$sql = $dbr->limitResult($sql, 1, 0);
 
-			$res = $dbr->query($sql, $fname);
+			$res = $dbr->query($sql, __METHOD__);
 			$row = $dbr->fetchObject($res);
 			$title = Title::newFromDBkey($row->pr_title);
 			if ($title && $title->exists()) break;
 		}
 
-		wfRunHooks( 'RandomizerGetRandomTitle', array( &$title ) );
+		Hooks::run( 'RandomizerGetRandomTitle', array( &$title ) );
 
-		wfProfileOut($fname); 
 		return $title;
 	}
 
@@ -408,11 +403,8 @@ CREATE TABLE page_randomizer (
 	 * we've defined.
 	 */
 	public function execute($par) {
-		global $wgOut, $wgLanguageCode, $wgRequest;
 
-		wfProfileIn(__METHOD__);
-
-		if ($wgLanguageCode != 'en') {
+		if ($this->getLanguage()->getCode() != 'en') {
 			$rp = new RandomPage();
 			$title = $rp->getRandomTitle();
 		} else {
@@ -421,17 +413,14 @@ CREATE TABLE page_randomizer (
 
 		if (!$title) {
 			// try to recover from error
-			$title = Title::newFromText(wfMsg('mainpage'));
+			$title = Title::newFromText( wfMessage('mainpage')->text() );
 		}
 		$url = $title->getFullUrl();
 
-		$wgOut->redirect($url);
-
-		wfProfileOut(__METHOD__);
+		$this->getOutput()->redirect($url);
 	}
 
 	public function isMobileCapable() {
 		return true;
 	}
 }
-

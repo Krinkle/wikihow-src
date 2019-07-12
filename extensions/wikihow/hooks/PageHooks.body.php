@@ -12,7 +12,7 @@ class PageHooks {
 		$reverse = array_flip($urls);
 		foreach (array_keys($reverse) as $url) {
 			$decoded = urldecode($url);
-			if ( !isset($reverse[$decoded]) ) {
+			if ( !isset($reverse[$decoded]) && strpos($decoded, ' ') === false ) {
 				$reverse[$decoded] = true;
 				$urls[] = $decoded;
 			}
@@ -21,42 +21,60 @@ class PageHooks {
 		return true;
 	}
 
-	public static function onTitleSquidURLsPurgeVariants($title, &$urls) {
-		global $wgContLang, $wgLanguageCode;
+	public static function onTitleSquidURLsPurge($title, &$urls) {
+		global $wgContLang, $wgLanguageCode, $wgCanonicalServer;
 
-		// Do we really need to purge the history of a video page? probably not
-		// anons don't care about video histories
+		// We do not need to purge the history of a video page. Anons
+		// probably don't care about video histories.
 		if (!$title->inNamespace(NS_VIDEO)) {
 			$historyUrl = $title->getInternalURL( 'action=history' );
 			if ($wgLanguageCode == 'en') {
 				$partialUrl = preg_replace("@^https?://[^/]+/@", "/", $historyUrl);
-				$historyUrl = 'https://www.wikihow.com' . $partialUrl;
+				$historyUrl = $wgCanonicalServer . $partialUrl;
 			}
 			$urls[] = $historyUrl;
-
-			// purge variant urls as well
-			if ($wgContLang->hasVariants()) {
-				$variants = $wgContLang->getVariants();
-				foreach ($variants as $vCode) {
-					if ($vCode == $wgContLang->getCode()) continue; // we don't want default variant
-					$urls[] = $title->getInternalURL('', $vCode);
-				}
-			}
 		}
 
-		// Purge both http and https urls for now. Oct 2017.
-		$newUrls = [];
+		// On the tools and data servers the Host is localhost. Since a lot of
+		// maintenance scripts run off these servers, we want to purge the
+		// canonical urls for the desktop and mobile sites instead.
+		$mainUrl = $title->getInternalURL();
+		$partialUrl = preg_replace("@^https?://[^/]+/@", "/", $mainUrl);
+		$mainUrl = Misc::getLangBaseURL($wgLanguageCode, false) . $partialUrl;
+		$mobileUrl = Misc::getLangBaseURL($wgLanguageCode, true) . $partialUrl;
+		$urls[] = $mainUrl;
+		$urls[] = $mobileUrl;
+
+		// Purge only https urls now. - Reuben, March 2018
 		foreach ($urls as &$url) {
 			if (preg_match('@^http://@', $url)) {
 				$url = preg_replace('@^http:@', 'https:', $url);
 			}
-			if (preg_match('@^https://@', $url)) {
-				$newUrl = preg_replace('@^https:@', 'http:', $url);
-				$newUrls[] = $newUrl;
-			}
 		}
-		foreach ($newUrls as $newUrl) {
-			$urls[] = $newUrl;
+
+		// Make sure list of URLs is unique -- only purge URLs once.
+		$urls = array_unique($urls);
+
+		return true;
+	}
+
+	/**
+	 * Purge the surrogate-key for an article when that article is purged through
+	 * any normal purge.
+	 *
+	 * See: https://docs.fastly.com/guides/purging/getting-started-with-surrogate-keys
+	 */
+	public static function onPreCDNPurge($title, &$urls) {
+		$id = $title->getArticleID();
+		if ($id > 0) {
+			$ctx = RequestContext::getMain();
+			$langCode = $ctx->getLanguage()->getCode();
+			$idResetTag = "id$langCode$id";
+
+			// Create a job that clears a particular fastly surrogate-key via the api
+			$params = ['action' => 'reset-tag', 'lang' => $langCode, 'tag' => $idResetTag];
+			$job = new FastlyActionJob($title, $params);
+			JobQueueGroup::singleton()->push($job);
 		}
 
 		return true;
@@ -72,7 +90,9 @@ class PageHooks {
 
 		// Uses raw headers rather than trying to instantiate a mobile
 		// context object, which might not be possible
-		if ( Misc::isMobileModeLite() ) {
+		if ( Misc::isMobileModeLite() && !$wgRequest->getVal('useformat')) {
+			// Only define this param if doesn't already exist. Sometimes mobile pages have
+			// useformat=desktop, in which case we redirect (see maybeRedirectIfUseformat())
 			$wgRequest->setVal('useformat', 'mobile');
 		}
 		return true;
@@ -86,6 +106,10 @@ class PageHooks {
 		if ( Misc::isMobileModeLite() ) {
 			$wgRequest->setVal('useformat', 'mobile');
 		}
+
+		// 2018-02-15 - Set the robots policy to noindex, follow for api.php requests as part of SEO optimizations
+		header("X-Robots-Tag: noindex, nofollow", true);
+
 		return true;
 	}
 
@@ -130,36 +154,108 @@ class PageHooks {
 		return true;
 	}
 
+	/**
+	 * Redirect to the relevant domain if the useformat=[desktop|mobile] parameter exists
+	 */
+	public static function maybeRedirectIfUseformat(&$title, &$unused, &$output, &$user, $request, $mediaWiki) {
+		if ($request->wasPosted() || !$request->getVal('useformat')) {
+			return true;
+		}
+
+		$isMobile = Misc::isMobileModeLite();
+		$useformat = $request->getVal('useformat');
+		$lang = $output->getLanguage()->getCode();
+
+		if ($isMobile && $useformat == 'desktop') {
+			$baseUrl = Misc::getLangBaseURL($lang);
+		} elseif (!$isMobile && $useformat == 'mobile') {
+			$baseUrl = Misc::getLangBaseURL($lang, true);
+		} else {
+			$baseUrl = null;
+		}
+
+		if ($baseUrl) {
+			$params = $request->getValues();
+			unset($params['useformat'], $params['title']);
+			$destUrl = wfAppendQuery($baseUrl . $title->getLocalURL(), $params);
+
+			$orig = $request->getFullRequestURL();
+			$message = "maybeRedirectIfUseformat: orig=$orig, dest=$destUrl";
+			wfDebugLog('redirects', $message);
+
+			$output->redirect($destUrl, 301);
+		}
+
+		return true;
+	}
+
+	/**
+	 * Add a no-index header to Special:RecentChanges RSS feeds
+	 */
+	public static function noIndexRecentChangesRSS( &$title, &$article, &$output, &$user, $request, $mediaWiki ) {
+		if (
+			$title &&
+			$title->inNamespace( NS_SPECIAL ) &&
+			$title->getPrefixedURL() == SpecialPage::getTitleFor( 'Recentchanges' )->getPrefixedURL() &&
+			( $request->getVal( 'feed' ) === 'rss' || $request->getVal( 'feed' ) === 'atom' )
+		) {
+			header( 'X-Robots-Tag: noindex', true );
+		}
+
+		return true;
+	}
+
+	/**
+	 * BeforePageDisplay Hook handler to add surrogate key headers
+	 * @param $out
+	 * @param $skin
+	 * @return bool
+	 */
 	public static function addVarnishHeaders($out, $skin) {
-		$req = $out->getRequest();
 		$title = $out->getTitle();
+		self::addSurrogateKeyHeaders($out, $title, $out->getRequest());
+
+		return true;
+	}
+
+	/**
+	 * Sets up article requests to have a Surrogate-Key response header, which
+	 * is used to purge Fastly of all variants of an article.
+	 *
+	 * @param $out OutputPage
+	 * @param $title Title
+	 */
+	public static function addSurrogateKeyHeaders($out, $title, $req) {
 		if ($req && $title) {
 			$layoutStr = Misc::isMobileMode() ? 'mb' : 'dt';
 			$req->response()->header("X-Layout: $layoutStr");
 			$out->addVaryHeader('X-Layout');
 
+			$langCode = $out->getLanguage()->getCode();
 			$id = $title->getArticleID();
-			$rollingResetStr = ($id > 0 ? ' roll' . ($id % 10) : '');
-			$idResetStr = ($id > 0 ? ' id' . $id : '');
-			$req->response()->header("Surrogate-Key: $layoutStr$rollingResetStr$idResetStr");
+			$rollingResetTensStr = ($id > 0 ? ' rollnn' . ($id % 10) : '');
+			$rollingResetHundredsStr = ($id > 0 ? ' rollnnn' . ($id % 100) : '');
+			$idResetStr = ($id > 0 ? " id$langCode$id" : '');
+			$req->response()->header("Surrogate-Key: $layoutStr$rollingResetTensStr$rollingResetHundredsStr$idResetStr");
 		}
-		return true;
 	}
+
+
 
 	/**
 	 * Runs on BeforePageDisplay hook, making creating a new internet.org
 	 * cache vertical in front end caches (varnish).
 	 *
-	 * 1) Add the Vary header X-InternetOrg to every mobile domain response.
-	 * 2) We add the X-InternetOrg: 1 HTTP response header to all
+	 * 1) Add the Vary header x-internetorg to every mobile domain response.
+	 * 2) We add the x-internetorg: 1 HTTP response header to all
 	 *    internet.org requests as well.
 	 */
 	public static function addInternetOrgVaryHeader($out, $skin) {
-        if ( $out && Misc::isMobileMode() ) {
+		if ( $out && Misc::isMobileMode() ) {
 			$req = $out->getRequest();
-			$out->addVaryHeader('X-InternetOrg');
+			$out->addVaryHeader('x-internetorg');
 			if ($req && WikihowMobileTools::isInternetOrgRequest() ) {
-				$req->response()->header('X-InternetOrg: 1');
+				$req->response()->header('x-internetorg: 1');
 			}
 		}
 		return true;
@@ -167,7 +263,7 @@ class PageHooks {
 
 	// Check country ban
 	public static function enforceCountryPageViewBan(&$outputPage, &$text) {
-		$countryBanHeader = $outputPage->getRequest()->getHeader('X-Country-Ban');
+		$countryBanHeader = $outputPage->getRequest()->getHeader('x-country-ban');
 		if ($countryBanHeader == 'YES'
 			//|| $outputPage->getRequest()->getVal('test') == 'ban'
 		) {
@@ -205,7 +301,7 @@ class PageHooks {
 	/**
 	 * Callback to create, modify or delete a case-folded redirect
 	 */
-	private static function modify404Redirect($pageid, $newTitle) {
+	public static function modify404Redirect($pageid, $newTitle) {
 		static $dbw = null;
 		if (!$dbw) $dbw = wfGetDB(DB_MASTER);
 		$pageid = intval($pageid);
@@ -214,7 +310,7 @@ class PageHooks {
 			return;
 		} elseif (!$newTitle
 				|| !$newTitle->exists()
-				|| $newTitle->getNamespace() != NS_MAIN)
+				|| !$newTitle->inNamespace(NS_MAIN))
 		{
 			$dbw->delete('redirect_page', array('rp_page_id' => $pageid), __METHOD__);
 		} else {
@@ -231,7 +327,7 @@ class PageHooks {
 	}
 
 	public static function setPage404IfNotExists() {
-		global $wgTitle, $wgOut, $wgLanguageCode;
+		global $wgTitle, $wgOut, $wgLanguageCode, $wgUser;
 
 		// Note: if namespace < 0, it's a virtual namespace like NS_SPECIAL
 		// Check if image exists for foreign language images, because Title may not exist since image may only be on English
@@ -249,6 +345,10 @@ class PageHooks {
 				$wgOut->redirect('/' . $redirect, 301);
 			}
 		}
+		if ($wgTitle && !$wgUser->isLoggedIn() && $wgTitle->inNamespace(NS_TALK)) {
+			//want to 404 logged out discussion pages
+			$wgOut->setStatusCode( 404 );
+		}
 		return true;
 	}
 
@@ -263,20 +363,20 @@ class PageHooks {
 		return true;
 	}
 
-    /**
-     * Hook for purging title based watermark thumbnails when a page moves
-     */
-    public static function onTitleMoveCompletePurgeThumbnails($oldTitle, $newTitle) {
-        $newId = $newTitle->getArticleID();
-        $dbw = wfGetDB( DB_MASTER );
-        $table = "moved_title_images";
-        $values = array( "mti_page_id" => $newId, 'mti_processed' => 0);
-        $options = array( 'IGNORE' );
+	/**
+	 * Hook for purging title based watermark thumbnails when a page moves
+	 */
+	public static function onTitleMoveCompletePurgeThumbnails($oldTitle, $newTitle) {
+		$newId = $newTitle->getArticleID();
+		$dbw = wfGetDB( DB_MASTER );
+		$table = "moved_title_images";
+		$values = array( "mti_page_id" => $newId, 'mti_processed' => 0);
+		$options = array( 'IGNORE' );
 
-        $dbw->insert( $table, $values, __METHOD__, $options );
+		$dbw->insert( $table, $values, __METHOD__, $options );
 
-        return true;
-    }
+		return true;
+	}
 
 	public static function fix404AfterDelete($wikiPage) {
 		if ($wikiPage) {
@@ -288,11 +388,11 @@ class PageHooks {
 		return true;
 	}
 
-	public static function fix404AfterInsert($article) {
-		if ($article) {
-			$title = $article->getTitle();
+	public static function fix404AfterInsert($wikiPage) {
+		if ($wikiPage) {
+			$title = $wikiPage->getTitle();
 			if ($title) {
-				self::modify404Redirect($article->getID(), $title);
+				self::modify404Redirect($wikiPage->getID(), $title);
 			}
 		}
 		return true;
@@ -371,7 +471,7 @@ class PageHooks {
 
 		if ( $page->mTitle->inNamespace(NS_MAIN) ) {
 			//all edits to overwritable articles are autopatrolled
-			if ( $page->exists() && Newarticleboost::isOverwriteAllowed($page->getTitle()) && $wgRequest->getVal("overwrite") == "yes" ) {
+			if ( $page->exists() && NewArticleBoost::isOverwriteAllowed($page->getTitle()) && $wgRequest->getVal("overwrite") == "yes" ) {
 				$patrolled = true;
 			}
 
@@ -381,6 +481,19 @@ class PageHooks {
 			if ( $oldestRevision != null && $newestRevision != null && $oldestRevision->getId() == $newestRevision->getId() ) {
 				$patrolled = true;
 			}
+		}
+
+		//Summary: pages
+		if ($page->mTitle->inNamespace(NS_SUMMARY)) {
+			$patrolled = true;
+		}
+
+		//every page edit that adds a quick summary
+		if ($page->mTitle->inNamespace(NS_MAIN) &&
+			SummaryEditTool::authorizedUser($user) &&
+			$page->getComment() == wfMessage('summary_add_log')->text())
+		{
+			$patrolled = true;
 		}
 
 		return true;
@@ -413,7 +526,7 @@ class PageHooks {
 		$title = $out->getTitle();
 
 		//talk pages for anons redir to login
-		if ($title && $title->isTalkPage() && $title->getNamespace() != NS_USER_TALK && $out->getUser()->isAnon()) {
+		if ($title && $title->isTalkPage() && !$title->inNamespace(NS_USER_TALK) && $out->getUser()->isAnon()) {
 			$login = 'index.php?title='.SpecialPage::getTitleFor('Userlogin').'&type=signup&returnto='.urlencode($title->getPrefixedURL());
 			$out->redirect($login);
 		}
@@ -459,21 +572,22 @@ class PageHooks {
 
 	// Redirect anons to HTTPS if they come in on HTTP
 	public static function maybeRedirectHTTPS(&$title, &$unused, &$output, &$user, $request, $mediaWiki) {
-		global $wgIsSecureSite;
+		global $wgIsSecureSite, $isOldDevServer;
 
 		// HTTP -> HTTPS redirect
-		// NOTE: never redirect if fromhttp=1 is in URL, since this
-		//       param means request original went to HTTP
 		// NOTE: don't redirect posted requests
 		if ( !$wgIsSecureSite
+			&& !$isOldDevServer
 			&& $user && $user->isAnon()
-			&& !$request->getVal('fromhttp', 0)
 			&& !$request->wasPosted()
 		) {
 			$redirUrl = wfExpandUrl( $request->getRequestURL(), PROTO_HTTPS );
 
-			$debugtext = "maybeRedirectHTTPS HTTP -> HTTPS: wgIsSecureSite: $wgIsSecureSite, user.IsAnon: " . var_export($user->isAnon(), true) . " forceHTTPS: " . $request->getCookie('forceHTTPS', '') . " fromhttp: " . $request->getVal('fromhttp', 0) . " wasPosted: " . var_export($request->wasPosted(), true);
+			$debugtext = "maybeRedirectHTTPS HTTP -> HTTPS: wgIsSecureSite: $wgIsSecureSite, user.IsAnon: " . var_export($user->isAnon(), true) . " forceHTTPS: " . $request->getCookie('forceHTTPS', '') . " wasPosted: " . var_export($request->wasPosted(), true);
 			wfDebugLog('redirects', $debugtext);
+			$output->redirect( $redirUrl, 301 );
+		} elseif ($wgIsSecureSite && $isOldDevServer) {
+			$redirUrl = wfExpandUrl( $request->getRequestURL(), PROTO_HTTP );
 			$output->redirect( $redirUrl, 301 );
 		}
 
@@ -489,12 +603,12 @@ class PageHooks {
 		global $wgServer, $wgIsAppServer, $wgIsDevServer, $wgIsToolsServer, $wgIsTitusServer;
 
 		if (($wgIsAppServer || $wgIsDevServer)
-			&& $wgServer != '//' . $httpHost
+			&& $wgServer != 'https://' . $httpHost
 			&& !preg_match("@[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+@", $httpHost) // check that Host is not an IP
 			&& !$wgIsToolsServer
 			&& !$wgIsTitusServer
 		) {
-			$debugtext = "maybeRedirectToCanonical: wgIsAppServer: $wgIsAppServer, wgIsDevServer: $wgIsDevServer, wgServer != // . httpHost: " . var_export(($wgServer != '//' . $httpHost), true). " , hostIsIp " . var_export(preg_match("@[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+@", $httpHost), true) . " , wgIsToolsServer: $wgIsToolsServer, wgIsTitusServer: $wgIsTitusServer";
+			$debugtext = "maybeRedirectToCanonical: wgIsAppServer: $wgIsAppServer, wgIsDevServer: $wgIsDevServer, wgServer != https:// . httpHost: " . var_export(($wgServer != 'https://' . $httpHost), true). " , hostIsIp " . var_export(preg_match("@[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+@", $httpHost), true) . " , wgIsToolsServer: $wgIsToolsServer, wgIsTitusServer: $wgIsTitusServer";
 			wfDebugLog('redirects', $debugtext);
 			$output->redirect( $wgServer . $request->getRequestURL(), 301 );
 		}
@@ -504,6 +618,11 @@ class PageHooks {
 
 	/**
 	 * Redirect or 404 domains such as wikihow.es, testers.wikihow.com, ...
+	 * NOTE: We should redirect to the mobile domains when relevant. E.g.
+	 *
+		elseif (preg_match('@it\.m\.wikihow\.com$@', $httpHost)) {
+			$wgServer = 'https://m.wikihow.it';
+		}
 	 */
 	public static function maybeRedirectProductionDomain(&$title, &$unused, &$output, &$user, $request, $mediaWiki) {
 		global $wgServer, $wgCommandLineMode;
@@ -519,41 +638,82 @@ class PageHooks {
 
 			# We want to redirect the CCTLD domain wikihow.es to es.wikihow.com for
 			# all languages where we own the domain. See bug #997 for reference.
+
+			// German/French/Dutch
 			if (preg_match('@(^|\.)wikihow\.(de|fr|nl)$@', $httpHost, $m)) {
 				$wgServer = 'https://' . $m[2] . '.wikihow.com';
-			} elseif (preg_match('@(^|\.)wikihow\.(es|com\.mx)$@', $httpHost)) {
+			}
+
+			// Spanish
+			elseif (preg_match('@(^|\.)wikihow\.(es|com\.mx)$@', $httpHost)) {
 				$wgServer = 'https://es.wikihow.com';
-			} elseif (preg_match('@(^|\.)wikihow\.in$@', $httpHost)) {
+			}
+
+			// Hindi
+			elseif (preg_match('@(^|\.)wikihow\.in$@', $httpHost)) {
 				$wgServer = 'https://hi.wikihow.com';
-			} elseif (preg_match('@(^|\.)wikihow\.(id|co\.id)$@', $httpHost)) {
+			}
+
+			// Indonesian
+			elseif (preg_match('@(^|\.)wikihow\.(id|co\.id)$@', $httpHost)) {
 				$wgServer = 'https://id.wikihow.com';
-			} elseif (preg_match('@ja\.(m\.)?wikihow\.com$@', $httpHost)) {
-				// Note: Special case for Japanese, where we're redirecting the other way
-				$wgServer = 'https://www.wikihow.jp';
-			} elseif (preg_match('@^wikihow\.jp$@', $httpHost)) {
-				$wgServer = 'https://www.wikihow.jp';
-			} elseif (preg_match('@(^|\.)wikihow\.(pt|com\.br)$@', $httpHost)) {
+			}
+
+			// Portuguese
+			elseif (preg_match('@(^|\.)wikihow\.(pt|com\.br)$@', $httpHost)) {
 				$wgServer = 'https://pt.wikihow.com';
-			} elseif (preg_match('@(^|\.)wikihow\.in\.th$@', $httpHost)) {
+			}
+
+			// Thai
+			elseif (preg_match('@(^|\.)wikihow\.in\.th$@', $httpHost)) {
 				$wgServer = 'https://th.wikihow.com';
-			} elseif (preg_match('@vi\.(m\.)?wikihow\.com$@', $httpHost)) {
-				// Note: Special case for Vietnamese
-				$wgServer = 'https://www.wikihow.vn';
-			} elseif (preg_match('@^wikihow\.vn$@', $httpHost)) {
-				$wgServer = 'https://www.wikihow.vn';
-			} elseif (preg_match('@it\.(m\.)?wikihow\.com$@', $httpHost)) {
-				// Note: Special case for Italian
-				$wgServer = 'https://www.wikihow.it';
-			} elseif (preg_match('@^wikihow\.it$@', $httpHost)) {
-				$wgServer = 'https://www.wikihow.it';
-			} elseif (preg_match('@cs\.(m\.)?wikihow\.com$@', $httpHost)) {
-				// Note: Special case for Czech
-				$wgServer = 'https://www.wikihow.cz';
-			} elseif (preg_match('@^wikihow\.cz$@', $httpHost)) {
-				$wgServer = 'https://www.wikihow.cz';
-			} elseif (preg_match('@(^|\.)wikihow\.(cn|hk|tw)$@', $httpHost)) {
+			}
+
+			// Chinese
+			elseif (preg_match('@(^|\.)wikihow\.(cn|hk|tw)$@', $httpHost)) {
 				$wgServer = 'https://zh.wikihow.com';
 			}
+
+			// Japanese (dedicated domain)
+			elseif (preg_match('@ja\.(m\.)?wikihow\.com$@', $httpHost)) {
+				$wgServer = 'https://www.wikihow.jp';
+			}
+			elseif (preg_match('@^wikihow\.jp$@', $httpHost)) {
+				$wgServer = 'https://www.wikihow.jp';
+			}
+
+			// Vietnamese (dedicated domain)
+			elseif (preg_match('@vi\.(m\.)?wikihow\.com$@', $httpHost)) {
+				$wgServer = 'https://www.wikihow.vn';
+			}
+			elseif (preg_match('@^wikihow\.vn$@', $httpHost)) {
+				$wgServer = 'https://www.wikihow.vn';
+			}
+
+			// Italian (dedicated domain)
+			elseif (preg_match('@it\.(m\.)?wikihow\.com$@', $httpHost)) {
+				$wgServer = 'https://www.wikihow.it';
+			}
+			elseif (preg_match('@^wikihow\.it$@', $httpHost)) {
+				$wgServer = 'https://www.wikihow.it';
+			}
+
+			// Czech (dedicated domain)
+			elseif (preg_match('@cs\.(m\.)?wikihow\.com$@', $httpHost)) {
+				$wgServer = 'https://www.wikihow.cz';
+			}
+			elseif (preg_match('@^wikihow\.cz$@', $httpHost)) {
+				$wgServer = 'https://www.wikihow.cz';
+			}
+
+			// Turkish (dedicated domain)
+			elseif (preg_match('@tr\.(m\.)?wikihow\.com$@', $httpHost)) {
+				$wgServer = 'https://www.wikihow.com.tr';
+			}
+			elseif (preg_match('@^wikihow\.com.tr$@', $httpHost)) {
+				$wgServer = 'https://www.wikihow.com.tr';
+			}
+
 			if ($preRedir != $wgServer) {
 				$debugtext = "maybeRedirectProductionDomain: preRedir: $preRedir, wgServer: $wgServer";
 				wfDebugLog('redirects', $debugtext);
@@ -583,36 +743,27 @@ class PageHooks {
 				if ($isTitus || $isFlavius || $isWVL) {
 					$uri = @$_SERVER['REQUEST_URI'];
 					if ($wgCommandLineMode
-						|| strpos($uri, 'Special:TitusQuery') !== false
-						|| strpos($uri, 'Special:FlaviusQueryTool') !== false
-						|| strpos($uri, 'Special:MMKManager') !== false
-						|| strpos($uri, 'Special:Domitian') !== false
-						|| strpos($uri, 'Special:Turker') !== false
-						|| strpos($uri, 'Special:EditTurk') !== false
-						|| strpos($uri, 'Special:AqRater') !== false
-						|| strpos($uri, 'Special:ACRater') !== false
-						|| strpos($uri, 'Special:WikiVisualLibrary') !== false
-						|| strpos($uri, 'Special:UserReviewImporter') !== false
-						|| strpos($uri, 'Special:HistoricalPV') !== false
-						|| strpos($uri, 'Special:Keywordtool') !== false
-
-						|| stripos($uri, 'special:userlog') !== false
-						|| stripos($uri, 'Special:GPlusLogin') !== false
-						|| strpos($uri, 'Special:Login') !== false
-						|| strpos($uri, 'Special:Captcha') !== false
-						|| strpos($uri, 'Special:Resetpass') !== false
-						|| strpos($uri, 'Special:ChangePassword') !== false
-						|| strpos($uri, 'Special:ClassifyTitles') !== false
 						|| strpos($uri, '/load.php') !== false
 					) {
 						# do something here? no.
 					} else {
-						if ($isTitus && (!$title || $title->inNamespace(NS_MAIN))) {
-							$output->redirect( $wgServer . '/Special:TitusQueryTool' );
+						$redirTitle = '';
+						if ($isTitus) {
+							$redirTitle = 'Special:TitusQueryTool';
 						} elseif ($isFlavius) {
-							$output->redirect( $wgServer . '/Special:FlaviusQueryTool' );
+							$redirTitle = 'Special:FlaviusQueryTool';
 						} elseif ($isWVL) {
-							$output->redirect( $wgServer . '/Special:WikiVisualLibrary' );
+							$redirTitle = 'Special:WikiVisualLibrary';
+						}
+						if ($redirTitle && (!$title || !$title->inNamespace(NS_SPECIAL))) {
+							$isSameTitle = false;
+							if ($title && $title->inNamespace(NS_SPECIAL) && $title->getPrefixedURL() == $redirTitle) {
+								$isSameTitle = true;
+							}
+							// make sure there is no redirect loop
+							if (!$isSameTitle) {
+								$output->redirect( $wgServer . '/' . $redirTitle);
+							}
 						}
 					}
 				}
@@ -622,6 +773,83 @@ class PageHooks {
 		return true;
 	}
 
+	/**
+	 * This hook is executed to force special pages to redirect to production if
+	 * the special page is not intended to be run on the titus host. If a special page
+	 * is intended to be run on the titus host, implement this method in your special
+	 * page class:
+	 *
+	 *   // method stops redirects when running on titus host
+	 *   public function isSpecialPageAllowedOnTitus() {
+	 *       return true;
+	 *   }
+	 */
+	public static function onSpecialPageBeforeExecuteRedirectTitus($specialPage, $subPage) {
+		$out = $specialPage->getOutput();
+		$domainName = @$_SERVER['SERVER_NAME'];
+		$isTitus = $domainName == 'titus.wikiknowhow.com';
+		$isFlavius = $domainName == 'flavius.wikiknowhow.com';
+		$isWVL = $domainName == 'wvl.wikiknowhow.com';
+		if ($isTitus || $isFlavius || $isWVL) {
+			$uri = @$_SERVER['REQUEST_URI'];
+			$builtInAllowed =
+				stripos($uri, 'special:userlog') !== false
+				|| strpos($uri, 'Special:Captcha') !== false
+				|| strpos($uri, 'Special:ChangePassword') !== false;
+			if (!$builtInAllowed) {
+				$className = get_class($specialPage);
+				$reflector = new ReflectionClass($className);
+				try {
+					$method = $reflector->getMethod('isSpecialPageAllowedOnTitus');
+					if ($method->isPublic() && $method->invoke($specialPage)) {
+						$allowed = true;
+					} else {
+						$allowed = false;
+					}
+				} catch (ReflectionException $e) {
+					$allowed = false;
+				}
+				if (!$allowed) {
+					$url = $specialPage->getTitle()->getPrefixedURL();
+					$out->redirect( 'https://www.wikihow.com/' . $url );
+				}
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * @param $title
+	 * @param $unused
+	 * @param $output
+	 * @param $user
+	 * @param $request
+	 * @param $mediaWiki
+	 * @return bool
+	 *
+	 * if the request has printable key set in the query param, unset it and the images param and
+	 * redirect back to the regular page
+	 */
+	public static function redirectIfPrintableRequest(&$title, &$unused, &$output, &$user, $request, $mediaWiki) {
+		global $wgServer;
+
+		$redirect = false;
+		$query = $request->getValues();
+		foreach ( $query as $key => $value ) {
+			if ( $key == "printable" ) {
+				$redirect = true;
+				break;
+			}
+		}
+		if ( $redirect == true ) {
+			unset( $query['printable'] );
+			unset( $query['images'] );
+			unset( $query['title'] );
+			$url = wfAppendQuery( $title->getFullURL(), $query );
+			$output->redirect( $url, 301 );
+		}
+	}
 	/**
 	 * @param $title
 	 * @param $unused
@@ -683,15 +911,34 @@ class PageHooks {
 		}
 	}
 
-	public static function onOutputPageBodyAttributes($out, $skin, &$bodyAttrs ) {
-		if(class_exists("CustomContent")) {
-			$customContentClass = CustomContent::getPageClass($out->getTitle());
-			if($customContentClass != "") {
-				$bodyAttrs['class'] .= ' ' . $customContentClass;
+	/**
+	 * Hide certain head links for anons on noindex pages, to avoid leaking
+	 * article info to Googlebot.
+	 *
+	 * @see OutputPage.php#getHeadLinksArray()
+	 */
+	public static function onOutputPageAfterGetHeadLinksArray(array &$links, OutputPage $out) {
+		if (WikihowSkinHelper::shouldShowMetaInfo($out)) {
+			return true;
+		}
+
+		foreach ($links as $key => $val) {
+			$hide = ( $key === 'alternative-edit' )   // <link rel="edit" title="Edit" href="...
+				|| ( $key === 'universal-edit-button' ) // <link rel="alternate" type="application/x-wiki" title="Edit" ...
+				|| ( $key === 'meta-description' ) // <meta name="description" content="...
+				|| preg_match('/rel=["\']canonical["\']/', $val);
+			if ($hide) {
+				unset($links[$key]);
 			}
 		}
 
 		return true;
 	}
-}
 
+	public static function onAfterDisplayNoArticleText( $article ) {
+		$out = $article->getContext()->getOutput();
+		if ( !GoogleAmp::isAmpMode( $out ) && $article->getTitle()->inNamespace(NS_MAIN) ) {
+			$out->addHtml( SearchBox::render( $out ) );
+		}
+	}
+}

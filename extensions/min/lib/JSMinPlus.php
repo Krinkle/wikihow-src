@@ -1868,5 +1868,3 @@ class JSToken
 	public $lineno;
 	public $assignOp;
 }
-
-?>

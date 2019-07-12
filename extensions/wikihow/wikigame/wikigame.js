@@ -13,6 +13,10 @@
 		yDelta: 2,
 		leafHeight: 0,
 		intersectionDelta: 15,
+		yIncrease: .5,
+
+		//initialValues
+		yDeltaInit: 2,
 
 		//koala stuff
 		koalaStepSize: 0,
@@ -48,12 +52,17 @@
 			this.containerWidth = $("#wg_container").width();
 			this.containerHeight = $("#wg_container").height();
 			this.initArticleInfo();
-			WH.WikiGame.initializeListeners();
 			this.leaf1 = new WikiLeaf($("#wg_leaf_0"), false);
 			this.leaf2 = new WikiLeaf($("#wg_leaf_1"), false);
 			this.specialLeaf = new WikiLeaf($("#wg_leaf_special"), true);
 			$(".wg_bubble").hide();
 			$("#wg_intro").show();
+			$(document).on("click", ".wg_start", function(e){
+				e.preventDefault();
+				$("#wg_popup").hide();
+				WH.WikiGame.restartGame();
+				WH.WikiGame.initializeListeners()
+			});
 		},
 
 		resetTimer: function() {
@@ -66,7 +75,7 @@
 		},
 
 		setInitialValuesForGameStart: function() {
-			this.yDelta = 2;
+			this.yDelta = this.yDeltaInit;
 			this.koalaStepSize = 10;
 			this.messageCount = 0;
 			this.articleInfoCount = 0;
@@ -114,7 +123,7 @@
 				WH.WikiGame.resumeGame();
 			});
 
-			$(document).on("click", ".wg_again, .wg_start", function(e){
+			$(document).on("click", ".wg_again", function(e){
 				e.preventDefault();
 				$("#wg_popup").hide();
 				WH.WikiGame.restartGame();
@@ -359,8 +368,8 @@
 			//It hit a koala!!
 			$(b.elem).stop();
 			WH.WikiGame.activeLeaf = this;
-			if(Math.random() > .5) { //50% of the time, make the leaves and the koala move faster
-				WH.WikiGame.yDelta += .5;
+			if(Math.random() > .25) { //75% of the time, make the leaves and the koala move faster
+				WH.WikiGame.yDelta += WH.WikiGame.yIncrease;
 				WH.WikiGame.koalaStepSize++;
 			}
 			if(this.isSpecial) { //special leaf? Show some info
@@ -374,7 +383,9 @@
 			this.isAnimating = false;
 			if( !this.hasSpawnedLeaf() ) {
 				this.spawnLeaf();
-				WH.WikiGame.pauseLeaves(); //we just spawned one, but we actually want it to start paused
+				if(this.isSpecial) {
+					WH.WikiGame.pauseLeaves(); //we just spawned one, but we actually want it to start paused
+				}
 			}
 		} else if(newY > WH.WikiGame.containerHeight) {
 			//has it gone off screen, stop the animation
@@ -395,4 +406,10 @@
 	};
 
 	//WH.WikiGame.init(); //opti will be doing this
+	//tell opti this is a page with the game
+	window['optimizely'] = window['optimizely'] || [];
+	window['optimizely'].push({
+		type: "page",
+		pageName: "526710254_koala_game_test_desktop"
+	});
 }($, mw));

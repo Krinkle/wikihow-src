@@ -6,8 +6,7 @@
     padding-bottom: 16px;
     padding-right: 27px;
     border-radius: 4px 4px 0 0;
-    margin-bottom: -22px;
-    display: none;
+    margin-bottom: -22px; display: none;
 }
 #footer {
 	display: none !important;
@@ -120,9 +119,12 @@
     border-width: 12px;
     margin-top: -11px;
 }
-.buttons-line {
-    margin-top: 20px;
-    margin-bottom: 5px;
+ .buttons-line {
+	 margin-top: 20px;
+	 margin-bottom: 5px;
+ }
+#bottom-tool .buttons-line {
+	margin: 0;
 }
 #text-line {
     margin-left: 55px;
@@ -155,6 +157,7 @@
 }
 #testing-section {
     display: none;
+	margin: 0;
 }
 .section {
     padding-top: 78px;
@@ -167,7 +170,23 @@
 #testing-section h2 {
     background: #f6f5f4;
 }
+#bottom-tool h2 {
+	font-size: 18px;
+	line-height: 40px;
+}
 #bottom-tool {
+	position: fixed;
+	top: 120px;
+	right: 0;
+	z-index: 1000;
+	box-shadow: 0px 5px 10px 3px #999;
+	max-width: 380px;
+	font-size: 12px;
+}
+#bottom-tool .section {
+	padding-top: 60px;
+	padding-left: 25px;
+	padding-bottom: 30px;
 }
 #instructions-section {
 }
@@ -189,11 +208,18 @@
 #yesfeedback-section, #nofeedback-section {
     display: none;
 }
-.feedback-section .buttonstext {
-    margin-bottom: 10px;
+#bottom-tool .feedback-section .button {
+	margin: 0;
+	display: inline-block;
+
 }
 .feedback-section .buttonstext {
     margin-bottom: 15px;
+}
+.feedback-section .skip {
+	float: right;
+}
+.feedback-section .yes {
 }
 .feedback-section textarea {
     border: 1px solid #e5e5e5;
@@ -201,16 +227,17 @@
     padding: 8px;
     resize: none;
     vertical-align: middle;
-    margin-left: 5px;
+	font-size: 12px;
+    width: 100%;
+	box-sizing: border-box;
+}
+textarea {
+	margin-left: 0;
 }
 #nofeedback-section #nofeedback-mainfeedback {
-    width: 100%;
     margin-bottom: 20px;
     margin-left: 0;
-}
-.feedback-section .buttons-desktop {
-    padding-top: 15px;
-    padding-bottom: 15px;
+	resize: vertical;
 }
 #willtest-buttons {
     margin-top: 0px;
@@ -222,20 +249,24 @@
     background: #fff;
 }
 #testing-section .skip, #time-verification-section .skip {
-    float: right;
 }
 #willtest-buttons .button {
     float: none;
     margin-left: 27px;
 }
 #testing-section .yes, #testing-section .no {
-    float: left;
+}
+#bottom-tool .button {
+	display: block;
+	max-width: 150px;
+	text-align: center;
+	min-width: 96px;
+	margin: 5px;
 }
 #testing-section .buttonstext {
     margin-bottom: 10px;
 }
 #time-verification-section .yes, #time-verification-section .no {
-    float: left;
 }
 #time-verification-section .buttonstext {
     margin-bottom: 10px;
@@ -264,4 +295,13 @@
 }
 .button:focus {
     border: 1px solid #000;
+}
+.section.quicksummary {
+	display: none;
+}
+.select2-results__options {
+	font-size: 12px;
+}
+div.floatright {
+	float: inherit !important;
 }

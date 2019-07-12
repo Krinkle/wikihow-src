@@ -33,7 +33,8 @@
 
 				$('#ras_response').click(function() {
 					mw.loader.using('ext.wikihow.UserReviewForm', function () {
-						window.WH.UserReviewForm.prototype.loadUserReviewForm();
+						var urf = new window.WH.UserReviewForm();
+						urf.loadUserReviewForm();
 					});
 					return false;
 				});

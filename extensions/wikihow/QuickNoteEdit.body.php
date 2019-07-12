@@ -20,10 +20,10 @@ class QuickNoteEdit extends UnlistedSpecialPage {
 			if ( preg_match('/^qnButton1=/', $item) ) {
 				list($key,$value) = explode('=', $item);
 				array_push($tb1_ary, $value ) ;
-			} else if ( preg_match('/^qnButton2=/', $item) ) {
+			} elseif ( preg_match('/^qnButton2=/', $item) ) {
 				list($key,$value) = explode('=', $item);
 				array_push($tb2_ary, $value ) ;
-			} else if ( preg_match('/^qnButton3=/', $item) ) {
+			} elseif ( preg_match('/^qnButton3=/', $item) ) {
 				list($key,$value) = explode('=', $item);
 				array_push($tb3_ary, $value ) ;
 			}
@@ -52,7 +52,7 @@ class QuickNoteEdit extends UnlistedSpecialPage {
 		$template = Title::makeTitle(NS_TEMPLATE, $tp1);
 
 		$r = Revision::newFromTitle($template);
-		$tb1_message = $r->getText();
+		$tb1_message = ContentHandler::getContentText( $r->getContent() );
 		$tb1_message = preg_replace('/<noinclude>(.*?)<\/noinclude>/is', '', $tb1_message);
 		$tb1_message = str_replace("\n", "\\n", $tb1_message);
 		$tb1_message = str_replace("'", "\'", $tb1_message);
@@ -61,7 +61,7 @@ class QuickNoteEdit extends UnlistedSpecialPage {
 		$tp3 = substr($tb3, $start3, $end3);
 		$template = Title::makeTitle(NS_TEMPLATE, $tp3);
 		$r = Revision::newFromTitle($template);
-		$tb3_message = $r->getText();
+		$tb3_message = ContentHandler::getContentText( $r->getContent() );
 		$tb3_message = preg_replace('/<noinclude>(.*?)<\/noinclude>/is', '', $tb3_message);
 		$tb3_message = str_replace("\n", "\\n", $tb3_message);
 		$tb3_message = str_replace("'", "\'", $tb3_message);
@@ -153,7 +153,7 @@ class QuickNoteEdit extends UnlistedSpecialPage {
 			if ($regdate) {
 				$ts = wfTimestamp(TS_UNIX, $regdate);
 				$regdates[] = date('M j, Y', $ts);
-			} else if ($u->getID() == 0) {
+			} elseif ($u->getID() == 0) {
 				$regdates[] = "n/a";
 			} else {
 				$regdates[] = "or before 2006";
@@ -191,7 +191,7 @@ class QuickNoteEdit extends UnlistedSpecialPage {
 		if ($regdate) {
 			$ts = wfTimestamp(TS_UNIX, $regdate);
 			$regdate = date('M j, Y', $ts);
-		} else if ($u->getID() == 0) {
+		} elseif ($u->getID() == 0) {
 			$regdate = "n/a";
 		} else {
 			$regdate = "or before 2006";
@@ -235,6 +235,7 @@ class QuickNoteEdit extends UnlistedSpecialPage {
 	 <div class='editModalBody'>
 		 <div id='article_contents'>
 		 </div>
+		 	<div id='expertGreenBoxWarning' style='display:none;'>".wfMessage('green_box_quick_edit_expert')->text()."</div>
 	 </div>
 	 <br />
 	 </div><!--end modalContent-->
@@ -327,9 +328,9 @@ class QuickNoteEdit extends UnlistedSpecialPage {
 		$wgOut->setArticleBodyOnly(true);
 		if ($par == 'quickedit') {
 			$wgOut->addHTML( self::displayQuickEdit2() );
-		} else if ($par == 'quicknote') {
+		} elseif ($par == 'quicknote') {
 			$wgOut->addHTML( self::displayQuickNote2() );
-		} else if( $par == 'quicknotebuttons'){
+		} elseif ( $par == 'quicknotebuttons'){
 			$wgOut->addHTML( self::displayQuickNoteButtons() );
 		}
 	}
@@ -339,4 +340,3 @@ class QuickNoteEdit extends UnlistedSpecialPage {
 		return Wikihow_i18n::genJSMsgs($langKeys);
 	}
 }
-

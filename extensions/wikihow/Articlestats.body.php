@@ -1,45 +1,42 @@
 <?php
 
-class Articlestats extends SpecialPage {
+class ArticleStats extends SpecialPage {
 
-	function __construct() {
-		parent::__construct( 'Articlestats' );
+	public function __construct() {
+		parent::__construct( 'ArticleStats' );
 	}
 
-	function execute($par) {
-		global $wgRequest, $wgOut;
+	public function execute($par) {
+		global $wgParser;
+
+		$req = $this->getRequest();
+		$out = $this->getOutput();
 
 		$this->setHeaders();
 
-		$target = $par != '' ? $par : $wgRequest->getVal('target');
+		$target = $par != '' ? $par : $req->getVal('target');
 
 		if (!$target) {
-			$wgOut->addHTML(wfMsg('articlestats_notitle'));
+			$out->addHTML(wfMessage('articlestats_notitle'));
 			return;
 		}
 
 		$t = Title::newFromText($target);
 		$id = $t->getArticleID();
 		if ($id == 0) {
-			$wgOut->addHTML(wfMsg("checkquality_titlenonexistant"));
+			$out->addHTML(wfMessage("checkquality_titlenonexistant"));
 			return;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$related = $dbr->selectField(
 					"pagelinks",
 					"count(*)",
 					array ('pl_from' => $id),
 					__METHOD__);
-		$inbound = $dbr->selectField(
-					array("pagelinks", "page"),
-					"count(*)",
-					array( 'pl_namespace' => $t->getNamespace(),
-						   'pl_title' => $t->getDBKey(),
-						   'page_id=pl_from',
-						   'page_namespace=0' ),
-					__METHOD__);
+
+		$inbound = self::getInboundLinkCount($t);
 
 		$sources = $dbr->selectField(
 						"externallinks",
@@ -67,8 +64,8 @@ class Articlestats extends SpecialPage {
 
 		$fadate = "";
 		if ($featured > 0) {
-			$rev = Revision::newFromTitle($tp );
-			$text = $rev->getText();
+			$rev = Revision::newFromTitle($tp);
+			$text = ContentHandler::getContentText( $rev->getContent() );
 			$matches = array();
 			preg_match('/{{(Featured|fa)[^a-z}]*}}/i', $text, $matches);
 			$fadate = $matches[0];
@@ -80,26 +77,27 @@ class Articlestats extends SpecialPage {
 			$featured = wfMessage('articlestats_no');
 		}
 
-		$rev = Revision::newFromTitle($t );
-		$section = Article::getSection($rev->getText(), 0);
-		$intro_photo = preg_match('/\[\[Image:/', $section) == 1 ? wfMsg('articlestats_yes') : wfMsg('articlestats_no');
+		$rev = Revision::newFromTitle($t);
+		$wikitext = ContentHandler::getContentText( $rev->getContent() );
+		$section = $wgParser->getSection($wikitext, 0);
+		$intro_photo = preg_match('/\[\[Image:/', $section) == 1 ? wfMessage('articlestats_yes') : wfMessage('articlestats_no');
 
-		$section = Article::getSection($rev->getText(), 1);
-		preg_match("/==[ ]*" . wfMsg('steps') . "/", $section, $matches, PREG_OFFSET_CAPTURE);
+		$section = $wgParser->getSection($wikitext, 1);
+		preg_match("/==[ ]*" . wfMessage('steps') . "/", $section, $matches, PREG_OFFSET_CAPTURE);
 		if (sizeof($matches) == 0 || $matches[0][1] != 0) {
-			$section = Article::getSection($rev->getText(), 2);
+			$section = $wgParser->getSection($wikitext, 2);
 		}
 
 		$num_steps = preg_match_all('/^#/im', $section, $matches);
 		$num_step_photos = preg_match_all('/\[\[Image:/', $section, $matches);
-		$has_stepbystep_photos = wfMsg('articlestats_no');
+		$has_stepbystep_photos = wfMessage('articlestats_no');
 		if ($num_steps > 0) {
-			$has_stepbystep_photos = ($num_step_photos / $num_steps) > 0.5 ? wfMsg('articlestats_yes') : wfMsg('articlestats_no');
+			$has_stepbystep_photos = ($num_step_photos / $num_steps) > 0.5 ? wfMessage('articlestats_yes') : wfMessage('articlestats_no');
 		}
 
 
 		$linkshere = Title::newFromText("Whatlinkshere", NS_SPECIAL);
-		$linksherelink = Linker::link( $linkshere, $inbound, array(), array('target' => $t->getPrefixedURL() ) );
+		$linksherelink = Linker::link( $linkshere, $inbound, array(), array('target' => urldecode($t->getPrefixedURL()) ) );
 		$articlelink = Linker::link( $t, wfMessage('howto', $t->getFullText())->text() );
 
 		$numvotes = $dbr->selectField("rating",
@@ -122,7 +120,7 @@ class Articlestats extends SpecialPage {
 		$pageviews = number_format($count, 0, "", ",");
 
 
-		$accuracy = '<img src="/skins/WikiHow/images/grey_ball.png">&nbsp; &nbsp;' . wfMsg('articlestats_notenoughvotes');
+		$accuracy = '<img src="/skins/WikiHow/images/grey_ball.png">&nbsp; &nbsp;' . wfMessage('articlestats_notenoughvotes');
 		if ($numvotes >= 5) {
 			if ($rating > 70) {
 				$ball_color = 'green';
@@ -132,38 +130,51 @@ class Articlestats extends SpecialPage {
 				$ball_color = 'red';
 			}
 			$accuracy = '<img src="/skins/WikiHow/images/' . $ball_color . '_ball.png">';
-			$accuracy .= "&nbsp; &nbsp;" . wfMsg('articlestats_rating', $rating, $numvotes, $unique);
+			$accuracy .= "&nbsp; &nbsp;" . wfMessage('articlestats_rating', $rating, $numvotes, $unique);
 		}
 		if ($index > 10 || $index == 0) {
-			$index = wfMsg('articlestats_notintopten', wfMsg('howto', urlencode($t->getText())));
-			$index .= "<br/>" . wfMsg('articlestats_lastchecked', substr($max, 0, 10) );
+			$index = wfMessage('articlestats_notintopten', wfMessage('howto', urlencode($t->getText())));
+			$index .= "<br/>" . wfMessage('articlestats_lastchecked', substr($max, 0, 10) );
 		} elseif ($index < 0) {
-			$index = wfMsg('articlestats_notcheckedyet', wfMsg('howto', urlencode($t->getText())));
+			$index = wfMessage('articlestats_notcheckedyet', wfMessage('howto', urlencode($t->getText())));
 		} else {
-			$index = wfMsg('articlestats_indexrank', wfMsg('howto', urlencode($t->getText())), $index);
-			$index .= wfMsg('articlestats_lastchecked', substr($max, 0, 10));
+			$index = wfMessage('articlestats_indexrank', wfMessage('howto', urlencode($t->getText())), $index);
+			$index .= wfMessage('articlestats_lastchecked', substr($max, 0, 10));
 		}
 
 		$cl = SpecialPage::getTitleFor( 'ClearRatings', $t->getText() );
 
-		$wgOut->addHTML("
+		$out->addHTML("
 
 		<p> $articlelink<br/>
 		<table border=0 cellpadding=5>
 				<tr><td width='350px;' valign='middle' >
-						" . wfMsgExt('articlestats_accuracy', 'parseinline', $cl->getFullText()) . " </td><td valign='middle'> $accuracy<br/> </td></tr>
-				<tr><td>" . wfMsgExt('articlestats_hasphotoinintro', 'parseinline') . "</td><td>$intro_photo </td></tr>
-				<tr><td>" . wfMsgExt('articlestats_stepbystepphotos', 'parseinline') ."</td><td> $has_stepbystep_photos </td></tr>
-				<tr><td>" . wfMsgExt('articlestats_isfeatured', 'parseinline') . "</td><td> $featured $fadate </td></tr>
-				<tr><td>" . wfMsgExt('articlestats_numinboundlinks', 'parseinline') . "</td><td>  $linksherelink</td></tr>
-				<tr><td>" . wfMsgExt('articlestats_outboundlinks', 'parseinline') . "</td><td> $related </td></tr>
-				<tr><td>" . wfMsgExt('articlestats_sources', 'parseinline') . "</td><td> $sources</td></tr>
-				<tr><td>" . wfMsgExt('articlestats_langlinks', 'parseinline') . "</td><td> $langlinks</td></tr>
+						" . wfMessage('articlestats_accuracy', $cl->getFullText())->parse() . " </td><td valign='middle'> $accuracy<br/> </td></tr>
+				<tr><td>" . wfMessage('articlestats_hasphotoinintro')->parse() . "</td><td>$intro_photo </td></tr>
+				<tr><td>" . wfMessage('articlestats_stepbystepphotos')->parse() ."</td><td> $has_stepbystep_photos </td></tr>
+				<tr><td>" . wfMessage('articlestats_isfeatured')->parse() . "</td><td> $featured $fadate </td></tr>
+				<tr><td>" . wfMessage('articlestats_numinboundlinks')->parse() . "</td><td>  $linksherelink</td></tr>
+				<tr><td>" . wfMessage('articlestats_outboundlinks')->parse() . "</td><td> $related </td></tr>
+				<tr><td>" . wfMessage('articlestats_sources')->parse() . "</td><td> $sources</td></tr>
+				<tr><td>" . wfMessage('articlestats_langlinks')->parse() . "</td><td> $langlinks</td></tr>
 		</table>
-		</p> " . wfMsgExt('articlestats_footer', 'parseinline') . "
+		</p> " . wfMessage('articlestats_footer')->parse() . "
 				");
 
 	}
 
-}
+	public static function getInboundLinkCount(Title $title): int {
+		$dbr = wfGetDB(DB_REPLICA);
+		$tables = ['pagelinks', 'page'];
+		$fields = 'count(*)';
+		$where = [
+			'pl_namespace' => $title->getNamespace(),
+			'pl_title' => $title->getDBKey(),
+			'page_id = pl_from',
+			'page_namespace' => NS_MAIN,
+			'page_is_redirect' => 0
+		];
+		return (int)$dbr->selectField($tables, $fields, $where);
+	}
 
+}

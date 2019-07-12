@@ -1,6 +1,6 @@
 <div id='gpl'>
 	<div id='cl_header'>
-		<div><span class="cl_logo_small"></span><?= $isApiSignup ? wfMsg('sl_header_update_details') : wfMsg('cl_savetime') ?></div>
+		<div><span class="cl_logo_small"></span><?= $isApiSignup ? wfMessage('sl_header_update_details') : wfMessage('cl_savetime') ?></div>
 	</div>
 	<div id='cl_error'><?=$error?></div>
 	<form method='POST' id='cl_form' action='<?= $formUrl ?>'>
@@ -12,7 +12,7 @@
 		<input type='hidden' name='returnTo' value='<?= $returnTo ?>'/>
 		<input type='hidden' name='isSignup' value='<?= $isSignup ?>'/>
 <? if ($isMobile): ?>
-	<label class='cl_label first'><?= wfMsg("cl_username") ?></label>
+	<label class='cl_label first'><?= wfMessage("cl_username") ?></label>
 	<? if ($username): ?>
 		<div id='cl_faux_username' class='cl_readonly'>
 			<span id='cl_x'></span>
@@ -23,13 +23,13 @@
 	<? else: ?>
 		<input class="input_med" type='text' name='requested_username' id='cl_requested_username'/>
 	<? endif; ?>
-	<label class='cl_label'><?= wfMsg("cl_email") ?></label>
+	<label class='cl_label'><?= wfMessage("cl_email") ?></label>
 	<input name='email' class='cl_readonly input_med' type='text' value='<?=$email?>' readonly='readonly'/>
-	<input type='submit' id='cl_submit' class='button primary' value='<?= $isApiSignup ? wfMsg('sl_submit_save_details') : wfMsg('sl_submit_register') ?>'/>
+	<input type='submit' id='cl_submit' class='button primary' value='<?= $isApiSignup ? wfMessage('sl_submit_save_details') : wfMessage('sl_submit_register') ?>'/>
 <? else: ?>
 		<table>
 			<tr>
-				<td class='cl_label'><?= wfMsg("cl_username") ?></td>
+				<td class='cl_label'><?= wfMessage("cl_username") ?></td>
 				<td>
 	<? if ($username): ?>
 					<div id='cl_faux_username' class='cl_readonly'>
@@ -44,12 +44,12 @@
 				</td>
 			</tr>
 			<tr>
-				<td class='cl_label'><?= wfMsg("cl_email") ?></td>
+				<td class='cl_label'><?= wfMessage("cl_email") ?></td>
 				<td><input name='email' class='cl_readonly input_med' type='text' value='<?=$email?>' readonly='readonly'/></td>
 			</tr>
 			<tr>
 				<td></td>
-				<td><input type='submit' id='cl_submit' class='button primary' value='<?= $isApiSignup ? wfMsg('sl_submit_save_details') : wfMsg('sl_submit_register') ?>'/></td>
+				<td><input type='submit' id='cl_submit' class='button primary' value='<?= $isApiSignup ? wfMessage('sl_submit_save_details') : wfMessage('sl_submit_register') ?>'/></td>
 			</tr>
 		</table>
 <? endif; ?>

@@ -17,16 +17,16 @@ class UpdateDriveFilePermissions extends Maintenance {
 
 	public function execute() {
 		global $IP;
-		require_once("$IP/extensions/wikihow/socialproof/ExpertVerifyImporter.php");
+		require_once("$IP/extensions/wikihow/socialproof/CoauthorSheets/CoauthorSheetTools.php");
 		$this->updatePermissions();
 	}
 
 	private function updatePermissions() {
-		$importer = new ExpertVerifyImporter();
+		$tools = new CoauthorSheetTools();
 		$done = false;
 		$oneTime = true;
 		while ( $done == false ) {
-			$count = $importer->fixPermissions(500);
+			$count = $tools->fixPermissions(500);
 			decho( "fixed file count", $count, false );
 			if ( $oneTime || $count < 1 ) {
 				$done = true;

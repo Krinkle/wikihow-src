@@ -12,6 +12,11 @@ class GPlusLogin extends UnlistedSpecialPage {
 		return true;
 	}
 
+	// method stops redirects when running on titus host
+	public function isSpecialPageAllowedOnTitus() {
+		return true;
+	}
+
 	public function execute($par) {
 		global $wgLanguageCode, $wgContLang, $wgUser;
 
@@ -24,7 +29,7 @@ class GPlusLogin extends UnlistedSpecialPage {
 		}
 
 		if (!$req->wasPosted()) {
-			$out->setRobotpolicy('noindex,nofollow');
+			$out->setRobotPolicy('noindex,nofollow');
 			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
@@ -41,11 +46,11 @@ class GPlusLogin extends UnlistedSpecialPage {
 			return;
 		}
 
-		$out->setHTMLTitle(wfMsg('gpl_page_title'));
+		$out->setHTMLTitle(wfMessage('gpl_page_title'));
 
 		$action = $req->getVal('action');
 		if ($action == 'login') {
-			$res = SocialLoginUtil::doSocialLogin('google', $this->prof['id'], $this->prof['name'],
+			$res = SocialLoginUtil::doSocialLogin('google', $this->prof['id'], $this->prof['name'] ?? '',
 				$this->prof['email'], $this->prof['picture']);
 			$isSignup = ($res == 'signup');
 			if ($res == 'error') {
@@ -87,7 +92,7 @@ class GPlusLogin extends UnlistedSpecialPage {
 			return;
 		}
 		$isMobile = Misc::isMobileMode();
-		$tmpl = new EasyTemplate( dirname(__FILE__) );
+		$tmpl = new EasyTemplate( __DIR__ );
 		$tmpl->set_vars(array(
 			'formUrl' => $formUrl,
 			'username' => $username,
@@ -140,7 +145,7 @@ class GPlusLogin extends UnlistedSpecialPage {
 							$req->getVal('email'),
 							$req->getVal('avatar_url'),
 							$isSignup,
-							wfMsg($i18nErrorCode, $originalName));
+							wfMessage($i18nErrorCode, $originalName));
 			return;
 		}
 		$dbw->update('user',
@@ -172,7 +177,10 @@ class GPlusLogin extends UnlistedSpecialPage {
 			return;
 		}
 
-		GoogleSocialUser::newFromWhId($wgUser->getID())->unlink();
+		$googleSocialUser = GoogleSocialUser::newFromWhId($wgUser->getID());
+		if ($googleSocialUser) {
+			$googleSocialUser->unlink();
+		}
 
 		// Display confirmation message and temporary password
 		$newpass = AdminResetPassword::resetPassword($wgUser->getName());

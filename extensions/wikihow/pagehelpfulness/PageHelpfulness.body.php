@@ -7,56 +7,29 @@ class PageHelpfulness extends UnlistedSpecialPage {
 		parent::__construct('PageHelpfulness');
 	}
 
-	/**
-	 * George 2015-11-12: Deprecated.
-	 * Use getCombinedRatingFeedback instead.
-	 */
-	public static function getRatingReasonData($item, $type) {
-		$dbr = wfGetDB(DB_SLAVE);
-		$result = "";
-		$res = $dbr->select(
-			'rating_reason',
-			array("ratr_text", "ratr_rating", "ratr_name"),
-			array("ratr_item"=>$item, "ratr_type"=>$type),
-			__METHOD__,
-			array("LIMIT"=>10, "ORDER BY"=>"ratr_timestamp DESC")
-		);
-		foreach ($res as $row) {
-			$phr_rating = $row->ratr_rating > 0 ? "phr_yes" : "phr_no";
-			$text = $row->ratr_text;
-			$name = "";
-			if ($row->ratr_name) {
-				$name = "<em>".$row->ratr_name."</em><br />";
-			}
-			$result .= "<tr><td><div class='phr_thumb $phr_rating'></div></td><td>$name$text</td></tr>";
-		}
-		return $result;
-	}
-
 	public static function getRatingReasonFeedback($item, $type, $limit=10) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
-		$res = $dbr->select(
-			array(
-				'rr' => 'rating_reason'
-			),
-			array(
-				'user_repr' => 'ratr_name',
-				'feedback' => 'ratr_text',
-				'rating' => 'ratr_rating',
-				'timestamp' => "CONVERT_TZ(ratr_timestamp, @@session.time_zone, '+00:00')",
-			),
-			array(
-				'ratr_item' => $item,
-				'ratr_type' => $type
-			),
-			__METHOD__,
-			array(
-				'ORDER BY' => 'ratr_timestamp DESC',
-				'LIMIT' => $limit
-			)
+		$table = 'rating_reason';
+		$var = array(
+			'user_repr' => 'ratr_name',
+			'feedback' => 'ratr_text',
+			'rating' => 'ratr_rating',
+			'detail' => 'ratr_detail',
+			'type' => 'ratr_type',
+			'timestamp' => "CONVERT_TZ(ratr_timestamp, @@session.time_zone, '+00:00')"
 		);
+		$cond = array(
+			'ratr_item' => $item,
+			'ratr_type' => $type
+		);
+		$options = array(
+			'ORDER BY' => 'ratr_timestamp DESC',
+			'LIMIT' => $limit
+		);
+		$res = $dbr->select( $table, $var, $cond, __METHOD__, $options );
 
+		//decho("here", $dbr->lastQuery());exit;
 		$feedback = array();
 
 		foreach ($res as $row) {
@@ -76,11 +49,11 @@ class PageHelpfulness extends UnlistedSpecialPage {
 	}
 
 	public static function getCombinedRatingFeedback($t) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$limit = 10;
 
 		$item = $t->getText();
-		$type = 'article';
+		$type = array( 'article', 'itemrating' );
 		$pageFeedback = self::getRatingReasonFeedback($item, $type, $limit);
 		self::convertRatingReasonFeedbackTimezone($pageFeedback);
 
@@ -113,20 +86,26 @@ class PageHelpfulness extends UnlistedSpecialPage {
 			$combinedFeedback = $pageFeedback;
 		}
 
+		//decho("combined", $combinedFeedback);exit;
 		$result = '';
 
 		foreach ($combinedFeedback as $row) {
 			$phr_rating = $row['rating'] > 0 ? "phr_yes" : "phr_no";
-			if(strtotime($row['timestamp']) < self::$lastClear) {
-				$rowClass = "old_rating";
-			} else {
-				$rowClass = "";
+			$rowClass = array();
+			if (strtotime($row['timestamp']) < self::$lastClear) {
+				$rowClass[] = "old_rating";
 			}
+
+			if ( $row['type'] == 'itemrating' ) {
+				$rowClass[] = 'ph_ir_' . $row['detail'];
+			}
+
 			$text = $row['displayDate'] . ": " . $row['feedback'];
 			$name = "";
 			if ($row['user_repr'] && $row['user_repr'] != "MOBILE") {
 				$name = "<em>".$row['user_repr']."</em><br />";
 			}
+			$rowClass = implode( ' ', $rowClass );
 			$result .= "<tr class='$rowClass'><td><div class='phr_thumb $phr_rating'></div></td><td>$name$text</td></tr>";
 		}
 
@@ -134,7 +113,7 @@ class PageHelpfulness extends UnlistedSpecialPage {
 	}
 
 	public static function getRatingsDetail($pageId) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$table = "rating";
 		$vars = array("rat_detail as D", "count(*) as C");
 		$conds = array("rat_page = $pageId", "rat_detail > 0", "rat_isdeleted = 0");
@@ -143,7 +122,7 @@ class PageHelpfulness extends UnlistedSpecialPage {
 		$res = $dbr->select($table, $vars, $conds, __METHOD__, $options);
 
 		$result = array(1=>0, 2=>0, 3=>0, 4=>0);
-		foreach($res as $row) {
+		foreach ($res as $row) {
 			$result[$row->D] = $row->C;
 		}
 
@@ -160,7 +139,7 @@ class PageHelpfulness extends UnlistedSpecialPage {
 		}
 
 		// now add the star ratings info
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$table = "rating_star";
 		$var = array( "sum(rs_rating)/5 as yesVotes", "count(*) as count" );
 		$cond = array( "rs_page" => $pageId, "rs_isdeleted" => 0 );
@@ -183,7 +162,7 @@ class PageHelpfulness extends UnlistedSpecialPage {
 	}
 
 	public static function getRatingData($pageId, $type) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$ri = new RateItem();
 		$rt = $ri->getRatingTool($type);
 		$table = $rt->getTableName();
@@ -195,7 +174,7 @@ class PageHelpfulness extends UnlistedSpecialPage {
 		$res = $dbr->select($table, $var, $cond, __METHOD__, $options);
 
 		$result = array();
-		foreach($res as $row) {
+		foreach ($res as $row) {
 			// all time stats skipping sections with less than 10 votes
 			$data = new stdClass();
 
@@ -225,6 +204,120 @@ class PageHelpfulness extends UnlistedSpecialPage {
 		return $result;
 	}
 
+	public static function getClearEventDate( $pageId, $domain, $type, $dbr = null ) {
+		if ( $dbr == null ) {
+			$dbr = wfGetDB(DB_REPLICA);
+		}
+
+		$table = 'clear_event';
+		$var = array( 'ce_date' );
+		$cond = array(
+			'ce_page_id' => $pageId,
+			'ce_action' => $type,
+		);
+		// do not use the domain yet
+		//if ( $domain ) {
+			//$cond['ce_domain'] = $domain;
+		//}
+		$options = array( 'ORDER BY' => 'ce_date DESC' );
+
+		$date = $dbr->selectField( $table, $var, $cond, __METHOD__, $options );
+		return $date;
+	}
+
+	private static function getDisplayRatingHtml( $pageId ) {
+		global $wgLanguageCode;
+		if ( $wgLanguageCode != 'en' ) {
+			return '';
+		}
+		$dbr = wfGetDB(DB_REPLICA);
+
+		// see if the article has a summary video or text section
+		$table = array( WH_DATABASE_NAME_EN.'.titus_copy' );
+		$vars = array( 'ti_helpful_percentage_display_all_time', 'ti_helpful_percentage_display_soft_reset', 'ti_helpful_total_display_all_time' );
+
+		$conds = array(
+			'ti_page_id' => $pageId,
+			'ti_language_code' => $wgLanguageCode,
+		);
+
+		$row = $dbr->selectRow( $table, $vars, $conds, __METHOD__ );
+		if ( !$row ) {
+			return '';
+		}
+
+		$sectionName = "Display Rating All Time";
+		$percent = $row->ti_helpful_percentage_display_all_time;
+		$total = $row->ti_helpful_total_display_all_time;
+		$text = "$sectionName: $percent% -  $total votes";
+		$html = Html::element( 'div', [], $text );
+
+		$sectionName = "Display Rating Soft Reset";
+		$percent = $row->ti_helpful_percentage_display_soft_reset;
+		$total = $row->ti_helpful_total_display_all_time;
+		$text = "$sectionName: $percent% -  $total votes";
+		$html .= Html::element( 'div', [], $text );
+
+		return $html;
+
+	}
+
+	private static function getSummarySectionRating( $pageId ) {
+		global $wgLanguageCode;
+		if ( $wgLanguageCode != 'en' ) {
+			return '';
+		}
+		$dbr = wfGetDB(DB_REPLICA);
+
+		// see if the article has a summary video or text section
+		$table = array( WH_DATABASE_NAME_EN.'.titus_copy' );
+		$vars = array( 'ti_summarized', 'ti_summary_video' );
+
+		$conds = array(
+			'ti_page_id' => $pageId,
+			'ti_language_code' => $wgLanguageCode,
+		);
+
+		$row = $dbr->selectRow( $table, $vars, $conds, __METHOD__ );
+		if ( !$row ) {
+			return '';
+		}
+
+		$html = '';
+
+		$table = 'item_rating';
+		$vars = 'count(*)';
+		$conds = array('ir_page_id' => $pageId );
+
+		$sectionName = "Summary Video";
+		$lookup = false;
+		if ( $row->ti_summary_video ) {
+			$lookup = true;
+			$conds['ir_type'] = 'summaryvideohelp';
+		} elseif ( $row->ti_summarized ) {
+			$lookup = true;
+			$conds['ir_type'] = 'summarytexthelp';
+			$sectionName = "Summary Text";
+		}
+		$domain = '';
+		$date = self::getClearEventDate( $pageId, $domain, $conds['ir_type'], $dbr );
+		if ( $date ) {
+			$conds[] = "ir_timestamp > '$date'";
+		}
+		if ( $lookup ) {
+			$total = $dbr->selectField( $table, $vars, $conds, __METHOD__ );
+			$conds[] = 'ir_rating > 0';
+			$yes = $dbr->selectField( $table, $vars, $conds, __METHOD__ );
+			$percent = 0;
+			if ( $total > 0 ) {
+				$percent = round( 100 * $yes / $total );
+			}
+			$html .= "<div>$sectionName: $percent% -  $total votes </div>";
+		}
+
+		return $html;
+
+	}
 
 	public static function getRatingHTML($pageId, $user) {
 		$html = '';
@@ -265,7 +358,7 @@ class PageHelpfulness extends UnlistedSpecialPage {
 			$html .= "<div class='phr_ratings_show_link'>(<a href='#'>show past ratings</a>)</div>";
 			$html .= "</div>";
 			$html .= "<ol class='phr_ratings_old'>";
-			foreach($data as $d) {
+			foreach ($data as $d) {
 				$html .= "<li>";
 				$html .= "{$d->percent}% - {$d->total} votes";
 				if ($d->date > 0) {
@@ -298,6 +391,8 @@ class PageHelpfulness extends UnlistedSpecialPage {
 
 		$html .= "<div >Display Rating: {$aggregateRating->rating}% - {$aggregateRating->ratingCount} votes </div>";
 
+		$html .= self::getSummarySectionRating( $pageId );
+		$html .= self::getDisplayRatingHtml( $pageId );
 		// if the user can, show the clearing ratings link
 		if ($clearLink && Misc::isUserInGroups($user, array('staff', 'staff_widget'))) {
 			$cl = Title::newFromText('ClearRatings', NS_SPECIAL);
@@ -335,8 +430,8 @@ class PageHelpfulness extends UnlistedSpecialPage {
 
 		$html = "<h3>Page Helpfulness Data</h3>";
 		if ( SpecialTechFeedback::isTitleInTechCategory($title) ) {
-            $html = "<h3>Tech Page Up-To-Date Data</h3>";
-        }
+			$html = "<h3>Tech Page Up-To-Date Data</h3>";
+		}
 
 		$pageId = $title->getArticleId();
 		$html .= self::getRatingHTML($pageId, $this->getUser());
@@ -404,7 +499,7 @@ class PageHelpfulness extends UnlistedSpecialPage {
 				}
 				if ($title && $title->exists()) {
 					$html = $this->getPageData($title);
-					$result = array('body'=>$html);
+					$result = array( 'body' => utf8_encode( $html ) );
 					echo json_encode($result);
 				}
 			} elseif ($type == "sample") {
@@ -546,15 +641,12 @@ class PageHelpfulness extends UnlistedSpecialPage {
 						}
 
 						$('#page_helpfulness_box').removeClass('smhw');
-						<? if (class_exists('MethodHelpfulness\Widget')) {
-							print MethodHelpfulness\Widget::getWidgetLoaderJS();
-						} ?>
 					}
 				}
 			}, 'json');
 	}
 </script>
-<?
+<?php
 	}
 
 }

@@ -14,7 +14,7 @@ class AdminQuiz extends UnlistedSpecialPage {
 		// if the request starts taking too long to process due to too many entries
 		// it may be needed to enable these settings. leaving commented for now but they
 		// are required on dev machines at this time
-		//ini_set('memory_limit', '512M');
+		ini_set('memory_limit', '512M');
 
 		/*global $wgIsDevServer;
 		if ( $wgIsDevServer ) {
@@ -28,7 +28,7 @@ class AdminQuiz extends UnlistedSpecialPage {
 		$userGroups = $user->getGroups();
 
 		if ( $user->isBlocked() || !in_array( 'staff', $userGroups ) ) {
-			$out->setRobotpolicy('noindex,nofollow');
+			$out->setRobotPolicy('noindex,nofollow');
 			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
@@ -68,7 +68,7 @@ class AdminQuiz extends UnlistedSpecialPage {
 		$vars['stats'] = $quizImporter->getStats();
 
 		$options =  array(
-			'loader' => new Mustache_Loader_FilesystemLoader(dirname(__FILE__)),
+			'loader' => new Mustache_Loader_FilesystemLoader(__DIR__),
 		);
 		$m = new Mustache_Engine($options);
 

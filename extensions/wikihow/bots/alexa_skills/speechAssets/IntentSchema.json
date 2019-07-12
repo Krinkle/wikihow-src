@@ -1,6 +1,30 @@
 {
   "intents": [
     {
+      "intent": "AMAZON.NavigateSettingsIntent"
+    },
+    {
+      "intent": "AMAZON.MoreIntent"
+    },
+    {
+      "intent": "AMAZON.PageDownIntent"
+    },
+    {
+      "intent": "AMAZON.PageUpIntent"
+    },
+    {
+      "intent": "AMAZON.ScrollRightIntent"
+    },
+    {
+      "intent": "AMAZON.ScrollDownIntent"
+    },
+    {
+      "intent": "AMAZON.ScrollLeftIntent"
+    },
+    {
+      "intent": "AMAZON.ScrollUpIntent"
+    },
+    {
       "intent": "FirstStep"
     },
     {
@@ -43,25 +67,28 @@
       "intent": "AMAZON.PauseIntent"
     },
     {
+      "intent": "PlaySummaryVideo"
+    },
+    {
       "intent": "ResumeIntent"
     },
     {
-      "intent": "QueryIntent",
       "slots": [
         {
           "name": "query",
           "type": "QUERY_TERMS"
         }
-      ]
+      ],
+      "intent": "QueryIntent"
     },
     {
-      "intent": "GoToStepIntent",
       "slots": [
         {
           "name": "step_num",
           "type": "AMAZON.NUMBER"
         }
-      ]
+      ],
+      "intent": "GoToStepIntent"
     }
   ]
 }

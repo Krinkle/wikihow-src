@@ -7,4 +7,4 @@
 
 require_once __DIR__ . '/../commandLine.inc';
 
-AdminAdExclusions::updateEnglishArticles();
+ArticleAdExclusions::updateEnglishArticles();

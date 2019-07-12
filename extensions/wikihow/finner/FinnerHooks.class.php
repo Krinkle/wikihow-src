@@ -45,7 +45,7 @@ class FinnerHooks {
 								'span',
 								array(
 									'class' => 'finner-bad-template',
-									'title' => wfMsg('finner-bad-template')
+									'title' => wfMessage('finner-bad-template')
 								),
 								$template
 							);
@@ -102,7 +102,7 @@ class FinnerHooks {
 	 * SpecialSearch ShowSearchHitTitle hook handler
 	 */
 	public static function onShowSearchHitTitle(
-		&$link_t, &$titleSnippet, $result, $terms, $context 
+		&$link_t, &$titleSnippet, $result, $terms, $context
 	) {
 		// TODO
 		return true;
@@ -296,7 +296,7 @@ class FinnerHooks {
 	}
 
 	// ==== CirrusSearch hook handlers for custom hooks ====
-	
+
 	/**
 	 * CirrusSearchBuildDocumentFinishBatchExtras custom hook handler
 	 *
@@ -326,7 +326,7 @@ class FinnerHooks {
 			}
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$res = $dbr->select(
 			'titusdb2.titus_intl',

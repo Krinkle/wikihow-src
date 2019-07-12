@@ -35,7 +35,7 @@ class GoodRevision {
 
 		if ( !$title
 			|| !$title->exists()
-			|| $title->getNamespace() != NS_MAIN)
+			|| !$title->inNamespace(NS_MAIN))
 		{
 			return null;
 		}
@@ -84,6 +84,7 @@ class GoodRevision {
 				$goodRev->updateRev($rev);
 				// Refresh the article meta info once a good revision is updated
 				ArticleMetaInfo::refreshMetaDataCallback($article);
+				Hooks::run( 'AfterGoodRevisionUpdated', array( $title, $goodRev ) );
 				$title->purgeSquid();
 			}
 		}
@@ -114,7 +115,7 @@ class GoodRevision {
 				$dbw->query($sql, __METHOD__);
 				$wgMemc->set($this->cachekey, $rev);
 
-				wfRunHooks( 'GoodRevisionUpdated', array( $this->articleID, $rev ) );
+				Hooks::run( 'GoodRevisionUpdated', array( $this->articleID, $rev ) );
 
 				return true;
 			}
@@ -129,16 +130,16 @@ class GoodRevision {
 	public static function getRevFromRC($pageid, $rcid) {
 		$rc = RecentChange::newFromId($rcid, true);
 		if ($rc) {
-			// Check if there was a rollback on any of the more 
+			// Check if there was a rollback on any of the more
 			// recent changes to the article. If there was a
 			// rollback, just return 0 so that it looks to any
-			// calling function like there is no associated 
+			// calling function like there is no associated
 			// revision ID to assign.
 			$rollbackCommentPrefix = wfMessage('rollback_comment_prefix')->inContentLanguage()->text();
 			$dbr = self::getDB('read');
 			$res = $dbr->select('recentchanges', array('rc_comment'),
 				array('rc_cur_id' => $pageid, 'rc_id > ' . $rcid),
-				__METHOD__); 
+				__METHOD__);
 			foreach ($res as $row) {
 				$isRollback = strpos($row->rc_comment, $rollbackCommentPrefix) === 0;
 				if ($isRollback) return 0;
@@ -148,12 +149,12 @@ class GoodRevision {
 			return 0;
 		}
 	}
-	
+
 	/**
 	 * Grab the last good patrol
 	 * - return true if the last edit on the article was patrolled
 	 */
-	public static function patrolledGood($title) {		
+	public static function patrolledGood($title) {
 		// start with basic check to make sure we're dealing
 		// with a real article
 		if (!$title) return false;
@@ -161,7 +162,7 @@ class GoodRevision {
 		// get the last revision
 		$a = new Article($title);
 		$last_rev_id = $a->getRevIdFetched();
-		
+
 		// get the last good revision
 		$goodRev = self::newFromTitle($title);
 		if (!$goodRev) {
@@ -169,7 +170,7 @@ class GoodRevision {
 		} else {
 			$last_good_rev = $goodRev->latestGood();
 		}
-		
+
 		return $last_rev_id == $last_good_rev;
 	}
 
@@ -286,8 +287,8 @@ class GoodRevision {
 	 */
 	public static function onMovePage(&$oldTitle, &$newTitle) {
 		$oldids = array();
-		if ($oldTitle && $oldTitle->getNamespace() == NS_MAIN) $oldids[] = $oldTitle->getArticleID();
-		if ($newTitle && $newTitle->getNamespace() == NS_MAIN) $oldids[] = $newTitle->getArticleID();
+		if ($oldTitle && $oldTitle->inNamespace(NS_MAIN)) $oldids[] = $oldTitle->getArticleID();
+		if ($newTitle && $newTitle->inNamespace(NS_MAIN)) $oldids[] = $newTitle->getArticleID();
 		if ($oldids) {
 			self::dbDeleteIDs($oldids);
 		}
@@ -299,7 +300,7 @@ class GoodRevision {
 	private static function dbDeleteIDs($ids) {
 		$dbw = self::getDB('write');
 		$sql = 'DELETE FROM good_revision
-				WHERE gr_rev IN (' . join(',', $ids) . ')';
+				WHERE gr_rev IN (' . $dbw->makeList($ids) . ')';
 		$dbw->query($sql, __METHOD__);
 	}
 
@@ -312,7 +313,7 @@ class GoodRevision {
 			if (!$dbw) $dbw = wfGetDB(DB_MASTER);
 			return $dbw;
 		} else {
-			if (!$dbr) $dbr = wfGetDB(DB_SLAVE);
+			if (!$dbr) $dbr = wfGetDB(DB_REPLICA);
 			return $dbr;
 		}
 	}
@@ -323,4 +324,3 @@ class GoodRevision {
 		return true;
 	}
 }
-

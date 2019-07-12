@@ -7,7 +7,7 @@
 if ( ! defined( 'MEDIAWIKI' ) )
 	die();
 
-$localBasePath = dirname( __FILE__ );
+$localBasePath = __DIR__;
 $remoteExtPath = 'wikihow/MobileFrontendWikihow';
 
 
@@ -65,6 +65,7 @@ $wgResourceModules = array_merge( $wgResourceModules, array(
 			'howto',
 			'mobile-facebook-login-failed',
 			'sources',
+			'references',
 			'image-attribution'
 		),
 		'dependencies' => array(
@@ -81,7 +82,6 @@ $wgResourceModules = array_merge( $wgResourceModules, array(
 	'zzz.mobile.wikihow.styles_late_load' => $wgMFMobileResourceBoilerplateWikihow + array(
 			'styles' => array(
 				'less/wikihow/style.css',
-				'less/wikihow/tableofcontents.css',
 				'../thumbratings/thumbratings.css',
 			),
 			'scripts' => array(
@@ -186,17 +186,14 @@ $wgResourceModules = array_merge( $wgResourceModules, array(
 			'mobile.stable',
 		),
 		'scripts' => array(
-			'../SocialAuth/social_auth.js',
-			'javascripts/wikihow/google_login_mobile.js',
-			'javascripts/wikihow/fb_login_mobile.js',
-			'javascripts/wikihow/civic_login_mobile.js',
+			'javascripts/wikihow/login_mobile.js'
 		),
 		'position' => 'bottom'
 	),
 	'mobile.wikihow.whCtaDrawer' => $wgMFMobileResourceBoilerplateWikihow + [
-		'dependencies' => 'mobile.stable',
 		'scripts' => 'javascripts/modules/whCtaDrawer/WhCtaDrawer.js',
 		'styles' => 'less/modules/whCtaDrawer/whCtaDrawer.less',
+		'dependencies' => [ 'ext.wikihow.socialauth', 'mobile.stable' ],
 		'templates' => 'modules/whCtaDrawer/whCtaDrawer',
 		'messages' => [
 			'mobile-cta-drawer-log-in-google',

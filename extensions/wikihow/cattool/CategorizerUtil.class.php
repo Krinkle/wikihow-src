@@ -23,7 +23,7 @@ class CategorizerUtil {
 	 * Meta-categories that can be removed when an article is categorized
 	 */
 	public static function getFurtherEditingCats(): array {
-		return explode("\n", wfMsgForContent('templates_further_editing'));
+		return explode( "\n", wfMessage('templates_further_editing')->inContentLanguage()->text() );
 	}
 
 	/**
@@ -62,11 +62,11 @@ class CategorizerUtil {
 		$fields = ['page_id'];
 		$opts = ['ORDER BY' => 'page_touched', 'LIMIT' => 500];
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->select($q['tables'], $fields, $q['conds'], __METHOD__, $opts, $q['join_conds']);
 		$pageIds = [];
 
-		while ($row = $dbr->fetchObject($res)) {
+		foreach ($res as $row) {
 			$pageIds[] = $row->page_id;
 		}
 		return $pageIds;
@@ -77,7 +77,7 @@ class CategorizerUtil {
 		$fields = ['count' => 'count(*)'];
 		$opts = [];
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->select($q['tables'], $fields, $q['conds'], __METHOD__, $opts, $q['join_conds']);
 		return $dbr->fetchObject($res)->count;
 	}

@@ -25,7 +25,10 @@ class SensitiveArticleWidget
 	{
 		$vars = [
 			'reasons' => $this->getReasonsForWidget(),
-			'isTagged' => !empty($this->article->reasonIds)
+			'isTagged' => !empty($this->article->reasonIds),
+			'title' => wfMessage('saw_title')->text(),
+			'edit' => wfMessage('edit')->text(),
+			'save' => wfMessage('save')->text()
 		];
 		return $this->mustache->render('sensitive_article_widget.mustache', $vars);
 	}
@@ -37,7 +40,6 @@ class SensitiveArticleWidget
 		$this->article->reasonIds = $reasonIds;
 		$this->article->date = wfTimestampNow();
 		$this->article->save();
-		wfRunHooks( "SensitiveArticleEdited" , [$this->article->pageId, $reasonIds]);
 	}
 
 	private function getReasonsForWidget(): array

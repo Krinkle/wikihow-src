@@ -432,28 +432,11 @@ class MediaWiki {
 		if ( $action instanceof Action ) {
 			# Let Squid cache things if we can purge them.
 			if ( $wgUseSquid ) {
-				# Reuben, wikiHow, March 2016: check if the urldecoded
-				#   version of a URL is in the list too. This came about
-				#   because of pages like:
-				#
-				#   http://fr.wikihow.com/répondre-lorsqu'on-vous-souhaite-joyeux-anniversaire
-				#   http://www.wikihow.com/Make-Paneer-(Indian-Cheese)
-				#
-				#   These pages would have certain characters urlencoded but
-				#   not always the same ones Mediawiki expects. This fixes that
-				#   issue.
-				#
-				#   NOTE: this change creates a bug though. When a partially encoded request
-				#   like avoir-un-corps-parfait-pour-l'%C3%A9t%C3%A9 the partially-encoded
-				#   requests might not be cleared from varnish when the page is edited. (In
-				#   the previous example, the apostrophe is where some browsers and php
-				#   urlencode disagree about what should be encoded.)
-				$fullUrl = $request->getFullRequestURL();
-				$decodedUrl = urldecode( $fullUrl );
-				$squidUrls = $requestTitle->getSquidURLs();
-				if ( in_array( $fullUrl, $squidUrls )
-					|| in_array( $decodedUrl, $squidUrls )
-				) {
+				# Reuben, March 2018: We have started clearing all instances of
+				# a page from the front end (Fastly/varnish) caches by using
+				# surrogate keys to clear things. This means that all "view" forms
+				# of pages that have Surragate-Keys should be clearable.
+				if ($action->getName() == 'view' && $requestTitle->getArticleID() > 0) {
 					$output->setSquidMaxage( $wgSquidMaxage );
 				}
 			}

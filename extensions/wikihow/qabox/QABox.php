@@ -9,8 +9,9 @@ $wgExtensionCredits['specialpage'][] = array(
 );
 
 $wgSpecialPages['QABox'] = 'QABox';
-$wgAutoloadClasses['QABox'] = dirname(__FILE__) . '/QABox.body.php';
-$wgExtensionMessagesFiles['QABox'] = dirname(__FILE__) . '/QABox.i18n.php';
+$wgAutoloadClasses['QABox'] = __DIR__ . '/QABox.body.php';
+$wgExtensionMessagesFiles['QABox'] = __DIR__ . '/QABox.i18n.php';
+$wgExtensionMessagesFiles['QABoxAliases'] = __DIR__ . '/QABox.alias.php';
 
 $wgResourceModules['ext.wikihow.qa_box'] = array(
 	'scripts' => 'qa_box.js',
@@ -22,7 +23,7 @@ $wgResourceModules['ext.wikihow.qa_box'] = array(
 		'qab_min',
 		'qab_thanks'
 	),
-	'localBasePath' => dirname(__FILE__) . '/',
+	'localBasePath' => __DIR__ . '/',
 	'remoteExtPath' => 'wikihow/qabox',
 	'targets' => array( 'desktop' ),
 	'dependencies' => ['wikihow.common.pub_sub']

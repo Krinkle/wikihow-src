@@ -100,15 +100,16 @@
 
 		getNewTARow: function(data) {
 			var vars = {
-				ta_block_link: 				mw.message('ta_block_link').text(),
-				ta_added_text: 				mw.message('ta_added_text').text(),
-				ta_last_answer_text: 	mw.message('ta_last_answer_text').text(),
-				ta_type_text: 				mw.message('ta_type_text').text(),
-				ta_answers_label: 		mw.message('ta_answers_label').text(),
-				ta_sim_label: 				mw.message('ta_sim_label').text(),
-				ta_rating_label: 			mw.message('ta_rating_label').text(),
-				ta_subcats_label: 		mw.message('ta_subcats_label').text(),
-				class_new: 						'newTA'
+				ta_block_link: 					mw.message('ta_block_link').text(),
+				ta_added_text: 					mw.message('ta_added_text').text(),
+				ta_last_answer_text: 		mw.message('ta_last_answer_text').text(),
+				ta_type_text: 					mw.message('ta_type_text').text(),
+				ta_answers_live_label: 	mw.message('ta_answers_live_label').text(),
+				ta_answers_calc_label: 	mw.message('ta_answers_calc_label').text(),
+				ta_sim_label: 					mw.message('ta_sim_label').text(),
+				ta_rating_label: 				mw.message('ta_rating_label').text(),
+				ta_subcats_label: 			mw.message('ta_subcats_label').text(),
+				class_new: 							'newTA'
 			};
 
 			data = $.extend(data, vars);

@@ -3,10 +3,10 @@
 global $IP;
 require_once("$IP/extensions/wikihow/FeaturedRSSFeed.php");
 
-class Generatefeed extends UnlistedSpecialPage {
+class GenerateFeed extends UnlistedSpecialPage {
 
 	public function __construct() {
-		parent::__construct('Generatefeed');
+		parent::__construct('GenerateFeed');
 	}
 
 	private static function addTargetBlank($source) {
@@ -15,9 +15,10 @@ class Generatefeed extends UnlistedSpecialPage {
 		return $source;
 	}
 
-	public static function getArticleSummary(&$article, &$title) {
+	private static function getArticleSummary($wikiPage, $title) {
 		global $wgParser;
-		$summary = Article::getSection($article->getContent(true), 0);
+		$wikitext = ContentHandler::getContentText( $wikiPage->getContent() );
+		$summary = $wgParser->getSection($wikitext, 0);
 		// remove templates from intro
 		$summary = preg_replace('@\{\{[^}]*\}\}@', '', $summary);
 		$summary = preg_replace('@\[\[Image:[^\]]*\]\]@', '', $summary);
@@ -29,14 +30,13 @@ class Generatefeed extends UnlistedSpecialPage {
 		return $summary;
 	}
 
-	public function getImages(&$article, &$title) {
-		$content = $article->getContent(true);
+	private static function getImages($wikiPage, $title) {
+		$wikitext = ContentHandler::getContentText( $wikiPage->getContent() );
 
 		$images = array();
-
 		$count = 0;
-		preg_match_all("@\[\[Image[^\]]*\]\]@im", $content, $matches);
-		foreach($matches[0] as $i) {
+		preg_match_all("@\[\[Image[^\]]*\]\]@im", $wikitext, $matches);
+		foreach ($matches[0] as $i) {
 			$i = preg_replace("@\|.*@", "", $i);
 			$i = preg_replace("@^\[\[@", "", $i);
 			$i = preg_replace("@\]\]$@", "", $i);
@@ -70,19 +70,19 @@ class Generatefeed extends UnlistedSpecialPage {
 	}
 
 	public function execute($par) {
-		global $wgOut, $wgParser, $wgRequest, $wgCanonicalServer;
+		global $wgParser, $wgCanonicalServer;
 
 		$fullfeed = 0;
 		$mrss = 0;
 		if ($par == 'fullfeed') $fullfeed = 1;
-		else if ($par == 'mrss') $mrss = 1;
+		elseif ($par == 'mrss') $mrss = 1;
 
 		header('Content-Type: text/xml');
-		$wgOut->setSquidMaxage(60);
+		$this->getOutput()->setSquidMaxage(60);
 		$feedFormat = 'rss';
 
-		$feedTitle = wfMsg('Rss-feedtitle');
-		$feedBlurb = wfMsg('Rss-feedblurb');
+		$feedTitle = wfMessage('Rss-feedtitle');
+		$feedBlurb = wfMessage('Rss-feedblurb');
 		$feed = new FeaturedRSSFeed(
 			$feedTitle,
 			$feedBlurb,
@@ -116,7 +116,7 @@ class Generatefeed extends UnlistedSpecialPage {
 			$url = preg_replace('@^(https?:)?//[^/]+/@', '', $url);
 			$title = Title::newFromURL(urldecode($url));
 			$summary = '';
-			$content = '';
+			$wikitext = '';
 			if ($title == null) { // skip if article not found
 				continue;
 			}
@@ -124,20 +124,21 @@ class Generatefeed extends UnlistedSpecialPage {
 			// from the Featured Articles
 			if ($title->getArticleID() > 0) {
 				$article = GoodRevision::newArticleFromLatest($title);
-				$summary = self::getArticleSummary($article, $title);
-				$images = self::getImages($article, $title);
+				$wikiPage = $article->getPage();
+				$summary = self::getArticleSummary($wikiPage, $title);
+				$images = self::getImages($wikiPage, $title);
 
 				//XXFULL FEED
 				if (!$mrss) {
-					$content = $article->getContent(true);
-					$content = preg_replace('/\{\{[^}]*\}\}/', '', $content);
-					$output = $wgParser->parse($content, $title, new ParserOptions());
-					$content = self::addTargetBlank($output->getText());
-					$content = preg_replace('@href="/@', 'href="'.$wgCanonicalServer.'/', $content);
-					$content = preg_replace('@src="/@', 'src="'.$wgCanonicalServer.'/', $content);
-					$content = preg_replace("@<a target='_blank' href='([^']*)'>Edit</a>@",'',$content);
-					$content = preg_replace('@(<h[2-4]>)<a target="_blank" href="([^"]*)" title="([^"]*)" class="editsection" onclick="([^"]*)">Edit</a>@', '$1', $content);
-					$content = preg_replace('@<img src="([^"]*)/skins/common/images/magnify-clip.png"([^/]*)/>@', '', $content);
+					$wikitext = ContentHandler::getContentText( $wikiPage->getContent() );
+					$wikitext = preg_replace('/\{\{[^}]*\}\}/', '', $wikitext);
+					$output = $wgParser->parse($wikitext, $title, new ParserOptions());
+					$wikitext = self::addTargetBlank($output->getText());
+					$wikitext = preg_replace('@href="/@', 'href="'.$wgCanonicalServer.'/', $wikitext);
+					$wikitext = preg_replace('@src="/@', 'src="'.$wgCanonicalServer.'/', $wikitext);
+					$wikitext = preg_replace("@<a target='_blank' href='([^']*)'>Edit</a>@",'',$wikitext);
+					$wikitext = preg_replace('@(<h[2-4]>)<a target="_blank" href="([^"]*)" title="([^"]*)" class="editsection" onclick="([^"]*)">Edit</a>@', '$1', $wikitext);
+					$wikitext = preg_replace('@<img src="([^"]*)/skins/common/images/magnify-clip.png"([^/]*)/>@', '', $wikitext);
 				}
 			} else {
 				continue;
@@ -148,11 +149,11 @@ class Generatefeed extends UnlistedSpecialPage {
 			$title_text = $title->getPrefixedText();
 			if (isset($f[2])
 				&& $f[2] != null
-				&& trim($f[2]) != '')
-			{
+				&& trim($f[2]) != ''
+			) {
 				$title_text = $f[2];
 			} else {
-				$title_text = wfMsg('howto', $title_text);
+				$title_text = wfMessage('howto', $title_text);
 			}
 
 			$item = new FeedItem(
@@ -168,7 +169,7 @@ class Generatefeed extends UnlistedSpecialPage {
 				$feed->outItemMRSS($item, $images);
 			} else {
 				// Replace to get back to raw feed (not full and without mrss)
-				$feed->outItemFullFeed($item, $content, $images);
+				$feed->outItemFullFeed($item, $wikitext, $images);
 			}
 			$itemcount++;
 

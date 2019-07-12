@@ -1,7 +1,8 @@
 <?php
 
 class RCPatrol extends SpecialPage {
-	function __construct() {
+
+	public function __construct() {
 		global $wgHooks;
 		parent::__construct( 'RCPatrol' );
 		$wgHooks['OutputPageBeforeHTML'][] = array('RCPatrol::postParserCallback');
@@ -32,13 +33,13 @@ class RCPatrol extends SpecialPage {
 		$standings->addStandingsWidget();
 	}
 
-	function execute($par) {
-		global $wgServer, $wgRequest, $wgOut, $wgUser, $wgLanguageCode, $wgReadOnly;
+	public function execute($par) {
+		global $wgReadOnly;
+
 		$this->setHeaders();
 
 		if ( $this->getUser()->isBlocked() ) {
-			$this->getOutput()->blockedPage();
-			return;
+			throw new UserBlockedError( $this->getUser()->getBlock() );
 		}
 
 		if ( $wgReadOnly ) {
@@ -53,7 +54,7 @@ class RCPatrol extends SpecialPage {
 			return;
 		}
 
-		if ($wgRequest->getVal('a') == 'rollback') {
+		if ($this->getRequest()->getVal('a') == 'rollback') {
 			self::doRollback();
 			return;
 		}
@@ -62,7 +63,7 @@ class RCPatrol extends SpecialPage {
 		// Checks if the user has a throttle in a place and if they reached their limit for the day
 		// Requires PatrolThrottle extension
 		if ( class_exists( 'PatrolUser' ) ) { // you can safely disable this extension by simply commenting it out of imports.php
-			$patroller = PatrolUser::newFromUser( $wgUser );
+			$patroller = PatrolUser::newFromUser( $this->getUser() );
 			if ( !$patroller->canUseRCPatrol( false ) ) {
 				$this->getOutput()->addHTML( PatrolUser::getThrottleMessageHTML() );
 				return;
@@ -72,18 +73,19 @@ class RCPatrol extends SpecialPage {
 
 		self::setActiveWidget();
 		// INTL: Leaderboard is across the user database so we'll just enable for English at the moment
-		if ($wgLanguageCode == 'en') {
+		if ($this->getLanguage()->getCode() == 'en') {
 			self::setLeaderboard();
 		}
 
-		$wgOut->addModules('common.mousetrap');
-		$wgOut->addModules('ext.wikihow.UsageLogs');
-		$wgOut->addModules('jquery.ui.dialog');
-		$wgOut->addModules('ext.wikihow.rcpatrol');
-		$wgOut->addModules('ext.wikihow.editor_script');
+		$out = $this->getOutput();
+		$out->addModules('common.mousetrap');
+		$out->addModules('ext.wikihow.UsageLogs');
+		$out->addModules('jquery.ui.dialog');
+		$out->addModules('ext.wikihow.rcpatrol');
+		$out->addModules('ext.wikihow.editor_script');
 
-		$wgOut->addHTML(QuickNoteEdit::displayQuickEdit() . QuickNoteEdit::displayQuickNote());
-		$wgOut->addHTML(self::getErrorBoxHtml());
+		$out->addHTML(QuickNoteEdit::displayQuickEdit() . QuickNoteEdit::displayQuickNote());
+		$out->addHTML(self::getErrorBoxHtml());
 		$result = self::getNextArticleToPatrol();
 		if ($result) {
 			$rcTest = null;
@@ -92,29 +94,30 @@ class RCPatrol extends SpecialPage {
 				$rcTest = new RCTest();
 				$testHtml = $rcTest->getTestHtml();
 			}
-			$wgOut->addHTML("<div id='rct_results'></div>");
-			$wgOut->addHTML("<div id='bodycontents2' class='tool sticky'>");
+			$out->addHTML("<div id='rct_results'></div>");
+			$out->addHTML("<div id='bodycontents2' class='tool sticky'>");
 			$titleText = RCTestStub::getTitleText($result, $rcTest);
-			$wgOut->addHTML("<div id='articletitle' style='display:none;'>$titleText</div>");
-			$wgOut->addHTML("<div id='rc_header' class='tool_header'>");
-			$wgOut->addHtml('<p id="rc_helplink" class="tool_help"><a href="/Patrol-Recent-Changes-on-wikiHow" target="_blank">Learn how</a></p>');
-			$wgOut->addHTML('<a href="#" id="rcpatrol_keys">Get Shortcuts</a>');
+			$out->addHTML("<div id='articletitle' style='display:none;'>$titleText</div>");
+			$out->addHTML("<div id='rc_header' class='tool_header'>");
+			$out->addHtml('<p id="rc_helplink" class="tool_help"><a href="/Patrol-Recent-Changes-on-wikiHow" target="_blank">Learn how</a></p>');
+			$out->addHTML('<a href="#" id="rcpatrol_keys">Get Shortcuts</a>');
+			$out->addHTML(self::getListOfTemplatesHtml($result['title']));
 			// if this was a redirect, the title may have changed so update our context
 			$oldTitle = $this->getContext()->getTitle();
 			$this->getContext()->setTitle($result['title']);
 			$d = RCTestStub::getDifferenceEngine($this->getContext(), $result, $rcTest);
 			$d->loadRevisionData();
 			$this->getContext()->setTitle($oldTitle);
-			$wgOut->addHTML(RCPatrol::getButtons($result, $d->mNewRev, $rcTest));
-			$wgOut->addHTML('<div id="rcpatrol_info" style="display:none;">'. wfMessage('rcpatrol_keys')->text() . '</div>');
-			$wgOut->addHTML("</div>"); //end too_header
+			$out->addHTML(RCPatrol::getButtons($result, $d->mNewRev, $rcTest));
+			$out->addHTML('<div id="rcpatrol_info" style="display:none;">'. wfMessage('rcpatrol_keys')->text() . '</div>');
+			$out->addHTML("</div>"); //end too_header
 			$d->showDiffPage();
-			$wgOut->addHTML($testHtml);
-			$wgOut->addHTML("</div>");
+			$out->addHTML($testHtml);
+			$out->addHTML("</div>");
 		} else {
-			$wgOut->addWikiMsg( 'markedaspatrolledtext' );
+			$out->addWikiMsg( 'markedaspatrolledtext' );
 		}
-		$wgOut->setPageTitle("RC Patrol");
+		$out->setPageTitle("RC Patrol");
 	}
 
 	private static function getErrorBoxHtml() {
@@ -130,14 +133,14 @@ EOHTML;
 		return $html;
 	}
 
-	static function getNextArticleToPatrol($rcid = null) {
-		global $wgUser;
+	public static function getNextArticleToPatrol($rcid = null) {
+		$userName = RequestContext::getMain()->getUser()->getName();
 		while ($result = RCPatrolData::getNextArticleToPatrolInner($rcid)) {
 			if (!isset($result['title']) || !$result['title']) {
 				if (isset($result['rc_cur_id'])) {
 					self::skipArticle($result['rc_cur_id']);
 				}
-			} else if (isset($result['users'][$wgUser->getName()])) {
+			} elseif (isset($result['users'][$userName])) {
 				self::skipArticle($result['rc_cur_id']);
 			} else {
 				break;
@@ -146,7 +149,7 @@ EOHTML;
 		return $result;
 	}
 
-	static function skipArticle($id) {
+	public static function skipArticle($id) {
 		global $wgCookiePrefix, $wgCookiePath, $wgCookieDomain, $wgCookieSecure;
 		// skip the article for now
 		$cookiename = $wgCookiePrefix . "Rcskip";
@@ -160,12 +163,12 @@ EOHTML;
 	}
 
 	private static function getMarkAsPatrolledLink($title, $rcid, $hi, $low, $count, $setonload, $new, $old, $vandal) {
-		global $wgRequest, $wgUser;
-		$sns 	= $wgRequest->getVal('show_namespace');
-		$inv	= $wgRequest->getVal('invert');
-		$fea	= $wgRequest->getVal('featured');
-		$rev 	= $wgRequest->getVal('reverse');
-		$token  = $wgUser->getEditToken($rcid);
+		$req = RequestContext::getMain()->getRequest();
+		$sns 	= $req->getVal('show_namespace');
+		$inv	= $req->getVal('invert');
+		$fea	= $req->getVal('featured');
+		$rev 	= $req->getVal('reverse');
+		$token  = RequestContext::getMain()->getUser()->getEditToken($rcid);
 		$articleId = $title->mArticleID;
 
 		$url = "/Special:RCPatrolGuts?target=" . urlencode($title->getFullText())
@@ -175,10 +178,10 @@ EOHTML;
 
 		$class1 = "class='button primary' style='float: right;' ";
 		$class2 = "class='button secondary' style='float: left;' ";
-		$link =  " <input type='button' $class2 id='skippatrolurl' onclick=\"return WH.RCPatrol.skip();\" title='" . wfMsg('rcpatrol_skip_title') .
-			"' value='" . wfMsg('rcpatrol_skip_button') . "' data-event_action='skip' data-article_id='$articleId' data-assoc_id='$rcid'/>";
-		$link .=  "<input type='button' $class1 id='markpatrolurl' class='op-action' onclick=\"return WH.RCPatrol.markPatrolled();\" title='" . wfMsg('rcpatrol_patrolled_title') .
-			"' value='" . wfMsg('rcpatrol_patrolled_button') . "' data-event_action='mark_patrolled' data-article_id='$articleId' data-assoc_id='$rcid'/>";
+		$link =  " <input type='button' $class2 id='skippatrolurl' onclick=\"return WH.RCPatrol.skip();\" title='" . wfMessage('rcpatrol_skip_title') .
+			"' value='" . wfMessage('rcpatrol_skip_button') . "' data-event_action='skip' data-article_id='$articleId' data-assoc_id='$rcid'/>";
+		$link .=  "<input type='button' $class1 id='markpatrolurl' class='op-action' onclick=\"return WH.RCPatrol.markPatrolled();\" title='" . wfMessage('rcpatrol_patrolled_title') .
+			"' value='" . wfMessage('rcpatrol_patrolled_button') . "' data-event_action='mark_patrolled' data-article_id='$articleId' data-assoc_id='$rcid'/>";
 		if ($setonload) {
 			$link .= "<script type='text/javascript'>marklink = '$url';
 				skiplink = '$url&skip=1';
@@ -197,18 +200,19 @@ EOHTML;
 	}
 
 	private static function doRollback() {
-		global $wgRequest, $wgOut, $wgContLang, $wgUser;
+		global $wgContLang;
 
-		if ( $wgUser->isBlocked() ) {
+		$req = RequestContext::getMain()->getRequest();
+		if ( RequestContext::getMain()->getUser()->isBlocked() ) {
 			return false;
 		}
 
-		$wgOut->setArticleBodyOnly(true);
+		RequestContext::getMain()->getOutput()->setArticleBodyOnly(true);
 		$response = "";
 
-		$aid = intVal($wgRequest->getVal('aid'));
-		$oldid = intVal($wgRequest->getVal('old'));
-		$from = $wgRequest->getVal('from');
+		$aid = $req->getInt('aid');
+		$oldid = $req->getInt('old');
+		$from = $req->getVal('from');
 		$from = preg_replace( '/[_-]/', ' ', $from );
 
 		$t = Title::newFromId($aid);
@@ -227,18 +231,16 @@ EOHTML;
 				if ( $summary instanceof Message ) {
 					$summary = $summary->params( $args )->inContentLanguage()->text();
 				} else {
-					$summary = wfMsgReplaceArgs( $summary, $args );
+					$summary = wfMessage( $summary )->params( $args );
 				}
 
 				// Trim spaces on user supplied text
 				$summary = trim( $summary );
 
 				// Truncate for whole multibyte characters.
-				$summary = $wgContLang->truncate( $summary, 255 );
+				$summary = $wgContLang->truncateForDatabase( $summary, 255 );
 
-
-
-				$a = new Article($t);
+				$wikiPage = WikiPage::factory($t);
 				$newRev = Revision::newFromTitle( $t );
 				$old = Linker::revUserTools( Revision::newFromId( $oldid ) );
 				$new = Linker::revUserTools( $newRev );
@@ -246,7 +248,7 @@ EOHTML;
             	$revlink = Linker::link( $t, $revision, array(), array('oldid' => $oldid, 'diff' => 'prev') );
 				$response = WfMessage( 'rcp-rollback-success' )->rawParams( $new, $old, $revlink );
 
-				$aTitle = $a->getTitle()->getPrefixedText();
+				$aTitle = $wikiPage->getTitle()->getPrefixedText();
 				$rTitle = $r->getTitle()->getPrefixedText();
 
 				if ( $aTitle != $rTitle ) {
@@ -254,7 +256,7 @@ EOHTML;
 						return;
 				}
 
-				$status = $a->doEditContent($r->getContent(), $summary);
+				$status = $wikiPage->doEditContent($r->getContent(), $summary);
 
 				if ( !$status->isOK() ) {
 					$response = $status->getErrorsArray();
@@ -274,8 +276,7 @@ EOHTML;
 			}
 		}
 
-
-		$wgOut->addHtml($response);
+		RequestContext::getMain()->getOutput()->addHtml($response);
 	}
 
 
@@ -310,12 +311,12 @@ EOHTML;
 		$s = "
 			<script type='text/javascript'>
 				WH.RCPatrol.setRollbackURL(\"{$url}\");
-				var msg_rollback_complete = \"" . htmlspecialchars(wfMsg('rollback_complete')) . "\";
-				var msg_rollback_fail = \"" . htmlspecialchars(wfMsg('rollback_fail')) . "\";
-				var msg_rollback_inprogress = \"" . htmlspecialchars(wfMsg('rollback_inprogress')) . "\";
-				var msg_rollback_confirm= \"" . htmlspecialchars(wfMsg('rollback_confirm')) . "\";
+				var msg_rollback_complete = \"" . htmlspecialchars(wfMessage('rollback_complete')) . "\";
+				var msg_rollback_fail = \"" . htmlspecialchars(wfMessage('rollback_fail')) . "\";
+				var msg_rollback_inprogress = \"" . htmlspecialchars(wfMessage('rollback_inprogress')) . "\";
+				var msg_rollback_confirm= \"" . htmlspecialchars(wfMessage('rollback_confirm')) . "\";
 			</script>
-				<a id='rb_button' $class href='' onclick='return WH.RCPatrol.rollback();' title='" . wfMsg('rcpatrol_rollback_title') . "' data-event_action='rollback' data-article_id='$articleId' data-assoc_id='$rcid'>" . wfMsg('rcpatrol_rollback_button') . "</a>
+				<a id='rb_button' $class href='' onclick='return WH.RCPatrol.rollback();' title='" . wfMessage('rcpatrol_rollback_title') . "' data-event_action='rollback' data-article_id='$articleId' data-assoc_id='$rcid'>" . wfMessage('rcpatrol_rollback_button') . "</a>
 			</span>";
 		$s .= "<div id='newrollbackurl' style='display:none;'>{$url}</div>";
 		return $s;
@@ -323,8 +324,6 @@ EOHTML;
 	}
 
 	private static function getQuickEdit($title, $result) {
-		global $wgServer;
-
 		// build the array of users for the quick note link sorted by
 		// the # of bytes changed descending, i.e. more is better
 		$users = array();
@@ -349,10 +348,10 @@ EOHTML;
 		$editURL = Title::makeTitle(NS_SPECIAL, "QuickEdit")->getFullURL() . '?type=editform&target=' . urlencode($title->getFullText());
 		$class = "class='button secondary' style='float: left;'";
 		$link = "<script type='text/javascript'>var gQuickEditUrl = \"{$editURL}\";</script>";
-		$link .=  "<a id='qe_button' title='" . wfMsg("rcpatrol_quick_edit_title") . "' href='' $class onclick=\"return initPopupEdit(gQuickEditUrl) ;\" data-event_action='quick_edit' data-article_id='$articleId' data-assoc_id='$rcid'>" .
-			htmlspecialchars( wfMsg( 'rcpatrol_quick_edit_button' ) ) . "</a> ";
+		$link .=  "<a id='qe_button' title='" . wfMessage("rcpatrol_quick_edit_title") . "' href='' $class onclick=\"return initPopupEdit(gQuickEditUrl) ;\" data-event_action='quick_edit' data-article_id='$articleId' data-assoc_id='$rcid'>" .
+			htmlspecialchars( wfMessage( 'rcpatrol_quick_edit_button' ) ) . "</a> ";
 
-		$qn = str_replace("href", " title='" . wfMsg("rcpatrol_quick_note_title") . "' $class href", QuickNoteEdit::getQuickNoteLinkMultiple($title, $users));
+		$qn = str_replace("href", " title='" . wfMessage("rcpatrol_quick_note_title") . "' $class href", QuickNoteEdit::getQuickNoteLinkMultiple($title, $users));
 		$link = $qn . $link;
 		return $link;
 	}
@@ -362,7 +361,7 @@ EOHTML;
 		$s = "<table cellspacing='0' cellpadding='0' style='width:100%;'><tr><td style='vertical-align: middle; xborder: 1px solid #999;' class='rc_header'>";
 		$u = new User();
 		$u->setName($result['user']);
-		$s .= "<a id='gb_button' href='' onclick='return WH.RCPatrol.goback();' title='" . wfMsg('rcpatrol_go_back_title') . "' class='button button_arrow secondary'></a>";
+		$s .= "<a id='gb_button' href='' onclick='return WH.RCPatrol.goback();' title='" . wfMessage('rcpatrol_go_back_title') . "' class='button button_arrow secondary'></a>";
 		$s .= self::getQuickEdit($t, $result);
 		$s .= RCTestStub::getThumbsUpButton($result, $rcTest);
 		$s .= self::getMarkAsPatrolledLink($result['title'], $result['rcid'], $result['rchi'], $result['rclo'], $result['count'], true, $result['new'], $result['old'], $result['vandal']);
@@ -370,16 +369,16 @@ EOHTML;
 		$s .= "</td></tr></table>";
 		$s .= "<div id='rc_subtabs'>
 			<div id='rctab_advanced'>
-				<a href='#'>" . wfMsg('rcpatrol_advanced_tab') . "</a>
+				<a href='#'>" . wfMessage('rcpatrol_advanced_tab') . "</a>
 			</div>
 			<div id='rctab_ordering'>
-				<a href='#'>" . wfMsg('rcpatrol_ordering_tab') . "</a>
+				<a href='#'>" . wfMessage('rcpatrol_ordering_tab') . "</a>
 			</div>
 			<div id='rctab_user'>
-				<a href='#'>" . wfMsg('rcpatrol_user_tab') . "</a>
+				<a href='#'>" . wfMessage('rcpatrol_user_tab') . "</a>
 			</div>
 			<div id='rctab_help'>
-				<a href='#'>" . wfMsg('rcpatrol_help_tab') . "</a>
+				<a href='#'>" . wfMessage('rcpatrol_help_tab') . "</a>
 			</div>
 			<div style='float:none'></div>
 		</div>";
@@ -399,15 +398,15 @@ EOHTML;
 
 	private static function getAdvancedTab($t, $result) {
 		$tab = "<tr class='rc_submenu' id='rc_advanced'><td>";
-		$tab .= "<a href='{$t->getFullURL()}?action=history' target='new'>" . wfMsg('rcpatrol_page_history') . "</a> -";
+		$tab .= "<a href='{$t->getFullURL()}?action=history' target='new'>" . wfMessage('rcpatrol_page_history') . "</a> -";
 		if ($result['old'] > 0) {
-			$tab .= " <a href='{$t->getFullURL()}?oldid={$result['old']}&diff={$result['new']}' target='new'>" . wfMsg('rcpatrol_view_diff') . "</a> -";
+			$tab .= " <a href='{$t->getFullURL()}?oldid={$result['old']}&diff={$result['new']}' target='new'>" . wfMessage('rcpatrol_view_diff') . "</a> -";
 		}
-		$tab .= " <a href='{$t->getTalkPage()->getFullURL()}' target='new'>" . wfMsg('rcpatrol_discuss') . "</a>";
+		$tab .= " <a href='{$t->getTalkPage()->getFullURL()}' target='new'>" . wfMessage('rcpatrol_discuss') . "</a>";
 		if ($t->userCan('move')) {
-			$tab .= " - <a href='{$t->getFullURL()}?action=delete' target='new'>" . wfMsg('rcpatrol_delete') . "</a> -";
+			$tab .= " - <a href='{$t->getFullURL()}?action=delete' target='new'>" . wfMessage('rcpatrol_delete') . "</a> -";
 			$mp = SpecialPage::getTitleFor("Movepage", $t);
-			$tab .= " <a href='{$mp->getFullURL()}' target='new'>" . wfMsg('rcpatrol_rename') . "</a> ";
+			$tab .= " <a href='{$mp->getFullURL()}' target='new'>" . wfMessage('rcpatrol_rename') . "</a> ";
 		}
 
 		$tab .= "</td></tr>";
@@ -415,13 +414,12 @@ EOHTML;
 	}
 
 	private static function getOrderingTab() {
-		global $wgRequest;
-		$reverse = $wgRequest->getVal('reverse', 0);
+		$reverse = RequestContext::getMain()->getRequest()->getVal('reverse', 0);
 		$tab = "<tr class='rc_submenu' id='rc_ordering'><td>
 			<div id='controls' style='text-align:center'>
-			<input type='radio' id='reverse_newest' name='reverse' value='0' " . (!$reverse? "checked" : "") . " style='height: 10px;' onchange='WH.RCPatrol.changeReverse();'> <label for='reverse_newest'>" . wfMsg('rcpatrol_newest_oldest') . "</label>
-			<input type='radio' id='reverse_oldest' name='reverse' value='1' id='reverse' " . ($reverse? "checked" : "") . " style='height: 10px; margin-left:10px;' onchange='WH.RCPatrol.changeReverse();'> <label for='reverse_oldest'>" .  wfMsg('rcpatrol_oldest_newest') . "</label>
-			&nbsp; &nbsp; - &nbsp; &nbsp; " . wfMsg('rcpatrol_namespace') . ": " .  Html::namespaceselector(array($namespace)) . "
+			<input type='radio' id='reverse_newest' name='reverse' value='0' " . (!$reverse? "checked" : "") . " style='height: 10px;' onchange='WH.RCPatrol.changeReverse();'> <label for='reverse_newest'>" . wfMessage('rcpatrol_newest_oldest') . "</label>
+			<input type='radio' id='reverse_oldest' name='reverse' value='1' id='reverse' " . ($reverse? "checked" : "") . " style='height: 10px; margin-left:10px;' onchange='WH.RCPatrol.changeReverse();'> <label for='reverse_oldest'>" .  wfMessage('rcpatrol_oldest_newest') . "</label>
+			&nbsp; &nbsp; - &nbsp; &nbsp; " . wfMessage('rcpatrol_namespace') . ": " .  Html::namespaceselector(array($namespace)) . "
 			</div></td></tr>";
 		return $tab;
 	}
@@ -429,24 +427,22 @@ EOHTML;
 	private static function getUserTab() {
 		$tab = "<tr class='rc_submenu' id='rc_user'><td>
 			<div id='controls' style='text-align:center'>
-				" . wfMsg('rcpatrol_username') . ": <input type='text' name='rc_user_filter' id='rc_user_filter' size='30' onchange='WH.RCPatrol.changeUserFilter();'/> <script> $('#rc_user_filter').keypress(function(e) { if (e.which == 13) { $('#rc_user_filter_go').click(); return false; } }); </script>
-				<input type='button' id='rc_user_filter_go' value='" . wfMsg('rcpatrol_go') . "' onclick='WH.RCPatrol.changeUser(true);'/>
+				" . wfMessage('rcpatrol_username') . ": <input type='text' name='rc_user_filter' id='rc_user_filter' size='30' onchange='WH.RCPatrol.changeUserFilter();'/> <script> $('#rc_user_filter').keypress(function(e) { if (e.which == 13) { $('#rc_user_filter_go').click(); return false; } }); </script>
+				<input type='button' id='rc_user_filter_go' value='" . wfMessage('rcpatrol_go') . "' onclick='WH.RCPatrol.changeUser(true);'/>
 				-
-				<a href='#' onclick='WH.RCPatrol.changeUser(false);'>" . wfMsg('rcpatrol_off') . "</a>
+				<a href='#' onclick='WH.RCPatrol.changeUser(false);'>" . wfMessage('rcpatrol_off') . "</a>
 			</div></td></tr>";
 		return $tab;
 	}
 
 	private static function getHelpTab() {
-		global $wgLanguageCode;
-
-		if ($wgLanguageCode == 'en') {
-			$helpTop = wfMsg('rcpatrolhelp_top');
+		if (RequestContext::getMain()->getLanguage()->getCode() == 'en') {
+			$helpTop = wfMessage('rcpatrolhelp_top');
 		} else {
-			$helpTop = wfMsgWikiHtml('rcpatrolhelp_top');
+			$helpTop = wfMessage('rcpatrolhelp_top')->parseAsBlock();
 		}
 
-		$tab = "<div id='rc_help'>" . $helpTop . wfMsg('rcpatrolhelp_bottom') . "</div>";
+		$tab = "<div id='rc_help'>" . $helpTop . wfMessage('rcpatrolhelp_bottom') . "</div>";
 		return $tab;
 	}
 
@@ -454,17 +450,17 @@ EOHTML;
 		//$html = WikihowArticleHTML::processArticleHTML($html, array('no-ads' => true));
 		return true;
 	}
-	static function getNextURLtoPatrol($rcid) {
-		global $wgRequest, $wgUser;
 
-		$username = $wgUser->getName();
-		$show_namespace = $wgRequest->getVal('show_namespace', null);
-		if ($show_namespace === null) $show_namespace = $wgRequest->getVal('namespace', null);
-		$invert = $wgRequest->getInt('invert');
-		$reverse = $wgRequest->getInt('reverse');
-		$featured = $wgRequest->getInt('featured');
-		$associated = $wgRequest->getInt('associated');
-		$fromrc = $wgRequest->getVal('fromrc') ? 'fromrc=1' : '';
+	public static function getNextURLtoPatrol($rcid) {
+		$req = RequestContext::getMain()->getRequest();
+		$username = RequestContext::getMain()->getUser()->getName();
+		$show_namespace = $req->getVal('show_namespace', null);
+		if ($show_namespace === null) $show_namespace = $req->getVal('namespace', null);
+		$invert = $req->getInt('invert');
+		$reverse = $req->getInt('reverse');
+		$featured = $req->getInt('featured');
+		$associated = $req->getInt('associated');
+		$fromrc = $req->getVal('fromrc') ? 'fromrc=1' : '';
 
 		//TODO: shorten this to a selectRow call
 		$dbw = wfGetDB( DB_MASTER );
@@ -475,7 +471,7 @@ EOHTML;
 			. " AND rc_user_text != " . $dbw->addQuotes($username) . " ";
 
 		if ($show_namespace != null && $show_namespace != '') {
-			$sql .= " AND rc_namespace " . ($invert ? '!=' : '=') . $show_namespace;
+			$sql .= " AND rc_namespace " . ($invert ? '!=' : '=') . (int) $show_namespace;
 		} else  {
 			// avoid the delete logs, etc
 			$sql .= " AND rc_namespace NOT IN ( " . NS_VIDEO . ", " . NS_MEDIAWIKI . ") ";
@@ -504,14 +500,14 @@ EOHTML;
 	}
 
 	private static function skipPatrolled($article) {
-		global $wgRequest;
 		global $wgCookieExpiration, $wgCookiePath, $wgCookieDomain, $wgCookieSecure, $wgCookiePrefix;
 
-		$hi = $wgRequest->getInt( 'rchi', null );
-		$lo = $wgRequest->getInt( 'rclow', null );
-		$rcid = $wgRequest->getInt( 'rcid' );
+		$req = RequestContext::getMain()->getRequest();
+		$hi = $req->getInt( 'rchi', null );
+		$lo = $req->getInt( 'rclow', null );
+		$rcid = $req->getInt( 'rcid' );
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$pageid = $dbr->selectField('recentchanges', 'rc_cur_id', array('rc_id=' . $rcid));
 		if ($pageid && $pageid != '')
 			$featured = $dbr->selectField('page', 'page_is_featured', array("page_id={$pageid}") );
@@ -520,10 +516,9 @@ EOHTML;
 			$ids = array();
 			if ($hi != null) {
 				$res = $dbr->select('recentchanges', 'rc_id', array("rc_id>={$lo}", "rc_id<={$hi}", "rc_cur_id=$pageid"));
-				while ($row = $dbr->fetchObject($res)) {
+				foreach ($res as $row) {
 					$ids[] = $row->rc_id;
 				}
-				$dbr->freeResult($res);
 			} else {
 				$ids[] = $rcid;
 			}
@@ -534,11 +529,22 @@ EOHTML;
 			setcookie( $wgCookiePrefix.$cookiename, $cookie, $exp, $wgCookiePath, $wgCookieDomain, $wgCookieSecure );
 		}
 	}
+
+	public static function getListOfTemplatesHtml(Title $title): string {
+		$templates = TitleUtil::getTemplates($title);
+		if (!$templates)
+			return "<div class='rcp_template_list'>No templates found.</div>";
+
+		$templates = array_map('htmlspecialchars', $templates);
+		$templates = implode(', ', $templates);
+		return "<div class='rcp_template_list'><b>Templates:</b> $templates</div>";
+	}
+
 }
 
 class RCPatrolData {
-	static function getListofEditors($result) {
-		$dbr = wfGetDB(DB_SLAVE);
+	public static function getListofEditors($result) {
+		$dbr = wfGetDB(DB_REPLICA);
 		$users = array();
 		$users_len = array();
 		$res = $dbr->select('recentchanges',
@@ -568,19 +574,20 @@ class RCPatrolData {
 		return $result;
 	}
 
-	static function getNextArticleToPatrolInner($rcid = null) {
-		global $wgRequest, $wgUser, $wgCookiePrefix;
+	public static function getNextArticleToPatrolInner($rcid = null) {
+		global $wgCookiePrefix;
 
-		$show_namespace		= $wgRequest->getVal('namespace');
-		$invert				= $wgRequest->getVal('invert');
-		$reverse			= $wgRequest->getVal('reverse');
-		$featured			= $wgRequest->getVal('featured');
-		$title				= $wgRequest->getVal('target');
-		$skiptitle			= $wgRequest->getVal('skiptitle');
-		$rc_user_filter		= trim(urldecode($wgRequest->getVal('rc_user_filter')));
+		$req = RequestContext::getMain()->getRequest();
+		$show_namespace		= $req->getVal('namespace');
+		$invert				= $req->getVal('invert');
+		$reverse			= $req->getVal('reverse');
+		$featured			= $req->getVal('featured');
+		$title				= $req->getVal('target');
+		$skiptitle			= $req->getVal('skiptitle');
+		$rc_user_filter		= trim(urldecode($req->getVal('rc_user_filter')));
 
 		// assert that current user is not anon
-		if ($wgUser->isAnon()) return null;
+		if (RequestContext::getMain()->getUser()->isAnon()) return null;
 
 		// In English, when a user rolls back an edit, it gives the edit a comment
 		// like: "Reverted edits by ...", so MediaWiki:rollback_comment_prefix
@@ -598,7 +605,7 @@ class RCPatrolData {
 		if ($skiptitle)
 			$skip = Title::newFromText($skiptitle);
 
-		$dbr = wfGetDB(DB_MASTER);
+		$dbw = wfGetDB(DB_MASTER);
 		/*	DEPRECATED rc_moved_to_ns & rc_moved_to_title columns
 			$sql = "SELECT rc_id, rc_cur_id, rc_moved_to_ns, rc_moved_to_title, rc_new,
 			  rc_namespace, rc_title, rc_last_oldid, rc_this_oldid
@@ -610,12 +617,12 @@ class RCPatrolData {
 			LEFT OUTER JOIN page ON rc_cur_id = page_id AND rc_namespace = page_namespace
 			WHERE ";
 
-		if (!$wgRequest->getVal('ignore_rcid') && $rcid)
+		if (!$req->getVal('ignore_rcid') && $rcid)
 			$sql .= " rc_id " . ($reverse == 1 ? " > " : " < ")  . " $rcid and ";
 
 		// if we filter by user we show both patrolled and non-patrolled edits
 		if ($rc_user_filter) {
-			$sql .= " rc_user_text = " . $dbr->addQuotes($rc_user_filter);
+			$sql .= " rc_user_text = " . $dbw->addQuotes($rc_user_filter);
 			if ($rcid)
 				$sql .= " AND rc_id < " . $rcid;
 		} else  {
@@ -623,14 +630,14 @@ class RCPatrolData {
 		}
 
 		// can't patrol your own edits
-		$sql .= " AND rc_user <> " . $wgUser->getID();
+		$sql .= " AND rc_user <> " . RequestContext::getMain()->getUser()->getID();
 
 		// only featured?
 		if ($featured)
 			$sql .= " AND page_is_featured = 1 ";
 
 		if ($show_namespace)  {
-			$sql .= " AND rc_namespace " . ($invert ? '<>' : '=') . $show_namespace;
+			$sql .= " AND rc_namespace " . ($invert ? '<>' : '=') . (int) $show_namespace;
 		} else  {
 			// always ignore video and Mediawiki
 			$sql .= " AND rc_namespace <> " . NS_VIDEO;
@@ -640,17 +647,23 @@ class RCPatrolData {
 		// log entries have namespace = -1, we don't want to show those, hide bots too
 		$sql .= " AND rc_namespace >= 0 AND rc_bot = 0 ";
 
-		if ($t) {
-			$sql .= " AND rc_title <> " . $dbr->addQuotes($t->getDBKey());
-		}
-		if ($skip) {
-			$sql .= " AND rc_title <> " . $dbr->addQuotes($skip->getDBKey());
+		//parse out Votebot (which isn't logging as a bot)
+		$votebot = User::newFromName('Votebot');
+		if ($votebot) {
+			$sql .= " AND rc_user <> ".$votebot->getId()." ";
 		}
 
-		$sa = $wgRequest->getVal('sa');
+		if ($t) {
+			$sql .= " AND rc_title <> " . $dbw->addQuotes($t->getDBKey());
+		}
+		if ($skip) {
+			$sql .= " AND rc_title <> " . $dbw->addQuotes($skip->getDBKey());
+		}
+
+		$sa = $req->getVal('sa');
 		if ($sa) {
 			$sa = Title::newFromText($sa);
-			$sql .= " AND rc_title = " . $dbr->addQuotes($sa->getDBKey());
+			$sql .= " AND rc_title = " . $dbw->addQuotes($sa->getDBKey());
 		}
 
 		// has the user skipped any articles?
@@ -669,7 +682,7 @@ class RCPatrolData {
 		}
 		$sql .= "$skipids ORDER BY rc_timestamp " . ($reverse == 1 ? "" : "DESC ") . "LIMIT 1";
 
-		$res = $dbr->query($sql, __METHOD__);
+		$res = $dbw->query($sql, __METHOD__);
 		$row = $res->fetchObject();
 
 		if ($row) {
@@ -694,12 +707,12 @@ class RCPatrolData {
 
 			if ($rc_user_filter) {
 				$result['rchi'] = $result['rclo'] = $row->rc_id;
-				$result['new']		= $dbr->selectField('recentchanges', array('rc_this_oldid'), array('rc_id' => $row->rc_id));
+				$result['new']		= $dbw->selectField('recentchanges', array('rc_this_oldid'), array('rc_id' => $row->rc_id), __METHOD__);
 			} else {
 				// always compare to current version
-				$result['new']		= $dbr->selectField('revision', array('max(rev_id)'), array('rev_page' => $row->rc_cur_id));
-				$result['rchi']		= $dbr->selectField('recentchanges', array('rc_id'), array('rc_this_oldid' => $result['new']));
-				$result['rclo']		= $dbr->selectField('recentchanges', array('min(rc_id)'), array('rc_patrolled'=>0,"rc_cur_id"=>$row->rc_cur_id));
+				$result['new']		= $dbw->selectField('revision', array('max(rev_id)'), array('rev_page' => $row->rc_cur_id), __METHOD__);
+				$result['rchi']		= $dbw->selectField('recentchanges', array('rc_id'), array('rc_this_oldid' => $result['new']), __METHOD__);
+				$result['rclo']		= $dbw->selectField('recentchanges', array('min(rc_id)'), array('rc_patrolled'=>0,"rc_cur_id"=>$row->rc_cur_id), __METHOD__);
 
 				// do we have a reverted edit caught between these 2?
 				// if so, only show the reversion, because otherwise you get the reversion trapped in the middle
@@ -707,17 +720,19 @@ class RCPatrolData {
 				$hi = isset($result['rchi']) ? $result['rchi'] : $row->rc_id;
 
 				if ($hi) {
-					$reverted_id = $dbr->selectField('recentchanges',
+					$reverted_id = $dbw->selectField('recentchanges',
 						array('min(rc_id)'),
-						array('rc_comment like ' . $dbr->addQuotes($rollbackCommentPrefix . '%'),
+						array('rc_comment like ' . $dbw->addQuotes($rollbackCommentPrefix . '%'),
 							"rc_id < $hi" ,
 							"rc_id >= {$result['rclo']}",
-							"rc_cur_id"=>$row->rc_cur_id));
+							"rc_cur_id"=>$row->rc_cur_id),
+						__METHOD__);
 					if ($reverted_id) {
 						$result['rchi'] = $reverted_id;
-						$result['new'] = $dbr->selectField('recentchanges',
+						$result['new'] = $dbw->selectField('recentchanges',
 							array('rc_this_oldid'),
-							array('rc_id' => $reverted_id));
+							array('rc_id' => $reverted_id),
+							__METHOD__);
 						$row->rc_id = $result['rchi'];
 					}
 				//} else {
@@ -733,9 +748,9 @@ class RCPatrolData {
 				// is the last patrolled edit a rollback? if so, show the diff starting at that edit
 				// makes it more clear when someone has reverted vandalism
 				$result['vandal'] = 0;
-				$comm = $dbr->selectField('recentchanges', array('rc_comment'), array('rc_id'=>$result['rclo']));
+				$comm = $dbw->selectField('recentchanges', array('rc_comment'), array('rc_id'=>$result['rclo']), __METHOD__);
 				if (strpos($comm, $rollbackCommentPrefix) === 0) {
-					$row2 = $dbr->selectRow('recentchanges', array('rc_id', 'rc_comment'),
+					$row2 = $dbw->selectRow('recentchanges', array('rc_id', 'rc_comment'),
 						array("rc_id < {$result['rclo']}", 'rc_cur_id' => $row->rc_cur_id),
 						__METHOD__,
 						array("ORDER BY" => "rc_id desc", "LIMIT"=>1));
@@ -745,8 +760,8 @@ class RCPatrolData {
 					$result['vandal'] = 1;
 				}
 			}
-			$result['user']		= $dbr->selectField('recentchanges', array('rc_user_text'), array('rc_this_oldid' => $result['new']));
-			$result['old']      = $dbr->selectField('recentchanges', array('rc_last_oldid'), array('rc_id' => $result['rclo']));
+			$result['user']		= $dbw->selectField('recentchanges', array('rc_user_text'), array('rc_this_oldid' => $result['new']), __METHOD__);
+			$result['old']      = $dbw->selectField('recentchanges', array('rc_last_oldid'), array('rc_id' => $result['rclo']), __METHOD__);
 			$result['title']	= $t;
 			$result['rcid']		= $row->rc_id;
 			if ($result['rchi'] == $result['rclo']) {
@@ -756,12 +771,13 @@ class RCPatrolData {
 					'rc_id <= ' . $result['rchi'],
 					'rc_id >= ' . $result['rclo']);
 			}
-			$result['count'] = $dbr->selectField('recentchanges',
+			$result['count'] = $dbw->selectField('recentchanges',
 				array('count(*)'),
 				array("rc_id <= " . $result['rchi'],
 					"rc_id >= " . $result['rclo'],
 					"rc_patrolled" => 0,
-					"rc_cur_id" => $row->rc_cur_id));
+					"rc_cur_id" => $row->rc_cur_id),
+				__METHOD__);
 			$result = self::getListofEditors($result);
 			return $result;
 		} else {
@@ -770,13 +786,12 @@ class RCPatrolData {
 	}
 
 	public static function userCanEdit($article) {
-		global $wgUser;
 		if (!$article || !is_object($article)) {
 			return false;
 		}
 		return !$article->isProtected()
 			|| ($article->getRestrictions('edit')[0] != 'sysop')
-			|| in_array('sysop', $wgUser->getGroups());
+			|| in_array('sysop', RequestContext::getMain()->getUser()->getGroups());
 	}
 }
 
@@ -794,54 +809,57 @@ class RCPatrolGuts extends UnlistedSpecialPage {
 	}
 
 	static function getUnpatrolledCount() {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$count = $dbr->selectField('recentchanges', array('count(*)'), array('rc_patrolled'=>0));
 		$count = number_format($count, 0, ".", ",");
-		$count .= wfMsg('rcpatrol_helplink');
+		$count .= wfMessage('rcpatrol_helplink')->text();
 		return $count;
 	}
 
-	function execute($par) {
-		global $wgRequest, $wgOut, $wgUser;
+	public function execute($par) {
+		$req = $this->getRequest();
+		$out = $this->getOutput();
+		$user = $this->getUser();
 
-		$t = Title::newFromText($wgRequest->getVal('target'));
+		$t = Title::newFromText($req->getVal('target'));
 
-		$wgOut->setArticleBodyOnly(true);
-		if ($wgRequest->getVal('action') == 'permalink') {
+		$out->setArticleBodyOnly(true);
+		if ($req->getVal('action') == 'permalink') {
 			$result = array();
 			$result['title'] = $t;
-			$result['rchi'] = $wgRequest->getVal('rchi');
-			$result['rclo'] = $wgRequest->getVal('rclow');
-			$result['rcid'] = $wgRequest->getVal('rcid');
-			$result['old'] = $wgRequest->getVal('old');
-			$result['new'] = $wgRequest->getVal('new');
-			$result['vandal'] = $wgRequest->getVal('vandal');
+			$result['rchi'] = $req->getVal('rchi');
+			$result['rclo'] = $req->getVal('rclow');
+			$result['rcid'] = $req->getVal('rcid');
+			$result['old'] = $req->getVal('old');
+			$result['new'] = $req->getVal('new');
+			$result['vandal'] = $req->getVal('vandal');
 			$result['rc_cur_id'] = $t->getArticleID();
 			$result = RCPatrolData::getListofEditors($result);
-			$wgOut->addHTML("<div id='articletitle' style='display:none;'><a href='{$t->getLocalURL()}'>{$t->getFullText()}</a></div>");
+			$out->addHTML("<div id='articletitle' style='display:none;'><a href='{$t->getLocalURL()}'>{$t->getFullText()}</a></div>");
 			$oldTitle = $this->getContext()->getTitle();
 			$this->getContext()->setTitle($result['title']);
-			$d = new DifferenceEngine($this->getContext(), RCPatrol::cleanOldId($wgRequest->getVal('old')), $wgRequest->getVal('new'), $wgRequest->getVal('rcid'));
+			$d = new DifferenceEngine($this->getContext(), RCPatrol::cleanOldId($req->getVal('old')), $req->getVal('new'), $req->getVal('rcid'));
 			$d->loadRevisionData();
 			$this->getContext()->setTitle($oldTitle);
-			$wgOut->addHTML("<div id='rc_header' class='tool_header'>");
-			$wgOut->addHTML('<a href="#" id="rcpatrol_keys">Get Shortcuts</a>');
-			$wgOut->addHTML(RCPatrol::getButtons($result, $d->mNewRev));
-			$wgOut->addHTML("</div>");
-			$wgOut->addHTML('<div id="rcpatrol_info" style="display:none;">'. wfMessage('rcpatrol_keys')->text() . '</div>');
+			$out->addHTML("<div id='rc_header' class='tool_header'>");
+			$out->addHTML('<a href="#" id="rcpatrol_keys">Get Shortcuts</a>');
+			$out->addHTML(RCPatrol::getListOfTemplatesHtml($t));
+			$out->addHTML(RCPatrol::getButtons($result, $d->mNewRev));
+			$out->addHTML("</div>");
+			$out->addHTML('<div id="rcpatrol_info" style="display:none;">'. wfMessage('rcpatrol_keys')->text() . '</div>');
 			$d->showDiffPage();
-			$wgOut->disable();
-			$response['html'] = $wgOut->getHTML();
-			print_r(json_encode($response));
+			$out->disable();
+			$response['html'] = $out->getHTML();
+			print json_encode($response);
 			return;
 		}
 		$a = new Article($t);
-		if (!$wgRequest->getVal('grabnext')) {
-			if (class_exists('RCTest') && RCTest::isEnabled() && $wgRequest->getVal('rctest')) {
+		if (!$req->getVal('grabnext')) {
+			if (class_exists('RCTest') && RCTest::isEnabled() && $req->getVal('rctest')) {
 				// Don't do anything if it's a test
-			} elseif (!$wgRequest->getVal('skip') && $wgRequest->getVal('action') == 'markpatrolled') {
+			} elseif (!$req->getVal('skip') && $req->getVal('action') == 'markpatrolled') {
 				$this->markRevisionsPatrolled($a);
-			} elseif ($wgRequest->getVal('skip')) {
+			} elseif ($req->getVal('skip')) {
 				// skip the article for now
 				RCPatrol::skipArticle($t->getArticleID());
 			}
@@ -849,9 +867,9 @@ class RCPatrolGuts extends UnlistedSpecialPage {
 
 		// Reuben note: should we be clearing the existing html here, or is
 		// there a better way?
-		$wgOut->clearHTML();
-		$wgOut->redirect('');
-		$result = RCPatrol::getNextArticleToPatrol($wgRequest->getVal('rcid'));
+		$out->clearHTML();
+		$out->redirect('');
+		$result = RCPatrol::getNextArticleToPatrol($req->getVal('rcid'));
 		$response = array();
 		if ($result) {
 			$rcTest = null;
@@ -868,27 +886,28 @@ class RCPatrolGuts extends UnlistedSpecialPage {
 				*/
 			}
 			$t = $result['title'];
-			$wgOut->addHTML("<div id='bodycontents2'>");
+			$out->addHTML("<div id='bodycontents2'>");
 			$titleText = RCTestStub::getTitleText($result, $rcTest);
-			$wgOut->addHTML("<div id='articletitle' style='display:none;'>$titleText</div>");
+			$out->addHTML("<div id='articletitle' style='display:none;'>$titleText</div>");
 
 			// Initialize the RCTest object. This is use to inject
 			// tests into the RC Patrol queue.
 
 			$d = RCTestStub::getDifferenceEngine($this->getContext(), $result, $rcTest);
 			$d->loadRevisionData();
-			$wgOut->addHTML("<div id='rc_header' class='tool_header'>");
-			$wgOut->addHTML('<a href="#" id="rcpatrol_keys">Get Shortcuts</a>');
-			$wgOut->addHTML(RCPatrol::getButtons($result, $d->mNewRev, $rcTest));
-			$wgOut->addHTML("</div>");
-			$wgOut->addHTML('<div id="rcpatrol_info" style="display:none;">'. wfMessage('rcpatrol_keys')->text() . '</div>');
+			$out->addHTML("<div id='rc_header' class='tool_header'>");
+			$out->addHTML('<a href="#" id="rcpatrol_keys">Get Shortcuts</a>');
+			$out->addHTML(RCPatrol::getListOfTemplatesHtml($t));
+			$out->addHTML(RCPatrol::getButtons($result, $d->mNewRev, $rcTest));
+			$out->addHTML("</div>");
+			$out->addHTML('<div id="rcpatrol_info" style="display:none;">'. wfMessage('rcpatrol_keys')->text() . '</div>');
 			$d->showDiffPage();
-			$wgOut->addHtml($testHtml);
+			$out->addHtml($testHtml);
 
-			$wgOut->addHTML("</div>");
+			$out->addHTML("</div>");
 			$response['unpatrolled'] = self::getUnpatrolledCount();
 		} else {
-			$wgOut->addWikiMsg( 'markedaspatrolledtext' );
+			$out->addWikiMsg( 'markedaspatrolledtext' );
 			$response['unpatrolled'] = self::getUnpatrolledCount();
 		}
 
@@ -898,7 +917,7 @@ class RCPatrolGuts extends UnlistedSpecialPage {
 		// since we're already in RCP and it knows to subtract one.
 		$patroller = null;
 		if ( class_exists( 'PatrolUser' ) ) {
-			$patroller = PatrolUser::newFromUser( $wgUser );
+			$patroller = PatrolUser::newFromUser( $user );
 		}
 
 		if ( is_object( $patroller ) && !$patroller->canUseRCPatrol( true ) ) {
@@ -906,7 +925,7 @@ class RCPatrolGuts extends UnlistedSpecialPage {
 		} else {
 			// Include next title for debugging
 			$response['title'] = (string)$result['title'];
-			$response['html'] = $wgOut->getHTML();
+			$response['html'] = $out->getHTML();
 			$response['rc_id'] = (integer)$result['new'];
 			$response['article_id'] = $result['title']->mArticleID;
 		}
@@ -923,13 +942,11 @@ class RCPatrolGuts extends UnlistedSpecialPage {
 			$jsonResponse = json_encode($response);
 		}
 
-		$wgOut->clearHTML();
-		$wgOut->addHTML( $jsonResponse );
-		return;
+		$out->clearHTML();
+		$out->addHTML( $jsonResponse );
 	}
 
-	function markRevisionsPatrolled($article) {
-
+	private function markRevisionsPatrolled($article) {
 		$user = $this->getUser();
 		$request = $this->getRequest();
 
@@ -958,7 +975,7 @@ class RCPatrolGuts extends UnlistedSpecialPage {
 				RecentChange::markPatrolled( $id, false);
 			}
 
-			wfRunHooks( 'MarkPatrolledBatchComplete', array(&$article, &$rcids, &$user));
+			Hooks::run( 'MarkPatrolledBatchComplete', array(&$article, &$rcids, &$user));
 		} else {
 			RCPatrol::skipPatrolled($article);
 		}
@@ -967,7 +984,7 @@ class RCPatrolGuts extends UnlistedSpecialPage {
 
 class RCTestStub {
 	// Inject the test diff if it's RCPatrol is supposed to show a test
-	static function getDifferenceEngine($context, $result, &$rcTest) {
+	public static function getDifferenceEngine($context, $result, &$rcTest) {
 		if (class_exists('RCTest') && RCTest::isEnabled()) {
 			if ($rcTest && $rcTest->isTestTime()) {
 				$result = $rcTest->getResultParams();
@@ -983,7 +1000,7 @@ class RCTestStub {
 	}
 
 	// Change the title to the test Title if RCPatrol is supposed to show a test
-	static function getTitleText($result, &$rcTest) {
+	public static function getTitleText($result, &$rcTest) {
 		if (class_exists('RCTest') && RCTest::isEnabled()) {
 			if ($rcTest && $rcTest->isTestTime()) {
 				$result = $rcTest->getResultParams();
@@ -993,7 +1010,7 @@ class RCTestStub {
 		return "<a href='{$t->getLocalURL()}'>" . $t->getFullText() . "</a>";
 	}
 
-	static function getThumbsUpButton($result, &$rcTest) {
+	public static function getThumbsUpButton($result, &$rcTest) {
 		$button = "";
 		if (class_exists('RCTest') && RCTest::isEnabled()) {
 			if ($rcTest && $rcTest->isTestTime()) {
@@ -1008,4 +1025,3 @@ class RCTestStub {
 		return $button;
 	}
 }
-

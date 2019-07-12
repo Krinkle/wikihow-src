@@ -1,4 +1,4 @@
-<?
+<?php
 namespace ContentPortal;
 
 trait ImportValidator {
@@ -10,7 +10,7 @@ trait ImportValidator {
 		return $existing ? $existing : Category::create(['title' => $title]);
 	}
 
-	function findOrCreateUser($username, $article) {
+	function findUser($username, $article) {
 		// don't run with blank
 		if (is_null($username)) return null;
 
@@ -23,10 +23,11 @@ trait ImportValidator {
 
 		// todo: this needs to fail gracefully and add error msg if cannot create or find user
 		if (is_null($user)) {
-			$user = User::create([
-				'username'    => $username,
-				'category_id' => $article->category_id
-			]);
+			return null;
+			// $user = User::create([
+			// 	'username'    => $username,
+			// 	'category_id' => $article->category_id
+			// ]);
 		}
 
 		if ($user->is_valid() && !$user->hasRoleId($article->state_id)) {
@@ -42,7 +43,7 @@ trait ImportValidator {
 	function validateFile() {
 		if (is_null($this->file)) {
 			$this->addError('There was no file uploaded.');
-		} else if ($this->file['type'] !== 'text/csv') {
+		} elseif ($this->file['type'] !== 'text/csv') {
 			$this->addError('Upload must be a CSV file');
 		}
 

@@ -1,6 +1,4 @@
-<? if ($showOptimizely): ?>
-	<?php print OptimizelyPageSelector::getOptimizelyTag() ?>
-<? endif; ?>
+<?= $optimizelyJs ?>
 <? if ($showInternetOrgAnalytics): ?>
 	<?= WikihowMobileTools::getInternetOrgAnalytics() ?>
 <? endif; ?>

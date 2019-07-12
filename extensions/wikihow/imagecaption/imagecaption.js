@@ -10,7 +10,7 @@
 		return firstChild;
 	}
 
-	window.WH.captionText = function(id, icon, halfSize) {
+	window.WH.captionText = function(id) {
 		var caption = document.getElementById(id);
 		if (caption == null) {
 			return;
@@ -72,5 +72,35 @@
 			node.style.fontSize = smallestFont+'em';
 		}
 		caption.className += " mwimg-caption-show";
+	};
+
+	window.WH.addCaption = function(id) {
+		var caption = document.getElementById(id);
+		var mwimg = caption.parentElement;
+		var src = null;
+		if (mwimg) {
+			var img = mwimg.querySelector('.image');
+			if (img) {
+				img = img.querySelector('img');
+				if (img) {
+					src = img.getAttribute('data-src');
+				}
+			} else {
+				var video = mwimg.querySelector('.m-video');
+				if (video) {
+					src = video.getAttribute('data-poster');
+				}
+			}
+		}
+		if (src) {
+			if (src.split('.').pop() == 'jpg' && WH.shared.webpSupport) {
+				src = src + '.webp';
+			}
+			var image = new Image();
+			image.onload = function () {
+				WH.captionText(id);
+			}
+			image.src = src;
+		}
 	};
 }());

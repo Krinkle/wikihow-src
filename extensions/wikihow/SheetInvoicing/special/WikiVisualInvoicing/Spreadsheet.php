@@ -10,7 +10,7 @@ use SheetInv\ParsingResult;
  * The project's read-only data source, supported by Google Sheets.
  *
  */
-class Spreadsheet extends GoogleSpreadSheet
+class Spreadsheet extends GoogleSpreadsheet
 {
 	private $summarySheetId;	// String
 	private $detailsSheetId;	// String
@@ -132,7 +132,7 @@ class Spreadsheet extends GoogleSpreadSheet
 					];
 				}
 			}
-			else if (!$skipChild) { // Article URL
+			elseif (!$skipChild) { // Article URL
 				$res->data[$parent]['contractors'][$child]['urls'][] = [
 					'url' => $firstCol,
 					'url_count' => $urlCount,

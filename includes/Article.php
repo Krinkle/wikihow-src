@@ -548,7 +548,10 @@ class Article implements Page {
 
 		$outputPage->setArticleFlag( true );
 		# Allow frames by default
-		$outputPage->allowClickjacking();
+		// Reuben, 3/19/2018: changed this, for security, as recommended by Dareboost report.
+		// Note: this change makes article pages have the "x-frame-options: SAMEORIGIN" http
+		// response header.
+		//$outputPage->allowClickjacking();
 
 		$parserCache = ParserCache::singleton();
 
@@ -1266,7 +1269,7 @@ class Article implements Page {
 				$text = wfMessage( 'noarticletext', $this->getTitle()->getText(), $this->getTitle()->getFullURL() . "?action=edit", urlencode($this->getTitle()->getText())  )->plain();
 				$showHeader = true;
 			} else {
-				$text = wfMessage( 'noarticletext_standard', $this->getTitle()->getText(), $this->getTitle()->getFullURL() . "?action=edit" )->plain();
+				$text = wfMessage( 'noarticletext_standard', $this->getTitle()->getDBKey(), $this->getTitle()->getText(), $this->getTitle()->getFullURL() . "?action=edit" )->plain();
 			}
 
 			// original lines that were commented out inside this block
@@ -1275,13 +1278,17 @@ class Article implements Page {
 		} else {
 			$text = wfMessage( 'noarticletext-nopermission' )->plain();
 		}
+
 		$text = "<div class='noarticletext'>\n$text\n</div>";
 
 		// WIKIHOW - BEBETH following 3 lines added for styling
 		if ( $showHeader ) {
 			$text = "<h2>" . wfMessage('noarticlefound')->text() . "</h2>$text";
 		}
+
 		$outputPage->addWikiText( $text );
+
+		wfRunHooks( 'AfterDisplayNoArticleText', array( $this ) );
 	}
 
 	/**
@@ -1508,7 +1515,7 @@ class Article implements Page {
 		$alt = $lang->isRTL() ? '←' : '→';
 		// Automatically append redirect=no to each link, since most of them are redirect pages themselves.
 		foreach ( $target as $rt ) {
-			$link .= Html::element( 'img', array( 'src' => $nextRedirect, 'alt' => $alt ) );
+			$link .= Html::element( 'img', array( 'src' => $nextRedirect, 'alt' => $alt, 'style' => 'width: auto;' ) );
 			if ( $forceKnown ) {
 				$link .= Linker::linkKnown( $rt, htmlspecialchars( $rt->getFullText(), array(), array( 'redirect' => 'no' ) ) );
 			} else {
@@ -1518,7 +1525,7 @@ class Article implements Page {
 
 		$imageUrl = $wgStylePath . '/common/images/redirect' . $imageDir . '.png';
 		return '<div class="redirectMsg">' .
-			Html::element( 'img', array( 'src' => $imageUrl, 'alt' => '#REDIRECT' ) ) .
+			Html::element( 'img', array( 'src' => $imageUrl, 'alt' => '#REDIRECT', 'style' => 'width: auto;' ) ) .
 			'<span class="redirectText">' . $link . '</span></div>';
 	}
 

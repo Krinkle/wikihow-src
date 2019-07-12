@@ -62,7 +62,7 @@ class AddGifsToVidTag extends Maintenance {
 				exit(1);
 			}
 			$ids = array();
-			$dbr = wfGetDB(DB_SLAVE);
+			$dbr = wfGetDB(DB_REPLICA);
 			$res = $dbr->select( 'templatelinks', 'tl_from', array('tl_title' => array( 'whvid', 'Whvid' ) ) );
 			foreach ( $res as $row ) {
 				$ids[] = $row->tl_from;
@@ -93,7 +93,7 @@ class AddGifsToVidTag extends Maintenance {
 			//$this->output( "no latest good revision on $page\n" );
 			return 1;
 		}
-		$oText = $rev->getText();
+		$oText = ContentHandler::getContentText( $rev->getContent() );
 		if ( strpos( $oText, 'whvid' ) === false ) {
 			//$this->output("no whvid template in title\n" );
 			return 1;

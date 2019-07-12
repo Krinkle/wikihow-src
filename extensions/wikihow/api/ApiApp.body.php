@@ -44,7 +44,7 @@ class ApiApp extends ApiBase {
 		//   keys without _element value. Use ApiResult::setIndexedTagName().
 		// from happening incidentally if the wrong format is specified in testing.
 		$format = $this->getRequest()->getVal('format');
-		if (!in_array($format, ['json', 'jsonfm'])) {
+		if ( $command != "psearch" && !in_array($format, ['json', 'jsonfm'])) {
 			$result->addValue( null, $module,
 				[ 'error' => 'We only allow JSON-encoded API output for this method. See ' .
 				  'file ' . __FILE__ . ':' . __LINE__ . ' for details. Or, use format=json.' ] );
@@ -66,6 +66,8 @@ class ApiApp extends ApiBase {
 			}
 			if (!$title || !$title->exists()) {
 				$error = 'Title not found';
+			} elseif ( !$title->inNamespace(NS_MAIN) ) {
+				$error = 'We can only display regular articles.  URL: ' . $title->getFullURL();
 			} else {
 				$revid = !$random ? $params['oldid'] : 0;
 				if (!$revid) {
@@ -159,11 +161,11 @@ class ApiApp extends ApiBase {
 	function websolrSearch($q, $wt, $rows) {
 		global $wgServer;
 		$q = urlencode($q);
-		$wsUrl = 'http://ec2-west.websolr.com/solr/d4901f648d5/select?sort=page_counter+desc&defType=edismax&fl=id,title,image_58x58&wt='.$wt.'&q='.$q.'&rows='.$rows;
+		//$wsUrl = 'http://ec2-west.websolr.com/solr/d4901f648d5/select?sort=page_counter+desc&defType=edismax&fl=id,title,image_58x58&wt='.$wt.'&q='.$q.'&rows='.$rows;
 
-		if ($wgServer == "//www.wikihow.com") {
-			$wsUrl = 'http://index.websolr.com/solr/1040955300c/select?defType=edismax&mm=100%25&fl=id,title,image_58x58&bf=scale(map(page_counter,0,0,5),1,2)&wt='.$wt.'&q='.$q.'&rows='.$rows;
-		}
+		//if ($wgServer == "//www.wikihow.com") {
+		$wsUrl = 'http://index.websolr.com/solr/1040955300c/select?defType=edismax&mm=100%25&fl=id,title,image_58x58&bf=scale(map(page_counter,0,0,5),1,2)&wt='.$wt.'&q='.$q.'&rows='.$rows;
+		//}
 
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_URL, $wsUrl);
@@ -257,7 +259,7 @@ class AppDataFormatter {
 		// for now the search is just partial search results formatted
 		$pResults = self::searchPartial($q, $num);
 		$results = array();
-		foreach($pResults as $res) {
+		foreach ($pResults as $res) {
 			$results[] = Title::newFromID($res['id']);
 		}
 		$results = self::formatResults($results);
@@ -272,7 +274,7 @@ class AppDataFormatter {
 	static function searchPartial($qp, $num, $noCache = false) {
 		global $wgMemc;
 
-		$howto = strtolower(wfMsg('howto', ''));
+		$howto = strtolower(wfMessage('howto', '')->text());
 		$qp = trim(preg_replace('@(^' . preg_quote($howto) . '|howto)@i', '', strtolower($qp)));
 
 		$cachekey = wfMemcKey('searchpartial', $qp);
@@ -310,8 +312,9 @@ class AppDataFormatter {
 	}
 
 	private static function getAbstract($title) {
-		$abstract = '';
+		global $wgParser;
 
+		$abstract = '';
 		$ami = new ArticleMetaInfo($title);
 		if ($ami) {
 			// meta description
@@ -321,8 +324,8 @@ class AppDataFormatter {
 		if (!$abstract) {
 			$rev = Revision::newFromTitle($title);
 			if ($rev) {
-				$wikitext = $rev->getText();
-				$abstract = Article::getSection($wikitext, 0);
+				$wikitext = ContentHandler::getContentText( $rev->getContent() );
+				$abstract = $wgParser->getSection($wikitext, 0);
 			}
 		}
 
@@ -332,8 +335,8 @@ class AppDataFormatter {
 	private static function getRevId( $revId ) {
 		// prepend a siterev number to the revision id so we can 'clear the cache' of the ios articles
 		// since they will cache an article forever based on the rev id currently this is a way to allow
-		// us to fore them to update
-		$siteRev = 1;
+		// us to force them to update
+		$siteRev = 4;
 		$revId = intval( $siteRev . $revId );
 		return $revId;
 	}
@@ -364,7 +367,7 @@ class AppDataFormatter {
 					'id' => intval($title->getArticleId()),
 					'revision_id' => self::getRevId( $revid ),
 					'title' => $title->getText(),
-					'fulltitle' => wfMsg('howto', $title->getText()),
+					'fulltitle' => wfMessage('howto', $title->getText())->text(),
 					'url' => self::makeFullURL( $title->getPartialUrl() ),
 					'image' => $image,
 					'image_58x58' => $thumburl,
@@ -372,6 +375,7 @@ class AppDataFormatter {
 				);
 			}
 		}
+
 		return $ret;
 	}
 
@@ -476,7 +480,7 @@ class AppDataFormatter {
 			if ($k == "type" && $v == "relatedwikihows") {
 				return;
 			}
-			if(!is_array($v) && ($k == "url" || $k == "html")) {
+			if (!is_array($v) && ($k == "url" || $k == "html")) {
 				if (strpos(strtolower($v), 'jpg') === FALSE && strpos(strtolower($v), 'png') === FALSE) {
 					continue;
 				}
@@ -498,7 +502,7 @@ class AppDataFormatter {
 					if ($article) {
 						$user = $article->getUserText();
 						if ($user) $user .= ' (wikiHow)';
-						$wikitext = $article->getContent();
+						$wikitext = ContentHandler::getContentText( $article->getPage()->getContent() );
 						if (preg_match('@{{(cc-by[^}]+)}}@', $wikitext, $m)) {
 							$license = $m[1];
 							// From http://creativecommons.org/licenses/
@@ -534,8 +538,7 @@ class AppDataFormatter {
 		$article = new Article($title, $revid);
 		if (!$article) return null;
 
-		$article->loadContent();
-		$rev = $article->mRevision;
+		$rev = $article->getRevisionFetched();
 		return $rev ? $rev : null;
 	}
 
@@ -562,7 +565,10 @@ class AppDataFormatter {
 			return;
 		}
 
-		foreach($parsed['sections'] as &$section) {
+		foreach ($parsed['sections'] as &$section) {
+			if ( !isset( $section["type"] ) ) {
+				continue;
+			}
 			if ($section["type"] =="intro") {
 				$section['image'] = $image;
 			}
@@ -601,15 +607,15 @@ class AppDataFormatter {
 	}
 	// TODO this was taken from WikiHowSkin so could refactor it back into getGalleryImage
 	static function getCategoryImageFile($title) {
-		global $wgDefaultImage;
+		global $wgLanguageCode, $wgDefaultImage;
 
-		$catmap = Categoryhelper::getIconMap();
+		$catmap = CategoryHelper::getIconMap();
 
 		// if page is a top category itself otherwise get top
 		if (isset($catmap[urldecode($title->getPartialURL())])) {
 			$cat = urldecode($title->getPartialURL());
 		} else {
-			$cat = Categoryhelper::getTopCategory($title);
+			$cat = CategoryHelper::getTopCategory($title);
 
 			//INTL: Get the partial URL for the top category if it exists
 			// For some reason only the english site returns the partial
@@ -628,7 +634,7 @@ class AppDataFormatter {
 		} else {
 			$image = Title::makeTitle(NS_IMAGE, $wgDefaultImage);
 			$file = wfFindFile($image, false);
-			if(!$file) {
+			if (!$file) {
 				$file = wfFindFile($wgDefaultImage);
 			}
 		}
@@ -661,16 +667,20 @@ class AppDataFormatter {
 	static function parseArticle($title, $revid) {
 		$rev = self::loadTitleRevision($title, $revid);
 
-		$sectionParser = new ApiSectionParser($title, $rev);
-		$sections = $sectionParser->parse();
+		if ($rev) {
+			$sectionParser = new ApiSectionParser($title, $rev);
+			$sections = $sectionParser->parse();
+		} else {
+			$sections = [];
+		}
 
 		$abstract = self::getAbstract($title);
 
 		$result = array(
 			'id' => intval($title->getArticleID()),
-			'revision_id' => self::getRevId( $rev->getId() ),
+			'revision_id' => $rev ? self::getRevId( $rev->getId() ) : -1,
 			'title' => $title->getText(),
-			'fulltitle' => wfMsg('howto', $title->getText()),
+			'fulltitle' => wfMessage('howto', $title->getText())->text(),
 			'url' => self::makeFullURL( $title->getPartialUrl() ),
 			'image' => self::getArticleImage($title, $sections),
 			'abstract' => $abstract,
@@ -718,7 +728,8 @@ class ApiSectionParser {
 
 		$pOpts = $wgOut->parserOptions();
 		$pOpts->setTidy(true);
-		$pOut = $wgParser->parse($this->rev->getText(), $this->title, $pOpts, true, true, $this->rev->getId());
+		$wikitext = ContentHandler::getContentText( $this->rev->getContent() );
+		$pOut = $wgParser->parse($wikitext, $this->title, $pOpts, true, true, $this->rev->getId());
 		$html = $pOut->mText;
 		$pOpts->setTidy(false);
 
@@ -749,17 +760,17 @@ class ApiSectionParser {
 	private function parseArticleHtml(&$articleHtml) {
 
 		$sectionMap = array(
-			wfMsg('Intro') => 'intro',
-			wfMsg('Ingredients') => 'ingredients',
-			wfMsg('Ataglance') => 'ataglance',
-			wfMsg('Steps') => 'steps',
-			wfMsg('Video') => 'video',
-			wfMsg('Tips') => 'tips',
-			wfMsg('Warnings') => 'warnings',
-			wfMsg('relatedwikihows') => 'relatedwikihows',
-			wfMsg('sources') => 'sources',
-			wfMsg('thingsyoullneed') => 'thingsyoullneed',
-			wfMsg('article_info') => 'article_info',
+			wfMessage('Intro')->text() => 'intro',
+			wfMessage('Ingredients')->text() => 'ingredients',
+			wfMessage('Ataglance')->text() => 'ataglance',
+			wfMessage('Steps')->text() => 'steps',
+			wfMessage('Video')->text() => 'video',
+			wfMessage('Tips')->text() => 'tips',
+			wfMessage('Warnings')->text() => 'warnings',
+			wfMessage('relatedwikihows')->text() => 'relatedwikihows',
+			wfMessage('sources')->text() => 'sources',
+			wfMessage('thingsyoullneed')->text() => 'thingsyoullneed',
+			wfMessage('article_info')->text() => 'article_info',
 		);
 
 		$doc = self::htmlToDoc($articleHtml);
@@ -773,7 +784,7 @@ class ApiSectionParser {
 
 		// Remove #newaltmethod node
 		$node = $doc->getElementById('newaltmethod');
-		if( !empty($node)) {
+		if ( !empty($node)) {
 			   $node->parentNode->removeChild($node);
 		}
 
@@ -787,7 +798,15 @@ class ApiSectionParser {
 		$nodes = $xpath->query('//iframe[@class = "embedvideo"]');
 		foreach ($nodes as $node) {
 			// Get youtube link
-			$src = $node->attributes->getNamedItem('src')->nodeValue;
+			if ( !$node || !$node->attributes ) {
+				continue;
+			}
+			if ( $node->attributes->getNamedItem('src') ) {
+				$src = $node->attributes->getNamedItem('src')->nodeValue;
+			}
+			if ( $node->attributes->getNamedItem('data-src') ) {
+				$src = $node->attributes->getNamedItem('data-src')->nodeValue;
+			}
 			if (stripos($src, 'youtube.com') === false) {
 				$youtubeLink = '';
 			} else {
@@ -813,7 +832,7 @@ class ApiSectionParser {
 		$pqDoc = phpQuery::newDocument($doc);
 
 		// remove table of contents
-		if(pq('table#toc')->length) {
+		if (pq('table#toc')->length) {
 			$toc = pq('table#toc');
 			$toc->remove();
 		}
@@ -883,7 +902,7 @@ class ApiSectionParser {
 			if ($heading) {
 				$section = array();
 				$type = null;
-				foreach($sectionMap as $key=>$value) {
+				foreach ($sectionMap as $key=>$value) {
 					if (strpos($heading, $key) !== FALSE) {
 						$type = $value;
 						break;
@@ -929,7 +948,9 @@ class ApiSectionParser {
 					continue;
 				} else {
 					$text = trim($doc->text());
-					$section['html'] = $doc->html();
+					// remove videos which might be in summary section
+					$html = $this->processUnnamedSectionHtml( $doc );
+					$section['html'] = $html;
 					if (empty($text) || empty($section['html'])) {
 						continue;
 					}
@@ -945,6 +966,12 @@ class ApiSectionParser {
 
 	private function flattenSpaces($html) {
 		return preg_replace('@(\s|\n)+@', ' ', $html);
+	}
+
+	private function processUnnamedSectionHtml( $doc ) {
+		pq('video')->remove();
+		pq('script')->remove();
+		return $doc->html();
 	}
 
 	private function processGlance($html) {
@@ -1120,11 +1147,14 @@ class ApiSectionParser {
 		$smallImage = pq( $whvid )->attr('data-poster');
 		$videoUrl = pq( $whvid )->attr('data-src');
 		$videoUrl = ArticleHTMLParser::uriencode( trim( $videoUrl ) );
+		if ( !$videoUrl ) {
+			return "";
+		}
 
 		$ret = array(
 			'lrgimg' => $largeImage,
 			'smlimg' => $smallImage,
-			'vid' => 'https://d5kh2btv85w9n.cloudfront.net' . $videoUrl
+			'vid' => WH_CDN_VIDEO_ROOT . $videoUrl
 		);
 
 		return $ret;
@@ -1149,7 +1179,7 @@ class ApiSectionParser {
 					'" large_height="' . htmlspecialchars($img['large_height']);
 				}
 
-				if ($img['original']) {
+				if (isset( $img['original'] ) && $img['original'] ) {
 					$newTag .= '" originalsrc="' . htmlspecialchars($img['original']).
 						'" original_width="' . htmlspecialchars($img['original_width']).
 						'" original_height="' . htmlspecialchars($img['original_height']);
@@ -1162,11 +1192,149 @@ class ApiSectionParser {
 		}
 	}
 
+	private static function parseGreenBoxContent( $element, $splitSize, $forceHtml = false ) {
+		if ( pq( $element )->find('p')->length > 0 ) {
+			$text = trim( pq( $element )->find('p')->html() );
+		} elseif ( $forceHtml ) {
+			$text = trim( pq( $element )->html() );
+		} else {
+			$text = trim( pq( $element )->text() );
+		}
+		$text = str_replace( "<b>", "", $text );
+
+		// allow bold tag for first line. keep track of closing bold tag position
+		// if it is in any other position it's too complicated to keep track of for now
+		$closingBoldPosition = strpos( $text, '</b>' );
+		if ( $closingBoldPosition  !== false ) {
+			$hasBold = true;
+		}
+		$text = str_replace( "</b>", "", $text );
+
+		$lines = explode( "\n", wordwrap( $text, $splitSize, "\n" ) );
+
+		if ( !$hasBold ) {
+			$fixedLines = array();
+			foreach ( $lines as $line ) {
+				$fixedLines[] = trim( $line );
+			}
+			return $fixedLines;
+		}
+
+		// put the bold tag back in. it may span multiple lines
+		$fixedLines = array();
+		foreach ( $lines as $line ) {
+			// first case, we have bold but the closing position is on the next line
+			if ( $hasBold && $closingBoldPosition > $splitSize ) {
+				$closingBoldPosition =  $closingBoldPosition - strlen( $line );
+				// add the bold tag to the beginning and end of the line
+				$line = '<b>' . $line . '</b>';
+			} elseif ( $hasBold ) {
+				// add the closing bold to the specific spot
+				$line = substr_replace( $line, "</b>", $closingBoldPosition, 0);
+				// add the bold tag to the beginning of the line
+				$line = '<b>' . $line;
+				// set has bold to false so we know we are done
+				$hasBold = false;
+			}
+			$fixedLines[] = trim( $line );
+		}
+		return $fixedLines;
+	}
+
+	private static function parseGreenBoxChild( $element, $splitSize ) {
+		$lines = array();
+		if ( pq( $element )->hasClass( 'green_box_row' ) ) {
+			$newLines = self::getGreenBoxContents( $element, $splitSize );
+			$lines = array_merge( $lines, $newLines );
+		} elseif ( pq( $element )->hasClass( 'green_box_person' ) && pq( $element )->find( '.green_box_expert_label' )->length == 0 ) {
+			// do nothing here, this is the case where the green box person has no label
+			// and the resulting html would just be the "Q" that we put in the circle
+			// we could handle this if we want to but for now skip it
+			$lines = $lines;
+		} elseif ( pq( $element )->hasClass( 'green_box_content' ) ) {
+			$newLines = self::parseGreenBoxContent( $element, $splitSize );
+			$lines = array_merge( $lines, $newLines );
+		} elseif ( pq( $element )->hasClass( 'green_box_expert_info' ) ) {
+			$newLines = self::parseGreenBoxContent( $element, $splitSize, false );
+			foreach ( $newLines as $line ) {
+				$lines[] = Html::rawElement( 'greenbox_expert_info', array(), $line );
+			}
+		} elseif ( pq( $element )->find( '.green_box_expert_label' )->length > 0 ) {
+			$newLines = self::parseGreenBoxContent( $element, $splitSize );
+			foreach ( $newLines as $line ) {
+				$lines[] = Html::rawElement( 'greenbox_label', array(), $line );
+			}
+		} elseif ( pq( $element )->find( '.green_box_tab_label' )->length > 0 || pq( $element )->hasClass( 'green_box_tab_label' )) {
+			// for now we do not show the green box tab labels at all
+			//$newLines = self::parseGreenBoxContent( $element, $splitSize );
+			//foreach ( $newLines as $line ) {
+				//$lines[] = Html::rawElement( 'greenbox_label', array(), $line );
+			//}
+			return $lines;
+		} else {
+			$newLines = self::parseGreenBoxContent( $element, $splitSize );
+			$lines = array_merge( $lines, $newLines );
+		}
+		return $lines;
+	}
+
+	// parses a green box returns text which can be split up in to lines
+	private static function getGreenBoxContents( $greenBox, $splitSize ) {
+		$lines = array();
+		foreach ( pq( $greenBox )->children() as $greenBoxChild ) {
+			$newLines = self::parseGreenBoxChild( $greenBoxChild, $splitSize );
+			$lines = array_merge( $lines, $newLines );
+		}
+		return $lines;
+	}
+
+	private static function makeGreenBox( $greenBox, $splitSize, $elementName ) {
+		$lines = self::getGreenBoxContents( $greenBox, $splitSize );
+		$box = "";
+		foreach ( $lines as $line ) {
+			if ( !trim($line) ) {
+				continue;
+			}
+			if ( strpos( $line, 'greenbox_expert_info' ) !== false )  {
+				$box .= $line;
+			} else {
+				$box .= Html::rawElement( 'greenbox', array(), $line );
+			}
+		}
+		$box = Html::rawElement( $elementName, array(), $box );
+		return $box;
+	}
+
+	private static function processGreenBoxes() {
+		// we do not want to parse these
+		pq( '.green_box_person_circle' )->remove();
+
+		foreach ( pq( '.green_box' ) as $greenBox) {
+
+			$boxesHtml = '';
+			// get any header texts
+			$sizes = [
+				[ 33, 'greenboxwrap_small' ],
+				[ 38, 'greenboxwrap' ],
+				[ 44, 'greenboxwrap_large' ],
+				[ 72, 'greenboxwrap_tablet' ],
+				[ 78, 'greenboxwrap_largetablet' ],
+				//[ 1000, 'greenboxwrap_test' ],
+			];
+			foreach ( $sizes as $size ) {
+				$box = self::makeGreenBox( $greenBox, $size[0], $size[1] );
+				$boxesHtml .= $box;
+			}
+			$boxesHtml = Html::rawElement( 'image', ['class'=>'greenboxwrapper'], $boxesHtml );
+			pq( $greenBox )->after( $boxesHtml );
+			pq( $greenBox )->remove();
+		}
+	}
+
 	private function processStepContent($node) {
 		$steps = array();
 		foreach (pq('div.step_content', $node) as $stepNode) {
 			$step = array();
-
 			// Pull out step number
 			$numNode = pq('div.step_num:first', $stepNode);
 			if ($numNode->length) {
@@ -1174,6 +1342,7 @@ class ApiSectionParser {
 				$numNode->remove();
 			}
 
+			self::processGreenBoxes();
 			pq($stepNode)->find('script')->remove();
 
 			$imgNode = null;
@@ -1183,7 +1352,7 @@ class ApiSectionParser {
 
 				if ($pqNode->is('.mwimg')) {
 					$imgNode = pq('a.image:first', $pqNode);
-				} else if ($pqNode->is("b")) {
+				} elseif ($pqNode->is("b")) {
 					//special case- the first image might end up inside a bold tag if the
 					// first sentence wasn't punctuated correctly
 					if ($pqNode->children()->is('.mwimg')) {
@@ -1199,9 +1368,9 @@ class ApiSectionParser {
 				}
 			}
 
-			if ($imgNode->length) {
+			if ( $imgNode && $imgNode->length) {
 				$image = ArticleHTMLParser::pullOutImage($imgNode, $this->imageNsText);
-				if ($image && !$step['whvid']) {
+				if ( $image && !isset( $step['whvid'] ) ) {
 					$step['image'] = $image;
 				}
 			}
@@ -1237,7 +1406,6 @@ class ApiSectionParser {
 		$dummy = 0;
 		$incaption = false;
 		$apply_div = false;
-		$the_big_step = $next;
 		$p = '<div id="firstSentence">';
 		while ($x = array_shift($htmlparts)) {
 			# if it's a tag, just append it and keep going
@@ -1252,6 +1420,7 @@ class ApiSectionParser {
 				continue;
 			}
 			# put the closing </div> in if we hit the end of the sentence
+			$closecount = 0;
 			if (!$incaption) {
 				if (!$apply_div && trim($x) != "") {
 					$apply_div = true;
@@ -1345,14 +1514,14 @@ class ApiSectionParser {
 				if ($pq->is('ol')) {
 					$steps = array_merge($steps, $this->processStepContent($pq));
 				}
-				else if ($pq->is('p') || $pq->is('ul')) {
+				elseif ($pq->is('p') || $pq->is('ul')) {
 					ArticleHTMLParser::removeEmptyNodes($pq);
 					$html = trim($pq->html());
 					if ($html) {
 						$steps[] = array("html"=>$html);
 					}
 				}
-				else if ($pq->is('h4')) {
+				elseif ($pq->is('h4')) {
 					ArticleHTMLParser::removeEmptyNodes($pq);
 					$html = trim(strip_tags($pq->html(), "<a>"));
 					if ($html) {
@@ -1383,7 +1552,7 @@ class ApiSectionParser {
 
 	private function processRelatedWikihows($list) {
 		$relateds = array();
-		$howto = wfMsg('howto', '');
+		$howto = wfMessage('howto', '')->text();
 		foreach ($list as $item) {
 			$doc = phpQuery::newDocumentHTML($item['html']);
 			$a = $doc['a'];
@@ -1397,7 +1566,7 @@ class ApiSectionParser {
 					if ($image) unset($image['obj']);
 					$relateds[] = array(
 						'id' => $articleID,
-						'title' => wfMsg('howto', $title->getText()),
+						'title' => wfMessage('howto', $title->getText())->text(),
 						'image' => $image);
 				}
 			}

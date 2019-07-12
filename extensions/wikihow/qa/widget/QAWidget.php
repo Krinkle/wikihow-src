@@ -12,12 +12,14 @@ class QAWidget {
 	const QA_EDITOR_USER_GROUP = 'qa_editors';
 	const QA_ASKED_QUESTION_MAXLENGTH = 200;
 	const LIMIT_UPATROLLED_QUESTIONS = 5;
+	const FRESH_QA_PAGE_TAG = 'fresh_q&a_pages';
+	const LIMIT_SUBMITTED_QUESTIONS = 5;
 
 	var $t = null;
 
-    function __construct($t = null) {
+	function __construct($t = null) {
 		$this->t = !is_null($t) ? $t : RequestContext::getMain()->getTitle();
-    }
+	}
 
 	//for embedding in the article page
 	public function addWidget() {
@@ -30,9 +32,9 @@ class QAWidget {
 
 	public function getWidgetHTML() {
 		$loader = new Mustache_Loader_CascadingLoader([
-			new Mustache_Loader_FilesystemLoader(dirname(__FILE__)),
-			new Mustache_Loader_FilesystemLoader(dirname(__FILE__) . "/../../ext-utils/thumbs_up_down"),
-			new Mustache_Loader_FilesystemLoader(dirname(__FILE__) . "/../../TopAnswerers/templates")
+			new Mustache_Loader_FilesystemLoader(__DIR__),
+			new Mustache_Loader_FilesystemLoader(__DIR__ . "/../../ext-utils/thumbs_up_down"),
+			new Mustache_Loader_FilesystemLoader(__DIR__ . "/../../TopAnswerers/templates")
 		]);
 		$options = array('loader' => $loader);
 		$m = new Mustache_Engine($options);
@@ -54,7 +56,9 @@ class QAWidget {
 	}
 
 	protected function getVars($loader) {
+		$isMobile = Misc::isMobileMode();
 		$u = $this->getUser();
+
 		$vars['aid'] = $aid = $this->t->getArticleID();
 		$vars['qa_admin'] = $isAdmin = self::isAdmin($u);
 		$vars['qa_editor'] = $isEditor = self::isEditor($u);
@@ -69,7 +73,7 @@ class QAWidget {
 		$vars['qa_article_question_item'] = $loader->load('qa_article_question_item');
 		$vars['qa_question_edit_form'] = $loader->load('qa_question_edit_form');
 
-		if (Misc::isMobileMode()) {
+		if ($isMobile) {
 			$vars['thumbs_up_down'] = $loader->load('thumbs_up_down');
 			$vars['qa_done_edit_answered'] = wfMessage('qa_done_edit_answered_mobile')->text();
 			$vars['qa_asked_question_placeholder'] = wfMessage('qa_asked_question_placeholder')->text();
@@ -85,19 +89,19 @@ class QAWidget {
 			$vars['qa_desktop'] = true;
 			$vars['qa_answered_by'] = '';
 			$vars['flag_options'] = $this->getFlagOptions();
+			$vars['qa_expert_hover'] = $loader->load('qa_expert_hover');
 			$vars['top_answerers_qa_widget_desktop'] = $loader->load('top_answerers_qa_widget_desktop');
-			if(!$u->isAnon()) {
+			if (!$u->isAnon()) {
 				$vars['answer_flag_options'] = $this->getAnswerFlagOptions();
 			}
 		}
 
-
-		if($showUnansweredQuestions) {
+		if ($showUnansweredQuestions) {
 			$vars['qa_answer_confirmation'] = $loader->load('qa_answer_confirmation');
 			$vars['qa_social_login_form'] = $loader->load('qa_social_login_form');
 			$vars['qa_social_login_confirmation'] = $loader->load('qa_social_login_confirmation');
 
-			if (Misc::isMobileMode()) {
+			if ($isMobile) {
 				$vars['qa_curate'] = wfMessage('qa_curate_mobile')->text();
 				$vars['qa_ignore'] = wfMessage('qa_ignore_mobile')->text();
 				$vars['qa_flag'] = wfMessage('qa_flag_mobile')->text();
@@ -110,7 +114,6 @@ class QAWidget {
 			}
 
 			$msgKeys = [
-				'qa_show_more_submitted',
 				'qa_section_submitted',
 				'qa_add_curated'
 			];
@@ -138,22 +141,26 @@ class QAWidget {
 			'qa_flag_duplicate',
 			'qa_edit',
 			'qa_edit_answered',
-			'ta_label'
+			'qa_email_prompt',
+			'qa_question_label'
 		];
 		$vars = array_merge($vars, $this->getMWMessageVars($msgKeys));
 
 		$vars['qa_asked_question_maxlength'] = self::QA_ASKED_QUESTION_MAXLENGTH;
 		$vars['qa_asked_count'] = wfMessage('qa_asked_count', self::QA_ASKED_QUESTION_MAXLENGTH)->text();
 		$vars['qa_submitted_question_item'] = $loader->load('qa_submitted_question_item');
+		$vars['qa_fresh'] = $fresh_qa = ArticleTagList::hasTag(self::FRESH_QA_PAGE_TAG, $aid);
 
-		$limit = Misc::isMobileMode() ? self::LIMIT_MOBILE_ANSWERED_QUESTIONS : self::LIMIT_DESKTOP_ANSWERED_QUESTIONS;
-		$articleQuestions = self::getArticleQuestions($aid, $isEditor, $limit);
+		$limit = $isMobile ? self::LIMIT_MOBILE_ANSWERED_QUESTIONS : self::LIMIT_DESKTOP_ANSWERED_QUESTIONS;
+		$offset = $fresh_qa ? $limit : 0;
+		$articleQuestions = self::getArticleQuestions($aid, $isEditor, $limit, $offset);
+		WikihowToc::setQandA( $articleQuestions );
 		if (count($articleQuestions) >= $limit) {
 			$vars['qa_show_more_answered'] = wfMessage('qa_show_more_answered')->text();
 		}
 		if (class_exists("QADomain")) {
 			$qa_whalink = QADomain::getRandomQADomainLinkFromWikihow($this->t->getArticleID());
-			if($qa_whalink !== false) {
+			if ($qa_whalink !== false) {
 				$vars['qa_whalink'] = $qa_whalink;
 				$vars['qa_see_more_answered'] = wfMessage('qa_see_more_answered')->text();
 			}
@@ -161,14 +168,13 @@ class QAWidget {
 		$vars['article_questions'] = $articleQuestions;
 		$vars['qa_has_visible_answers'] = self::hasVisibleAnswers($isEditor, $articleQuestions);
 
-		$vars['submitted_questions'] = $this->getSubmittedQuestions();
-		$vars['formatName'] = function($text, Mustache_LambdaHelper $helper) {
-			$name = ArticleReviewers::getAnchorName($helper->render($text));
-			return  "/Special:ArticleReviewers?name=$name#$name";
-		};
+		$vars['submitted_questions'] = $this->getSubmittedQuestions($aid, self::LIMIT_SUBMITTED_QUESTIONS);
+		if (count($vars['submitted_questions']) == self::LIMIT_SUBMITTED_QUESTIONS) {
+			$vars['qa_show_more_submitted'] = wfMessage('qa_show_more_submitted')->text();
+		}
 		$vars['search_enabled'] = $this->isSearchTarget() ? 1 : 0;
 
-		if($showUnpatrolledQuestions) {
+		if ($showUnpatrolledQuestions) {
 			$msgKeys = [
 				'qa_section_unpatrolled'
 			];
@@ -176,7 +182,7 @@ class QAWidget {
 
 			$vars['unpatrolled_questions'] = $this->getUnpatrolledQuestions($aid, self::LIMIT_UPATROLLED_QUESTIONS);
 			$vars['qa_patrol_item'] = $loader->load('qa_patrol_item');
-			if(count($vars['unpatrolled_questions']) >= self::LIMIT_UPATROLLED_QUESTIONS) {
+			if (count($vars['unpatrolled_questions']) == self::LIMIT_UPATROLLED_QUESTIONS) {
 				$vars['qa_show_more_unpatrolled'] = wfMessage('qa_show_more_unpatrolled')->text();
 			}
 			$vars['qa_has_unpatrolled'] = (count($vars['unpatrolled_questions']) > 0);
@@ -315,6 +321,7 @@ class QAWidget {
 
 		$key = QAWidgetCache::getArticleQuestionsPagingCacheKey($aid, $isEditor, $limit, $offset);
 		$aqs = $wgMemc->get($key);
+
 		// Always retrieve the latest for admins
 		if (empty($aqs) || $isEditor) {
 			$qadb = QADB::newInstance();
@@ -335,11 +342,11 @@ class QAWidget {
 		return $aqs;
 	}
 
-	protected function getSubmittedQuestions() {
+	protected function getSubmittedQuestions($aid, $limit = 0) {
 		$qadb = QADB::newInstance();
 		$u = RequestContext::getMain()->getUser();
 		// Anons only see approved questions
-		return $qadb->getSubmittedQuestions($this->t->getArticleId(), 0, 5, false, false, $u->isAnon(), false, true);
+		return $qadb->getSubmittedQuestions($aid, 0, $limit, false, false, $u->isAnon(), false, true);
 	}
 
 	protected function getFlagOptions() {
@@ -402,7 +409,7 @@ class QAWidget {
 				$moduleName = 'mobile.wikihow.qa_widget';
 			}  else {
 				$moduleName = 'ext.wikihow.qa_widget';
-				$qa_toc = Misc::getEmbedFile('css', dirname(__FILE__) . '/qa_widget_desktop_top.less');
+				$qa_toc = Misc::getEmbedFile('css', __DIR__ . '/qa_widget_desktop_top.less');
 				$out->addHeadItem('qa_toc', HTML::inlineStyle($qa_toc));
 			}
 
@@ -412,9 +419,9 @@ class QAWidget {
 		return true;
 	}
 
-	public static function onAddDesktopTOCItems($wgTitle, &$anchorList, &$maxCount) {
+	public static function onAddDesktopTOCItems($wgTitle, &$anchorList) {
 		if (!Misc::isMobileMode() && QAWidget::isTargetPage()) {
-			$pos = $maxCount < count($anchorList) ? $maxCount : count($anchorList)	;
+			$pos = count($anchorList);
 			$tocText = wfMessage('qa_toc_section')->text();
 			array_splice($anchorList, $pos, 0, "<a id='qa_toc' href='#Questions_and_Answers_sub'>$tocText</a>");
 		}
@@ -471,6 +478,10 @@ class QAWidget {
 	 * @param $aqs
 	 */
 	public static function formatArticleQuestionsForArticlePage($aqs) {
+		$user = RequestContext::getMain()->getUser();
+		$isEditor = self::isEditor($user);
+		$isAdmin = self::isAdmin($user);
+
 		$user_ids = [];
 		foreach ($aqs as $q) {
 			$user_ids[] = $q->getSubmitterUserId();
@@ -480,7 +491,15 @@ class QAWidget {
 		$display_data = $dc->getData();
 
 		foreach ($aqs as $q) {
-			$q->setProfileDisplayData($display_data[$q->getSubmitterUserId()]);
+			if ( isset( $display_data[$q->getSubmitterUserId()] ) ) {
+				$q->setProfileDisplayData($display_data[$q->getSubmitterUserId()]);
+			}
+			$q->show_editor_tools = self::showEditorTools($q, $isEditor, $isAdmin);
+			$q->qa_answerer_class = self::getAnswererClass($q);
+			$q->qa_answerer_label = self::getAnswererLabel($q);
+			if ( $q->verifierData ) {
+				$q->verifierData->articleReviewersUrl = ArticleReviewers::getLinkToCoauthor($q->verifierData);
+			}
 		}
 
 		return $aqs;
@@ -505,5 +524,42 @@ class QAWidget {
 		}
 
 		return $has_visible;
+	}
+
+	private static function showEditorTools($article_question, $isEditor, $isAdmin): bool {
+		$show = false;
+
+		if ($isAdmin) {
+			$show = true;
+		}
+		elseif ($isEditor && empty($article_question->verifierId)) {
+			$show = true;
+		}
+
+		return $show;
+	}
+
+	private static function getAnswererClass($article_question): string {
+		if (!empty($article_question->verifierId))
+			$class = 'qa_expert_area';
+		elseif (!empty($article_question->isTopAnswerer))
+			$class = 'qa_ta_area';
+		else
+			$class = 'qa_user_area';
+
+		return $class;
+	}
+
+	private static function getAnswererLabel($article_question): string {
+		if (!empty($article_question->verifierId))
+			$label = wfMessage('qa_expert_answer')->text();
+		elseif (!empty($article_question->isTopAnswerer))
+			$label = wfMessage('ta_label')->text();
+		elseif ($article_question->getSubmitterDisplayName() == wfMessage('qa_staff_editor')->text())
+			$label = wfMessage('qa_staff_label')->text();
+		else
+			$label = wfMessage('qa_user_label_default')->text();
+
+		return $label;
 	}
 }

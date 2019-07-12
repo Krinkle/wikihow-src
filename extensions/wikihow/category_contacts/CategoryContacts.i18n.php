@@ -1,7 +1,7 @@
-<?
+<?php
 $messages = array();
 
-$messages['en'] = 
+$messages['en'] =
 	array(
 		//CategoryContacts page
 		'cc_add_hdr' => 'Add Email Addresses or Categories',

@@ -1,4 +1,4 @@
-<?
+<?php
 namespace ContentPortal;
 use MVC\Paginator;
 use __;
@@ -120,7 +120,7 @@ class ArticlesController extends AppController {
 		// $this->article->update_attributes(['assigned_id' => null]);
 		$assign = Assignment::build($this->article);
 		$assign->delete();
-		if ($assign->currentStep->key == Role::VERIFY_KEY) $assign->create(User::find_by_username(DANIEL));
+		if ($assign->currentStep->key == Role::VERIFY_KEY) $assign->create(User::find_by_username(CARRIE));
 
 		setFlash("You have removed yourself from {$this->article->title}", 'success');
 		$this->redirectTo('articles/dashboard');

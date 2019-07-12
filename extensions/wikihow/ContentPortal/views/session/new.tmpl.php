@@ -60,7 +60,7 @@
 			</p>
 			<p>
 				To reset your password, visit 
-				<a href="https://www.wikihow.com/index.php?title=Special:UserLogin&returnto=&returntoquery=&type=login&fromhttp=1">Wikihow.com</a> and click the <b>Forgot Password?</b> link;
+				<a href="https://www.wikihow.com/index.php?title=Special:UserLogin&returnto=&returntoquery=&type=login">Wikihow.com</a> and click the <b>Forgot Password?</b> link;
 		</div>
 	</div>
  

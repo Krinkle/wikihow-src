@@ -1,7 +1,6 @@
 <?php
 
 $messages = array();
-
 $messages['en'] = array(
 	'cd-html-title' => 'Community Dashboard',
 	'cd-settings' => 'settings',
@@ -98,7 +97,7 @@ $messages['en'] = array(
 	'cd-addImages-disabled-info' => '',
 	'cd-addVideos-disabled-info' => '',
 	'cd-widget-error' => "<strong>Uh oh -<br /> Something's not right<br />Try reloading in a few minutes</strong>",
-	
+
 	'cd-kbg-title' => 'Knowledge Guardian',
 	'cd-kbg-title-mobile' => 'Review Knowledge',
 	'cd-kbg-countdescription' => 'remain',
@@ -116,7 +115,7 @@ $messages['en'] = array(
 	'cd-ung-phrase-prog' => 'reviewing conversions',
 	'cd-ung-link' => '/Special:UnitGuardian',
 	'cd-ung-event-type' => 'unit_guardian',
-	
+
 	'cd-spl-title' => 'Spell checker',
 	'cd-spl-title-mobile' => 'Fix Spelling',
 	'cd-spl-countdescription' => 'articles to spell check',
@@ -137,15 +136,25 @@ $messages['en'] = array(
 	'cd-tf-link' => '/Special:TechFeedback',
 	'cd-tf-event-type' => 'techfeedback',
 
+	'cd-af-title' => 'Review Article Feedback',
+	'cd-af-title-mobile' => 'Review Article Feedback',
+	'cd-af-countdescription' => 'article comments to review',
+	'cd-af-countdescription-adjusted' => 'comments to review until goal',
+	'cd-af-usercount' => 'Article feedback reviewed',
+	'cd-af-phrase' => 'approve article feedback',
+	'cd-af-phrase-prog' => 'approving article feedback',
+	'cd-af-link' => '/Special:ArticleFeedback',
+	'cd-af-event-type' => 'articlefeedback',
+
 	'cd-tv-title' => 'Test Tech Articles',
 	'cd-tv-title-mobile' => 'Test Tech Articles',
 	'cd-tv-countdescription' => 'tech articles to test',
-	'cd-tv-countdescription-adjusted' => 'articles to review until goal',
+	'cd-tv-countdescription-adjusted' => 'articles to test until goal',
 	'cd-tv-usercount' => 'Tech articles tested',
 	'cd-tv-phrase' => 'test tech articles',
 	'cd-tv-phrase-prog' => 'testing tech articles',
-	'cd-tv-link' => '/Special:TechVerify',
-	'cd-tv-event-type' => 'techverify',
+	'cd-tv-link' => '/Special:TechTesting',
+	'cd-tv-event-type' => 'techtesting',
 
 	'cd-catch-title' => 'Category Guardian',
 	'cd-catch-title-mobile' => 'Check Categories',
@@ -160,7 +169,7 @@ $messages['en'] = array(
 	'cd-rateTool-title' => 'Rate Articles',
 	'cd-rateTool-countdescription' => '',
 	'cd-rateTool-countdescription-adjusted' => '',
-	'cd-rateTool-usercount' => 'Articles Rated',	
+	'cd-rateTool-usercount' => 'Articles Rated',
 	'cd-rat-title' => 'Rate Tool',
 	'cd-rat-phrase' => 'rate articles',
 	'cd-rat-phrase-prog' => 'rating articles',
@@ -175,7 +184,7 @@ $messages['en'] = array(
 	'cd-tg-phrase-prog' => 'approving tips',
 	'cd-tg-link' => '/Special:TipsGuardian',
 	'cd-tg-event-type' => 'tips_guardian',
-	
+
 	'cd-uci-title' => 'Picture Patrol',
 	'cd-uci-title-mobile' => 'Patrol Pictures',
 	'cd-uci-countdescription' => 'pictures to patrol',
@@ -189,14 +198,15 @@ $messages['en'] = array(
 	'cd-tip-phrase-prog' => 'patrolling tips',
 	'cd-tip-link' => '/Special:TipsPatrol',
 	'cd-tip-event-type' => 'tips_patrol',
-	
+
 	'cd-qap-title' => 'Patrol Q&A',
 	'cd-qap-countdescription' => 'Q&As to patrol',
 	'cd-qap-phrase' => 'patroll Q&A',
 	'cd-qap-phrase-prog' => 'patrolling Q&A',
 	'cd-qap-link' => 'Special:QAPatrol',
 	'cd-qap-event-type' => 'qa_patrol',
-	
+	'cd-qap-disabled-info' => 'Patrolling Q&A requires a promotion. To learn how to apply, go [[Become a Q%26A Patroller and Editor on wikiHow|here]].',
+
 	'cd-sqt-title' => 'Approve Questions',
 	'cd-sqt-title-mobile' => 'Approve Questions',
 	'cd-sqt-countdescription' => 'questions to approve',
@@ -204,7 +214,7 @@ $messages['en'] = array(
 	'cd-sqt-phrase-prog' => 'approving questions',
 	'cd-sqt-link' => 'Special:SortQuestions',
 	'cd-sqt-event-type' => 'sort_questions_tool',
-	
+
 	//mobile words
 	'cd-m-header' => 'We need your help!',
 	'cd-m-firstsection-header' => 'Things to Try First',
@@ -222,5 +232,24 @@ $messages['en'] = array(
 	'cd-dt-remaining' => 'Plenty more',
 	'cd-dt-title-mobile' => 'Find Duplicate Titles',
 	'cd-dt-countdescription' => "titles to check",
-	'cd-dt-usercount' => 'Titles reviewed'
+	'cd-dt-usercount' => 'Titles reviewed',
+
+	'cd-ffa-title' => 'Fix Flagged Answers',
+	'cd-ffa-weather' => 'cloudy',
+	'cd-ffa-remaining' => 'Plenty more',
+	'cd-ffa-countdescription' => 'answers remaining',
+	'cd-ffa-title' => 'Fix Flagged Answers',
+	'cd-ffa-disabled-info' => 'Fixing flagged answers requires a promotion. To learn how to apply, go [[Become a Q%26A Patroller and Editor on wikiHow|here]].',
+
+	'cd-ttt-title' => 'Tag Topics',
+	'cd-ttt-title-mobile' => 'Tag Topics',
+	'cd-ttt-countdescription' => 'articles to tag',
+	'cd-ttt-phrase' => 'tag articles',
+	'cd-ttt-phrase-prog' => 'tagging articles',
+	'cd-ttt-link' => 'Special:TopicTagging',
+	'cd-ttt-event-type' => 'topic_tagging_tool',
+
+	'cd-qy-title-mobile' => 'Take Quizzes',
+	'cd-qy-link' => 'Special:QuizYourself',
+	'cd-qy-event-type' => 'quiz_yourself',
 );

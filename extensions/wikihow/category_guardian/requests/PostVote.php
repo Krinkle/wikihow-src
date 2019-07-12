@@ -17,8 +17,9 @@ class PostVote extends SqlSuper{
 	function __construct() {
 		global $wgUser;
 		$this->user = $wgUser;
-		$score = new UserTrustScore('category_guardian');
-		$this->userTrustScore = $score->getScore();
+		// $score = new UserTrustScore('category_guardian');
+		// $this->userTrustScore = $score->getScore();
+		$this->userTrustScore = 1; //trust everyone
 		parent::__construct('PostVote');
 	}
 
@@ -115,7 +116,7 @@ class PostVote extends SqlSuper{
 						"cl_to" => $answer['cat_slug']
 					));
 
-					Categoryhelper::decategorize(
+					CategoryHelper::decategorize(
 						$answer['page_id'],
 						$answer['cat_slug'],
 						"Removing category that seems to be a poor fit, based on votes from the Category Guardian",

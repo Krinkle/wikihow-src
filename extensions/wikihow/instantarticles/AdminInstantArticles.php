@@ -1,4 +1,4 @@
-<?
+<?php
 
 if (!defined('MEDIAWIKI')) {
     die();
@@ -10,7 +10,7 @@ $wgExtensionCredits['specialpage'][] = array(
 );
 
 $wgSpecialPages['AdminInstantArticles'] = 'AdminInstantArticles';
-$wgAutoloadClasses['AdminInstantArticles'] = dirname(__FILE__) . '/AdminInstantArticles.body.php';
+$wgAutoloadClasses['AdminInstantArticles'] = __DIR__ . '/AdminInstantArticles.body.php';
 
 $wgResourceModules['ext.wikihow.admininstantarticles'] = array(
 	'scripts' => array( 'admininstantarticles.js', ),

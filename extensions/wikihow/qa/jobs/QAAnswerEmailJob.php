@@ -115,11 +115,6 @@ class QAAnswerEmailJob extends Job {
 
 			$content_type = "text/html; charset=UTF-8";
 			UserMailer::send($to, $from, $subject, $body, null, $content_type);
-
-			//send an email to alissa too!
-			$to = new MailAddress('alissa@wikihow.com');
-			$subject = '[Answer email] '.$sqid.' '.$email;
-			UserMailer::send($to, $from, $subject, $body, null, $content_type);
 		}
 
 		//log it

@@ -4,16 +4,16 @@ require_once __DIR__ . '/../commandLine.inc';
 require_once "$IP/extensions/wikihow/DatabaseHelper.class.php";
 require_once "$IP/extensions/wikihow/authors/AuthorEmailNotification.php";
 
-$day = intval(date("j"));
+$day = (int)date("j");
 
-if($day < 1 || $day > 6) {
+if ($day < 1 || $day > 6) {
 	echo "We don't send emails on the $day day of the month. Exiting.\n";
 	exit;
 }
 
 $startTime = microtime(true);
 
-$dbr = wfGetDB(DB_SLAVE);
+$dbr = wfGetDB(DB_REPLICA);
 
 $todayUnix = wfTimestamp(TS_UNIX);
 $minUnix = strtotime("-1 month", $todayUnix);
@@ -54,47 +54,47 @@ foreach ($users as $userArray) {
 	$user = User::newFromId($userArray[0]->user_id);
 	$firstLetter = strtolower(substr($user->getName(), 0, 1));
 	$omit = false;
-	switch($day){
+	switch ($day) {
 		case 1:
-			if($firstLetter < "a" || $firstLetter > "c")
+			if ($firstLetter < "a" || $firstLetter > "c")
 				$omit = true;
 			break;
 		case 2:
-			if($firstLetter < "d" || $firstLetter > "i")
+			if ($firstLetter < "d" || $firstLetter > "i")
 				$omit = true;
 			break;
 		case 3:
-			if($firstLetter < "j" || $firstLetter > "l")
+			if ($firstLetter < "j" || $firstLetter > "l")
 				$omit = true;
 			break;
 		case 4:
-			if($firstLetter < "m" || $firstLetter > "r")
+			if ($firstLetter < "m" || $firstLetter > "r")
 				$omit = true;
 			break;
 		case 5:
-			if($firstLetter < "s" || $firstLetter > "z")
+			if ($firstLetter < "s" || $firstLetter > "z")
 				$omit = true;
 			break;
 		case 6:
-			if(ctype_alpha($firstLetter))
+			if (ctype_alpha($firstLetter))
 				$omit = true;
 			break;
 	}
 
-	if($omit) {
+	if ($omit) {
 		//we don't send this user on this day
 		continue;
 	}
 
 	$email = $user->getEmail();
 
-	if($email == "") {
+	if ($email == "") {
 		//this shouldn't happen anymore, but keeping it in anyway
 		//echo "They don't have an email.\n";
 		continue;
 	}
 	
-	if($user->getOption('disablemarketingemail') == '1') {
+	if ($user->getOption('disablemarketingemail') == '1') {
 		//echo "They don't want notifications\n";
 		continue;
 	}
@@ -108,25 +108,26 @@ foreach ($users as $userArray) {
 		$articles++;
 	}
 
-	if($views < 50) {
+	if ($views < 50) {
 		//echo "No email sent to " . $user->getName() . ". Not enough views ({$views})\n";
 		continue;
 	}
 
 	$from_name = "wikiHow Support <support@wikihow.com>";
-	$subject = wfMsg("viewership_subject");
+	$subject = wfMessage("viewership_subject");
 
 	$cta = AuthorEmailNotification::getCTA('monthly_views', 'email');
 	
-	if($articles == 1)
+	if ($articles == 1) {
 		$article = "article";
-	else
+	} else {
 		$article = "articles";
+	}
 
 	$contribsPage = SpecialPage::getTitleFor( 'Contributions', $user->getName() );
 	$contribsLink = $contribsPage->getCanonicalURL();
 
-	$body = wfMsg("viewership_body", $user->getName(), number_format($articles), number_format($views), $cta, $article, $contribsLink);
+	$body = wfMessage("viewership_body", $user->getName(), number_format($articles), number_format($views), $cta, $article, $contribsLink)->text();
 	//$link = UnsubscribeLink::newFromID($user->getID());
 	//$body .= wfMessage( 'aen-optout-footer', $link->getLink())->text();
 
@@ -137,9 +138,9 @@ foreach ($users as $userArray) {
 	
 	$userNames .= $user->getName() . " ";
 	
-	if($emailCount > 500)
+	if ($emailCount > 500) {
 		break;
-	
+	}
 }
 
 echo "\n\nEmail sent to:\t{$userNames}\n\n";

@@ -146,6 +146,10 @@ $wgResourceModules['ext.guidedTour.tour.dashboard'] = array(
 		'guidedtour-tour-dashboard-answerrequests-description',
 		'guidedtour-tour-dashboard-end-title',
 		'guidedtour-tour-dashboard-end-description',
+		'guidedtour-tour-dashboard-answerquestions-title',
+		'guidedtour-tour-dashboard-answerquestions-description',
+		'guidedtour-tour-dashboard-editbytopic-title',
+		'guidedtour-tour-dashboard-editbytopic-description'
 	),
 );
 

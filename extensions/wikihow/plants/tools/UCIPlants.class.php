@@ -33,7 +33,7 @@ class UCIPlants extends Plants {
 			return null;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$lastPlant = $this->getLastPlantUsed($usedPlants);
 		if ( $lastPlant ) {
@@ -69,13 +69,13 @@ class UCIPlants extends Plants {
 	}
 
 	function getCorrectAnswer($plantId) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		return $dbr->selectField($this->questionTable, 'pqu_answer', array('pqu_id' => $plantId), __METHOD__);
 	}
 
 	function getAllPlantsForAdmin() {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$res = $dbr->select($this->questionTable, "*", array(), __METHOD__, array("ORDER BY" => 'pqu_display ASC'));
 		$plants = array();
@@ -128,10 +128,10 @@ class UCIPlants extends Plants {
 			$res = !$file ? false : true;
 		}
 
-		if (!$res) {
-			//fail? send a mail
-			mail('alissa@wikihow.com', 'Bad Plant in Picture Patrol', "Plant title: " . $title->getText() . "\n\nFix here: http://www.wikihow.com/Special:AdminPlants");
-		}
+		// if (!$res) {
+		// 	//fail? send a mail
+		// 	mail('alissa@wikihow.com', 'Bad Plant in Picture Patrol', "Plant title: " . $title->getText() . "\n\nFix here: http://www.wikihow.com/Special:AdminPlants");
+		// }
 
 		return $res;
 	}

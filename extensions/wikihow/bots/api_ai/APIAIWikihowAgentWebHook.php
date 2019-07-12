@@ -6,6 +6,7 @@ use ApiAi\Model\Query;
 class APIAIWikihowAgentWebHook extends UnlistedSpecialPage {
 	const LOG_GROUP = 'APIAIWikihowAgentWebHook';
 	const USAGE_LOGS_EVENT_TYPE = 'google_home_read_article';
+	const LENGTH_MAX_DISPLAY_TEXT = 640;
 
 	const ATTR_ARTICLE = 'article_data';
 	/**
@@ -40,7 +41,7 @@ class APIAIWikihowAgentWebHook extends UnlistedSpecialPage {
 	public static function fatalHandler() {
 		wfDebugLog(self::LOG_GROUP, var_export('Last error on line following', true), true);
 		$error = error_get_last();
-		if( $error !== NULL) {
+		if ($error !== NULL) {
 			$errno   = $error["type"];
 			$errfile = $error["file"];
 			$errline = $error["line"];
@@ -60,7 +61,7 @@ class APIAIWikihowAgentWebHook extends UnlistedSpecialPage {
 
 	function execute($par) {
 		//Define an error handler if you need to debug errors
-		//error_reporting(E_CORE_ERROR|E_COMPILE_ERROR);
+		error_reporting(E_ERROR|E_CORE_ERROR|E_COMPILE_ERROR);
 		//register_shutdown_function("APIAIWikihowAgentWebHook::fatalHandler");
 		$old_error_handler = set_error_handler("APIAIWikihowAgentWebHook::errorHandler");
 
@@ -68,10 +69,11 @@ class APIAIWikihowAgentWebHook extends UnlistedSpecialPage {
 		$this->getOutput()->setArticleBodyOnly(true);
 
 		try {
-			$this->apiAIRequest = new Query(json_decode(file_get_contents("php://input"), true));
+			$incomingRequest = file_get_contents("php://input");
+			$this->apiAIRequest = new Query(json_decode($incomingRequest, true));
 
 			wfDebugLog(self::LOG_GROUP, var_export("Incoming request", true), true);
-			wfDebugLog(self::LOG_GROUP, var_export($this->apiAIRequest, true), true);
+			wfDebugLog(self::LOG_GROUP, var_export($incomingRequest, true), true);
 
 			$this->initBot();
 			$this->processRequest();
@@ -168,8 +170,16 @@ class APIAIWikihowAgentWebHook extends UnlistedSpecialPage {
 			case self::INTENT_NO:
 				$responseText = $bot->onIntentNo();
 				$response = $this->getResponseWithContext($responseText);
-				if ($bot->getArticleData() && $bot->getArticleData()->isLastStepInMethod()) {
+				// If we're in an article and the user says no, that signals they want to exit the action.
+				// Send the ad response in this instance with the response text. Ads show at the ending intent
+				// (eg when the session should be ended)
+				if ($bot->getArticleData()) {
+					$response = $this->injectAdIntoResponse($response, false);
 					$response = $this->setEndSession($response);
+					$this->sendResponse($response);
+					return;
+				} else {
+					$response = $this->getResponseWithContext($responseText);
 				}
 				break;
 			case self::INTENT_YES:
@@ -182,6 +192,23 @@ class APIAIWikihowAgentWebHook extends UnlistedSpecialPage {
 
 		$response = $this->setReprompt($response);
 		$this->sendResponse($response);
+	}
+
+	protected function injectAdIntoResponse($response, $isConversationStart) {
+		$conversationState = $isConversationStart ? 'CONVERSATION_START' : 'CONVERSATION_END';
+
+		$response['data']['google']['systemIntent'] = [
+			'intent' => 'actions.intent.SHOW_AD',
+			'data' => [
+				'@type' => 'type.googleapis.com/google.actions.v2.ShowAdValueSpec',
+				'conversationState' => $conversationState
+			]
+		];
+
+		wfDebugLog(self::LOG_GROUP, var_export(__METHOD__ . ": $conversationState Ad Response", true), true);
+		wfDebugLog(self::LOG_GROUP, var_export($response, true), true);
+
+		return $response;
 	}
 
 	/**
@@ -205,17 +232,23 @@ class APIAIWikihowAgentWebHook extends UnlistedSpecialPage {
 
 				// Don't prompt for the next step on the last step
 				$prompts = [];
-				$isLastStep = $this->getBot()->getArticleData()->isLastStepInMethod();
+				$a = $this->getBot()->getArticleData();
+				// Case where no results are found in the INTENT_HOWTO search
+				if (!$a) {
+					return $response;
+				}
+
+				$isLastStep = $a && $a->isLastStepInMethod();
 				if ($isLastStep) {
 					$prompts []=
 						[
-							"text_to_speech" => " ",
+							"textToSpeech" => " ",
 							"ssml" => "<speak><break time=\"3333ms\" /></speak>"
 						];
 				} else {
 					$prompts []=
 						[
-							"text_to_speech" => $sayNextPrompt,
+							"textToSpeech" => $sayNextPrompt,
 							"ssml" => $this->convertToSSML($sayNextPrompt)
 						];
 				}
@@ -223,11 +256,11 @@ class APIAIWikihowAgentWebHook extends UnlistedSpecialPage {
 				// Always end with our goodbye message when navigating and article
 				$prompts []=
 					[
-						"text_to_speech" => $noResponsePrompt,
+						"textToSpeech" => $noResponsePrompt,
 						"ssml" => $this->convertToSSML($noResponsePrompt)
 					];
 
-				$response['data']['google']['no_input_prompts'] = $prompts;
+				$response['data']['google']['noInputPrompts'] = $prompts;
 		}
 		return $response;
 	}
@@ -265,18 +298,32 @@ class APIAIWikihowAgentWebHook extends UnlistedSpecialPage {
 	 * @internal param bool $expectUserResponse
 	 */
 	protected function getResponseObject($responseText) {
+
+		$responseText = StringUtil::convertCurlyQuotes($responseText);
+		// Convert emdash to dash
+		$responseText = str_replace(["-", "–", '—'], '-', $responseText);
+		// Handle any other weird characters that may cause json_encode to barf later on
+		$responseText = utf8_encode($responseText);
+
+		wfDebugLog(self::LOG_GROUP, var_export(__METHOD__, true), true);
+		wfDebugLog(self::LOG_GROUP, var_export("Response text:\n$responseText", true), true);
+
 		$ssml = $this->convertToSSML($responseText);
+
+
+		if (strlen($responseText) > self::LENGTH_MAX_DISPLAY_TEXT) {
+			$responseText = substr($responseText, 0, self::LENGTH_MAX_DISPLAY_TEXT - 3) . '...';
+		}
 
 		return [
 			"speech" => $ssml,
 			"displayText" => $responseText,
 			"data" => [
 				"google" => [
-					"expect_user_response" => true,
-					"is_ssml" => true,
-					"no_input_prompts" => [
+					"expectUserResponse" => true,
+					"noInputPrompts" => [
 						[
-							"text_to_speech" => " ",
+							"textToSpeech" => " ",
 							"ssml" => "<speak><break time=\"3333ms\" /></speak>"
 						]
 					],
@@ -288,8 +335,8 @@ class APIAIWikihowAgentWebHook extends UnlistedSpecialPage {
 	}
 
 	protected function setEndSession($response) {
-		$response['data']['google']['expect_user_response'] = false;
-		
+		$response['data']['google']['expectUserResponse'] = false;
+
 		return $response;
 	}
 
@@ -320,6 +367,7 @@ class APIAIWikihowAgentWebHook extends UnlistedSpecialPage {
 	 */
 	protected function setSessionAttributes($response) {
 		foreach ($this->apiAIRequest->session->attributes as $key => $val) {
+//			$response->addSessionAttribute($key, utf8_encode($val));
 			$response->addSessionAttribute($key, $val);
 		}
 
@@ -334,12 +382,22 @@ class APIAIWikihowAgentWebHook extends UnlistedSpecialPage {
 		$wgMimeType = 'application/json';
 
 		$response = json_encode($response);
-		wfDebugLog(self::LOG_GROUP, var_export("Response json:", true), true);
+		wfDebugLog(self::LOG_GROUP, var_export("Response json after json_encode:", true), true);
 		wfDebugLog(self::LOG_GROUP, var_export($response, true), true);
+
+		if (!$response) {
+			wfDebugLog(self::LOG_GROUP, var_export("Problem with reponse! Reverting to default message", true), true);
+			wfDebugLog(self::LOG_GROUP, var_export("json last error: " . json_last_error(), true), true);
+			wfDebugLog(self::LOG_GROUP, var_export(json_last_error_msg(), true), true);
+			$response = json_encode($this->getResponseWithContext(wfMessage('reading_article_unkown_command')->text()));
+		}
+
 		echo $response;
 	}
 
 	protected function convertToSSML($text) {
+		// Remove unsupported SSML characters
+		$text = str_replace("&", "and", $text);
 		$text = str_replace("\n", "<break time=\"300ms\" />", $text);
 		$text = "<speak>$text</speak>";
 		return $text;

@@ -18,9 +18,19 @@ $messages['en'] = [
  <a href='https://ru.wikihow.com'>Русский</a>,
  <a href='https://ar.wikihow.com'>العربية</a>,
  <a href='https://th.wikihow.com'>ไทย</a>,
+ <a href='https://www.wikihow.com.tr'>Türkçe</a>,
  <a href='https://www.wikihow.vn'>Tiếng Việt</a>,
  <a href='https://ko.wikihow.com'>한국어</a>,
  <a href='https://zh.wikihow.com'>中文</a>.
 EOS
 	,
+];
+
+$messages['es'] = [
+	/**
+	 * This message is already stored in the ES DB, but we redefine it here so links to the
+	 * ES homepage from other langs don't point to the default ES homepage ("/Página-Principal").
+	 * @see WikihowHomepage::getLanguageLinksForHomePage()
+	 */
+	'mainpage' =>  'Portada',
 ];

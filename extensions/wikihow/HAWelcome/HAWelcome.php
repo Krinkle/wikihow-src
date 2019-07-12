@@ -30,9 +30,8 @@ $wgExtensionCredits['other'][] = array(
 /**
  * used hooks
  */
-//$wgHooks[ "ArticleSaveComplete" ][]	= "HAWelcomeJob::revisionInsertComplete";
-$wgHooks[ "ArticleSaveComplete" ][]	= "HAWelcomeJob::revisionInsertComplete";
-$wgHooks[ "UserLoginComplete" ][]	= "HAWelcomeJob::signUpComplete";
+$wgHooks[ "PageContentSaveComplete" ][] = "HAWelcomeJob::revisionInsertComplete";
+$wgHooks[ "UserLoginComplete" ][] = "HAWelcomeJob::signUpComplete";
 $wgHooks[ "FacebookSignupComplete" ][] = "HAWelcomeJob::signUpComplete";
 $wgHooks[ "GoogleSignupComplete" ][] = "HAWelcomeJob::signUpComplete";
 $wgHooks[ "CivicSignupComplete" ][] = "HAWelcomeJob::signUpComplete";
@@ -46,7 +45,7 @@ $wgJobClasses[ "HAWelcome" ] = "HAWelcomeJob";
 /**
  * used messages
  */
-$wgExtensionMessagesFiles[ "HAWelcome" ] = dirname(__FILE__) . '/HAWelcome.i18n.php';
+$wgExtensionMessagesFiles[ "HAWelcome" ] = __DIR__ . '/HAWelcome.i18n.php';
 
 
 
@@ -61,7 +60,7 @@ class HAWelcomeJob extends Job {
 		$mSysop;
 
 	const WELCOMEUSER = "WelcomeBot";
-	const DEFAULTUSER = "TuckerB"; //ANNA HAVING A BABY CURRENTLY "Anna";
+	const DEFAULTUSER = "Anna";
 
 	/**
 	 * Construct a job
@@ -79,7 +78,7 @@ class HAWelcomeJob extends Job {
 		$this->mAnon     = (bool )$params[ "is_anon" ];
 		$this->mSysop    = false;
 
-		if( $this->mAnon ) {
+		if ( $this->mAnon ) {
 			$this->mUser = User::newFromName( $this->mUserIP, false );
 		}
 		else {
@@ -89,7 +88,7 @@ class HAWelcomeJob extends Job {
 		/**
 		 * fallback
 		 */
-/*		if( ! $this->mUser ) {
+/*		if ( ! $this->mUser ) {
 			$this->mUser = User::newFromName( $this->mUserName );
 		}
 	}
@@ -106,7 +105,6 @@ class HAWelcomeJob extends Job {
 	public function runEditThanks($Title) {
 		global $wgUser, $wgTitle, $wgErrorLog;
 
-		wfProfileIn( __METHOD__ );
 
 		//set the variables (used to be in __construct() )
 		$mUserId   = $wgUser->getID();
@@ -115,7 +113,7 @@ class HAWelcomeJob extends Job {
 		$mAnon     = $wgUser->isAnon();
 		$mSysop    = false;
 
-		if( $mAnon ) {
+		if ( $mAnon ) {
 			$mUser = User::newFromName( $mUserIP, false );
 		}
 		else {
@@ -127,7 +125,7 @@ class HAWelcomeJob extends Job {
 		/**
 		 * fallback
 		 */
-		if( !$mUser ) {
+		if ( !$mUser ) {
 			$mUser = User::newFromName( $mUserName );
 		}
 
@@ -138,28 +136,28 @@ class HAWelcomeJob extends Job {
 		/**
 		 * overwrite $wgUser for ~~~~ expanding
 		 */
-		$sysop = trim( wfMsgForContent( "welcome-user" ) );
-		if( !in_array( $sysop, array( "@disabled", "-" ) ) ) {
+		$sysop = trim( wfMessage( "welcome-user" )->inContentLanguage()->text() );
+		if ( !in_array( $sysop, array( "@disabled", "-" ) ) ) {
 
 			$tmpUser = $wgUser;
 			$wgUser  = User::newFromName( self::WELCOMEUSER );
 			$flags = 0;
-			$bot_message = trim( wfMsgForContent( "welcome-bot" ) );
-			if( ($bot_message == '@bot') || ($wgUser && $wgUser->isAllowed( 'bot' )) ) {
+			$bot_message = trim( wfMessage( "welcome-bot" )->inContentLanguage()->text() );
+			if ( ($bot_message == '@bot') || ($wgUser && $wgUser->isAllowed( 'bot' )) ) {
 				$flags = EDIT_FORCE_BOT | EDIT_SUPPRESS_RC;
 			}
 			else {
 				$flags = EDIT_SUPPRESS_RC;
 			}
 
-			if( $mUser && $mUser->getName() !== self::WELCOMEUSER ) {
+			if ( $mUser && $mUser->getName() !== self::WELCOMEUSER ) {
 
 				/**
 				 * check again if talk page exists
 				 */
 				$talkPage  = $mUser->getUserPage()->getTalkPage();
 
-				if( $talkPage ) {
+				if ( $talkPage ) {
 
 					if ($mAnon) {
 						$user = User::newFromName( self::DEFAULTUSER )->getId();
@@ -178,24 +176,23 @@ class HAWelcomeJob extends Job {
 
 					$wgTitle     = $talkPage;
 					$welcomeMsg  = false;
-					$talkArticle = new Article( $talkPage, 0 );
+					$talkWikiPage = WikiPage::factory( $talkPage );
 
-//					if( ! $talkArticle->exists() ) {
-						if( $mAnon ) {
-							if( self::isEnabled( "message-anon" ) ) {
-								if( $isStaff && !$isSysop ) {
+//					if ( ! $talkWikiPage->exists() ) {
+						if ( $mAnon ) {
+							if ( self::isEnabled( "message-anon" ) ) {
+								if ( $isStaff && !$isSysop ) {
 									$key = "welcome-message-anon-staff";
 								}
 								else {
 									$key = "welcome-message-anon";
 								}
-								$welcomeMsg = wfMsgExt( $key, array("parsemag", "content"),
-								array(
-									self::getPrefixedText($tmpTitle),
-									$sysopPage->getPrefixedText(),
-									$signature,
-									wfEscapeWikiText( $mUser->getName() ),
-								));
+								$welcomeMsg = wfMessage( $key,
+										self::getPrefixedText($tmpTitle),
+										$sysopPage->getPrefixedText(),
+										$signature,
+										wfEscapeWikiText( $mUser->getName() )
+									)->text();
 							}
 						}
 						else {
@@ -203,36 +200,36 @@ class HAWelcomeJob extends Job {
 							 * now create user page (if not exists of course)
 							 */
 
-							if(self::isEnabled( "page-user" )) {
+							if (self::isEnabled( "page-user" )) {
 								$userPage = $mUser->getUserPage();
 
-								if( $userPage ) {
+								if ( $userPage ) {
 									$wgTitle = $userPage;
-									$userArticle = new Article( $userPage, 0 );
-									if( ! $userArticle->exists() ) {
-										$pageMsg = wfMsgForContent( "welcome-user-page" );
-										$userArticle->doEdit( $pageMsg, false, $flags );
+									$userWikiPage = WikiPage::factory($userPage);
+									if ( ! $userWikiPage->exists() ) {
+										$pageMsg = wfMessage( "welcome-user-page" )->inContentLanguage()->text();
+										$content = ContentHandler::makeContent($pageMsg, $userPage);
+										$userWikiPage->doEditContent( $content, false, $flags );
 									}
 								}
 							}
 
-							if( self::isEnabled( "message-user" ) ) {
-								if( $isStaff && !$isSysop ) {
+							if ( self::isEnabled( "message-user" ) ) {
+								if ( $isStaff && !$isSysop ) {
 									$key = "welcome-message-user-staff";
 								}
 								else {
 									$key = "welcome-message-user";
 								}
-								$welcomeMsg = wfMsgExt( $key, array("parsemag", "content"),
-								array(
-									self::getPrefixedText($tmpTitle),
-									$sysopPage->getPrefixedText(),
-									$signature,
-									wfEscapeWikiText( $mUser->getName() ),
-								));
+								$welcomeMsg = wfMessage( $key,
+										self::getPrefixedText($tmpTitle),
+										$sysopPage->getPrefixedText(),
+										$signature,
+										wfEscapeWikiText( $mUser->getName() )
+									)->text();
 							}
 						}
-						if( $welcomeMsg ) {
+						if ( $welcomeMsg ) {
 							global $wgLang;
 
 							$wgTitle = $talkPage; /** is it necessary there? **/
@@ -244,8 +241,9 @@ class HAWelcomeJob extends Job {
 							$comment .= '<!--welcomeuser-->';
 
 							$formattedComment = TalkPageFormatter::createComment( $mSysop, $comment );
+							$content = ContentHandler::makeContent($formattedComment, $talkPage);
 
-							$talkArticle->doEdit( $formattedComment, wfMsgForContent( "welcome-message-log" ), $flags );
+							$talkWikiPage->doEditContent( $content, wfMessage( "welcome-message-log" )->inContentLanguage()->text(), $flags );
 
 							//notify via the echo notification system
 							if (class_exists('EchoEvent')) {
@@ -265,7 +263,6 @@ class HAWelcomeJob extends Job {
 			$wgErrorLog = $oldValue;
 		}
 
-		wfProfileOut( __METHOD__ );
 
 		return true;
 	}
@@ -273,7 +270,6 @@ class HAWelcomeJob extends Job {
 	public function runWelcome() {
 		global $wgUser;
 
-		wfProfileIn( __METHOD__ );
 
 		//set the variables (used to be in __construct() )
 		$mUserId   = $wgUser->getID();
@@ -282,7 +278,7 @@ class HAWelcomeJob extends Job {
 		$mAnon     = $wgUser->isAnon();
 		$mSysop    = false;
 
-		if( $mAnon ) {
+		if ( $mAnon ) {
 			return false;
 		}
 
@@ -291,7 +287,7 @@ class HAWelcomeJob extends Job {
 		/**
 		 * fallback
 		 */
-		if( !$mUser ) {
+		if ( !$mUser ) {
 			$mUser = User::newFromName( $mUserName );
 		}
 
@@ -302,28 +298,28 @@ class HAWelcomeJob extends Job {
 		/**
 		 * overwrite $wgUser for ~~~~ expanding
 		 */
-		$sysop = trim( wfMsgForContent( "welcome-user" ) );
-		if( !in_array( $sysop, array( "@disabled", "-" ) ) ) {
+		$sysop = trim( wfMessage( "welcome-user" )->inContentLanguage()->text() );
+		if ( !in_array( $sysop, array( "@disabled", "-" ) ) ) {
 
 			$tmpUser = $wgUser;
 			$wgUser  = User::newFromName( self::WELCOMEUSER );
 			$flags = 0;
-			$bot_message = trim( wfMsgForContent( "welcome-bot" ) );
-			if( ($bot_message == '@bot') || ($wgUser && $wgUser->isAllowed( 'bot' )) ) {
+			$bot_message = trim( wfMessage( "welcome-bot" )->inContentLanguage()->text() );
+			if ( ($bot_message == '@bot') || ($wgUser && $wgUser->isAllowed( 'bot' )) ) {
 				$flags = EDIT_FORCE_BOT | EDIT_SUPPRESS_RC;
 			}
 			else {
 				$flags = EDIT_SUPPRESS_RC;
 			}
 
-			if( $mUser && $mUser->getName() !== self::WELCOMEUSER ) {
+			if ( $mUser && $mUser->getName() !== self::WELCOMEUSER ) {
 
 				/**
 				 * check again if talk page exists
 				 */
 				$talkPage  = $mUser->getUserPage()->getTalkPage();
 
-				if( $talkPage ) {
+				if ( $talkPage ) {
 
 					$mSysop = self::getLastSysop();
 					$gEG = $mSysop->getEffectiveGroups();
@@ -333,36 +329,36 @@ class HAWelcomeJob extends Job {
 					$sysopPage    = $mSysop->getUserPage()->getTalkPage();
 					$signature    = self::expandSig();
 					$welcomeMsg  = false;
-					$talkArticle = new Article( $talkPage, 0 );
+					$talkWikiPage = WikiPage::factory($talkPage);
 
-					if( ! $talkArticle->exists() ) {
+					if ( ! $talkWikiPage->exists() ) {
 						/**
 						 * now create user page (if not exists of course)
 						 */
 
-						if(self::isEnabled( "page-user" )) {
+						if (self::isEnabled( "page-user" )) {
 							$userPage = $mUser->getUserPage();
 
-							if( $userPage ) {
-								$userArticle = new Article( $userPage, 0 );
-								if( ! $userArticle->exists() ) {
-									$pageMsg = wfMsgForContent( "welcome-user-page" );
-									$userArticle->doEdit( $pageMsg, false, $flags );
+							if ( $userPage ) {
+								$userWikiPage = WikiPage::factory($userPage);
+								if ( ! $userWikiPage->exists() ) {
+									$pageMsg = wfMessage( "welcome-user-page" )->inContentLanguage()->text();
+									$content = ContentHandler::makeContent($pageMsg, $userPage);
+									$userWikiPage->doEditContent( $content, false, $flags );
 								}
 							}
 						}
 
-						if( self::isEnabled( "message-user" ) ) {
+						if ( self::isEnabled( "message-user" ) ) {
 							$key = "welcome-message-user";
-							$welcomeMsg = wfMsgExt( $key, array("parsemag", "content"),
-							array(
-								'',
-								$sysopPage->getPrefixedText(),
-								$signature,
-								wfEscapeWikiText( $mUser->getName() ),
-							));
+							$welcomeMsg = wfMessage( $key,
+									'',
+									$sysopPage->getPrefixedText(),
+									$signature,
+									wfEscapeWikiText( $mUser->getName() )
+								)->text();
 						}
-						if( $welcomeMsg ) {
+						if ( $welcomeMsg ) {
 							global $wgLang;
 
 							$dateStr = $wgLang->timeanddate(wfTimestampNow());
@@ -373,8 +369,9 @@ class HAWelcomeJob extends Job {
 							$comment .= '<!--welcomeuser-->';
 
 							$formattedComment = TalkPageFormatter::createComment( $mSysop, $comment );
+							$content = ContentHandler::makeContent( $formattedComment, $talkPage );
 
-							$talkArticle->doEdit( $formattedComment, wfMsgForContent( "welcome-message-log" ), $flags );
+							$talkWikiPage->doEditContent( $content, wfMessage( "welcome-message-log" )->inContentLanguage()->text(), $flags );
 
 							//notify via the echo notification system
 							if (class_exists('EchoEvent')) {
@@ -393,7 +390,6 @@ class HAWelcomeJob extends Job {
 			$wgErrorLog = $oldValue;
 		}
 
-		wfProfileOut( __METHOD__ );
 
 		return true;
 	}
@@ -433,7 +429,6 @@ class HAWelcomeJob extends Job {
 	public function getLastSysop() {
 		global $wgCityId, $wgMemc, $wgLanguageCode;
 
-		wfProfileIn( __METHOD__ );
 
 		// if (rand(1, 10) <= 4) {
 			// //40% of the time grab the user from our custom list
@@ -443,12 +438,12 @@ class HAWelcomeJob extends Job {
 		/**
 		 * maybe already loaded?
 		 */
-		if( ! $mSysop ) {
+		if ( ! $mSysop ) {
 
-			$sysop = trim( wfMsgForContent( "welcome-user" ) );
-			if( !in_array( $sysop, array( "@disabled", "-" ) ) ) {
+			$sysop = trim( wfMessage( "welcome-user" )->inContentLanguage()->text() );
+			if ( !in_array( $sysop, array( "@disabled", "-" ) ) ) {
 
-				if( in_array( $sysop, array( "@latest", "@sysop" ) ) ) {
+				if ( in_array( $sysop, array( "@latest", "@sysop" ) ) ) {
 					/**
 					 * first: check memcache, maybe we have already stored id of sysop
 					 */
@@ -458,14 +453,14 @@ class HAWelcomeJob extends Job {
 						$sysopId = '';
 					}
 
-					if( $sysopId ) {
+					if ( $sysopId ) {
 						$mSysop = User::newFromId( $sysopId );
 					}
 					else {
 						/**
 						 * second: check database, could be expensive for database
 						 */
-						$dbr = wfGetDB( DB_SLAVE );
+						$dbr = wfGetDB( DB_REPLICA );
 
 						/**
 						 * get all users which are sysops/sysops or staff or helpers
@@ -485,8 +480,8 @@ class HAWelcomeJob extends Job {
 							$dbr->makeList( $groups, LIST_OR ),
 							__METHOD__
 						);
-						while( $row = $dbr->fetchObject( $res ) ) {
-							if( $row->ug_group == "bot" ) {
+						while ( $row = $dbr->fetchObject( $res ) ) {
+							if ( $row->ug_group == "bot" ) {
 								$bots[] = $row->ug_user;
 							}
 							else {
@@ -530,7 +525,6 @@ class HAWelcomeJob extends Job {
 				}
 			}
 		}
-		wfProfileOut( __METHOD__ );
 
 		return $mSysop;
 	}
@@ -549,7 +543,7 @@ class HAWelcomeJob extends Job {
 	 *
 	 * @return true means process other hooks
 	 */
-	public static function revisionInsertComplete( &$revision, $url, $flags ) {
+	public static function revisionInsertComplete( $wikiPage, $user, $content ) {
 		global $wgUser, $wgCityId, $wgCommandLineMode, $wgSharedDB,
 			$wgErrorLog, $wgMemc, $wgRequest;
 
@@ -558,7 +552,6 @@ class HAWelcomeJob extends Job {
 			return true;
 		}
 
-		wfProfileIn( __METHOD__ );
 
 		/* first edit? */
 		//if (User::edits($wgUser->getID()) == 1) {
@@ -569,15 +562,12 @@ class HAWelcomeJob extends Job {
 			 */
 			$oldValue = $wgErrorLog;
 			$wgErrorLog = true;
-			if( !wfReadOnly() && ! $wgCommandLineMode ) {
+			if ( !wfReadOnly() && ! $wgCommandLineMode ) {
 
-				/**
-				 * Revision has valid Title field but sometimes not filled
-				 */
-				$Title = $revision->getTitle();
-				if( !$Title ) {
-					$Title = Title::newFromId( $revision->getPage(), GAID_FOR_UPDATE );
-					$revision->setTitle( $Title );
+				$Title = $wikiPage->getTitle();
+				if ( !$Title ) {
+					$Title = Title::newFromId( $wikiPage->getId(), GAID_FOR_UPDATE );
+					//$wikiPage->setTitle( $Title );
 				}
 
 				/**
@@ -593,8 +583,8 @@ class HAWelcomeJob extends Job {
 					"vstf" => true,
 				);
 				$canWelcome = true;
-				foreach( $groups as $group ) {
-					if( isset( $invalid[ $group ] ) && $invalid[ $group ] ) {
+				foreach ( $groups as $group ) {
+					if ( isset( $invalid[ $group ] ) && $invalid[ $group ] ) {
 						$canWelcome = false;
 						break;
 					}
@@ -603,16 +593,16 @@ class HAWelcomeJob extends Job {
 				/**
 				 * put possible welcomer into memcached, RT#14067
 				 */
-				if( $wgUser->getId() && self::isWelcomer( $wgUser ) ) {
+				if ( $wgUser->getId() && self::isWelcomer( $wgUser ) ) {
 					//$wgMemc->set( wfMemcKey( "last-sysop-id" ), $wgUser->getId(), 86400 );
 					$wgMemc->set( wfMemcKey( "last-sysop-id" ), $wgUser->getId(), 3600 );
 				}
 
-				if( $Title && $canWelcome && !empty( $wgSharedDB ) ) {
+				if ( $Title && $canWelcome && !empty( $wgSharedDB ) ) {
 
-					$welcomer = trim( wfMsgForContent( "welcome-user" ) );
+					$welcomer = trim( wfMessage( "welcome-user" )->inContentLanguage()->text() );
 
-					if( $welcomer !== "@disabled" && $welcomer !== "-" ) {
+					if ( $welcomer !== "@disabled" && $welcomer !== "-" ) {
 
 						/**
 						 * check if talk page for wgUser exists
@@ -620,9 +610,9 @@ class HAWelcomeJob extends Job {
 						 * @todo check editcount for user
 						 */
 						$talkPage = $wgUser->getUserPage()->getTalkPage();
-						if( $talkPage ) {
-							$talkArticle = new Article( $talkPage, 0 );
-							if( !$talkArticle->exists() ) {
+						if ( $talkPage ) {
+							$talkWikiPage = WikiPage::factory( $talkPage );
+							if ( !$talkWikiPage->exists() ) {
 								//run the talk page stuff
 								self::runEditThanks($Title);
 							}
@@ -632,7 +622,6 @@ class HAWelcomeJob extends Job {
 			}
 		//}
 		$wgErrorLog = $oldValue;
-		wfProfileOut( __METHOD__ );
 
 		return true;
 	}
@@ -656,7 +645,6 @@ class HAWelcomeJob extends Job {
 		global $wgUser, $wgCityId, $wgCommandLineMode, $wgSharedDB,
 			$wgErrorLog, $wgMemc;
 
-		wfProfileIn( __METHOD__ );
 
 
 		/**
@@ -665,7 +653,7 @@ class HAWelcomeJob extends Job {
 		 */
 		$oldValue = $wgErrorLog;
 		$wgErrorLog = true;
-		if( !wfReadOnly() && ! $wgCommandLineMode ) {
+		if ( !wfReadOnly() && ! $wgCommandLineMode ) {
 
 			/**
 			 * get groups for user rt#12215
@@ -680,8 +668,8 @@ class HAWelcomeJob extends Job {
 				"vstf" => true,
 			);
 			$canWelcome = true;
-			foreach( $groups as $group ) {
-				if( isset( $invalid[ $group ] ) && $invalid[ $group ] ) {
+			foreach ( $groups as $group ) {
+				if ( isset( $invalid[ $group ] ) && $invalid[ $group ] ) {
 					$canWelcome = false;
 					break;
 				}
@@ -690,16 +678,16 @@ class HAWelcomeJob extends Job {
 			/**
 			 * put possible welcomer into memcached, RT#14067
 			 */
-			if( $wgUser->getId() && self::isWelcomer( $wgUser ) ) {
+			if ( $wgUser->getId() && self::isWelcomer( $wgUser ) ) {
 				//$wgMemc->set( wfMemcKey( "last-sysop-id" ), $wgUser->getId(), 86400 );
 				$wgMemc->set( wfMemcKey( "last-sysop-id" ), $wgUser->getId(), 3600 );
 			}
 
-			if($canWelcome && !empty( $wgSharedDB ) ) {
+			if ($canWelcome && !empty( $wgSharedDB ) ) {
 
-				$welcomer = trim( wfMsgForContent( "welcome-user" ) );
+				$welcomer = trim( wfMessage( "welcome-user" )->inContentLanguage()->text() );
 
-				if( $welcomer !== "@disabled" && $welcomer !== "-" ) {
+				if ( $welcomer !== "@disabled" && $welcomer !== "-" ) {
 
 					/**
 					 * check if talk page for wgUser exists
@@ -707,9 +695,9 @@ class HAWelcomeJob extends Job {
 					 * @todo check editcount for user
 					 */
 					$talkPage = $wgUser->getUserPage()->getTalkPage();
-					if( $talkPage ) {
-						$talkArticle = new Article( $talkPage, 0 );
-						if( !$talkArticle->exists() ) {
+					if ( $talkPage ) {
+						$talkWikiPage = WikiPage::factory( $talkPage );
+						if ( !$talkWikiPage->exists() ) {
 							//run the talk page stuff
 							self::runWelcome();
 						}
@@ -718,7 +706,6 @@ class HAWelcomeJob extends Job {
 			}
 		}
 		$wgErrorLog = $oldValue;
-		wfProfileOut( __METHOD__ );
 
 		return true;
 	}
@@ -734,7 +721,6 @@ class HAWelcomeJob extends Job {
 
 		global $wgContLang, $wgUser;
 
-		wfProfileIn( __METHOD__ );
 
 		// get the welcomer
 		$mSysop = self::getLastSysop();
@@ -759,25 +745,24 @@ class HAWelcomeJob extends Job {
 			);
 
 		// in cases where user is both staff and sysop, use sysop mode
-		if(!$isStaff || $isSysop) {
+		if (!$isStaff || $isSysop) {
 			$signature = sprintf(
 				"-- %s ([[%s:%s|%s]]) %s",
 				$userLink,
 				$wgContLang->getNsText(NS_USER_TALK),
 				$SysopName,
-				wfMsgForContent( "talkpagelinktext" ),
+				wfMessage( "talkpagelinktext" )->inContentLanguage()->text(),
 				$wgContLang->timeanddate( wfTimestampNow( TS_MW ) )
 				);
 		} else {
 			// $1 = wiki link to user's user: page
 			// $2 = plain version of user's name (for future use)
-			$signature = wfMsgForContent('staffsig-text', $userLink, $SysopName);
+			$signature = wfMessage('staffsig-text', $userLink, $SysopName)->inContentLanguage()->text();
 		}
 
 		// restore from backup
 		$wgUser = $tmpUser;
 
-		wfProfileOut( __METHOD__ );
 
 		return $signature;
 	}
@@ -800,7 +785,7 @@ class HAWelcomeJob extends Job {
 
 		$prefixedText = $title->getPrefixedText();
 
-		wfRunHooks( 'HAWelcomeGetPrefixText' , array( &$prefixedText, $title ) ); //
+		Hooks::run( 'HAWelcomeGetPrefixText' , array( &$prefixedText, $title ) ); //
 
 		return $prefixedText;
 	}
@@ -819,17 +804,15 @@ class HAWelcomeJob extends Job {
 	 */
 	public function isEnabled( $what ) {
 
-		wfProfileIn( __METHOD__ );
 
 		$return = false;
-		$message = wfMsgForContent( "welcome-enabled" );
+		$message = wfMessage( "welcome-enabled" )->inContentLanguage()->text();
 		//LogPage::log( __METHOD__, "enabled", $message );
-		if( in_array( $what, array( "page-user", "message-anon", "message-user" ) )
+		if ( in_array( $what, array( "page-user", "message-anon", "message-user" ) )
 			&& strpos( $message, $what  ) !== false ) {
 			$return	= true;
 		}
 
-		wfProfileOut( __METHOD__ );
 
 		return $return;
 	}
@@ -846,17 +829,16 @@ class HAWelcomeJob extends Job {
 	 */
 	static public function isWelcomer( &$User ) {
 
-		wfProfileIn( __METHOD__ );
 
-		$sysop  = trim( wfMsgForContent( "welcome-user" ) );
+		$sysop  = trim( wfMessage( "welcome-user" )->inContentLanguage()->text() );
 		$groups = $User->getEffectiveGroups();
 		$result = false;
 
 		/**
 		 * bots can't welcome
 		 */
-		if( !in_array( "bot", $groups ) ) {
-			if( $sysop === "@sysop" ) {
+		if ( !in_array( "bot", $groups ) ) {
+			if ( $sysop === "@sysop" ) {
 				$result = in_array( "sysop", $groups ) ? true : false;
 			}
 			else {
@@ -866,7 +848,6 @@ class HAWelcomeJob extends Job {
 						? true : false;
 			}
 		}
-		wfProfileOut( __METHOD__ );
 
 		return $result;
 	}
@@ -874,10 +855,9 @@ class HAWelcomeJob extends Job {
 
 
 $wgSpecialPages['HAWelcomeEdit'] = 'HAWelcomeEdit';
-$wgSpecialPageGroups['HAWelcomeEdit'] = 'wiki';
 
 $wgAvailableRights[] = 'HAWelcomeEdit';
 $wgGroupPermissions['*']['HAWelcomeEdit'] = false;
 $wgGroupPermissions['staff']['HAWelcomeEdit'] = true;
 
-$wgAutoloadClasses['HAWelcomeEdit'] = dirname(__FILE__) . '/HAWelcomeEdit.body.php';
+$wgAutoloadClasses['HAWelcomeEdit'] = __DIR__ . '/HAWelcomeEdit.body.php';

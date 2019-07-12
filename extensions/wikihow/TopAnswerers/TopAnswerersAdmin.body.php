@@ -18,7 +18,7 @@ class TopAnswerersAdmin extends UnlistedSpecialPage {
 
 		//we don't want no anons
 		if ($user->isAnon()) {
-			$out->setRobotpolicy( 'noindex,nofollow' );
+			$out->setRobotPolicy( 'noindex,nofollow' );
 			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
@@ -31,7 +31,7 @@ class TopAnswerersAdmin extends UnlistedSpecialPage {
 			if ($new_ta) {
 				$out->setArticleBodyOnly(true);
 				$res = $this->addTA($new_ta,$req->getVal('block',0));
-				print json_encode($res);
+				$this->getOutput()->addHTML( json_encode($res) );
 				return;
 			}
 		}
@@ -40,13 +40,16 @@ class TopAnswerersAdmin extends UnlistedSpecialPage {
 			if ($id) {
 				$out->setArticleBodyOnly(true);
 				$res = $this->setBlockTA($id,$req->getVal('block'));
-				print json_encode($res);
+				$this->getOutput()->addHTML( json_encode($res) );
 				return;
 			}
 		}
-		elseif ($action == 'export') {
-			$this->getOutput()->disable();
-			$this->exportCSV();
+		elseif ($action == 'exportTAs') {
+			$this->exportTACSV();
+			return;
+		}
+		elseif ($action == 'exportQAstats') {
+			$this->exportQACSV();
 			return;
 		}
 
@@ -64,21 +67,22 @@ class TopAnswerersAdmin extends UnlistedSpecialPage {
 	 */
 	public function getBody() {
 		$loader = new Mustache_Loader_CascadingLoader([
-			new Mustache_Loader_FilesystemLoader(dirname(__FILE__).'/templates')
+			new Mustache_Loader_FilesystemLoader(__DIR__.'/templates')
 		]);
 		$options = array('loader' => $loader);
 
 		$vars = [
-			'count' 											=> TopAnswerers::getTACount(),
-			'total_answer_count'					=> TopAnswerers::getTAAnswerCount(),
-			'top_answerers_result'				=> $loader->load('top_answerers_result'),
-			'ta_results' 									=> $this->getTAResults(),
-			'top_answerers_block_result'	=> $loader->load('top_answerers_block_result'),
-			'blocked_count' 							=> TopAnswerers::getTABlockedCount(),
-			'blocked_results' 						=> $this->getTABlockedResults(),
-			'top_answerers_response'			=> $loader->load('top_answerers_response'),
-			'ta_export_link'							=> $this->getTitle()->getLocalUrl().'?action=export',
-			'ta_settings'									=> $this->getTASettings()
+			'count'                        => TopAnswerers::getTACount(),
+			'total_answer_count'           => TopAnswerers::getTAAnswerCount(),
+			'top_answerers_result'         => $loader->load('top_answerers_result'),
+			'ta_results'                   => $this->getTAResults(),
+			'top_answerers_block_result'   => $loader->load('top_answerers_block_result'),
+			'blocked_count'                => TopAnswerers::getTABlockedCount(),
+			'blocked_results'              => $this->getTABlockedResults(),
+			'top_answerers_response'       => $loader->load('top_answerers_response'),
+			'ta_export_link'               => $this->getTitle()->getLocalUrl().'?action=exportTAs',
+			'qa_export_link'               => $this->getTitle()->getLocalUrl().'?action=exportQAstats',
+			'ta_settings'                  => $this->getTASettings()
 		];
 
 		$msgKeys = [
@@ -86,13 +90,15 @@ class TopAnswerersAdmin extends UnlistedSpecialPage {
 			'ta_search_placeholder',
 			'ta_add_button',
 			'ta_export_button',
+			'qa_export_button',
 			'ta_blocked_title',
 			'ta_blocked_button',
 			'ta_block_link',
 			'ta_added_text',
 			'ta_last_answer_text',
 			'ta_type_text',
-			'ta_answers_label',
+			'ta_answers_live_label',
+			'ta_answers_calc_label',
 			'ta_sim_label',
 			'ta_rating_label',
 			'ta_subcats_label',
@@ -142,7 +148,7 @@ class TopAnswerersAdmin extends UnlistedSpecialPage {
 	 * @return array
 	 */
 	private function formatTAResult($ta) {
-		if (empty($ta)) return;
+		if (empty($ta)) return '';
 		$taa = $ta->toJSON();
 
 		//created date
@@ -258,11 +264,10 @@ class TopAnswerersAdmin extends UnlistedSpecialPage {
 		return $res;
 	}
 
-	private function exportCSV() {
-		global $wgCanonicalServer;
-
+	private function exportTACSV() {
+		$this->getOutput()->disable();
 		header('Content-type: application/force-download');
-		header('Content-disposition: attachment; filename="data.csv"');
+		header('Content-disposition: attachment; filename="TopAnswerers.csv"');
 
 		$ta_results = TopAnswerers::getTAs();
 
@@ -271,9 +276,10 @@ class TopAnswerersAdmin extends UnlistedSpecialPage {
 			'Real name',
 			'Added date',
 			'Last answer date',
-			'Total answers',
+			'Total live answers',
 			'Similarity',
 			'Approval rate',
+			'Total calc answers',
 			'Top subcats'
 		];
 
@@ -286,9 +292,10 @@ class TopAnswerersAdmin extends UnlistedSpecialPage {
 				$ta->userRealName,
 				date('Ymd', strtotime($ta->createDate)),
 				date('Ymd', strtotime($ta->updateDate)),
-				$ta->answersCount,
+				$ta->liveAnswersCount,
 				$ta->avgSimScore,
 				$ta->avgAppRating,
+				$ta->calculatedAnswersCount,
 				$this->topCatsString($ta->topCats)
 			];
 
@@ -296,6 +303,113 @@ class TopAnswerersAdmin extends UnlistedSpecialPage {
 		}
 
 		print(implode("\n", $lines));
+	}
+
+	private function exportQACSV() {
+		$this->getOutput()->disable();
+		header('Content-type: application/force-download');
+		header('Content-disposition: attachment; filename="QA_user_data_past_7_days.csv"');
+
+		$qa_results = $this->getQAData();
+
+		$headers = [
+			'Username',
+			'Real Name',
+			'Top Answerer',
+			'Last 7 Days Live Answers',
+			'Total Live Answers',
+			'Last Q&A submit date',
+			'Total Similarity Score',
+			'Total Approval Rating'
+		];
+
+		$lines[] = implode(",", $headers);
+
+		foreach ($qa_results as $qa) {
+
+			$this_line = [
+				$qa['userName'],
+				$qa['userRealName'],
+				$qa['isTopAnswerer'],
+				$qa['weeklyLiveAnswersCount'],
+				$qa['liveAnswersCount'],
+				date('Ymd', strtotime($qa['lastSubmitDate'])),
+				$qa['avgSimScore'],
+				$qa['avgAppRating']
+			];
+
+			$lines[] = implode(",", $this_line);
+		}
+
+		print(implode("\n", $lines));
+	}
+
+	private function getQAData(): array {
+		$qa_data = [];
+		$seven_days_ago = date('YmdHis', strtotime('today - 7 days'));
+
+		$res = wfGetDB(DB_REPLICA)->select(
+			[
+				QADB::TABLE_ARTICLES_QUESTIONS,
+				QADB::TABLE_CURATED_ANSWERS
+			],
+			[
+				'qa_submitter_user_id',
+				'MAX(qn_updated_timestamp) as last_date',
+				'count(*) as weekly_answered'
+			],
+			[
+				"qn_updated_timestamp > $seven_days_ago",
+				"qa_submitter_user_id != ''",
+				'qa_inactive' => 0
+			],
+			__METHOD__,
+			[
+				'GROUP BY' => 'qa_submitter_user_id',
+				'ORDER BY' => 'last_date'
+			],
+			[
+				QADB::TABLE_CURATED_ANSWERS => ['LEFT JOIN', 'qa_question_id = qn_question_id']
+			]
+		);
+
+		foreach ($res as $row) {
+			$user_id = $row->qa_submitter_user_id;
+			$user = User::newFromId($user_id);
+			if (empty($user)) continue;
+			if (QAWidget::isAdmin($user)) continue;
+
+			$total_answer_count = $this->getTotalQAAnswerCount($user_id);
+
+			$ta = new TopAnswerers();
+			$isTA = $ta->loadByUserId($user_id);
+
+			$qa_data[] = [
+				'userName' => $user->getName(),
+				'userRealName' => $user->getRealName(),
+				'isTopAnswerer' => $isTA ? 1 : 0,
+				'weeklyLiveAnswersCount' => $row->weekly_answered,
+				'liveAnswersCount' => $total_answer_count,
+				'lastSubmitDate' => $row->last_date,
+				'avgSimScore' => TopAnswerers::averageSimilarityScore($user_id),
+				'avgAppRating' => TopAnswerers::averageApprovalRating($user_id)
+			];
+		}
+
+		return $qa_data;
+	}
+
+	private function getTotalQAAnswerCount(int $user_id): int {
+		$res = wfGetDB(DB_REPLICA)->selectField(
+			QADB::TABLE_ARTICLES_QUESTIONS,
+			'COUNT(qa_id)',
+			[
+				'qa_submitter_user_id' => $user_id,
+				'qa_inactive' => 0
+			],
+			__METHOD__
+		);
+		return intval($res);
 	}
 
 	private function topCatsString($unformatted_top_cats) {

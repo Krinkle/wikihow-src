@@ -36,7 +36,7 @@ class WikihowUser extends User {
 			return array(0, '');
 		}
 
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$row = $dbr->selectRow(
 			'user',
 			array('count(*) as count', 'user_name', 'user_id'),
@@ -110,15 +110,61 @@ class WikihowUser extends User {
 		$bots = $wgMemc->get($key);
 		if (!is_array($bots)) {
 			$bots = array();
-			$dbr = wfGetDB(DB_SLAVE);
-			$res = $dbr->select('user_groups', array('ug_user'), array('ug_group'=>'bot'));
-			while ($row = $dbr->fetchObject($res)) {
+			$dbr = wfGetDB(DB_REPLICA);
+			$res = $dbr->select('user_groups', array('ug_user'), array('ug_group'=>'bot'), __METHOD__);
+			foreach ($res as $row) {
 				$bots[] = $row->ug_user;
 			}
 			$wgMemc->set($key, $bots);
 		}
 		$botsCached = $bots;
 		return $bots;
+	}
+
+	/**
+	 * To be used from INTL to get the user IDs of all English bots
+	 */
+	public static function getENBotIDs(): array {
+		global $wgMemc, $wgLanguageCode;
+
+		if ( $wgLanguageCode == 'en' ) {
+			throw new Exception("This method should only be called from INTL");
+		}
+
+		$key = wfMemcKey('en_botids');
+		$bots = $wgMemc->get($key);
+		if ( !is_array($bots) ) {
+			$dbr = wfGetDB(DB_REPLICA);
+			$table = Misc::getLangDB('en') . '.user_groups';
+			$res = $dbr->select( $table, 'ug_user', ['ug_group'=>'bot'], __METHOD__ );
+
+			$bots = [];
+			foreach ($res as $row) {
+				$bots[] = $row->ug_user;
+			}
+			$wgMemc->set($key, $bots);
+		}
+		return $bots;
+	}
+
+	static function getUserIDsByUserGroup($user_group) {
+		global $wgMemc;
+
+		if (empty($user_group)) return '';
+
+		$key = wfMemcKey('userids_for_'.$user_group);
+		$ids = $wgMemc->get($key);
+		if (!is_array($ids)) {
+			$ids = [];
+			$dbr = wfGetDB(DB_REPLICA);
+			$res = $dbr->select('user_groups', ['ug_user'], ['ug_group'=> $user_group], __METHOD__);
+			foreach ($res as $row) {
+				$ids[] = $row->ug_user;
+			}
+			$wgMemc->set($key, $ids);
+		}
+
+		return $ids;
 	}
 
 	static function isGPlusAuthor($userName) {

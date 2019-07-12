@@ -1,6 +1,7 @@
 .suggested_titles_list {
     width: 100%;
-	padding: 0;
+    padding: 0;
+	border-spacing: 0;
 	font-size: .8em;
 }
 
@@ -16,15 +17,11 @@
 }
 
 .suggested_titles_list td {
-	padding:5px 0;
+	padding: 6px 3px;
 }
 
 .suggested_titles_list .footer td{
     border:none;
-}
-
-tr.st_on td {
-    background: #eee;
 }
 
 .st_write {
@@ -86,8 +83,8 @@ td.st_radio {
     font-size: 21px;
 }
 
-.suggested_titles_list tr.st_on td{
-	background-color:#fff7f7;
+.suggested_titles_list tr:nth-child(n+2):hover td {
+	background-color: #e5edde;
 }
 
 .suggested_titles_list td.st_title{
@@ -112,7 +109,7 @@ td.category_list{
 	width: 100%;
 }
 
-.catbox_column { 
+.catbox_column {
 	display: table-cell;
 	width: 50%;
 }
@@ -443,7 +440,6 @@ td.not_chosen a {
 .section h2 {
     line-height: 66px;
     height: 59px;
-    left: 4px;
     margin-top: 0px;
     width:95%;
 }
@@ -455,6 +451,10 @@ td.not_chosen a {
 
 .section h2 span {
     margin-left: 0px;
+}
+
+.section .section_text {
+    margin-top: 27px;
 }
 
 .section .altblock {
@@ -475,12 +475,16 @@ td.not_chosen a {
 }
 
 .search_noresults {
-	clear: both; 
+	clear: both;
 	padding-top: 30px
 }
 
-.create_btn { 
+.create_btn {
 	margin: 20px 0 20px -1px;
-	font-size: .9em; 
+	font-size: .9em;
 	display: inline-block;
+}
+
+table.manage_suggested_topics {
+	padding: 5px 18px;
 }

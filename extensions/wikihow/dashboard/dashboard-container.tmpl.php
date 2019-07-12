@@ -14,33 +14,33 @@ WH.dashboard.appShortCodes = <?= json_encode($appShortCodes) ?>;
 <div class="comdash-container">
 	<div class="wh_block">
 		<div class="comdash-top">
-			<?php if($userImage != ""): ?>
+			<?php if ($userImage): ?>
 			<div id="comdash-header-info"> <?= $userImage ?>
 				<span class="header-line1">Thanks <?= $userName ?>!</span>
-				<span class="header-line2"><?= wfMsg('cd-welcome') ?></span>
+				<span class="header-line2"><?= wfMessage('cd-welcome')->text() ?></span>
 			</div>
 			<? endif; ?>
 			<h1 class="firstHeading" style="display:inline;">wikiHow Community</h1>
 		</div>
 		<div class="comdash-welcome">
-			<p><?= wfMsg('cd-welcome-text'); ?></p>
+			<p><?= wfMessage('cd-welcome-text'); ?></p>
 			<div class="sandbox" id="comdash-sb-answerrequests">
-				<?= wfMsgWikiHtml('cd-welcome-cta2'); ?>
+				<?= wfMessage('cd-welcome-cta2')->parseAsBlock() ?>
 			</div>
-			<?php if($needBoosterAlert): ?>
+			<?php if ($needBoosterAlert): ?>
 				<div id="NABcount"><div><?=$NABcount?></div></div>
 				<div class="sandbox" id="comdash-sb-boosteralert">
-					<div id="boostMsg"><?= wfMsgWikiHtml('cd-welcome-cta3', wfMessage('Comm-dashboard-NABmessage-threshold')); ?></div>
+					<div id="boostMsg"><?= wfMessage( 'cd-welcome-cta3', wfMessage('comm-dashboard-NABmessage-threshold') )->parseAsBlock() ?></div>
 				</div>
 			<?php else: ?>
 				<div class="sandbox" id="comdash-sb-addimages">
-					<?= wfMsg('cd-welcome-cta1', $tipsLink); ?>
+					<?= wfMessage('cd-welcome-cta1', $tipsLink)->text() ?>
 				</div>
 			<? endif; ?>
 			<div class="clearall"></div>
 		</div>
 	</div>
-	
+
 	<div class="minor_section">
 		<h2>Things to Try First</h2>
 		<div class="comdash-priorities">
@@ -50,7 +50,7 @@ WH.dashboard.appShortCodes = <?= json_encode($appShortCodes) ?>;
 	</div>
 	<div class="minor_section">
 		<h2>
-			<?php if($userImage != ""): ?>
+			<?php if ($userImage): ?>
 				<a id="comdash-header-customize" href="#">Customize</a>
 			<? endif; ?>
 			More Things to Do
@@ -62,28 +62,28 @@ WH.dashboard.appShortCodes = <?= json_encode($appShortCodes) ?>;
 		</div>
 		<script>$(document).ready(WH.dashboard.init);</script>
 		<div class="comdash-controls">
-			<a href="#" class="comdash-pause"><?= wfMsg('cd-pause-updates') ?></a> |
-			<a href="#" class="comdash-settings"><?= wfMsg('cd-settings') ?></a>
+			<a href="#" class="comdash-pause"><?= wfMessage('cd-pause-updates') ?></a> |
+			<a href="#" class="comdash-settings"><?= wfMessage('cd-settings') ?></a>
 		</div>
 		<div id="cd-user-box"></div>
 	</div>
 </div><!--end comdash-container-->
 
-<div class="cd-customize-dialog" title="<?= wfMsg('cd-customize-things-to-do') ?>">
+<div class="cd-customize-dialog" title="<?= wfMessage('cd-customize-things-to-do') ?>">
 	<div class="cust-head">
-		<div class="cust-order"><?= wfMsg('cd-order') ?></div>
-		<div class="cust-ttd"><?= wfMsg('cd-ttd') ?></div>
-		<div class="cust-show"><?= wfMsg('cd-show') ?></div>
+		<div class="cust-order"><?= wfMessage('cd-order') ?></div>
+		<div class="cust-ttd"><?= wfMessage('cd-ttd') ?></div>
+		<div class="cust-show"><?= wfMessage('cd-show') ?></div>
 	</div>
 	<div class="cd-customize-list">
 		<ul class="cd-customize-sortable"><?php // list items go here ?></ul>
 	</div>
 	<div class="cd-bottom-buttons">
-		<a class="cd-customize-cancel button secondary" href="#"><?= wfMsg('cd-cancel') ?></a>
-		<input class="button primary cd-customize-save" value="<?= wfMsg('cd-save') ?>" />
+		<a class="cd-customize-cancel button secondary" href="#"><?= wfMessage('cd-cancel') ?></a>
+		<input class="button primary cd-customize-save" value="<?= wfMessage('cd-save') ?>" />
 	</div>
 </div>
 
 <div class="cd-network-loading">
-	<?= wfMsg('cd-loading-stats') ?>
+	<?= wfMessage('cd-loading-stats') ?>
 </div>

@@ -40,11 +40,23 @@
 				action: 'next'
 			} ]
 		}, {
-			titlemsg: 'guidedtour-tour-dashboard-tipspatrol-title',
-			descriptionmsg: 'guidedtour-tour-dashboard-tipspatrol-description',
+			titlemsg: 'guidedtour-tour-dashboard-answerquestions-title',
+			descriptionmsg: 'guidedtour-tour-dashboard-answerquestions-description',
 
 			// attachment
-			attachTo: 'div.comdash-widget-TipsPatrolWidget',
+			attachTo: 'div.comdash-widget-AnswerQuestionsAppWidget',
+			position: 'top',
+			offset: {'top': 20, 'left': 0},
+			xButton: true,
+			buttons: [ {
+				action: 'next'
+			} ]
+		}, {
+			titlemsg: 'guidedtour-tour-dashboard-editbytopic-title',
+			descriptionmsg: 'guidedtour-tour-dashboard-editbytopic-description',
+
+			// attachment
+			attachTo: 'div.comdash-widget-TopicAppWidget',
 			position: 'top',
 			offset: {'top': 20, 'left': 0},
 			xButton: true,

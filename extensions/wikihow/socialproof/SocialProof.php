@@ -2,12 +2,16 @@
 if ( ! defined( 'MEDIAWIKI' ) )
 	die();
 
-$wgAutoloadClasses['SocialProofStats'] = dirname(__FILE__) . '/SocialProofStats.php';
-$wgExtensionMessagesFiles['SocialProof'] = dirname(__FILE__) . '/SocialProof.i18n.php';
+$wgAutoloadClasses['SocialProofStats'] = __DIR__ . '/SocialProofStats.php';
+$wgExtensionMessagesFiles['SocialProof'] = __DIR__ . '/SocialProof.i18n.php';
 
 $wgSpecialPages['SocialProof'] = 'SocialProof';
-$wgAutoloadClasses['SocialProof'] = dirname(__FILE__) . '/SocialProof.body.php';
-$wgAutoloadClasses['StaffReviewed'] = dirname(__FILE__) . '/StaffReviewed.class.php';
+$wgAutoloadClasses['SocialProof'] = __DIR__ . '/SocialProof.body.php';
+$wgAutoloadClasses['StaffReviewed'] = __DIR__ . '/StaffReviewed.class.php';
+
+$wgHooks['ArticlePurge'][] = array('SocialProofStats::onArticlePurge');
+$wgHooks['BylineStamp'][] = ['SocialProofStats::setBylineInfo'];
+$wgHooks['BylineStamp'][] = ['StaffReviewed::setBylineInfo'];
 
 $wgResourceModules['ext.wikihow.socialproof.special'] = array(
 	'styles' => array('socialproof.css'),
@@ -42,7 +46,7 @@ $wgResourceModules['ext.wikihow.socialproof'] = array(
 );
 
 $wgResourceModules['mobile.wikihow.socialproof'] = array(
-	'styles' => array( 'socialproof.css','mobilesocialproof.css' ),
+	'styles' => array( 'socialproof.css', 'mobilesocialproof.css', 'noamp-mobilesocialproof.css' ),
 	'scripts' => 'socialproof.js',
 	'targets' => array( 'desktop', 'mobile' ),
 	'localBasePath' => __DIR__,
@@ -61,6 +65,3 @@ $wgResourceModules['mobile.wikihow.socialproof'] = array(
 		'sp_star_label_5'
 	]
 );
-
-$wgHooks['BeforeRenderPageActionsMobile'][] = array('SocialProofStats::addMobileIntroIcon');
-$wgHooks['ArticlePurge'][] = array('SocialProofStats::onArticlePurge');

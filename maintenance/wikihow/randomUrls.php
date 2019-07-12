@@ -37,10 +37,18 @@ class RandomUrls extends Maintenance {
 
 		$this->addOption(
 			'amp', // long form
-			'Format amp urls', // description
+			'Format amp urls - ie https://m.wikihow.com/Kiss?amp=1', // description
 			false, // required
 			true, // takes arguments
 			'h' // short form
+		);
+
+		$this->addOption(
+			'gamp', // long form
+			'Format Google amp urls - ie https://www.google.com/amp/s/m.wikihow.com/Kiss?amp=1', // description
+			false, // required
+			true, // takes arguments
+			'g' // short form
 		);
 
 		$this->addOption(
@@ -57,6 +65,7 @@ class RandomUrls extends Maintenance {
 		$type = $this->getOption('type', RandomTitleGenerator::TYPE_DESKTOP);
 		$https = (bool) $this->getOption('https', true);
 		$amp = (bool) $this->getOption('amp', false);
+		$googleAmp = (bool) $this->getOption('gamp', false);
 		$altDomains = (bool) $this->getOption('altdomains', false);
 
 		$urlGenerator = new RandomTitleGenerator();
@@ -64,6 +73,9 @@ class RandomUrls extends Maintenance {
 			$urls = $urlGenerator->getAltDomainsUrls($count, $type, $https);
 		} else if ($amp) {
 			$urls = $urlGenerator->getAmpUrls($count, $type, $https);
+		}
+		else if ($googleAmp) {
+			$urls = $urlGenerator->getGoogleAmpUrls($count, $type, $https);
 		}
 		else {
 			$urls = $urlGenerator->getUrls($count, $type, $https);

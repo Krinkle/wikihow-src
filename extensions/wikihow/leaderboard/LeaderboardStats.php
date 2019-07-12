@@ -1,5 +1,4 @@
 <?php
-
 // A list of static methods that are called from the Special:Leaderboard class.
 //
 // TODO: this whole class could be cleaned up to be use classes properly,
@@ -25,7 +24,7 @@ class LeaderboardStats {
 			return $val;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
 
 		// DB query new articles
@@ -48,6 +47,7 @@ class LeaderboardStats {
 			$bot = " AND rc_user NOT IN (" . $dbr->makeList($bots) . ") ";
 		}
 
+		$starttimestamp = $dbr->strencode($starttimestamp);
 		$sql =
 			"SELECT 'Newpages' as type,
 				rc_title AS title,
@@ -95,7 +95,8 @@ class LeaderboardStats {
 			return $cache;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
+		$starttimestamp = $dbr->strencode($starttimestamp);
 		$sql = "
 			SELECT
 				count(thumb_recipient_id) as cnt,
@@ -141,7 +142,7 @@ class LeaderboardStats {
 			return $val;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
 
 		$bots = WikihowUser::getBotIDs();
@@ -151,6 +152,7 @@ class LeaderboardStats {
 			$bot = " AND rc_user NOT IN (" . $dbr->makeList($bots) . ") ";
 		}
 
+		$starttimestamp = $dbr->strencode($starttimestamp);
 		$sql = "SELECT distinct(rc_title) ".
 				"FROM recentchanges  ".
 				"WHERE rc_timestamp >= '$starttimestamp' AND rc_comment like 'Marking new article as a Rising Star from From%'   ". $bot .
@@ -160,7 +162,8 @@ class LeaderboardStats {
 			$t = Title::newFromText($row->rc_title);
 			$a = new Article($t);
 			if ($a->isRedirect()) {
-				$t = Title::newFromRedirect( $a->fetchContent() );
+				$wp = new WikiPage($t);
+				$t = $wp->getRedirectTarget();
 				$a = new Article($t);
 			}
 			$author = $a->getContributors()->current();
@@ -193,8 +196,9 @@ class LeaderboardStats {
 		   return $val;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
+		$starttimestamp = $dbr->strencode($starttimestamp);
 
 		if ($getArticles) {
 			$u = User::newFromName($lb_user);
@@ -212,7 +216,7 @@ class LeaderboardStats {
 				if ($r) {
 					$t = $r->getTitle();
 					if ($r->getPrevious()) {
-						$data["User_talk:".$t->getPartialUrl()."#".$r->getId()] = str_replace($r->getPrevious()->getText(), '', $r->getText());
+						$data["User_talk:".$t->getPartialUrl()."#".$r->getId()] = str_replace($r->getPrevious()->getText(), '', ContentHandler::getContentText( $r->getContent() ));
 					}
 				}
 			}
@@ -257,7 +261,7 @@ class LeaderboardStats {
 		if (is_array($val)) {
 			return $val;
 		}
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
 
 		$bots = WikihowUser::getBotIDs();
@@ -267,6 +271,7 @@ class LeaderboardStats {
 			$bot = " AND rc_user NOT IN (" . $dbr->makeList($bots) . ") ";
 		}
 
+		$starttimestamp = $dbr->strencode($starttimestamp);
 		$sql = "SELECT rc_title,rc_user_text ".
 				"FROM recentchanges  ".
 				"WHERE rc_timestamp >= '$starttimestamp' AND rc_comment like 'Marking new article as a Rising Star from From%'   ". $bot .
@@ -305,9 +310,10 @@ class LeaderboardStats {
 			return $val;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
 
+		$starttimestamp = $dbr->strencode($starttimestamp);
 		if ($getArticles) {
 			$sql = "SELECT page_title, fe_user_text ".
 					"FROM firstedit left join page on fe_page = page_id left join suggested_titles on page_title= st_title " .
@@ -343,73 +349,6 @@ class LeaderboardStats {
 	}
 
 	/**
-	 * Query for KB Guardian leadboard
-	 **/
-	public static function getKBGuardianed($starttimestamp, $lb_user = '', $getArticles = false) {
-		global $wgMemc, $wgSharedDB;
-
-		if ($getArticles) {
-			$key = "leaderboard:kbguardian:$starttimestamp:$lb_user";
-		} else {
-			$key = "leaderboard:kbguardian:$starttimestamp";
-		}
-
-		$cachekey = wfMemcKey($key);
-		$val = $wgMemc->get($cachekey);
-		if (is_array($val)) {
-			return $val;
-		}
-
-		$dbr = wfGetDB(DB_SLAVE);
-		$data = array();
-
-		if ($getArticles) {
-			$u = User::newFromName($lb_user);
-
-			$sql = "SELECT log_title ".
-				"FROM logging ".
-				"WHERE log_type='kbguardian' AND log_action != 'skip' AND log_user = ".$u->getID()."  and log_timestamp >= '$starttimestamp' ".
-				"ORDER BY log_timestamp DESC ".
-				"LIMIT 30";
-			$res = $dbr->query($sql, __METHOD__);
-
-			foreach ($res as $row) {
-				$t = Title::newFromText($row->log_title);
-				if (isset($t)) {
-					$data[$t->getPartialURL()] = $t->getPrefixedText();
-				}
-			}
-
-		} else {
-
-			$bots = WikihowUser::getBotIDs();
-			$bot = "";
-
-			if (count($bots) > 0) {
-				$bot = " AND log_user NOT IN (" . $dbr->makeList($bots) . ") ";
-			}
-
-			$sql = "SELECT log_user, count(*) as C , user_name
-				FROM logging left join $wgSharedDB.user on user_id=log_user
-				WHERE log_type='kbguardian' and log_action != 'skip' and log_timestamp >= '$starttimestamp' " . $bot .
-				"GROUP BY log_user ORDER BY C desc limit 30;";
-
-			$res = $dbr->query($sql, __METHOD__);
-
-			foreach ($res as $row) {
-				$u = User::newFromName( $row->user_name );
-				if ($u && $u->getId() > 0) {
-					$data[$u->getName()] = $row->C;
-				} else {
-					// uh oh maybe?
-				}
-			}
-		}
-		$wgMemc->set($cachekey, $data, 60 * 15);
-		return $data;
-	}
-
-	/**
 	 * Query for Unit Guardian leadboard
 	 **/
 	public static function getUnitGuardianed($starttimestamp, $lb_user = '', $getArticles = false) {
@@ -427,8 +366,9 @@ class LeaderboardStats {
 			return $val;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
+		$starttimestamp = $dbr->strencode($starttimestamp);
 
 		if ($getArticles) {
 			$u = User::newFromName($lb_user);
@@ -488,9 +428,10 @@ class LeaderboardStats {
 		}
 
 		$logKey = CategoryGuardian::LOG_TYPE;
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
 
+		$starttimestamp = $dbr->strencode($starttimestamp);
 		$result = $dbr->query(
 			"SELECT log_user, COUNT(*) as C FROM logging
 			WHERE log_type = '$logKey' AND log_timestamp >= '$starttimestamp'
@@ -521,8 +462,9 @@ class LeaderboardStats {
 		}
 
 		$logKey = 'sort_questions_tool';
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
+		$starttimestamp = $dbr->strencode($starttimestamp);
 
 		$result = $dbr->query(
 			"SELECT log_user, COUNT(*) as C FROM logging
@@ -560,8 +502,9 @@ class LeaderboardStats {
 			return $val;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
+		$starttimestamp = $dbr->strencode($starttimestamp);
 
 		if ($getArticles) {
 			$u = User::newFromName($lb_user);
@@ -610,15 +553,15 @@ class LeaderboardStats {
 	}
 
 	/**
-	 * Query for Articles TechVerify Tested
+	 * Query for ArticleFeedback Reviewed
 	 **/
-	public static function getTechArticleTested($starttimestamp, $lb_user = '', $getArticles = false) {
+	public static function getArticleFeedbackReviewed($starttimestamp, $lb_user = '', $getArticles = false) {
 		global $wgMemc, $wgSharedDB;
 
 		if ($getArticles) {
-			$key = "leaderboard:techarticletested:$starttimestamp:$lb_user";
+			$key = "leaderboard:articlefeedbackreviewed:$starttimestamp:$lb_user";
 		} else {
-			$key = "leaderboard:techarticletested:$starttimestamp";
+			$key = "leaderboard:articlefeedbackreviewed:$starttimestamp";
 		}
 
 		$cachekey = wfMemcKey($key);
@@ -627,15 +570,16 @@ class LeaderboardStats {
 			return $val;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
+		$starttimestamp = $dbr->strencode($starttimestamp);
 
 		if ($getArticles) {
 			$u = User::newFromName($lb_user);
 
 			$sql = "SELECT log_title ".
 				"FROM logging ".
-				"WHERE log_type='test_tech_articles' AND log_user = ".$u->getID()."  and log_timestamp >= '$starttimestamp' ".
+				"WHERE log_type='article_feedback_tool' AND log_user = ".$u->getID()."  and log_timestamp >= '$starttimestamp' ".
 				"ORDER BY log_timestamp DESC ".
 				"LIMIT 30";
 			$res = $dbr->query($sql, __METHOD__);
@@ -658,7 +602,7 @@ class LeaderboardStats {
 
 			$sql = "SELECT log_user, count(*) as C , user_name
 				FROM logging left join $wgSharedDB.user on user_id=log_user
-				WHERE log_type='test_tech_articles' and log_timestamp >= '$starttimestamp' " . $bot .
+				WHERE log_type='article_feedback_tool' and log_timestamp >= '$starttimestamp' " . $bot .
 				"GROUP BY log_user ORDER BY C desc limit 30;";
 
 			$res = $dbr->query($sql, __METHOD__);
@@ -677,7 +621,75 @@ class LeaderboardStats {
 	}
 
 	/**
-	 * Query for Duplicate Titles Reviewd
+	 * Query for Articles TechTested
+	 **/
+	public static function getTechArticleTested($starttimestamp, $lb_user = '', $getArticles = false) {
+		global $wgMemc, $wgSharedDB;
+
+		if ($getArticles) {
+			$key = "leaderboard:techarticletested:$starttimestamp:$lb_user";
+		} else {
+			$key = "leaderboard:techarticletested:$starttimestamp";
+		}
+
+		$cachekey = wfMemcKey($key);
+		$val = $wgMemc->get($cachekey);
+		if (is_array($val)) {
+			return $val;
+		}
+
+		$dbr = wfGetDB(DB_REPLICA);
+		$data = array();
+		$starttimestamp = $dbr->strencode($starttimestamp);
+
+		if ($getArticles) {
+			$u = User::newFromName($lb_user);
+
+			$sql = "SELECT log_title ".
+				"FROM logging ".
+				"WHERE log_type='test_tech_articles' AND log_action <> 'skip' AND log_user = ".$u->getID()."  and log_timestamp >= '$starttimestamp' ".
+				"ORDER BY log_timestamp DESC ".
+				"LIMIT 30";
+			$res = $dbr->query($sql, __METHOD__);
+
+			foreach ($res as $row) {
+				$t = Title::newFromText($row->log_title);
+				if (isset($t)) {
+					$data[$t->getPartialURL()] = $t->getPrefixedText();
+				}
+			}
+
+		} else {
+
+			$bots = WikihowUser::getBotIDs();
+			$bot = "";
+
+			if (count($bots) > 0) {
+				$bot = " AND log_user NOT IN (" . $dbr->makeList($bots) . ") ";
+			}
+
+			$sql = "SELECT log_user, count(*) as C , user_name
+				FROM logging left join $wgSharedDB.user on user_id=log_user
+				WHERE log_type='test_tech_articles' and log_action <> 'skip' and log_timestamp >= '$starttimestamp' " . $bot .
+				"GROUP BY log_user ORDER BY C desc limit 30;";
+
+			$res = $dbr->query($sql, __METHOD__);
+
+			foreach ($res as $row) {
+				$u = User::newFromName( $row->user_name );
+				if ($u && $u->getId() > 0) {
+					$data[$u->getName()] = $row->C;
+				} else {
+					// uh oh maybe?
+				}
+			}
+		}
+		$wgMemc->set($cachekey, $data, 60 * 15);
+		return $data;
+	}
+
+	/**
+	 * Query for Duplicate Titles Reviewed
 	 **/
 	public static function getDuplicateTitlesReviewed($starttimestamp, $lb_user = '', $getArticles = false) {
 		global $wgMemc, $wgSharedDB;
@@ -694,8 +706,9 @@ class LeaderboardStats {
 			return $val;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
+		$starttimestamp = $dbr->strencode($starttimestamp);
 
 		if ($getArticles) {
 			$u = User::newFromName($lb_user);
@@ -744,6 +757,161 @@ class LeaderboardStats {
 	}
 
 	/**
+	 * Query for Flagged Answers fixed
+	 **/
+	public static function getFixFlaggedAnswers($starttimestamp, $lb_user = '', $getArticles = false) {
+		global $wgMemc, $wgSharedDB;
+
+		if ($getArticles) {
+			$key = "leaderboard:fixflaggedanswers:$starttimestamp:$lb_user";
+		} else {
+			$key = "leaderboard:fixflaggedanswers:$starttimestamp";
+		}
+
+		$cachekey = wfMemcKey($key);
+		$val = $wgMemc->get($cachekey);
+		if (is_array($val)) {
+			return $val;
+		}
+
+		$dbr = wfGetDB(DB_REPLICA);
+		$data = array();
+
+		if ($getArticles) {
+			$u = User::newFromName($lb_user);
+
+			$sql = "SELECT log_title ".
+				"FROM logging ".
+				"WHERE log_type='fix_flagged_answers' AND log_user = ".$u->getID()."  and log_timestamp >= '$starttimestamp' ".
+				"ORDER BY log_timestamp DESC ".
+				"LIMIT 30";
+			$res = $dbr->query($sql, __METHOD__);
+
+			foreach ($res as $row) {
+				$t = Title::newFromText($row->log_title);
+				if (isset($t)) {
+					$data[$t->getPartialURL()] = $t->getPrefixedText();
+				}
+			}
+
+		} else {
+
+			$bots = WikihowUser::getBotIDs();
+			$bot = "";
+
+			if (count($bots) > 0) {
+				$bot = " AND log_user NOT IN (" . $dbr->makeList($bots) . ") ";
+			}
+
+			$sql = "SELECT log_user, count(*) as C , user_name
+				FROM logging left join $wgSharedDB.user on user_id=log_user
+				WHERE log_type='fix_flagged_answers' and log_timestamp >= '$starttimestamp' " . $bot .
+				"GROUP BY log_user ORDER BY C desc limit 30;";
+
+			$res = $dbr->query($sql, __METHOD__);
+
+			foreach ($res as $row) {
+				$u = User::newFromName( $row->user_name );
+				if ($u && $u->getId() > 0) {
+					$data[$u->getName()] = $row->C;
+				} else {
+					// uh oh maybe?
+				}
+			}
+		}
+		$wgMemc->set($cachekey, $data, 60 * 15);
+		return $data;
+	}
+
+	/**
+	 * Query for Flagged Answers fixed
+	 **/
+	public static function getQAPatrollers($starttimestamp, $lb_user = '', $getArticles = false) {
+		global $wgMemc, $wgSharedDB;
+
+		if ($getArticles) {
+			$key = "leaderboard:qap:$starttimestamp:$lb_user";
+		} else {
+			$key = "leaderboard:qap:$starttimestamp";
+		}
+
+		$cachekey = wfMemcKey($key);
+		$val = $wgMemc->get($cachekey);
+		if (is_array($val)) {
+			// return $val;
+		}
+
+		$dbr = wfGetDB(DB_REPLICA);
+		$data = array();
+
+		if ($getArticles) {
+			$u = User::newFromName($lb_user);
+
+			$sql = "SELECT log_title ".
+				"FROM logging ".
+				"WHERE log_type='qa_patrol' AND log_user = ".$u->getID()."  and log_timestamp >= '$starttimestamp' ".
+				"ORDER BY log_timestamp DESC ".
+				"LIMIT 30";
+			$res = $dbr->query($sql, __METHOD__);
+
+			foreach ($res as $row) {
+				$t = Title::newFromText($row->log_title);
+				if (isset($t)) {
+					$data[$t->getPartialURL()] = $t->getPrefixedText();
+				}
+			}
+
+		} else {
+
+			$where = [
+				'log_type' => 'qa_patrol',
+				"log_timestamp >= '$starttimestamp'"
+			];
+
+			$bots = WikihowUser::getBotIDs();
+			if (!empty($bots)) {
+				$where[] = 'log_user NOT IN ('.$dbr->makeList($bots).')';
+			}
+
+			$qa_editor_ids = WikihowUser::getUserIDsByUserGroup('qa_editors');
+			if (!empty($qa_editor_ids)) {
+				$where[] = 'log_user IN ('.$dbr->makeList($qa_editor_ids).')';
+			}
+
+			$res = $dbr->select(
+				[
+					'logging',
+					"$wgSharedDB.user"
+				],
+				[
+					'log_user',
+					'count(*) as C',
+					'user_name'
+				],
+				$where,
+				__METHOD__,
+				[
+					'GROUP BY' => 'log_user',
+					'ORDER BY' => 'C desc',
+					'LIMIT' => 30
+				],
+				["$wgSharedDB.user" => ['LEFT JOIN', 'user_id = log_user']]
+			);
+
+			foreach ($res as $row) {
+				$u = User::newFromName( $row->user_name );
+				if ($u && $u->getId() > 0) {
+					$data[$u->getName()] = $row->C;
+				} else {
+					// uh oh maybe?
+				}
+			}
+		}
+		$wgMemc->set($cachekey, $data, 60 * 15);
+		return $data;
+	}
+
+	/**
 	 * Query for Articles Spellchecked
 	 **/
 	public static function getSpellchecked($starttimestamp, $lb_user = '', $getArticles = false) {
@@ -761,8 +929,9 @@ class LeaderboardStats {
 			return $val;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
+		$starttimestamp = $dbr->strencode($starttimestamp);
 
 		if ($getArticles) {
 			$u = User::newFromName($lb_user);
@@ -828,8 +997,9 @@ class LeaderboardStats {
 			return $val;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
+		$starttimestamp = $dbr->strencode($starttimestamp);
 
 		if ($getArticles) {
 			$u = User::newFromName($lb_user);
@@ -894,7 +1064,7 @@ class LeaderboardStats {
 			return $val;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
 
 		$sql = '';
@@ -902,6 +1072,7 @@ class LeaderboardStats {
 		$bot = count($bots) == 0
 			? ""
 			: " AND log_user NOT IN (" . $dbr->makeList($bots) . ") ";
+		$starttimestamp = $dbr->strencode($starttimestamp);
 		if ($getArticles) {
 			$sql = "SELECT log_user, log_title ".
 				"FROM logging FORCE INDEX (times) ".
@@ -953,7 +1124,7 @@ class LeaderboardStats {
 			return $val;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
 
 		$bots = WikihowUser::getBotIDs();
@@ -963,6 +1134,7 @@ class LeaderboardStats {
 			$bot = " AND qcv_user NOT IN (" . $dbr->makeList($bots) . ") ";
 		}
 
+		$starttimestamp = $dbr->strencode($starttimestamp);
 		$sql = "SELECT user_name, SUM(C) as C FROM
 			( (SELECT user_name, count(*) as C from qc_vote left join $wgSharedDB.user on qcv_user=user_id
 				WHERE qc_timestamp > '{$starttimestamp}' $bot group by qcv_user order by C desc limit 25)
@@ -997,7 +1169,7 @@ class LeaderboardStats {
 			return $val;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
 
 		$bots = WikihowUser::getBotIDs();
@@ -1007,6 +1179,7 @@ class LeaderboardStats {
 			$bot = " AND rc_user NOT IN (" . $dbr->makeList($bots) . ") ";
 		}
 
+		$starttimestamp = $dbr->strencode($starttimestamp);
 		$sql = "SELECT rc_user_text,rc_title ".
 			"FROM recentchanges ".
 			"WHERE rc_comment like 'Quick edit while patrolling' and rc_timestamp >= '$starttimestamp'". $bot .
@@ -1049,7 +1222,7 @@ class LeaderboardStats {
 			return $val;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
 
 		$bots = WikihowUser::getBotIDs();
@@ -1060,6 +1233,7 @@ class LeaderboardStats {
 			$bot = "AND rev_user NOT IN (" . $dbr->makeList($bots) . ") ";
 		}
 
+		$starttimestamp = $dbr->strencode($starttimestamp);
 		$sql = "SELECT rev_user_text,page_title,page_namespace ".
 			"FROM revision,page ".
 			"WHERE rev_page=page_id and page_namespace NOT IN (2, 3, 18) and rev_timestamp >= '$starttimestamp' AND rev_user_text != 'WRM' ".
@@ -1104,7 +1278,7 @@ class LeaderboardStats {
 			return $val;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
 
 		$bots = WikihowUser::getBotIDs();
@@ -1115,6 +1289,7 @@ class LeaderboardStats {
 			$bot = " AND log_user NOT IN (" . $dbr->makeList($bots) . ") ";
 		}
 
+		$starttimestamp = $dbr->strencode($starttimestamp);
 		$sql = "SELECT log_user, count(*) as C ".
 			"FROM logging ".
 			"WHERE log_type='ucipatrol' and log_timestamp >= '$starttimestamp' ". $bot.
@@ -1150,7 +1325,7 @@ class LeaderboardStats {
 			return $val;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
 
 		$bots = WikihowUser::getBotIDs();
@@ -1160,6 +1335,7 @@ class LeaderboardStats {
 			$bot = " AND log_user NOT IN (" . $dbr->makeList($bots) . ") ";
 		}
 
+		$starttimestamp = $dbr->strencode($starttimestamp);
 		$sql = "SELECT log_user, count(*) as C ".
 			"FROM logging ".
 			"WHERE log_type='newtips' and log_timestamp >= '$starttimestamp' ". $bot.
@@ -1195,7 +1371,7 @@ class LeaderboardStats {
 			return $val;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
 
 		$bots = WikihowUser::getBotIDs();
@@ -1206,6 +1382,7 @@ class LeaderboardStats {
 			$bot = " AND rc_user NOT IN (" . $dbr->makeList($bots) . ") ";
 		}
 
+		$starttimestamp = $dbr->strencode($starttimestamp);
 		$sql = "SELECT rc_user_text,rc_title ".
 			"FROM recentchanges ".
 			"WHERE rc_comment like 'categorization' and rc_timestamp >= '$starttimestamp' ". $bot .
@@ -1245,7 +1422,7 @@ class LeaderboardStats {
 			return $val;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
 
 		$bots = WikihowUser::getBotIDs();
@@ -1255,6 +1432,7 @@ class LeaderboardStats {
 			$bot = " AND img_user NOT IN (" . $dbr->makeList($bots) . ") ";
 		}
 
+		$starttimestamp = $dbr->strencode($starttimestamp);
 		$sql = "SELECT img_user_text,img_name FROM image ".
 			"WHERE img_timestamp >= '$starttimestamp'" . $bot;
 
@@ -1292,7 +1470,7 @@ class LeaderboardStats {
 			return $val;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
 
 		$bots = WikihowUser::getBotIDs();
@@ -1303,6 +1481,7 @@ class LeaderboardStats {
 		}
 
 		//log_type can only be 10 chars. Truncate appropriately
+		$starttimestamp = $dbr->strencode($starttimestamp);
 		$sql = "SELECT log_user, count(*) as C ".
 			"FROM logging ".
 			"WHERE log_type='ratetool' and log_timestamp >= '$starttimestamp' ". $bot.
@@ -1347,7 +1526,7 @@ class LeaderboardStats {
 			return $val;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
 
 		$bots = WikihowUser::getBotIDs();
@@ -1358,9 +1537,11 @@ class LeaderboardStats {
 		}
 
 		//log_type can only be 10 chars. Truncate appropriately
+		$starttimestamp = $dbr->strencode($starttimestamp);
+		$logType = $dbr->strencode('EF_' . substr($templatetype, 0, 7));
 		$sql = "SELECT log_user, count(*) as C ".
 			"FROM logging ".
-			"WHERE log_type='EF_" . substr($templatetype, 0, 7) . "' and log_timestamp >= '$starttimestamp' ". $bot.
+			"WHERE log_type='$logType' and log_timestamp >= '$starttimestamp' ". $bot.
 			"GROUP BY log_user ORDER BY C DESC LIMIT 30";
 		$res = $dbr->query($sql, __METHOD__);
 
@@ -1402,7 +1583,7 @@ class LeaderboardStats {
 			return $val;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
 
 		$bots = WikihowUser::getBotIDs();
@@ -1412,6 +1593,7 @@ class LeaderboardStats {
 			$bot = " AND log_user NOT IN (" . $dbr->makeList($bots) . ") ";
 		}
 
+		$starttimestamp = $dbr->strencode($starttimestamp);
 		$sql = "SELECT log_user, count(*) as C ".
 			"FROM logging ".
 			"WHERE log_type='nfd' and log_action='vote' and log_timestamp >= '$starttimestamp' ". $bot.
@@ -1456,7 +1638,7 @@ class LeaderboardStats {
 			return $val;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$data = array();
 
 		$bot = "";
@@ -1466,6 +1648,7 @@ class LeaderboardStats {
 			$bot = " AND va_user NOT IN (" . $dbr->makeList($bots) . ") ";
 		}
 
+		$starttimestamp = $dbr->strencode($starttimestamp);
 		$sql = "SELECT va_user, va_user_text, count(*) as C ".
 			"FROM videoadder ".
 			"WHERE va_timestamp >= '$starttimestamp' ". $bot .
@@ -1496,4 +1679,73 @@ class LeaderboardStats {
 		$wgMemc->set($cachekey, $data, 3600);
 		return $data;
 	}
+
+	/**
+	 * Query for TopicTagging stats
+	 **/
+	public static function getTopicsTagged($starttimestamp, $lb_user = '', $getArticles = false) {
+		global $wgMemc, $wgSharedDB;
+
+		if ($getArticles) {
+			$key = "leaderboard:topicstagged:$starttimestamp:$lb_user";
+		} else {
+			$key = "leaderboard:topicstagged:$starttimestamp";
+		}
+
+		$cachekey = wfMemcKey($key);
+		$val = $wgMemc->get($cachekey);
+		if (is_array($val)) {
+			return $val;
+		}
+
+		$dbr = wfGetDB(DB_REPLICA);
+		$data = array();
+		$starttimestamp = $dbr->strencode($starttimestamp);
+
+		if ($getArticles) {
+			$u = User::newFromName($lb_user);
+
+			$sql = "SELECT log_title ".
+				"FROM logging ".
+				"WHERE log_type='topic_tagging' AND log_user = ".$u->getID()." and log_action IN ('upvote','downvote') and log_timestamp >= '$starttimestamp' ".
+				"ORDER BY log_timestamp DESC ".
+				"LIMIT 30";
+			$res = $dbr->query($sql, __METHOD__);
+
+			foreach ($res as $row) {
+				$t = Title::newFromText($row->log_title);
+				if (isset($t)) {
+					$data[$t->getPartialURL()] = $t->getPrefixedText();
+				}
+			}
+
+		} else {
+
+			$bots = WikihowUser::getBotIDs();
+			$bot = "";
+
+			if (count($bots) > 0) {
+				$bot = " AND log_user NOT IN (" . $dbr->makeList($bots) . ") ";
+			}
+
+			$sql = "SELECT log_user, count(*) as C , user_name
+				FROM logging left join $wgSharedDB.user on user_id=log_user
+				WHERE log_type='topic_tagging' and log_action IN ('upvote','downvote') and log_timestamp >= '$starttimestamp' " . $bot .
+				"GROUP BY log_user ORDER BY C desc limit 30;";
+
+			$res = $dbr->query($sql, __METHOD__);
+
+			foreach ($res as $row) {
+				$u = User::newFromName( $row->user_name );
+				if ($u && $u->getId() > 0) {
+					$data[$u->getName()] = $row->C;
+				} else {
+					// uh oh maybe?
+				}
+			}
+		}
+		$wgMemc->set($cachekey, $data, 60 * 15);
+		return $data;
+	}
+
 }

@@ -48,7 +48,7 @@ function MagicArticlesStartedwgVariableIDs(&$wgVariableIDs) {
 }
 
 function MagicArticlesStartedLanguageGetMagic(&$magicWords, $langCode) {
-	switch($langCode) {
+	switch ($langCode) {
 		default:
 			#$magicWords[MAG_ARTICLESSTARTED] = array( 0, 'ARTICLESSTARTED' );
 			$magicWords['ARTICLESSTARTED'] 	= array( 0, 'ARTICLESSTARTED' );
@@ -63,57 +63,56 @@ function MagicArticlesStartedLanguageGetMagic(&$magicWords, $langCode) {
 function articlesstarted($parser, $part1 = '', $part2 = '', $part3 = 'time', $part4 = '', $part5 = 'width:200px;border: 1px solid #ccc; padding:10px;') {
 	$title = RequestContext::getMain()->getTitle();
 	$ret = "";
-	if ($title instanceof Title && $title->getNamespace() === NS_USER) {
+	if ($title instanceof Title && $title->inNamespace(NS_USER)) {
 		$ret = "";
 		$msg = "";
 		if ($part2 == 'box') {
 			if ($part1 == '0') {
-				$msg = wfMsg('articlesstarted_byme');
+				$msg = wfMessage('articlesstarted_byme');
 			} else {
 				switch ($part3) {
 					case 'popular':
-						$msg = wfMsg('articlesstarted_byme_mostpopular', $part1);
+						$msg = wfMessage('articlesstarted_byme_mostpopular', $part1);
 						break;
 					case 'time_asc':
-						$msg = wfMsg('articlesstarted_byme_first', $part1);
+						$msg = wfMessage('articlesstarted_byme_first', $part1);
 						break;
 					default:
-						$msg = wfMsg('articlesstarted_byme_mostrecent', $part1);
+						$msg = wfMessage('articlesstarted_byme_mostrecent', $part1);
 				}
 			}
 			if ($part4 != '') $msg = $part4;
 			$ret = "<div style='$part5'>$msg<br/>\n";
 		}
-		$dbr = wfGetDB(DB_SLAVE);
-		$order = array();
+		$dbr = wfGetDB(DB_REPLICA);
+		$opts = array();
 		switch ($part3) {
 			case 'popular':
-				$order['ORDER BY'] = 'page_counter DESC ';
+				$opts['ORDER BY'] = 'page_counter DESC ';
 				break;
 			case 'time_asc':
-				$order['ORDER BY'] = 'fe_timestamp ASC ';
+				$opts['ORDER BY'] = 'fe_timestamp ASC ';
 				break;
 			default:
-				$order['ORDER BY'] = 'fe_timestamp DESC ';
+				$opts['ORDER BY'] = 'fe_timestamp DESC ';
 		}
-		if ( intval( $part1 ) || $part1 != "0" ) {
+		if ( (int)$part1 > 0 ) {
 			if ($part1 > PHP_INT_MAX) {
 				$part1 = PHP_INT_MAX;
 			}
-			$order['LIMIT'] = $part1;
+			$opts['LIMIT'] = (int)$part1;
 		}
 		$res = $dbr->select(
 			array('firstedit','page'),
 			array ('page_title', 'page_namespace', 'fe_timestamp'),
 			array ('fe_page=page_id', 'fe_user_text' => $title->getText()),
 			__METHOD__,
-			$order
+			$opts
 		);
-		while ($row=$dbr->fetchObject($res)) {
+		foreach ($res as $row) {
 			$t = Title::makeTitle($row->page_namespace, $row->page_title);
 			$ret .= "# [[" . $t->getFullText() . "]]\n";
 		}
-		$dbr->freeResult($res);
 		if ($part2 == 'box') $ret .= "</div>";
 	}
 	return $ret;
@@ -122,11 +121,11 @@ function articlesstarted($parser, $part1 = '', $part2 = '', $part3 = 'time', $pa
 function patrolcount($parser, $date1 = '', $date2  = '') {
 	$title = RequestContext::getMain()->getTitle();
 	$ret = "";
-	if ($title instanceof Title && $title->getNamespace() === NS_USER) {
+	if ($title instanceof Title && $title->inNamespace(NS_USER)) {
 		$msg_key = $fdate1 = $fdate2 = '';
 		$u = User::newFromName($title->getText());
 		if (!$u || $u->getID() == 0) {
-			$ret = wfMsg('patrolcount_error');
+			$ret = wfMessage('patrolcount_error');
 			return;
 		}
 		$options = array('log_user=' . $u->getID(), 'log_type' => 'patrol');
@@ -138,7 +137,7 @@ function patrolcount($parser, $date1 = '', $date2  = '') {
 		if ($date1 != "") $options[] = "log_timestamp > '{$date1}000000'";
 		if ($date2 != "") $options[] = "log_timestamp < '{$date2}235959'";
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$count = $dbr->selectField('logging', 'count(*)', $options, "patrolcount");
 		$count = number_format($count, 0, "", ",");
 
@@ -150,11 +149,11 @@ function patrolcount($parser, $date1 = '', $date2  = '') {
 function nabcount($parser, $date1 = '', $date2  = '') {
 	$title = RequestContext::getMain()->getTitle();
 	$ret = "";
-	if ($title instanceof Title && $title->getNamespace() === NS_USER) {
+	if ($title instanceof Title && $title->inNamespace(NS_USER)) {
 		$msg_key = $fdate1 = $fdate2 = '';
 		$u = User::newFromName($title->getText());
 		if (!$u || $u->getID() == 0) {
-			$ret = wfMsg('nabcount_error');
+			$ret = wfMessage('nabcount_error');
 			return;
 		}
 		$options = array('log_user=' . $u->getID(), 'log_type' => 'nap');
@@ -166,7 +165,7 @@ function nabcount($parser, $date1 = '', $date2  = '') {
 		if ($date1 != "") $options[] = "log_timestamp > '{$date1}000000'";
 		if ($date2 != "") $options[] = "log_timestamp < '{$date2}235959'";
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$count = $dbr->selectField('logging', 'count(*)', $options, "nabcount");
 		$count = number_format($count, 0, "", ",");
 
@@ -178,12 +177,12 @@ function nabcount($parser, $date1 = '', $date2  = '') {
 function wfWikiHowMagicAssignAValue(&$parser, &$cache, &$magicWordId, &$ret) {
 	$title = RequestContext::getMain()->getTitle();
 
-	if( !$title || !$title instanceof Title ) {
+	if ( !$title || !$title instanceof Title ) {
 		return true;
 	}
 
 	if ('VIEWERSHIP' === $magicWordId) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$u = User::newFromName($title->getText());
 		if (!$u || $u->getID() == 0) {
 			$ret = "No such user \"{$title->getText()}\"";
@@ -194,7 +193,7 @@ function wfWikiHowMagicAssignAValue(&$parser, &$cache, &$magicWordId, &$ret) {
 		$ret = number_format($count, 0, "", ",");
 		return true;
 	} else  if ('NUMBEROFARTICLESSTARTED' === $magicWordId) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$u = User::newFromName($title->getText());
 		if (!$u || $u->getID() == 0) {
 			$ret = "No such user \"{$title->getText()}\"";
@@ -208,4 +207,3 @@ function wfWikiHowMagicAssignAValue(&$parser, &$cache, &$magicWordId, &$ret) {
 
 	return false;
 }
-

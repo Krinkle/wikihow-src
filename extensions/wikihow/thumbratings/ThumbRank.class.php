@@ -1,4 +1,4 @@
-<?
+<?php
 class ThumbRank {
 	const EXCEPTION_MALFORMED_WIKITEXT = "Malformed wikitext in section exception";
 	const EXCEPTION_UNMATCHED_WIKITEXT = "Unable to match wikitext to html exception";
@@ -8,7 +8,7 @@ class ThumbRank {
 
 	function __construct(&$r) {
 		$this->r = $r;
-		$this->wikitext = $r->getText();
+		$this->wikitext = ContentHandler::getContentText( $r->getContent() );
 	}
 
 	public function reorder($saveWikitext = false) {
@@ -53,8 +53,9 @@ class ThumbRank {
 
 	private function saveArticle() {
 		$t = $this->r->getTitle();
-		$a = new Article($t);
-		$a->doEdit($this->wikitext, 'reordering tips and warnings based on votes', EDIT_UPDATE | EDIT_MINOR);
+		$wikiPage = WikiPage::factory($t);
+		$content = ContentHandler::makeContent($this->wikitext, $t);
+		$wikiPage->doEditContent($content, 'reordering tips and warnings based on votes', EDIT_UPDATE | EDIT_MINOR);
 	}
 
 	// Algorithm from modified Wilson score, used on Reddit:
@@ -66,12 +67,13 @@ class ThumbRank {
                    (tr_up + tr_down)) / (1 + 3.8416 / (tr_up + tr_down))
        				AS rank, tr_type FROM thumb_ratings WHERE tr_page_id = $id
        				ORDER BY tr_type,rank DESC;";
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->query($sql, __METHOD__);
-		$rank = array(wfMsg('tips') => array(), wfMsg('warnings') => array());
+		$rank = array(wfMessage('tips')->text() => array(), wfMessage('warnings')->text() => array());
 		foreach ($res as $row) {
 			$row = get_object_vars($row);
-			$type = $row['tr_type'] == ThumbRatings::RATING_TIP ? wfMsg('tips') : wfMsg('warnings');
+			$type = $row['tr_type'] == ThumbRatings::RATING_TIP ?
+				wfMessage('tips')->text() : wfMessage('warnings')->text();
 			$rank[$type][] = $row['tr_hash'];
 		}
 		return $rank;
@@ -81,7 +83,10 @@ class ThumbRank {
 		$html = self::getNonMobileHtml($this->r);
 		$xpath = self::getXPath($html, $this->r);
 
-		$types = array(ThumbRatings::RATING_TIP => wfMsg("tips"), ThumbRatings::RATING_WARNING => wfMsg("warnings"));
+		$types = array(
+			ThumbRatings::RATING_TIP => wfMessage("tips")->text(),
+			ThumbRatings::RATING_WARNING => wfMessage("warnings")->text()
+		);
 		$hashes = array();
 		foreach ($types as $k => $type) {
 			$nodes = $xpath->query('//div[@id="' . strtolower($type) . '"]/ul/li');
@@ -110,7 +115,7 @@ class ThumbRank {
 
 		$vars['bodyHtml'] = WikihowArticleHTML::postProcess($bodyHtml, $opts);
 		$vars['lang'] = $wgLanguageCode;
-		EasyTemplate::set_path(dirname(__FILE__).'/');
+		EasyTemplate::set_path(__DIR__.'/');
 		$html = EasyTemplate::html('thumb_html.tmpl.php', $vars);
 
 		$doc = new DOMDocument('1.0', 'utf-8');
@@ -149,7 +154,7 @@ class ThumbRank {
 		$popts->setTidy(true);
 		$t = $r->getTitle();
 		$parser = new Parser;
-		$html = $parser->parse($r->getText(), $t, $popts, true, true, $r->getId());
+		$html = $parser->parse(ContentHandler::getContentText( $r->getContent() ), $t, $popts, true, true, $r->getId());
 		$popts->setTidy(false);
 
 		$wgTitle = $oldTitle;

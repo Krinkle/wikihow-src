@@ -9,12 +9,12 @@ class RCWidget extends UnlistedSpecialPage {
 	}
 
 	private static function addRCElement(&$widget, &$count, $obj) {
-		global $wgLanguageCode, $wgContLang;
+		global $wgContLang;
 		if (isset($obj['text'])
 			&& strlen(strip_tags($obj['text'])) < 100
 			&& strlen($obj['text']) > 0
 		) {
-			if ($wgLanguageCode == "zh") {
+			if (RequestContext::getMain()->getLanguage()->getCode() == "zh") {
 				$obj['text'] = $wgContLang->convert($obj['text']);
 				if (isset($obj['ts'])) {
 					$obj['ts'] = $wgContLang->convert($obj['ts']);
@@ -66,17 +66,17 @@ class RCWidget extends UnlistedSpecialPage {
 					$obj['ts'] = Misc::getDTDifferenceString($row->log_timestamp);
 					$resourceLink = '<a href="/User:'.$row->log_title.'">'.preg_replace('/-/',' ',$destUser).'</a>';
 					$obj['text'] = wfMessage('action_patrolled', $userLink, $resourceLink)->text();
-				} else if ($row->log_namespace == NS_USER_TALK) {
+				} elseif ($row->log_namespace == NS_USER_TALK) {
 					$obj['type'] = 'patrol';
 					$obj['ts'] = Misc::getDTDifferenceString($row->log_timestamp);
 					$resourceLink = '<a href="/User_talk:'.$row->log_title.'">'.preg_replace('/-/',' ',$destUser).'</a>';
 					$obj['text'] = wfMessage('action_patrolled', $userLink, $resourceLink)->text();
-				} else if ($row->log_namespace == NS_TALK) {
+				} elseif ($row->log_namespace == NS_TALK) {
 					$obj['type'] = 'patrol';
 					$obj['ts'] = Misc::getDTDifferenceString($row->log_timestamp);
 					$resourceLink = '<a href="/Discussion:'.$row->log_title.'">'.preg_replace('/-/',' ',$destUser).'</a>';
 					$obj['text'] = wfMessage('action_patrolled', $userLink, $resourceLink)->text();
-				} else if ($row->log_namespace == NS_MAIN) {
+				} elseif ($row->log_namespace == NS_MAIN) {
 					$obj['type'] = 'patrol';
 					$obj['ts'] = Misc::getDTDifferenceString($row->log_timestamp);
 					$resourceLink = '<a href="/'.urlencode($row->log_title).'">'.preg_replace('/-/',' ',$destUser).'</a>';
@@ -151,14 +151,14 @@ class RCWidget extends UnlistedSpecialPage {
 					$resourceLink = '<a href="'.$destUserLink.'">'.preg_replace('/-/',' ',$destUser).'</a>';
 					$obj['text'] = wfMessage('action_newpage', $userLink, $resourceLink)->text();
 					self::addRCElement($widget, $count, $obj);
-				} else if (preg_match('/^categorization/',$row->rc_comment)) {
+				} elseif (preg_match('/^categorization/',$row->rc_comment)) {
 					$obj['type'] = 'categorized';
 					$obj['ts'] = Misc::getDTDifferenceString($row->rc_timestamp);
 					$userLink = '<a href="'.$wuserLink.'">'.$wuser.'</a>';
 					$resourceLink = '<a href="'.$destUserLink.'">'.preg_replace('/-/',' ',$destUser).'</a>';
 					$obj['text'] = wfMessage('action_categorized', $userLink, $resourceLink)->text();;
 					self::addRCElement($widget, $count, $obj);
-				} else if ( (preg_match('/^\/* Steps *\//',$row->rc_comment)) ||
+				} elseif ( (preg_match('/^\/* Steps *\//',$row->rc_comment)) ||
 								(preg_match('/^\/* Tips *\//',$row->rc_comment)) ||
 								(preg_match('/^\/* Warnings *\//',$row->rc_comment)) ||
 								(preg_match('/^\/* Things You\'ll Need *\//',$row->rc_comment)) ||
@@ -182,7 +182,7 @@ class RCWidget extends UnlistedSpecialPage {
 						$userLink= '<a href="'.$wuserLink.'">'.$wuser.'</a>';
 						$resourceLink = '<a href="'.$destUserLink.'">'.preg_replace('/-/',' ',$destUser).'</a>';
 						$obj['text'] = wfMessage('action_risingstar', $userLink, $resourceLink)->text();
-					} else if ($row->rc_comment == '') {
+					} elseif ($row->rc_comment == '') {
 						$obj['type'] = 'discussion';
 						$obj['ts'] = Misc::getDTDifferenceString($row->rc_timestamp);
 						$userLink = '<a href="'.$wuserLink.'">'.$wuser.'</a>';
@@ -230,32 +230,51 @@ class RCWidget extends UnlistedSpecialPage {
 					self::addRCElement($widget, $count, $obj);
 				}
 				break;
-
 		}
 
 		return $obj;
 	}
 
+	public static function getWidgetHtml() {
+		$user = RequestContext::getMain()->getUser();
+		$isNewArticlePatrol = NewArticleBoost::isNewArticlePatrol( $user );
+		$nabHeader = '';
+		if ( $isNewArticlePatrol ) {
+			$articlesToBoost = wfMessage('articles_to_boost')->text();
+			$nabHeader = <<<HTML
+<h3 id="nabheader">
+	<span class="weather" id="nabweather" onclick="location='/index.php?title=Special:NewArticleBoost&hidepatrolled=1';" style="cursor:pointer;">
+		<span class='weather_nab'></span>
+	</span>
+	<span onclick="location='/Special:NewArticleBoost';" style="cursor:pointer;">{$articlesToBoost}</span>
+</h3>
+HTML;
+		}
 
-	public static function showWidget() {
-		global $wgUser;
-?>
-	<div id='rcwidget_divid'>
-		<a class="rc_help rcw-help-icon" title="<?php echo wfMessage('rc_help')->text();?>" href="/<?= wfMessage('rcchange-patrol-article')->text() ?>"></a>
-		<h3><span class="weather" id="rcwweather" onclick="location='/index.php?title=Special:Recentchanges&hidepatrolled=1';" style="cursor:pointer;"><span class='weather_unpatrolled'></span></span><span onclick="location='/Special:Recentchanges';" style="cursor:pointer;"><?= wfMessage('changes_to_patrol')->text();?></span></h3>
-		<?php if(Newarticleboost::isNewArticlePatrol($wgUser)): ?>
-			<h3 id="nabheader"><span class="weather" id="nabweather" onclick="location='/index.php?title=Special:Newarticleboost&hidepatrolled=1';" style="cursor:pointer;"><span class='weather_nab'></span></span><span onclick="location='/Special:Newarticleboost';" style="cursor:pointer;"><?= wfMessage('articles_to_boost')->text();?></span></h3>
-		<? endif; ?>
-		<div id='rcElement_list' class='widgetbox'>
-			<div id='IEdummy'></div>
-		</div>
-		<div id='rcwDebug' style='display:none'>
-			<input id='testbutton' type='button' onclick='rcTest();' value='test'>
-			<input id='stopbutton' type='button' onclick='WH.RCWidget.rcTransport();' value='stop'>
-			<span id='teststatus' ></span>
-		</div>
+		$rcHelp = wfMessage('rc_help')->text();
+		$patrolArticle = wfMessage('rcchange-patrol-article')->text();
+		$changesToPatrol = wfMessage('changes_to_patrol')->text();
+		$html = <<<HTML
+<div id='rcwidget_divid'>
+	<a class="rc_help rcw-help-icon" title="{$rcHelp}" href="/{$patrolArticle}"></a>
+	<h3>
+		<span class="weather" id="rcwweather" onclick="location='/index.php?title=Special:RecentChanges&hidepatrolled=1';" style="cursor:pointer;">
+			<span class='weather_unpatrolled'></span>
+		</span>
+		<span onclick="location='/Special:RecentChanges';" style="cursor:pointer;">{$changesToPatrol}</span>
+	</h3>
+	{$nabHeader}
+	<div id='rcElement_list' class='widgetbox'>
+		<div id='IEdummy'></div>
 	</div>
-<?php
+	<div id='rcwDebug' style='display:none'>
+		<input id='testbutton' type='button' onclick='rcTest();' value='test'>
+		<input id='stopbutton' type='button' onclick='WH.RCWidget.rcTransport();' value='stop'>
+		<span id='teststatus'></span>
+	</div>
+</div>
+HTML;
+		return $html;
 	}
 
 	/* Not used since at least October 2017 - Alberto
@@ -289,30 +308,32 @@ class RCWidget extends UnlistedSpecialPage {
 		});
 		$(window).load(WH.RCWidget.rcwLoad);
 	</script>
-<?
+<?php
 	}
 
 	public function execute($par) {
-		global $wgOut, $wgRequest, $wgHooks;
+		global $wgHooks;
+		$req = $this->getRequest();
+		$out = $this->getOutput();
 
 		$wgHooks['AllowMaxageHeaders'][] = array('RCWidget::allowMaxageHeadersCallback');
 
 		$maxAgeSecs = 60;
-		$wgOut->setSquidMaxage( $maxAgeSecs );
-		$wgRequest->response()->header( 'Cache-Control: s-maxage=' . $maxAgeSecs . ', must-revalidate, max-age=' . $maxAgeSecs );
+		$out->setSquidMaxage( $maxAgeSecs );
+		$req->response()->header( 'Cache-Control: s-maxage=' . $maxAgeSecs . ', must-revalidate, max-age=' . $maxAgeSecs );
 		$future = time() + $maxAgeSecs;
-		$wgRequest->response()->header( 'Expires: ' . gmdate('D, d M Y H:i:s T', $future) );
+		$req->response()->header( 'Expires: ' . gmdate('D, d M Y H:i:s T', $future) );
 
-		$wgOut->setArticleBodyOnly(true);
-		$wgOut->sendCacheControl();
+		$out->setArticleBodyOnly(true);
+		$out->sendCacheControl();
 
 		// Enforce that this value is an int
-		$userId = $wgRequest->getInt('userId');
+		$userId = $req->getInt('userId');
 
 		$data = self::pullData($userId);
 
 		// if we also wand nabdata then add it here
-		if ( $wgRequest->getBool( 'nabrequest' ) === true ) {
+		if ( $req->getBool( 'nabrequest' ) === true ) {
 			// get the nab data
 			$nabCount = self::getNabCount();
 			$data['NABcount'] = $nabCount;
@@ -320,7 +341,7 @@ class RCWidget extends UnlistedSpecialPage {
 		$jsonData = json_encode($data);
 
 		// Error check input
-		$jsFunc = $wgRequest->getVal('function', '');
+		$jsFunc = $req->getVal('function', '');
 		$allowedNames = array('rcwOnLoadData', 'rcwOnReloadData', 'WH.RCWidget.rcwOnLoadData', 'WH.RCWidget.rcwOnReloadData');
 		if ( !in_array($jsFunc, $allowedNames) ) {
 			$jsFunc = '';
@@ -369,16 +390,16 @@ class RCWidget extends UnlistedSpecialPage {
 	}
 
 	public static function getNabCount() {
-		global $wgMemc, $wgUser;
+		global $wgMemc;
 
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$nabCount = null;
 
 		//check the cache for nabcount and cache if doesn't exist
 		$nabCacheKey = wfMemcKey( 'nabCount' );
 		$nabCount = $wgMemc->get( $nabCacheKey );
 		if ( $nabCount === false ) {
-			$nabCount = Newarticleboost::getNABCount( $dbr );
+			$nabCount = NewArticleBoost::getNABCount( $dbr );
 			$cacheSecs = 30;
 			$wgMemc->set( $nabCacheKey, $nabCount, $cacheSecs );
 		}
@@ -386,10 +407,10 @@ class RCWidget extends UnlistedSpecialPage {
 		return $nabCount;
 	}
 
-	public static function pullData($user = 0) {
-		global $wgMemc, $wgUser;
-		$dbr = wfGetDB(DB_SLAVE);
+	public static function pullData(int $user = 0) {
+		global $wgMemc;
 
+		$dbr = wfGetDB(DB_REPLICA);
 		$cachekey = wfMemcKey('rcwidget', $user);
 
 		// for logged in users whose requests bypass varnish, this data is
@@ -414,7 +435,7 @@ class RCWidget extends UnlistedSpecialPage {
 		if ($user) {
 			$sql .= " WHERE rc_user = {$user} ";
 		}
-		else if (sizeof($bots) > 0) {
+		elseif (sizeof($bots) > 0) {
 			$sql .= " WHERE rc_user NOT IN (" . implode(',', $bots) . ")";
 		}
 		$sql .= " ORDER BY rc_timestamp DESC";
@@ -441,8 +462,7 @@ class RCWidget extends UnlistedSpecialPage {
 	}
 
 	private function processDataUserActivity($logsql, $sql, $currenttime) {
-		global $wgUser;
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$sql = $dbr->limitResult($sql, 200, 0);
 		$res = $dbr->query($sql, __METHOD__);
@@ -482,14 +502,14 @@ class RCWidget extends UnlistedSpecialPage {
 					}
 					$rr = $res->fetchObject();
 				}
-			} else if ($rr) {
+			} elseif ($rr) {
 				if ($rr->rc_namespace != NS_USER_KUDOS) {
 					self::filterRC($widget, $count, $rr);
 				} elseif ($rr->rc_namespace == NS_USER_KUDOS) {
 					self::filterRC($widget, $count, $rr);
 				}
 				$rr = $res->fetchObject() ;
-			} else if ($rl) {
+			} elseif ($rl) {
 				if ($rl->log_action != 'patrol') {
 					self::filterLog($widget, $count, $rl);
 				} elseif ($rl->log_action == 'patrol') {
@@ -520,8 +540,7 @@ class RCWidget extends UnlistedSpecialPage {
 	}
 
 	private function processDataRCWidget($logsql, $sql, $currenttime) {
-		global $wgUser;
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$sql = $dbr->limitResult($sql, 200, 0);
 		$res = $dbr->query( $sql, __METHOD__ );
@@ -571,7 +590,7 @@ class RCWidget extends UnlistedSpecialPage {
 					}
 					$rr = $res->fetchObject();
 				}
-			} else if ($rr) {
+			} elseif ($rr) {
 				if ($rr->rc_namespace != NS_USER_KUDOS) {
 					self::filterRC($widget, $count, $rr);
 				} elseif ($rr->rc_namespace == NS_USER_KUDOS
@@ -581,7 +600,7 @@ class RCWidget extends UnlistedSpecialPage {
 					$kudos_count++;
 				}
 				$rr = $res->fetchObject();
-			} else if ($rl) {
+			} elseif ($rl) {
 				if ($rl->log_action != 'patrol') {
 					self::filterLog($widget, $count, $rl);
 				} elseif ($rl->log_action == 'patrol'
@@ -637,5 +656,3 @@ class RCWidget extends UnlistedSpecialPage {
 	}
 
 }
-
-

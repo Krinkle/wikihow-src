@@ -2,14 +2,14 @@
 
 if ( !defined('MEDIAWIKI') ) die();
 
-$wgAutoloadClasses['ImageHooks'] = dirname( __FILE__ ) . '/ImageHooks.body.php';
-$wgAutoloadClasses['DevImageHooks'] = dirname( __FILE__ ) . '/DevImageHooks.body.php';
-$wgAutoloadClasses['PageHooks'] = dirname( __FILE__ ) . '/PageHooks.body.php';
-$wgAutoloadClasses['SpecialPagesHooks'] = dirname( __FILE__ ) . '/SpecialPagesHooks.php';
-$wgAutoloadClasses['ArticleHooks'] = dirname( __FILE__ ) . '/ArticleHooks.php';
-$wgAutoloadClasses['DiffHooks'] = dirname( __FILE__ ) . '/DiffHooks.php';
-$wgAutoloadClasses['EmailBounceHooks'] = dirname(__FILE__) . '/Email.body.php';
-$wgAutoloadClasses['EmailNotificationHooks'] = dirname(__FILE__) . '/Email.body.php';
+$wgAutoloadClasses['ImageHooks'] = __DIR__ . '/ImageHooks.body.php';
+$wgAutoloadClasses['DevImageHooks'] = __DIR__ . '/DevImageHooks.body.php';
+$wgAutoloadClasses['PageHooks'] = __DIR__ . '/PageHooks.body.php';
+$wgAutoloadClasses['SpecialPagesHooks'] = __DIR__ . '/SpecialPagesHooks.php';
+$wgAutoloadClasses['ArticleHooks'] = __DIR__ . '/ArticleHooks.php';
+$wgAutoloadClasses['DiffHooks'] = __DIR__ . '/DiffHooks.php';
+$wgAutoloadClasses['EmailBounceHooks'] = __DIR__ . '/Email.body.php';
+$wgAutoloadClasses['EmailNotificationHooks'] = __DIR__ . '/Email.body.php';
 
 
 //
@@ -20,7 +20,6 @@ $wgHooks['ImageConvertComplete'][] = array('ImageHooks::onImageConvertComplete')
 $wgHooks['FileTransform'][] = array('ImageHooks::onFileTransform');
 $wgHooks['BitmapDoTransformScalerParams'][] = array('ImageHooks::onBitmapDoTransformScalerParams');
 $wgHooks['FileThumbName'][] = array('ImageHooks::onFileThumbName');
-$wgHooks['ImageConvert'][] = array('ImageHooks::onImageConvert');
 $wgHooks['ThumbnailBeforeProduceHTML'][] = array('ImageHooks::onThumbnailBeforeProduceHTML');
 $wgHooks['ImageBeforeProduceHTML'][] = array('ImageHooks::onImageBeforeProduceHTML');
 $wgHooks['ImageHandlerParseParamString'][] = array('ImageHooks::onImageHandlerParseParamString');
@@ -31,21 +30,27 @@ $wgHooks['ConstructImageConvertCommand'][] = array('ImageHooks::onConstructImage
 //
 // PageHooks - used generally in different types of page- or url-level processing
 //
+$wgHooks['TitleSquidURLs'][] = array('PageHooks::onTitleSquidURLsPurge');
 $wgHooks['TitleSquidURLs'][] = array('PageHooks::onTitleSquidURLsDecode');
-$wgHooks['TitleSquidURLs'][] = array('PageHooks::onTitleSquidURLsPurgeVariants');
+$wgHooks['PreCDNPurge'][] = array('PageHooks::onPreCDNPurge');
 $wgHooks['SetupAfterCache'][] = array('PageHooks::onSetupAfterCacheSetMobile');
 $wgHooks['BeforeInitialize'][] = array('PageHooks::maybeRedirectRemoveInvalidQueryParams');
 $wgHooks['BeforeInitialize'][] = array('PageHooks::maybeRedirectHTTPS');
 $wgHooks['BeforeInitialize'][] = array('PageHooks::maybeRedirectProductionDomain');
 $wgHooks['BeforeInitialize'][] = array('PageHooks::maybeRedirectTitus');
 $wgHooks['BeforeInitialize'][] = array('PageHooks::redirectIfNotBotRequest');
+$wgHooks['BeforeInitialize'][] = array('PageHooks::redirectIfPrintableRequest');
+$wgHooks['BeforeInitialize'][] = array('PageHooks::maybeRedirectIfUseformat');
+$wgHooks['BeforeInitialize'][] = array('PageHooks::noIndexRecentChangesRSS');
+$wgHooks['SpecialPageBeforeExecute'][] = array('PageHooks::onSpecialPageBeforeExecuteRedirectTitus');
 $wgHooks['ApiBeforeMain'][] = 'PageHooks::onApiBeforeMain';
 $wgHooks['UnknownAction'][] = 'PageHooks::onUnknownAction';
 $wgHooks['IsTrustedProxy'][] = array('PageHooks::checkFastlyProxy');
 $wgHooks['BeforePageDisplay'][] = 'PageHooks::addFirebug';
 $wgHooks['UserRequiresHTTPS'][] = 'PageHooks::makeHTTPSforAllUsers';
-$wgHooks['OutputPageBodyAttributes'][] = 'PageHooks::onOutputPageBodyAttributes';
+$wgHooks['OutputPageAfterGetHeadLinksArray'][] = 'PageHooks::onOutputPageAfterGetHeadLinksArray';
 // $wgHooks['OutputPageBeforeHTML'][] = array('PageHooks::checkForDiscussionPage');
+$wgHooks['AfterDisplayNoArticleText'][] = 'PageHooks::onAfterDisplayNoArticleText';
 
 // Mediawiki 1.21 seems to redirect pages differently from 1.12, so we recreate
 // the 1.12 functionality from "redirect" articles that are present in the DB.
@@ -58,7 +63,7 @@ $wgHooks['OutputPageBeforeHTML'][] = array('PageHooks::enforceCountryPageViewBan
 $wgHooks['OutputPageBeforeHTML'][] = array('PageHooks::setPage404IfNotExists');
 $wgHooks['TitleMoveComplete'][] = array('PageHooks::fix404AfterMove');
 $wgHooks['ArticleDelete'][] = array('PageHooks::fix404AfterDelete');
-$wgHooks['ArticleInsertComplete'][] = array('PageHooks::fix404AfterInsert');
+$wgHooks['PageContentInsertComplete'][] = array('PageHooks::fix404AfterInsert');
 $wgHooks['ArticleUndelete'][] = array('PageHooks::fix404AfterUndelete');
 $wgHooks['ArticlePurge'][] = array('PageHooks::beforeArticlePurge');
 $wgHooks['TitleMoveComplete'][] = array('PageHooks::onTitleMoveCompletePurgeThumbnails');
@@ -76,8 +81,8 @@ $wgHooks['MaybeAutoPatrol'][] = array('PageHooks::onMaybeAutoPatrol');
 //
 // ArticleHooks - used in processing article content or metadata
 //
-$wgHooks['ArticleSaveComplete'][] = array('ArticleHooks::onArticleSaveUndoEditMarkPatrolled');
-$wgHooks['ArticleSaveComplete'][] = array('ArticleHooks::updatePageFeaturedFurtherEditing');
+$wgHooks['PageContentSaveComplete'][] = array('ArticleHooks::onPageContentSaveUndoEditMarkPatrolled');
+$wgHooks['PageContentSaveComplete'][] = array('ArticleHooks::updatePageFeaturedFurtherEditing');
 $wgHooks['EditPageBeforeEditToolbar'][] = array('ArticleHooks::editPageBeforeEditToolbar');
 $wgHooks['DoEditSectionLink'][] = array('ArticleHooks::onDoEditSectionLink');
 $wgHooks['MakeGlobalVariablesScript'][] = array('ArticleHooks::addGlobalVariables');
@@ -86,6 +91,8 @@ $wgHooks['DeferHeadScripts'][] = array('ArticleHooks::onDeferHeadScripts');
 $wgHooks['PageContentSaveComplete'][] = array('ArticleHooks::firstEditPopCheck');
 $wgHooks['PageContentSaveComplete'][] = array('ArticleHooks::onPageContentSaveCompleteAddFirstEditTag');
 $wgHooks['ArticlePageDataAfter'][] = array('ArticleHooks::firstEditPopIt');
+$wgHooks['AddDesktopTOCItems'][] = array('ArticleHooks::addDesktopTOCItems');
+
 
 $wgHooks['GoodRevisionUpdated'][] = array('ArticleHooks::updateExpertVerifiedRevision');
 
@@ -93,6 +100,8 @@ $wgHooks['GoodRevisionUpdated'][] = array('ArticleHooks::updateExpertVerifiedRev
 $wgHooks['ArticleShowPatrolFooter'][] = array('ArticleHooks::onArticleShowPatrolFooter');
 $wgHooks['ParserClearState'][] = array('ArticleHooks::turnOffAutoTOC');
 $wgHooks['AtAGlanceTest'][] = array('ArticleHooks::runAtAGlanceTest');
+$wgHooks['ProcessArticleHTMLAfter'][] = ['ArticleHooks::BuildMuscleHook'];
+$wgHooks['MobileProcessDomAfterSetSourcesSection'][] = ['ArticleHooks::BuildMuscleHook'];
 //$wgHooks['BeforeOutputAltMethodTOC'][] = array('ArticleHooks::runAltMethodTOCTest');
 
 
@@ -109,13 +118,6 @@ $wgHooks['wgQueryPages'][] = array('SpecialPagesHooks::onPopulateWgQueryPages');
 $wgHooks['WantedPages::getQueryInfo'][] = array('SpecialPagesHooks::onWantedPagesGetQueryInfo');
 $wgHooks['UserLogoutComplete'][] = array('SpecialPagesHooks::onUserLogoutComplete');
 $wgHooks['WebRequestPathInfoRouter'][] = array('SpecialPagesHooks::onWebRequestPathInfoRouter');
-
-// Reuben, 1/9/14 - I commented out use of this hook below because it stopped
-// our own Special:LSearch page from loading (Mediawiki's Special:Search page
-// would load instead). I can't figure out how the hook below is supposed to work
-// with our LSearch page, so I'm disabling it (to fix bugs) until I can ask
-// Jordan.
-//$wgHooks['LanguageGetSpecialPageAliases'][] = array('SpecialPagesHooks::onLanguageGetSpecialPageAliases');
 
 
 //

@@ -1,11 +1,31 @@
 (function($, mw) {
 	"use strict";
+
+	/**
+	 * Check if an avatar's URL is broken, and swap it for the default as needed.
+	 *
+	 * @param {HTMLImageElement} image Image to auto-replace src for
+	 */
+	function autoReplaceBrokenAvatar( image ) {
+		var test = new Image();
+		test.onerror = function () {
+			test.onerror = null;
+			image.src = '/skins/WikiHow/images/80x80_user.png';
+		};
+		test.src = image.src;
+	}
+
 	window.WH = window.WH || {};
 	window.WH.UserReview = {
 
 		ur_div: WH.isMobileDomain ? 'ur_mobile' :'userreviews',
 
 		init: function () {
+			// Auto-repair broken avatar images
+			$( '.ur_avatar' ).each( function () {
+				autoReplaceBrokenAvatar( this );
+			} );
+
 			//show a few more reviews
 			$(".ur_more").on("click", function (e) {
 				e.preventDefault();
@@ -38,19 +58,6 @@
 				$(".ur_review_more", $(this).parent()).show();
 				$(".ur_ellipsis", $(this).parent()).hide();
 			});
-			//expand all the reviews in the sidebar
-			$(".sp_intro_user").on("click", function (e) {
-				if(!WH.isMobileDomain) {
-					e.preventDefault();
-					$(".ur_review_show").hide();
-					$(".ur_review_more").show();
-					$(".ur_ellipsis").hide();
-					$("#" + WH.UserReview.ur_div + " .ur_review").show();
-					$(".ur_more").hide();
-					//$(".ur_even_more").hide();
-					$(".ur_hide").show().css("display", "block");
-				}
-			});
 			//hide all but the first review
 			$(".ur_hide").on("click", function (e) {
 				e.preventDefault();
@@ -62,11 +69,13 @@
 				e.preventDefault();
 				if(WH.isMobileDomain) {
 					mw.loader.using('ext.wikihow.UserReviewForm.mobile', function () {
-						window.WH.UserReviewForm.prototype.loadUserReviewForm();
+						var urf = new window.WH.UserReviewForm();
+						urf.loadUserReviewForm();
 					});
 				} else {
 					mw.loader.using('ext.wikihow.UserReviewForm', function () {
-						window.WH.UserReviewForm.prototype.loadUserReviewForm();
+						var urf = new window.WH.UserReviewForm();
+						urf.loadUserReviewForm();
 					});
 				}
 				$(this).hide();

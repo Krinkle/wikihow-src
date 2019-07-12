@@ -8,34 +8,30 @@ class QuickTemplateWrapper extends QuickTemplate {
 	function execute() {
 	}
 }
+
 class LoginReminder extends UnlistedSpecialPage {
 
-	function __construct() {
+	public function __construct() {
 		parent::__construct( 'LoginReminder' );
 	}
 
-	function execute($par) {
-		global $wgRequest, $wgUser, $wgOut;
-
-		$wgOut->setArticleBodyOnly(true);
-		if($wgRequest->getVal('submit')) {
-			$result = self::mailPassword();
-			if(isset($result))
-				echo json_encode($result);
-			return;
-		}
-		else{
+	public function execute($par) {
+		$this->getOutput()->setArticleBodyOnly(true);
+		if ($this->getRequest()->getVal('submit')) {
+			$result = $this->mailPassword();
+			if (isset($result)) {
+				print json_encode($result);
+			}
+		} else {
 			$template = new QuickTemplateWrapper();
 			$template->set('header', '');
-			wfRunHooks( 'UserCreateForm', array( &$template ) );
-			self::displayForm($template);
+			Hooks::run( 'UserCreateForm', array( &$template ) );
+			$this->displayForm($template);
 		}
 	}
 
-	function displayForm($template) {
-		global $wgOut, $wgRequest;
-
-		if( $this->data['message'] ) {
+	private function displayForm($template) {
+		if ( $this->data['message'] ) {
 		?>
 			<div class="<?php $this->text('messagetype') ?>box">
 				<?php if ( $this->data['messagetype'] == 'error' ) { ?>
@@ -49,13 +45,13 @@ class LoginReminder extends UnlistedSpecialPage {
 		<div class="modal_form">
 
 		<form name="userlogin" method="post" action="#" onSubmit="return WH.LoginReminder.checkSubmit('wpName2', 'wpCaptchaWord', 'wpCaptchaId');">
-			<div id="userloginprompt"><?php wfMsg('loginprompt') ?></div>
+			<div id="userloginprompt"><?= wfMessage('loginprompt')->text() ?></div>
 			<table>
 				<tr>
-					<td class="mw-label"><label for='wpName2'><?php echo wfMsg('username_or_email_html') ?></label></td>
+					<td class="mw-label"><label for='wpName2'><?= wfMessage('username_or_email_html')->text() ?></label></td>
 					<td class="mw-input">
 						<div style="position:relative">
-							<input type='text' class='loginText input_med' name="wpName" id="wpName2" value="<?php echo urldecode($wgRequest->getVal('name')) ?>" size='20' />
+							<input type='text' class='loginText input_med' name="wpName" id="wpName2" value="<?= urldecode($this->getRequest()->getVal('name')) ?>" size='20' />
 							<div class="mw-error-bottom mw-error" id="wpName2_error" style="display:none;">
 								<div class="mw-error-top">
 								</div>
@@ -65,7 +61,7 @@ class LoginReminder extends UnlistedSpecialPage {
 					</td>
 				</tr>
 				<tr>
-					<td class="mw-label" style="vertical-align:bottom;"><label style="display:block; padding-bottom: 25px"><?=wfMsg('lr_security_label')?></label></td>
+					<td class="mw-label" style="vertical-align:bottom;"><label style="display:block; padding-bottom: 25px"><?= wfMessage('lr_security_label')->text() ?></label></td>
 					<td class="mw-input">
 						<div style="position:relative">
 							<?php $template->html('header'); /* pre-table point for form plugins... */ ?>
@@ -83,7 +79,7 @@ class LoginReminder extends UnlistedSpecialPage {
 						<table cellpadding="0" cellspacing="0">
 							<tr>
 								<td>
-								<input type="submit" value="<?=wfMsg('lr_reset_password_label');?>" id="wpMailmypassword" class="button primary" name="wpMailmypassword" />
+								<input type="submit" value="<?=wfMessage('lr_reset_password_label')->text();?>" id="wpMailmypassword" class="button primary" name="wpMailmypassword" />
 								</td>
 								<td>
 
@@ -96,10 +92,10 @@ class LoginReminder extends UnlistedSpecialPage {
 		</form>
 
 		</div>
-		<div id="loginend"><?php wfMsg( 'loginend' ); ?></div>
+		<div id="loginend"><?= wfMessage( 'loginend' )->text() ?></div>
 		<div id="password-reset-dialog" style="display:none" title="<?= wfMessage('lr_password_reset')->text() ?>">
 			<div style="font-size:14px">
-				<?=wfMsg('loginreminder_password_reset')?><br/>
+				<?= wfMessage('loginreminder_password_reset')->text() ?><br/>
 			</div>
 			<br/>
 			<input type="submit" value="OK" id="password-reset-ok" onmouseout='button_unswap(this);' onmouseover='button_swap(this);' class="button button52 submit_button" style="float:right">
@@ -108,36 +104,37 @@ class LoginReminder extends UnlistedSpecialPage {
 
 	}
 
-	function mailPassword() {
-		global $wgUser, $wgOut, $wgAuth, $wgRequest;
+	private function mailPassword() {
+		global $wgAuth;
 
 		$result = array();
 
-		if( !$wgAuth->allowPasswordChange() ) {
-			$result['error_general'] = wfMsg( 'resetpass_forbidden' );
+		if ( !$wgAuth->allowPasswordChange() ) {
+			$result['error_general'] = wfMessage( 'resetpass_forbidden' )->text();
 			return $result;
 		}
 
 		# Check against blocked IPs
 		# fixme -- should we not?
-		if( $wgUser->isBlocked() ) {
-			$result['error_general'] = wfMsg( 'blocked-mailpassword' );
+		$user = $this->getUser();
+		if ( $user->isBlocked() ) {
+			$result['error_general'] = wfMessage( 'blocked-mailpassword' )->text();
 			return $result;
 		}
 		# Check against the rate limiter
-		if( $wgUser->pingLimiter( 'mailpassword' ) ) {
+		if ( $user->pingLimiter( 'mailpassword' ) ) {
 			// Commented out By Gershon Bialer on 12/9/2013
 			// because they prevented error from showing in the upgrade
-			//$wgOut->disable();
-			//$wgOut->rateLimited();
-			$result['error_general'] = "<h4>" . wfMsg('actionthrottled') . "</h4>";
-			$result['error_general'] .= wfMsg('actionthrottledtext');
+			//$out->disable();
+			//throw new ThrottledError;
+			$result['error_general'] = "<h4>" . wfMessage('actionthrottled')->text() . "</h4>";
+			$result['error_general'] .= wfMessage('actionthrottledtext')->text();
 			return $result;
 		}
-		$name = $wgRequest->getVal('name');
+		$name = $this->getRequest()->getVal('name');
 
 		if ( !isset($name) || '' == $name ) {
-			$result['error_username'] = wfMsg( 'noname' );
+			$result['error_username'] = wfMessage( 'noname' )->text();
 			return $result;
 		}
 		$name = trim( $name );
@@ -156,26 +153,26 @@ class LoginReminder extends UnlistedSpecialPage {
 			// with an '@' in it either
 			if ($looksLikeEmail) {
 				if ($count < 1) {
-					$result['error_username'] = wfMsg( 'noemail_login' );
+					$result['error_username'] = wfMessage( 'noemail_login' )->text();
 					return $result;
 				} elseif ($count > 1) {
-					$result['error_username'] = wfMsg( 'multipleemails_login' );
+					$result['error_username'] = wfMessage( 'multipleemails_login' )->text();
 					return $result;
 				}
 			}
 		}
 
-		if( is_null( $u ) ) {
-			$result['error_username'] = wfMsg( 'noname' );
+		if ( is_null( $u ) ) {
+			$result['error_username'] = wfMessage( 'noname' )->text();
 			return $result;
 		}
 		if ( 0 == $u->getID() ) {
-			$result['error_username'] = wfMsg( 'nosuchuser', $u->getName() );
+			$result['error_username'] = wfMessage( 'nosuchuser', $u->getName() )->text();
 			return $result;
 		}
 
 		$abortError = '';
-		if( !wfRunHooks( 'AbortAccountReminder', array( $u, &$abortError ) ) ) {
+		if ( !Hooks::run( 'AbortAccountReminder', array( $u, &$abortError ) ) ) {
 			// Hook point to add extra creation throttles and blocks
 			wfDebug( "LoginForm::addNewAccountInternal: a hook blocked creation\n" );
 			$result['error_captcha'] = $abortError;
@@ -183,7 +180,7 @@ class LoginReminder extends UnlistedSpecialPage {
 			//had a problem with the captcha, need to load a new one
 			$template = new QuickTemplateWrapper();
 			$template->set('header', '');
-			wfRunHooks('AccountReminderNewCaptcha', array( &$template ));
+			Hooks::run('AccountReminderNewCaptcha', array( &$template ));
 
 			//hack since templates ECHO the data you want
 			ob_start();
@@ -200,26 +197,26 @@ class LoginReminder extends UnlistedSpecialPage {
 		if ( $u->isPasswordReminderThrottled() ) {
 			global $wgPasswordReminderResendTime;
 			# Round the time in hours to 3 d.p., in case someone is specifying minutes or seconds.
-			$result['error_general'] = wfMsg( 'throttled-mailpassword', round( $wgPasswordReminderResendTime, 3 ) );
+			$result['error_general'] = wfMessage( 'throttled-mailpassword', round( $wgPasswordReminderResendTime, 3 ) )->text();
 			return $result;
 		}
 
 		$mailResult = $this->mailPasswordInternal( $u, true, 'passwordremindertitle', 'passwordremindertext' );
-		if( WikiError::isError( $mailResult ) ) {
-			$result['error_general'] = wfMsg( 'mailerror', $mailResult->getMessage() );
+		if ( WikiError::isError( $mailResult ) ) {
+			$result['error_general'] = wfMessage( 'mailerror', $mailResult->getMessage() )->text();
 			return $result;
 		} else {
-			$result['success'] = wfMsgHtml( 'passwordsent', $u->getName() );
+			$result['success'] = wfMessage( 'passwordsent' )->rawParams( $u->getName() )->escaped();
 			return $result;
 		}
 	}
 
-	function mailPasswordInternal( $u, $throttle = true, $emailTitle = 'passwordremindertitle', $emailText = 'passwordremindertext' ) {
+	private function mailPasswordInternal( $u, $throttle = true, $emailTitle = 'passwordremindertitle', $emailText = 'passwordremindertext' ) {
 		global $wgCookiePath, $wgCookieDomain, $wgCookiePrefix, $wgCookieSecure;
 		global $wgCanonicalServer, $wgScript;
 
 		if ( '' == $u->getEmail() ) {
-			return new WikiError( wfMsg( 'noemail', $u->getName() ) );
+			return new WikiError( wfMessage( 'noemail', $u->getName() )->text() );
 		}
 
 		$np = $u->randomPassword();
@@ -229,11 +226,11 @@ class LoginReminder extends UnlistedSpecialPage {
 
 		$u->saveSettings();
 
-		$ip = wfGetIP();
+		$ip = RequestContext::getMain()->getRequest()->getIP();
 		if ( '' == $ip ) { $ip = '(Unknown)'; }
 
-		$m = wfMsg( $emailText, $ip, $u->getName(), $np, $wgCanonicalServer . $wgScript );
-		$result = $u->sendMail( wfMsg( $emailTitle ), $m, null, null, false );
+		$m = wfMessage( $emailText, $ip, $u->getName(), $np, $wgCanonicalServer . $wgScript )->text();
+		$result = $u->sendMail( wfMessage( $emailTitle )->text(), $m, null, null, false );
 
 		return $result;
 	}
@@ -241,44 +238,45 @@ class LoginReminder extends UnlistedSpecialPage {
 }
 
 class LoginFacebook extends UnlistedSpecialPage {
-	function __construct() {
+	public function __construct() {
+		global $wgHooks;
+		$wgHooks['BeforeTabsLine'][] = array('LoginFacebook::topContent');
 		parent::__construct( 'LoginFacebook' );
 	}
 
-	function execute($par) {
-		global $wgRequest, $wgUser, $wgOut, $wgHooks;
+	public function execute($par) {
 
-		$wgOut->setHTMLTitle('Login Via Facebook - wikiHow');
-		$wgHooks['BeforeTabsLine'][] = array('LoginFacebook::topContent');
+		$this->getOutput()->setHTMLTitle('Login Via Facebook - wikiHow');
 
 		$titleObj = SpecialPage::getTitleFor( 'Userlogin' );
 		$link = '<a href="' . htmlspecialchars ( $titleObj->getLocalUrl( 'type=signup' ) ) . '">';
-		$link .= wfMsgHtml( 'nologinlink' );
+		$link .= wfMessage( 'nologinlink' )->escaped();
 		$link .= '</a>';
 
 		$linkLogin = '<a href="' . htmlspecialchars ( $titleObj->getLocalUrl('type=login' ) ) . '">';
-		$linkLogin .= wfMsgHtml( 'gotaccountlink' );
+		$linkLogin .= wfMessage( 'gotaccountlink' )->escaped();
 		$linkLogin .= '</a>';
 
 		$form = "<div id='userloginForm'>
 
 			<table border='0' width='100%'>
 				<tr>
-					<td style='text-align:center;'>" . wfMsg('facebook_account_login', $linkLogin, $link ) . "</td>
+					<td style='text-align:center;'>" . wfMessage('facebook_account_login', $linkLogin, $link )->text() . "</td>
 				</tr>
 			</table>
 
 		</div>";
-		$wgOut->addHTML($form);
-		wfRunHooks( 'FBLoginForm', array() );
+		$this->getOutput()->addHTML($form);
+		Hooks::run( 'FBLoginForm', array() );
 	}
 
-	function topContent() {
+	// hooks into BeforeTabsLine
+	public static function topContent() {
 		$titleObj = SpecialPage::getTitleFor( 'Userlogin' );
 		$link = '<a href="' . htmlspecialchars ( $titleObj->getLocalUrl( 'type=signup' ) ) . '">';
-		$link .= wfMsgHtml( 'nologinlink' );
+		$link .= wfMessage( 'nologinlink' )->escaped();
 		$link .= '</a>';
-		echo '<p style="padding:0 27px 15px 23px"><span style="font-size: 28px">' . wfMsg( 'Loginfacebook' ) . '</span> <span style="float:right;">' . wfMsgHtml( 'nologin', $link ) . '</span></p>';
+		RequestContext::getMain()->getOutput()->addHTML( '<p style="padding:0 27px 15px 23px"><span style="font-size: 28px">' . wfMessage( 'Loginfacebook' ) . '</span> <span style="float:right;">' . wfMessage( 'nologin' )->rawParams( $link )->escaped() . '</span></p>' );
 
 		return true;
 	}
@@ -286,25 +284,23 @@ class LoginFacebook extends UnlistedSpecialPage {
 
 class LoginCheck extends UnlistedSpecialPage {
 
-	function __construct() {
+	public function __construct() {
 		parent::__construct( 'LoginCheck' );
 	}
 
-	function execute($par) {
-		global $wgRequest, $wgOut;
+	public function execute($par) {
+		$this->getOutput()->setArticleBodyOnly(true);
 
-		$wgOut->setArticleBodyOnly(true);
-
-		$username = $wgRequest->getVal('username');
+		$username = $this->getRequest()->getVal('username');
 		if (empty($username)) {
-			echo json_encode(array('error' => wfMsg('mandatory_field_is_empty')));
+			echo json_encode(array('error' => wfMessage('mandatory_field_is_empty')->text()));
 		} elseif (isset($username)) {
 			echo json_encode(self::checkUsername($username));
 		}
 	}
 
-	function checkUsername($username) {
-		$dbr = wfGetDB(DB_SLAVE);
+	private static function checkUsername($username) {
+		$dbr = wfGetDB(DB_REPLICA);
 		if (WikihowUser::usernameTaken($dbr, $username)) {
 			$pad = function($text) {
 				return "<a class='username-suggestion'>$text</a>";
@@ -312,12 +308,11 @@ class LoginCheck extends UnlistedSpecialPage {
 			$suggestions = array_map($pad, WikihowUser::getUsernameSuggestions($dbr, $username));
 
 			$msg = empty($suggestions)
-				? wfMsg('userexists')
-				: wfMsg('userexists_with_suggestions', implode(' or ', $suggestions));
+				? wfMessage('userexists')->text()
+				: wfMessage('userexists_with_suggestions', implode(' or ', $suggestions))->text();
 			return array('error' => $msg);
 		}
 		return array('success' => '1');
 	}
 
 }
-

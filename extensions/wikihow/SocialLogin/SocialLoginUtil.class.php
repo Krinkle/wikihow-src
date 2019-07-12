@@ -39,12 +39,19 @@ class SocialLoginUtil {
 			$username = self::createUsername($realName);
 			$user = empty($username) ? null : User::createNew($username);
 			if ($user) {
-				$socialUser = SocialUser::newFactory($type)::link($user->getId(), $exId);
+				global $wgRequest;
+				$factory = SocialUser::newFactory($type);
+				$socialUser = $factory::link($user->getId(), $exId);
 				if ($socialUser) {
 					if ($realName) { $user->setRealName($realName); }
 					if ($email) { $user->setEmail($email); }
 					if ($avatar) { Avatar::updateAvatar($user->getId(), $avatar); }
 					// Set a temporary flag to suggest a name update in the FB/G/Civic signup pages
+					$isGDPR = false;
+					$gdpr = $wgRequest ? $wgRequest->getVal('gdpr') : false;
+					if ( $gdpr == 'true' ) {
+						$user->setOption('gdpr_signup', true);
+					}
 					$user->setOption('is_generated_username', true);
 					$user->saveSettings();
 				}
@@ -68,13 +75,13 @@ class SocialLoginUtil {
 
 		// Run hooks
 		if ($event == 'signup') {
-			wfRunHooks('AddNewAccount', [$wgUser, false]);
+			Hooks::run('AddNewAccount', [$wgUser, false]);
 			if ($type == 'facebook') {
-				wfRunHooks( 'FacebookSignupComplete', [$wgUser]);
+				Hooks::run( 'FacebookSignupComplete', [$wgUser]);
 			} elseif ($type == 'google') {
-				wfRunHooks('GoogleSignupComplete', [$wgUser]);
+				Hooks::run('GoogleSignupComplete', [$wgUser]);
 			} elseif ($type == 'civic') {
-				wfRunHooks('CivicSignupComplete', [$wgUser]);
+				Hooks::run('CivicSignupComplete', [$wgUser]);
 			}
 		}
 
@@ -92,18 +99,18 @@ class SocialLoginUtil {
 		if ($isSignup) { # As seen in SpecialUserlogin.php#successfulCreation()
 			$injected_html = '';
 			$welcome_creation_msg = 'welcomecreation-msg';
-			wfRunHooks('BeforeWelcomeCreation', [&$welcome_creation_msg, &$injected_html]);
+			Hooks::run('BeforeWelcomeCreation', [&$welcome_creation_msg, &$injected_html]);
 		}
 
 		$title = $pageName ? Title::newFromText(urldecode($pageName)) : null;
 		if ($title && $title->isValidRedirectTarget() && !$title->isSpecialPage('Userlogin')) {
-			$returnTo = $title->getLocalURL();
+			$returnTo = urldecode($title->getLocalURL());
 		} elseif (Misc::isMobileMode()) {
 			$returnTo = '/Main-Page';
 		} elseif ($wgContLang->getCode() == 'en') {
 			$returnTo = '/Special:CommunityDashboard';
 		} else {
-			$returnTo = '/' . $wgContLang->getNSText(NS_PROJECT) . ':' . wfMsg('communityportal');
+			$returnTo = '/' . $wgContLang->getNSText(NS_PROJECT) . ':' . wfMessage('communityportal');
 		}
 
 		$wgOut->redirect($returnTo);

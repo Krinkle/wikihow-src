@@ -22,7 +22,7 @@ global $wgUser;
 $u = User::newFromName('MiscBot');
 
 
-$dbr = wfGetDB(DB_SLAVE);
+$dbr = wfGetDB(DB_REPLICA);
 $articles = DatabaseHelper::batchSelect('page', array('page_id', 'page_title'), array('page_namespace' => NS_VIDEO, 'page_is_redirect' => 0));
 foreach ($articles as $row) {
 	$r = Revision::loadFromPageId($dbr, $row->page_id);
@@ -48,12 +48,12 @@ function updateId($oldId, $r, &$wikitext, $u) {
 		} elseif ($newWikitext == $wikitext) {
 			printError($t, "Nothing replaced. old id: $oldId, oldid: $oldId, newid: $newId");
 		} else {
-			$a = WikiPage::factory($t);
-			if ($a && $a->exists()) {
+			$wikiPage = WikiPage::factory($t);
+			if ($wikiPage && $wikiPage->exists()) {
 				$summary = "Updating howcast id. old: $oldId, new: $newId";
 				$content = ContentHandler::makeContent( $newWikitext, $t );
 				if (!$scriptDebug) {
-					$result = $a->doEditContent($content, $summary, EDIT_UPDATE, false, $u);
+					$result = $wikiPage->doEditContent($content, $summary, EDIT_UPDATE, false, $u);
 				} else {
 					$result = (object) array("value" => array("revision" => 1));
 				}
@@ -75,7 +75,7 @@ function updateId($oldId, $r, &$wikitext, $u) {
 }
 
 function getNewId($vidId) {
-	$dbr = wfGetDB(DB_SLAVE);
+	$dbr = wfGetDB(DB_REPLICA);
 	return $dbr->selectField('howcast_mapping', 'new_id', array('old_id' => $vidId), __METHOD__);
 }
 

@@ -3,7 +3,7 @@
 $messages = array();
 
 $messages['en'] = array (
-	'articlecreator' => 'Article Creator',	
+	'articlecreator' => 'Article Creator',
 	'ac-section-intro-name' => 'Introduction',
 	'ac-section-intro-desc' => 'Enter a short introduction to quickly introduce the reader to your article.',
 	'ac-section-intro-button-txt' => 'Add Introduction',
@@ -26,6 +26,10 @@ $messages['en'] = array (
 	'ac-section-sources-desc' => 'Enter sources here. Press "Add Source" after each individual source.',
 	'ac-section-sources-button-txt' => 'Add Source',
 	'ac-section-sources-placeholder' => 'Enter one text or URL source (eg http://www.wikihow.com/) and then click "Add Source"',
+	'ac-section-references-name' => 'References',
+	'ac-section-references-desc' => 'Enter references here. Press "Add Reference" after each individual reference.',
+	'ac-section-references-button-txt' => 'Add Reference',
+	'ac-section-references-placeholder' => 'Enter one text or URL reference (eg http://www.wikihow.com/) and then click "Add Reference"',
 	'ac-section-button-txt' => 'Add',	
 	'ac-edit-summary' => 'Creating a new article via the Article Creator',
 	'ac-formatting-warning-txt' => 'We have automatically formatted this step to match wikiHow formatting guidelines',

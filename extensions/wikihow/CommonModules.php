@@ -16,7 +16,12 @@ $wgResourceModules['ext.wikihow.common_top'] = [
 	],
 	'dependencies' => ['mediawiki.user'],
 	'remoteExtPath' => 'wikihow',
-	'position' => 'top'];
+	'position' => 'top'
+];
+
+if ($wgLanguageCode == 'zh' && $wgIsProduction) {
+	$wgResourceModules['ext.wikihow.common_top']['scripts'][] = 'baidu.js';
+}
 
 $wgResourceModules['ext.wikihow.common_bottom'] = [
 	'localBasePath' => __DIR__,
@@ -48,15 +53,15 @@ $wgResourceModules['ext.wikihow.desktop_base'] = [
 	'scripts' => [
 		'../../skins/common/wikihowbits.js',
 		'common/jquery.scrollTo.1.4.12/jquery.scrollTo.min.js',
-		'SocialAuth/social_auth.js',
-		'../../skins/common/fb_login_desktop.js',
-		'GPlusLogin/google_login_desktop.js',
-		'civic_login/civic_login_desktop.js',
 		'../../skins/WikiHow/google_cse_search_box.js',
 		'../../skins/WikiHow/gaWHTracker.js',
 		'../../skins/WikiHow/opWHTracker.js',
 	],
-	'dependencies' => [ 'ext.wikihow.common_top', 'ext.wikihow.loginreminder' ],
+	'dependencies' => [
+		'ext.wikihow.common_top',
+		'ext.wikihow.loginreminder',
+		'ext.wikihow.socialauth',
+	],
 	'remoteExtPath' => 'wikihow',
 	'position' => 'top' ];
 
@@ -81,12 +86,6 @@ $wgResourceModules['ext.wikihow.rcwidget'] =
 		// JS doesn't seem to work when css is included
 		//'styles' => [ 'rcwidget/rcwidget.css' ],
 		'scripts' => [ 'rcwidget/rcwidget.js' ]
-	];
-
-$wgResourceModules['ext.wikihow.slider'] =
-	$wgResourceModulesDesktopBoiler + [
-		'styles' => [ 'slider/slider.css' ],
-		'scripts' => [ 'slider/slider.js' ]
 	];
 
 $wgResourceModules['ext.wikihow.toptentips'] =
@@ -147,17 +146,8 @@ $wgResourceModules['ext.wikihow.thumbsup'] = [
 // Styles for the printable version of our site, restricted to @media type 'print'.
 $wgResourceModules['ext.wikihow.printable'] = [
 	'localBasePath' => __DIR__,
-	'targets' => [ 'desktop' ],
+	'targets' => [ 'desktop', 'mobile' ],
 	'styles' => [ '../../skins/owl/printable_media_print.less' ],
-	'remoteExtPath' => 'wikihow',
-	'position' => 'top' ];
-
-// Styles for the printable version of our site, not restricted by @media type.
-// For use with 'printable=yes' in URL query.
-$wgResourceModules['ext.wikihow.printable_all'] = [
-	'localBasePath' => __DIR__,
-	'targets' => [ 'desktop' ],
-	'styles' => [ '../../skins/owl/printable.less' ],
 	'remoteExtPath' => 'wikihow',
 	'position' => 'top' ];
 
@@ -168,10 +158,3 @@ $wgResourceModules['ext.wikihow.magnificpopup'] = [
 	'styles' => ['common/magnific/magnific.1.1.0.css'],
 	'remoteExtPath' => 'wikihow',
 	'position' => 'top' ];
-
-$wgResourceModules['ext.wikihow.step_to_speech'] = [
-	'scripts' => 'common/step_to_speech.js',
-	'localBasePath' => __DIR__,
-	'remoteExtPath' => 'wikihow',
-	'targets' => ['desktop', 'mobile']
-];

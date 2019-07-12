@@ -1,4 +1,4 @@
-<?
+<?php
 
 // Extend this class for an individual stats wiget
 abstract class StandingsIndividual {
@@ -22,7 +22,6 @@ abstract class StandingsIndividual {
 		if ($rank == 0) {
 			$rank = "N/A";
 		}
-
 
 		$today 	= number_format($this->mStats['today'], 0, '.', ",");
 		$week 	= number_format($this->mStats['week'], 0, '.', ",");
@@ -65,13 +64,9 @@ abstract class StandingsIndividual {
 	 * add stats widget to right rail
 	 **/
 	function addStatsWidget() {
-		$fname = "StandingsIndividual::addStatsWidget";
-		wfProfileIn($fname);
 
 		if (!$this->mContext) {
-			wfDeprecated( __METHOD__ . ' without setting context (will fallback to globals)');
-			global $wgUser;
-			$sk = $wgUser->getSkin();
+			$sk = RequestContext::getMain()->getSkin();
 		} else {
 			$sk = $this->mContext->getSkin();
 		}
@@ -82,7 +77,6 @@ abstract class StandingsIndividual {
 		"</div></div>";
 
 		$sk->addWidget( $display );
-		wfProfileOut($fname);
 	}
 
 	/**
@@ -91,10 +85,8 @@ abstract class StandingsIndividual {
 	 **/
 	function fetchStats() {
 		global $wgUser, $wgMemc, $wgLang;
-		$fname = "StandingsIndividual::fetchStats";
-		wfProfileIn($fname);
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$ts_today = date('Ymd',strtotime('today')) . '000000';
 		$ts_week = date('Ymd',strtotime('7 days ago')) . '000000';
@@ -122,7 +114,6 @@ abstract class StandingsIndividual {
 		);
 
 		$this->mStats = $s_arr;
-		wfProfileOut($fname);
 		return $this->mStats;
 	}
 
@@ -146,7 +137,7 @@ abstract class StandingsGroup {
 	var $mCacheExpiry = 300;
 	var $mLeaderboardKey = null;
 	var $mContext = null;
-	
+
 	function __construct($cacheId) {
 		$this->mCacheKey = wfMemcKey($cacheId);
 	}
@@ -161,8 +152,7 @@ abstract class StandingsGroup {
 	 **/
 	function getStandingsTable() {
 		global $wgUser;
-		$fname = "StandingsGroup::getStandingsTable";
-		wfProfileIn($fname);
+
 
 		$display = "<table>";
 
@@ -171,7 +161,7 @@ abstract class StandingsGroup {
 
 		$data = $this->getStandingsFromCache() ;
 		$count = 0;
-		foreach($data as $key => $value) {
+		foreach ($data as $key => $value) {
 			$u = new User();
 			$u->setName($key);
 			if (($value > 0) && ($key != '')) {
@@ -195,7 +185,6 @@ abstract class StandingsGroup {
 
 		$display .= "
 		</table>";
-		wfProfileOut($fname);
 		return $display;
 	}
 
@@ -205,11 +194,9 @@ abstract class StandingsGroup {
 	 */
 	function getStandingsFromCache() {
 		global $wgMemc;
-		$fname = "StandingsGroup::getStandingsFromCache";
-		wfProfileIn($fname);
 		$standings = $wgMemc->get($this->mCacheKey);
 		if (!is_array($standings)) {
-			$dbr = wfGetDB(DB_SLAVE);
+			$dbr = wfGetDB(DB_REPLICA);
 			$ts = wfTimestamp(TS_MW, time() - 7 * 24 * 3600);
 			$sql = $this->getSQL($ts);
 			$res = $dbr->query($sql, __METHOD__);
@@ -223,7 +210,6 @@ abstract class StandingsGroup {
 		} else {
 			wfDebug("Standings: DID get the cache\n");
 		}
-		wfProfileOut($fname);
 		return $standings;
 	}
 
@@ -233,18 +219,14 @@ abstract class StandingsGroup {
 	 *
 	 */
 	function getStanding($user) {
-		$fname = "StandingsGroup::getStanding";
-		wfProfileIn($fname);
 		$standings = $this->getStandingsFromCache();
 		$index = 1;
 		foreach ($standings as $s => $c) {
 			if ($s == $user->getName()) {
-				wfProfileOut($fname);
 				return $index;
 			}
 			$index++;
 		}
-		wfProfileOut($fname);
 		return 0;
 	}
 
@@ -254,19 +236,14 @@ abstract class StandingsGroup {
 	 *
 	 **/
 	function addStandingsWidget() {
-		global $wgUser, $wgOut;
-		$fname = "StandingsGroup::addStandingsWidget";
-		wfProfileIn($fname);
 
 		if (!$this->mContext) {
-			wfDeprecated( __METHOD__ . ' without setting context (will fallback to globals)');
-			global $wgUser;
-			$sk = $wgUser->getSkin();
+			$ctx = RequestContext::getMain();
 		} else {
-			$sk = $this->mContext->getSkin();
+			$ctx = $this->mContext;
 		}
-
-		$wgOut->addModules('ext.wikihow.leaderboard');
+		$sk = $ctx->getSkin();
+		$ctx->getOutput()->addModules('ext.wikihow.leaderboard');
 
 		$display = "
 		<div class='iia_stats'>
@@ -277,7 +254,6 @@ abstract class StandingsGroup {
 		</div>";
 
 		$sk->addWidget( $display );
-		wfProfileOut($fname);
 	}
 
 
@@ -298,7 +274,7 @@ abstract class StandingsGroup {
 		$index = 1;
 		$c = 0;
 		foreach ($standings as $s => $c) {
-			if($index == $rowNum)
+			if ($index == $rowNum)
 				return $c;
 			$index++;
 		}
@@ -352,8 +328,8 @@ class RequestsAnsweredStandingsGroup extends StandingsGroup {
 		$bots = WikihowUser::getBotIDs();
 		$bot = "";
 
-		if(sizeof($bots) > 0) {
-			$dbr = wfGetDB(DB_SLAVE);
+		if (sizeof($bots) > 0) {
+			$dbr = wfGetDB(DB_REPLICA);
 			$bot = " AND fe_user NOT IN (" . $dbr->makeList($bots) . ", '0') ";
 		}
 
@@ -545,29 +521,6 @@ class RCPatrolStandingsGroup extends StandingsGroup  {
 	}
 }
 
-class KBGuardianStandingsGroup extends StandingsGroup  {
-	function __construct() {
-		parent::__construct("kbguardian_standings");
-	}
-
-	function getSQL($ts) {
-		global $wgSharedDB;
-		$sql = "SELECT user_name, count(*) as C ".
-			"FROM logging left join ".$wgSharedDB.".user on log_user = user_id ".
-			"WHERE log_type = 'kbguardian' and log_action != 'skip' and log_timestamp >= '$ts' ".
-			"and log_user != 0 GROUP BY user_name ORDER by C desc limit 25";
-		return $sql;
-	}
-
-	function getField() {
-		return "user_name";
-	}
-
-	function getTitle() {
-		return wfMessage('kbguardianstats_leaderboard_title')->text();
-	}
-}
-
 class UnitGuardianStandingsGroup extends StandingsGroup  {
 	function __construct() {
 		parent::__construct("unitguardian_standings");
@@ -637,6 +590,29 @@ class TechFeedbackStandingsGroup extends StandingsGroup  {
 	}
 }
 
+class ArticleFeedbackStandingsGroup extends StandingsGroup  {
+	function __construct() {
+		parent::__construct("articlefeedback_standings");
+	}
+
+	function getSQL($ts) {
+		global $wgSharedDB;
+		$sql = "SELECT user_name, count(*) as C ".
+			"FROM logging left join ".$wgSharedDB.".user on log_user = user_id ".
+			"WHERE log_user <> '' and log_type = 'article_feedback_tool' and log_timestamp >= '$ts' ".
+			"GROUP BY user_name ORDER by C desc limit 25";
+		return $sql;
+	}
+
+	function getField() {
+		return "user_name";
+	}
+
+	function getTitle() {
+		return wfMessage('specialarticlefeedbackleaderboardtitle')->text();
+	}
+}
+
 class DuplicateTitlesStandingsGroup extends StandingsGroup  {
 	function __construct() {
 		parent::__construct("duplicatetitles_standings");
@@ -660,9 +636,55 @@ class DuplicateTitlesStandingsGroup extends StandingsGroup  {
 	}
 }
 
-class TechVerifyStandingsGroup extends StandingsGroup  {
+class FixFlaggedAnswersStandingsGroup extends StandingsGroup  {
 	function __construct() {
-		parent::__construct("techverify_standings");
+		parent::__construct("ffa_standings");
+	}
+
+	function getSQL($ts) {
+		global $wgSharedDB;
+		$sql = "SELECT user_name, count(*) as C ".
+			"FROM logging left join ".$wgSharedDB.".user on log_user = user_id ".
+			"WHERE log_user <> '' and log_type = 'fix_flagged_answers' and log_timestamp >= '$ts' ".
+			"GROUP BY user_name ORDER by C desc limit 25";
+		return $sql;
+	}
+
+	function getField() {
+		return "user_name";
+	}
+
+	function getTitle() {
+		return wfMessage('ffa_leaderboard_title')->text();
+	}
+}
+
+class QAPatrolStandingsGroup extends StandingsGroup  {
+	function __construct() {
+		parent::__construct("qap_standings");
+	}
+
+	function getSQL($ts) {
+		global $wgSharedDB;
+		$sql = "SELECT user_name, count(*) as C ".
+			"FROM logging left join ".$wgSharedDB.".user on log_user = user_id ".
+			"WHERE log_user <> '' and log_type = 'qa_patrol' and log_timestamp >= '$ts' ".
+			"GROUP BY user_name ORDER by C desc limit 25";
+		return $sql;
+	}
+
+	function getField() {
+		return "user_name";
+	}
+
+	function getTitle() {
+		return wfMessage('qap_leaderboard_title')->text();
+	}
+}
+
+class TechTestingStandingsGroup extends StandingsGroup  {
+	function __construct() {
+		parent::__construct("techtesting_standings");
 	}
 
 	function getSQL($ts) {
@@ -797,38 +819,6 @@ class RCPatrolStandingsIndividual extends StandingsIndividual {
 
 }
 
-class KBGuardianStandingsIndividual extends StandingsIndividual {
-
-	function __construct() {
-		$this->mLeaderboardKey = "kbguardian_indiv_stats";
-	}
-
-	function getTable() {
-		return "logging";
-	}
-
-	function getTitle() {
-		return wfMessage('kbguardianstats_currentstats')->text();
-	}
-
-	function getOpts($ts = null) {
-		global $wgUser;
-		$opts = array();
-		$opts['log_user'] =$wgUser->getID();
-		$opts['log_type'] ='kbguardian';
-		$opts[] = "log_action != 'skip'";
-
-		if ($ts) {
-			$opts[]= "log_timestamp >'{$ts}'";
-		}
-		return $opts;
-	}
-
-	function getGroupStandings() {
-		return new KBGuardianStandingsGroup();
-	}
-}
-
 class UnitGuardianStandingsIndividual extends StandingsIndividual {
 
 	function __construct() {
@@ -924,6 +914,37 @@ class TechFeedbackStandingsIndividual extends StandingsIndividual {
 
 }
 
+class ArticleFeedbackStandingsIndividual extends StandingsIndividual {
+
+	function __construct() {
+		$this->mLeaderboardKey = "articlefeedbackreviewed";
+	}
+
+	function getTable() {
+		return "logging";
+	}
+
+	function getTitle() {
+		return wfMessage('specialarticlefeedbackcurrentstats')->text();
+	}
+
+	function getOpts($ts = null) {
+		global $wgUser;
+		$opts = array();
+		$opts['log_user'] =$wgUser->getID();
+		$opts['log_type'] ='article_feedback_tool';
+		if ($ts) {
+			$opts[]= "log_timestamp >'{$ts}'";
+		}
+		return $opts;
+	}
+
+	function getGroupStandings() {
+		return new ArticleFeedbackStandingsGroup();
+	}
+
+}
+
 class DuplicateTitlesStandingsIndividual extends StandingsIndividual {
 
 	function __construct() {
@@ -955,7 +976,69 @@ class DuplicateTitlesStandingsIndividual extends StandingsIndividual {
 
 }
 
-class TechVerifyStandingsIndividual extends StandingsIndividual {
+class FixFlaggedAnswersStandingsIndividual extends StandingsIndividual {
+
+	function __construct() {
+		$this->mLeaderboardKey = "fix_flagged_answers";
+	}
+
+	function getTable() {
+		return "logging";
+	}
+
+	function getTitle() {
+		return wfMessage('ffa_currentstats')->text();
+	}
+
+	function getOpts($ts = null) {
+		global $wgUser;
+		$opts = array();
+		$opts['log_user'] = $wgUser->getID();
+		$opts['log_type'] ='fix_flagged_answers';
+		if ($ts) {
+			$opts[]= "log_timestamp >'{$ts}'";
+		}
+		return $opts;
+	}
+
+	function getGroupStandings() {
+		return new FixFlaggedAnswersStandingsGroup();
+	}
+
+}
+
+class QAPatrolStandingsIndividual extends StandingsIndividual {
+
+	function __construct() {
+		$this->mLeaderboardKey = "qa_patrol";
+	}
+
+	function getTable() {
+		return "logging";
+	}
+
+	function getTitle() {
+		return wfMessage('qap_currentstats')->text();
+	}
+
+	function getOpts($ts = null) {
+		global $wgUser;
+		$opts = array();
+		$opts['log_user'] = $wgUser->getID();
+		$opts['log_type'] ='qa_patrol';
+		if ($ts) {
+			$opts[]= "log_timestamp >'{$ts}'";
+		}
+		return $opts;
+	}
+
+	function getGroupStandings() {
+		return new QAPatrolStandingsGroup();
+	}
+
+}
+
+class TechTestingStandingsIndividual extends StandingsIndividual {
 
 	function __construct() {
 		$this->mLeaderboardKey = "techarticletested";
@@ -981,7 +1064,7 @@ class TechVerifyStandingsIndividual extends StandingsIndividual {
 	}
 
 	function getGroupStandings() {
-		return new TechVerifyStandingsGroup();
+		return new TechTestingStandingsGroup();
 	}
 
 }
@@ -1265,8 +1348,7 @@ class QCStandingsIndividual extends StandingsIndividual {
 	function fetchStats() {
 		global $wgUser, $wgMemc, $wgLang;
 
-		wfProfileIn(__METHOD__);
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$ts_today = $dbr->timestamp(strtotime('today'));
 		$ts_week = $dbr->timestamp(strtotime('7 days ago'));
@@ -1296,7 +1378,6 @@ class QCStandingsIndividual extends StandingsIndividual {
 		);
 
 		$this->mStats = $s_arr;
-		wfProfileOut(__METHOD__);
 		return $this->mStats;
 	}
 
@@ -1491,4 +1572,60 @@ class CategorizationStandingsGroup extends StandingsGroup  {
 		return wfMessage('categorization_leaderboard_title')->text();
 	}
 }
+
+class TopicTaggingStandingsIndividual extends StandingsIndividual {
+
+	function __construct() {
+		$this->mLeaderboardKey = "topicstagged";
+	}
+
+	function getTable() {
+		return "logging";
+	}
+
+	function getTitle() {
+		return wfMessage('topictaggingcurrentstats')->text();
+	}
+
+	function getOpts($ts = null) {
+		global $wgUser;
+		$opts = array();
+		$opts['log_user'] = $wgUser->getID();
+		$opts['log_type'] ='topic_tagging';
+		$opts[] = "log_action IN ('upvote','downvote')";
+		if ($ts) {
+			$opts[]= "log_timestamp >'{$ts}'";
+		}
+		return $opts;
+	}
+
+	function getGroupStandings() {
+		return new TopicTaggingStandingsGroup();
+	}
+
+}
+
+class TopicTaggingStandingsGroup extends StandingsGroup  {
+	function __construct() {
+		parent::__construct("topictagging_standings");
+	}
+
+	function getSQL($ts) {
+		global $wgSharedDB;
+		$sql = "SELECT user_name, count(*) as C ".
+			"FROM logging left join ".$wgSharedDB.".user on log_user = user_id ".
+			"WHERE log_user <> '' and log_type = 'topic_tagging' and log_action IN ('upvote','downvote') and log_timestamp >= '$ts' ".
+			"GROUP BY user_name ORDER by C desc limit 25";
+		return $sql;
+	}
+
+	function getField() {
+		return "user_name";
+	}
+
+	function getTitle() {
+		return wfMessage('topictaggingleaderboardtitle')->text();
+	}
+}
+
 

@@ -21,19 +21,17 @@ class QA extends UnlistedSpecialPage {
 	var $isAdmin = false;
 	var $isEditor = false;
 
-	function __construct() {
+	public function __construct() {
 		global $wgHooks;
 		parent::__construct('QA');
 		$wgHooks['getToolStatus'][] = array('SpecialPagesHooks::defineAsTool');
 	}
 
-	function execute($par) {
-		global $wgLanguageCode;
-
+	public function execute($par) {
 		$out = $this->getOutput();
 		$user = $this->getUser();
-		if ($wgLanguageCode != 'en') {
-			$out->setRobotpolicy('noindex,nofollow');
+		if ($this->getLanguage()->getCode() != 'en') {
+			$out->setRobotPolicy('noindex,nofollow');
 			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
@@ -152,7 +150,7 @@ class QA extends UnlistedSpecialPage {
 
 		$answerOnly = filter_var($request->getVal('answer_only'),FILTER_VALIDATE_BOOLEAN);
 
-		echo json_encode($qadb->deleteArticleQuestion($formData, $answerOnly));
+		$this->getOutput()->addHTML( json_encode($qadb->deleteArticleQuestion($formData, $answerOnly)) );
 	}
 
 	protected function handleIgnoreSubmittedQuestion() {
@@ -237,19 +235,27 @@ class QA extends UnlistedSpecialPage {
 	}
 
 	protected function handleSubmittedQuestion() {
+		$add_question = true;
 		$request = $this->getRequest();
 
 		$question = $request->getVal('q', '');
 		// Fail silently if there are bad words in the submission
 		if (QAUtil::hasBadWord($question)) {
-			return;
+			$add_question = false;
 		}
 
 		$aid = $request->getInt('aid', 0);
 		$email = $request->getVal('email', '');
 
-		$qadb = QADB::newInstance();
-		$qadb->addSubmittedQuestion($aid, $question, $email);
+		// Fail silently if this email is on our blacklist
+		if (SubmittedQuestion::isBlacklistedQuestionSubmitterEmail($email)) {
+			$add_question = false;
+		}
+
+		if ($add_question) {
+			$qadb = QADB::newInstance();
+			$qadb->addSubmittedQuestion($aid, $question, $email);
+		}
 
 		//add related suggestions
 		$t = Title::newFromId($aid);
@@ -280,6 +286,14 @@ class QA extends UnlistedSpecialPage {
 			'inactive' => $request->getInt('inactive'),
 			'vid' => $request->getInt('vid')
 		];
+
+		$isNew = empty($formData['aqid']);
+		if ($isNew) {
+			$user = RequestContext::getMain()->getUser();
+			if ($user && ($user->hasGroup('editor_team') || $user->hasGroup('staff'))) {
+				$formData['submitter_user_id'] = $user->getId();
+			}
+		}
 
 		//get the OG article question so we can run some checks
 		$includeInactive = true;
@@ -388,7 +402,7 @@ class QA extends UnlistedSpecialPage {
 
 		$verifierData = VerifyData::getAllVerifierInfo();
 		foreach ($verifierData as $datum) {
-			$verifiers []= ['id' => $datum->id, 'name' => $datum->name];
+			$verifiers []= ['id' => $datum->verifierId, 'name' => $datum->name];
 		}
 
 		$buildSorter = function($key) {
@@ -417,8 +431,6 @@ class QA extends UnlistedSpecialPage {
 
 		echo json_encode($ta->toJSON());
 	}
-
-
 
 	public function isMobileCapable() {
 		return true;

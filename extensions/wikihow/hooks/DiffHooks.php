@@ -200,9 +200,9 @@ class DiffHooks {
 	public static function onDifferenceEngineGetRevisionHeader($differenceEngine, &$header, $state, $rev) {
 		if ($state == 'new') {
 			if ($rev->isCurrent()) {
-				$header = htmlspecialchars( wfMsg( 'currentrev' ) );
+				$header = htmlspecialchars( wfMessage( 'currentrev' ) );
 			} else {
-				$header = wfMsgHTML( 'revisionasof', wfTimeAgo($differenceEngine->mNewRev->getTimestamp()) );
+				$header = wfMessage( 'revisionasof' )->rawParams( wfTimeAgo($differenceEngine->mNewRev->getTimestamp()) )->escaped();
 			}
 		} elseif ($state == 'old') {
 			$header = "Old Revision";
@@ -217,7 +217,8 @@ class DiffHooks {
 	}
 
 	public static function onDifferenceEngineRenderRevisionAddParserOutput($differenceEngine, &$out, $parserOutput, $wikiPage) {
-		$magic = WikihowArticleHTML::grabTheMagic($differenceEngine->mNewRev->getText());
+		$wikitext = ContentHandler::getContentText( $differenceEngine->mNewRev->getContent() );
+		$magic = WikihowArticleHTML::grabTheMagic($wikitext);
 		$html = WikihowArticleHTML::processArticleHTML($parserOutput->getText(), array('ns' => $wikiPage->mTitle->getNamespace(), 'magic-word' => $magic));
 		$out->addHTML( $html );
 		return true;

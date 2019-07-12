@@ -35,18 +35,17 @@ class AuthorEmailNotification extends SpecialPage {
 	}
 
 	public function addNotification($article, $email = '', $value = 1) {
-		global $wgUser;
-
+		$user = $this->getUser();
 		$t = Title::newFromText( $article );
 		$aid = $t->getArticleID();
 
-		if (($wgUser->getID() > 0) && ($aid != 0)) {
-			if ($wgUser->getEmail() != '') {
+		if (($user->getID() > 0) && ($aid != 0)) {
+			if ($user->getEmail() != '') {
 				self::addUserWatch($aid, $value);
 			} else {
 				if ($email != '') {
-					$wgUser->setEmailWithConfirmation( $email );
-					$wgUser->saveSettings();
+					$user->setEmailWithConfirmation( $email );
+					$user->saveSettings();
 					self::addUserWatch($aid, $value);
 				}
 			}
@@ -54,75 +53,42 @@ class AuthorEmailNotification extends SpecialPage {
 	}
 
 	public static function reassignArticleAnon($articleid) {
-		global $wgUser;
-
 		$dbw = wfGetDB(DB_MASTER);
+		$user = RequestContext::getMain()->getUser();
+		$req = RequestContext::getMain()->getRequest();
+
 		$rev_id = $dbw->selectField('revision', 'rev_id',
 			array('rev_page' => intval($articleid),
-				  'rev_user_text' => wfGetIP() ),
+				  'rev_user_text' => $req->getIP() ),
 			__METHOD__);
 
 		if ($rev_id != '') {
-			wfDebug("AXXX: reassinging {$rev_id} to {$wgUser->getName()}\n");
+			wfDebug("AXXX: reassinging {$rev_id} to {$user->getName()}\n");
 			$ret = $dbw->update('revision',
-				array('rev_user_text' => $wgUser->getName(),
-					  'rev_user' => $wgUser->getID() ),
+				array('rev_user_text' => $user->getName(),
+					  'rev_user' => $user->getID() ),
 				array('rev_id' => $rev_id),
 				__METHOD__);
 			$ret = $dbw->update('recentchanges',
-				array('rc_user_text' => $wgUser->getName(),
-					  'rc_user' => $wgUser->getID() ),
+				array('rc_user_text' => $user->getName(),
+					  'rc_user' => $user->getID() ),
 				array('rc_this_oldid' => $rev_id),
 				__METHOD__);
 		}
 
 		$ret = $dbw->update('firstedit',
-			array('fe_user_text' => $wgUser->getName(),
-				  'fe_user' => $wgUser->getID() ),
+			array('fe_user_text' => $user->getName(),
+				  'fe_user' => $user->getID() ),
 			array('fe_page' => $articleid,
-				  'fe_user_text' => wfGetIP()),
+				  'fe_user_text' => $req->getIP()),
 			__METHOD__);
 		return false;
 	}
 
-	/* no longer called:
-	function notifyThumbsUp($articlename, $recipientUserName, $giverName, $giverUserName, $revisionId) {
-		$track_title = "?utm_source=thumbs_up_email&utm_medium=email&utm_term=article_title&utm_campaign=thumbs_up_email";
-		$track_talk = "?utm_source=thumbs_up_email&utm_medium=email&utm_term=user_talk&utm_campaign=thumbs_up_email";
-		$track_diff = "?utm_source=thumbs_up_email&utm_medium=email&utm_term=article_diff&utm_campaign=thumbs_up_email";
-		$track_btn = "?utm_source=thumbs_up_email&utm_medium=email&utm_term=gta_link&utm_campaign=thumbs_up_email";
-		global $wgCanonicalServer;
-
-		$t = Title::newFromText($articlename);
-
-		if (!isset($t)) {return true;}
-
-		$diffLink = $wgCanonicalServer . $t->getLocalURL( $track_diff . '&oldid=' . $revisionId . '&diff=PREV');
-		$titlelink = "<a href='" . $wgCanonicalServer . $t->getLocalURL() . $track_title . "'>".$t->getText()."</a>";
-		$btnLink = $wgCanonicalServer . $t->getLocalURL( $track_btn . '&oldid=' . $revisionId . '&diff=PREV');
-
-		$user = User::newFromName($recipientUserName);;
-		$giverUser = User::newFromName($giverUserName);
-		$giverTalkPageLink = $wgCanonicalServer . $giverUser->getTalkPage()->getLocalURL() . $track_talk;
-		$giverTalkPageLink = '<a href="' . $giverTalkPageLink .'">' . $giverName . '</a>';
-
-		$from_name = wfMsg('aen_from');
-		$subject = wfMsg('aen_thumbs_subject', $articlename);
-		$link = UnsubscribeLink::newFromId($user->getId());
-		$body = wfMsg('aen_thumbs_body', $user->getName(), $titlelink, $giverTalkPageLink, $diffLink, $link->getLink());
-		$body .= EmailActionButtonScript::getThumbsUpScript($btnLink);
-		self::notify($user, $from_name, $subject, $body, "", false, "thumbs_up");
-
-		wfDebug("AEN DEBUG notifyThumbsUp called. Email sent for $articlename, thumbs upper is $giverName\n\n$body\n");
-
-		return true;
-	}*/
-
 	public static function notifyRisingStar($articlename, $username, $nabName, $nabusername) {
+		global $wgCanonicalServer;
 		$dbw = wfGetDB(DB_MASTER);
 
-
-		global $wgCanonicalServer;
 		$track_title = "?utm_source=rising_star_email&utm_medium=email&utm_term=article_title&utm_campaign=rising_star_email";
 		$track_talk = "?utm_source=rising_star_email&utm_medium=email&utm_term=user_talk&utm_campaign=rising_star_email";
 		$track_btn = "?utm_source=rising_star_email&utm_medium=email&utm_term=gta_link&utm_campaign=rising_star_email";
@@ -140,26 +106,23 @@ class AuthorEmailNotification extends SpecialPage {
 
 		$res = $dbw->select(
 					'email_notifications',
-					array ('en_watch', 'en_risingstar_email', 'en_last_emailsent', 'en_user'),
-					array ('en_page' => $t->getArticleID()),
+					array('en_watch', 'en_risingstar_email', 'en_last_emailsent', 'en_user'),
+					array('en_page' => $t->getArticleID()),
 					__METHOD__
 			);
 
 		if ($row = $dbw->fetchObject($res)) {
-
-			if ($row->en_risingstar_email != NULL) {
+			if ($row->en_risingstar_email) {
 				$now = time();
 				$last = strtotime($row->en_risingstar_email . " UTC");
 				$diff = $now - $last;
 			} else {
 				$diff = 86400 * 10;
 			}
-			if (
-				( $user->getEmail() != '') &&
-				( $row->en_watch == 1) &&
-				( $diff > 86400 )
-				) {
-
+			if ($user->getEmail()
+				&& $row->en_watch == 1
+				&& $diff > 86400
+			) {
 				$ret = $dbw->update('email_notifications',
 						array('en_risingstar_email' => wfTimestampNow(),
 							  'en_last_emailsent' => wfTimestampNow()),
@@ -167,11 +130,11 @@ class AuthorEmailNotification extends SpecialPage {
 							  'en_user' => $user->getID() ),
 						__METHOD__);
 
-				$from_name = wfMsg('aen_from');
-				$subject = wfMsg('aen_rs_subject', $articlename);
+				$from_name = wfMessage('aen_from')->text();
+				$subject = wfMessage('aen_rs_subject', $articlename)->text();
 				$cta = self::getCTA("rising_star_email", "email");
 				$link = UnsubscribeLink::newFromId($user->getId());
-				$body = wfMsg('aen_rs_body', $user->getName(), $titlelink, $nabName, $cta, $link->getLink());
+				$body = wfMessage('aen_rs_body', $user->getName(), $titlelink, $nabName, $cta, $link->getLink())->text();
 				$body .= EmailActionButtonScript::getSeeMyArticleScript($btnLink, $t);
 
 				self::notify($user, $from_name, $subject, $body, "", false, "aen_rising");
@@ -181,10 +144,10 @@ class AuthorEmailNotification extends SpecialPage {
 			}
 		}
 		return true;
-
 	}
 
 	public static function notifyFeatured($title) {
+		global $wgCanonicalServer;
 		$dbw = wfGetDB(DB_MASTER);
 
 		echo "notifyFeatured en_page: ".$title->getArticleID()." notifyFeatured attempting.\n";
@@ -217,8 +180,6 @@ class AuthorEmailNotification extends SpecialPage {
 								  'en_user' => $user->getID() ),
 							__METHOD__);
 
-					global $wgCanonicalServer;
-
 					//Create the 'title link' for the email (includes GA tracking)
 					$track_title = '?utm_source=featured_email&utm_medium=email&utm_term=article_title&utm_campaign=featured_email';
 					$titlelink = "<a href='" . $wgCanonicalServer . $title->getLocalURL() . $track_title . "'>".$title->getText()."</a>";
@@ -227,10 +188,10 @@ class AuthorEmailNotification extends SpecialPage {
 					$track_btn = '?utm_source=featured_email&utm_medium=email&utm_term=gta_link&utm_campaign=featured_email';
 					$btnLink = $wgCanonicalServer . $title->getLocalURL() . $track_btn;
 
-					$from_name = wfMsg('aen_from');
-					$subject = wfMsg('aen_featured_subject', $title->getText());
+					$from_name = wfMessage('aen_from')->text();
+					$subject = wfMessage('aen_featured_subject', $title->getText())->text();
 					$cta = self::getCTA("featured_email", "email");
-					$body = wfMsg('aen_featured_body', $user->getName(), $titlelink, $cta );
+					$body = wfMessage('aen_featured_body', $user->getName(), $titlelink, $cta )->text();
 					$body .= EmailActionButtonScript::getSeeMyArticleScript($btnLink, $title);
 
 					echo "Sending en_page:".$title->getArticleID()." for ".$user->getName()." article:".$title->getText()."\n";
@@ -247,6 +208,7 @@ class AuthorEmailNotification extends SpecialPage {
 	}
 
 	public static function notifyViewership($title, $user, $milestone, $viewership, $last_vemail_sent) {
+		global $wgCanonicalServer;
 		$dbw = wfGetDB(DB_MASTER);
 
 		if ($last_vemail_sent != NULL) {
@@ -259,7 +221,6 @@ class AuthorEmailNotification extends SpecialPage {
 		if ($diff > 86400) {
 			//Changed link creation to match other methods. There was a bug in title->getFullURL() that has now been resolved. Still changed for consistancy (and because it'll use doh host when run on dev).
 			//Create the 'title link' in the email
-			global $wgCanonicalServer;
 			$track_title = '?utm_source=n_views_email&utm_medium=email&utm_term=article_title&utm_campaign=n_views_email';
 			$titlelink = "<a href='" . $wgCanonicalServer . $title->getLocalURL() . $track_title . "'>".$title->getText()."</a>";
 
@@ -268,11 +229,11 @@ class AuthorEmailNotification extends SpecialPage {
 			$btnLink = $wgCanonicalServer . $title->getLocalURL() . $track_btn;
 
 			//Populate variables for sending the email
-			$from_name = wfMsg('aen_from');
-			$subject = wfMsg('aen_viewership_subject', $title->getText(), number_format($milestone));
+			$from_name = wfMessage('aen_from')->text();
+			$subject = wfMessage('aen_viewership_subject', $title->getText(), number_format($milestone))->text();
 			$cta = self::getCTA("n_views_email", "email");
 			$link = UnsubscribeLink::newFromId($user->getId());
-			$body = wfMsg('aen_viewership_body', $user->getName(), $titlelink, number_format($milestone), $cta);
+			$body = wfMessage('aen_viewership_body', $user->getName(), $titlelink, number_format($milestone), $cta)->text();
 			$body .= wfMessage( 'aen-optout-footer', $link->getLink())->text();
 			$body .= EmailActionButtonScript::getSeeMyArticleScript($btnLink, $title);
 
@@ -338,7 +299,7 @@ class AuthorEmailNotification extends SpecialPage {
 		}
 
 		$t = $article->getTitle();
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->select(
 					array('email_notifications'),
 					array('en_watch', 'en_user', 'en_watch_email', 'en_last_emailsent'),
@@ -382,6 +343,8 @@ class AuthorEmailNotification extends SpecialPage {
 	}
 
 	private static function populateTrackingLinks($editType, &$titleLink, &$editLink, &$diffLink, &$articleTitle, &$revision, &$btnLink) {
+		global $wgCanonicalServer;
+
 		switch ($editType) {
 			case 'image':
 				$utm_source = 'image_added_email';
@@ -399,19 +362,18 @@ class AuthorEmailNotification extends SpecialPage {
 		$track_title = '&utm_source=' . $utm_source .'&utm_medium=email&utm_campaign=n_edits_email';
 		$prevRevId = $articleTitle->getPreviousRevisionID($revision->getId());
 
-		global $wgCanonicalServer;
 		$titleLink = $wgCanonicalServer . $articleTitle->getLocalURL() . '?utm_term=article_title' . $track_title;
 		$editLink  = $wgCanonicalServer . $articleTitle->getLocalURL('action=edit&utm_term=article_edit' . $track_title);
 		$diffLink  = $wgCanonicalServer . $articleTitle->getLocalURL( 'utm_term=article_diff&oldid=' . $prevRevId . '&diff=' . $revision->getId() . $track_title);
 		$btnLink   = $wgCanonicalServer . $articleTitle->getLocalURL( 'utm_term=gta_link&oldid=' . $prevRevId . '&diff=' . $revision->getId() . $track_title);
 	}
 
-	private static function getEditUserHtml(&$user) {
+	private static function getEditUserHtml($user) {
 		$html = "";
 		// If a registered, non-deleted user
 		if ($user->getId() != 0) {
 			$track_talk = '?utm_source=talk_page_message&utm_medium=email&utm_term=talk_page&utm_campaign=n_edits_email';
-			$talkPageUrl = 'http://www.wikihow.com' . $user->getTalkPage()->getLocalURL() . $track_talk;
+			$talkPageUrl = 'https://www.wikihow.com' . $user->getTalkPage()->getLocalURL() . $track_talk;
 			$editUserHref = '<a href="' . $talkPageUrl .'">' . $user->getName() . '</a>';
 		}
 		if (strlen($editUserHref)) {
@@ -421,7 +383,7 @@ class AuthorEmailNotification extends SpecialPage {
 	}
 
 	private static function sendModEmail(&$articleTitle, &$recipientUser, &$revision, &$editUser) {
-		$from_name = wfMsg('aen_from');
+		$from_name = wfMessage('aen_from')->text();
 		$titleLink = '';
 		$editLink = '';
 		$diffLink = '';
@@ -432,16 +394,16 @@ class AuthorEmailNotification extends SpecialPage {
 		$editUser = self::getEditUserHtml($editUser);
 		if (stripos($comment, "adding video") !== FALSE || stripos($comment, "changing video") !== FALSE) {
 			self::populateTrackingLinks('video', $titleLink, $editLink, $diffLink, $articleTitle, $revision, $btnLink);
-			$subject = wfMsg('aen_mod_subject_video', $articleName);
-			$body = wfMsg('aen_mod_body_video1', $recipientUser->getName(), $titleLink, $editUser, $editLink, $articleName );
-		} else if (stripos($comment, "categorization") !== FALSE) {
+			$subject = wfMessage('aen_mod_subject_video', $articleName)->text();
+			$body = wfMessage('aen_mod_body_video1', $recipientUser->getName(), $titleLink, $editUser, $editLink, $articleName)->text();
+		} elseif (stripos($comment, "categorization") !== FALSE) {
 			self::populateTrackingLinks('categorization', $titleLink, $editLink, $diffLink, $articleTitle, $revision, $btnLink);
-			$subject = wfMsg('Aen_mod_subject_categorization', $articleName);
-			$body = wfMsg('aen_mod_body_categorization1', $recipientUser->getName(), $titleLink, $editUser, $diffLink, $editLink, $articleName );
+			$subject = wfMessage('aen_mod_subject_categorization', $articleName)->text();
+			$body = wfMessage('aen_mod_body_categorization1', $recipientUser->getName(), $titleLink, $editUser, $diffLink, $editLink, $articleName)->text();
 		} else {
 			self::populateTrackingLinks('default', $titleLink, $editLink, $diffLink, $articleTitle, $revision, $btnLink);
-			$subject = wfMsg('aen_mod_subject_edit', $articleName);
-			$body = wfMsg('aen_mod_body_edit', $recipientUser->getName(), $titleLink, $editUser, $diffLink, $editLink, $articleName );
+			$subject = wfMessage('aen_mod_subject_edit', $articleName)->text();
+			$body = wfMessage('aen_mod_body_edit', $recipientUser->getName(), $titleLink, $editUser, $diffLink, $editLink, $articleName)->text();
 		}
 
 		$link = UnsubscribeLink::newFromId($recipientUser->getId());
@@ -455,9 +417,9 @@ class AuthorEmailNotification extends SpecialPage {
 	}
 
 	public static function notifyUserTalk($aid, $from_uid, $comment, $type='talk') {
-		global $wgCanonicalServer, $wgLang, $wgParser;
+		global $wgCanonicalServer, $wgParser;
 
-		$dateStr = $wgLang->timeanddate(wfTimestampNow());
+		$dateStr = RequestContext::getMain()->getLanguage()->timeanddate(wfTimestampNow());
 		if ($type == 'talk') {
 			$track_talk = '?utm_source=talk_page_message&utm_medium=email&utm_term=talk_page&utm_campaign=talk_page_message';
 			$track_sender_talk = '?utm_source=talk_page_message&utm_medium=email&utm_term=talk_page_sender&utm_campaign=talk_page_message';
@@ -496,18 +458,19 @@ class AuthorEmailNotification extends SpecialPage {
 		if (!$touser) return;
 
 		if ( $t->getArticleID() > 0 &&
-				$t->getNamespace() == NS_USER_TALK &&
-				$touser->getEmail() != '' &&
-			$touser->getOption('usertalknotifications') == '0' ) {
+			$t->inNamespace(NS_USER_TALK) &&
+			$touser->getEmail() != '' &&
+			$touser->getOption('usertalknotifications') == '0'
+		) {
 
-			$talkpagelink = 'http://' . wfCanonicalDomain() . $t->getTalkPage()->getLocalURL() . $track_talk;
-			$talkpagesenderlink = 'http://' . wfCanonicalDomain() . '/' . rawurlencode($fromuser->getTalkPage()) . $track_sender_talk;
-			$btnLink = 'http://' . wfCanonicalDomain() . $t->getTalkPage()->getLocalURL() . $track_btn;
+			$talkpagelink = 'https://' . wfCanonicalDomain() . $t->getTalkPage()->getLocalURL() . $track_talk;
+			$talkpagesenderlink = 'https://' . wfCanonicalDomain() . '/' . rawurlencode($fromuser->getTalkPage()) . $track_sender_talk;
+			$btnLink = 'https://' . wfCanonicalDomain() . $t->getTalkPage()->getLocalURL() . $track_btn;
 
-			$from_name = wfMsg('aen_from');
-			$subject = wfMsg('aen_usertalk_subject', $t->getTalkPage(), $fromuser->getName());
+			$from_name = wfMessage('aen_from')->text();
+			$subject = wfMessage('aen_usertalk_subject', $t->getTalkPage(), $fromuser->getName())->text();
 			$link = UnsubscribeLink::newFromId($touser->getId());
-			$body = wfMsg('aen_usertalk_body', $fromuser->getName(), $touser->getName(), $talkpagelink, $comment ,$link->getLink(), $talkpagesenderlink );
+			$body = wfMessage('aen_usertalk_body', $fromuser->getName(), $touser->getName(), $talkpagelink, $comment ,$link->getLink(), $talkpagesenderlink )->text();
 			$body .= EmailActionButtonScript::getTalkPageScript( $btnLink );
 			self::notify($touser, $from_name, $subject, $body, "", false, "talk_page");
 			wfDebug("AEN DEBUG: notifyUserTalk send. from:".$fromuser->getName()." to:".$touser->getName()." title:".$t->getTalkPage()."\nbody: " . $body . "\n");
@@ -548,7 +511,7 @@ class AuthorEmailNotification extends SpecialPage {
 			if ($type == 'text') {
 				UserMailer::send($to, $from, $subject, $body, null, null, $category);
 				//XX HARDCODE SEND TO ELIZABETH FOR TEST
-				if($debug) {
+				if ($debug) {
 					$to = new MailAddress("elizabethwikihowtest@gmail.com");
 					UserMailer::send($to, $from, $subject, $body, null, null, $category);
 				}
@@ -557,7 +520,7 @@ class AuthorEmailNotification extends SpecialPage {
 				$content_type = "text/html; charset=UTF-8";
 				UserMailer::send($to, $from, $subject, $body, null, $content_type, $category);
 				//XX HARDCODE SEND TO ELIZABETH FOR TEST
-				if($debug) {
+				if ($debug) {
 					$to = new MailAddress ("elizabethwikihowtest@gmail.com");
 					UserMailer::send($to, $from, $subject, $body, null, $content_type, $category);
 				}
@@ -583,8 +546,6 @@ class AuthorEmailNotification extends SpecialPage {
 		echo "Tomorrow: ".date('m/d/Y H:i:s',$tomorrow)."[$tomorrow] Today: ".date('m/d/Y H:i:s',$today)."[$today] NOW: ".date('m/d/Y H:i:s',$now)." \n";
 
 		foreach ($feeds as $f ) {
-
-
 				$url = $f[0];
 				$d = $f[1];
 				echo "Processing url: $url with epoch ".date('m/d/Y H:i:s',$d)."[$d]\n";
@@ -598,7 +559,7 @@ class AuthorEmailNotification extends SpecialPage {
 				if (isset($f[2]) && $f[2] != null && trim($f[2]) != '') {
 					$title_text = $f[2];
 				} else {
-					$title_text = wfMsg('howto', $title_text);
+					$title_text = wfMessage('howto', $title_text);
 				}
 
 				if (isset($title)) {
@@ -618,7 +579,7 @@ class AuthorEmailNotification extends SpecialPage {
 		$thresholds = array(25, 100, 500, 1000, 5000);
 		$thresh2 = 10000;
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$res = $dbr->select(
 					'email_notifications',
@@ -675,13 +636,14 @@ class AuthorEmailNotification extends SpecialPage {
 	//*************
 	// show page for logged in users
 	//*************
-	private static function showUser() {
-		global $wgRequest, $wgOut, $wgUser;
-
-		$dbr = wfGetDB(DB_SLAVE);
+	private function showUser() {
+		$req = $this->getRequest();
+		$out = $this->getOutput();
+		$user = $this->getUser();
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$order = array();
-		switch ($wgRequest->getVal('orderby')) {
+		switch ($req->getVal('orderby')) {
 			case 'popular':
 				$order['ORDER BY'] = 'page_counter DESC ';
 				break;
@@ -697,15 +659,15 @@ class AuthorEmailNotification extends SpecialPage {
 
 		$res = $dbr->select(
 					array('firstedit','page'),
-					array ('page_title', 'page_id', 'page_namespace', 'fe_timestamp'),
-					array ('fe_page=page_id', 'fe_user_text' => $wgUser->getName()),
+					array('page_title', 'page_id', 'page_namespace', 'fe_timestamp'),
+					array('fe_page=page_id', 'fe_user_text' => $user->getName()),
 					__METHOD__,
 					$order);
 
 		$res2 = $dbr->select(
 					'email_notifications',
-					array ('en_page','en_watch'),
-					array ('en_user' => $wgUser->getID()),
+					array('en_page','en_watch'),
+					array('en_user' => $user->getID()),
 					__METHOD__);
 
 		$watched = array();
@@ -714,26 +676,26 @@ class AuthorEmailNotification extends SpecialPage {
 		}
 		$articlecount = $dbr->numRows($res);
 		if ($articlecount > 500) {
-			$wgOut->addHTML('<div style="overflow:auto;width:600px;imax-height:300px;height:300px;border:1px solid #336699;padding-left:5px:margin-bottom:10px;">'."\n");
+			$out->addHTML('<div style="overflow:auto;width:600px;imax-height:300px;height:300px;border:1px solid #336699;padding-left:5px:margin-bottom:10px;">'."\n");
 		} else {
-			$wgOut->addHTML('<div>'."\n");
+			$out->addHTML('<div>'."\n");
 		}
 
 
-		if ($wgRequest->getVal('orderby')) {
+		if ($req->getVal('orderby')) {
 			$orderby = '<img id="icon_navi_up" src="' . wfGetPad('/extensions/wikihow/authors/icon_navi_up.jpg') . '" height=13 width=13 />';
 		} else {
 			$orderby = '<img id="icon_navi_down" src="' . wfGetPad('/extensions/wikihow/authors/icon_navi_down.jpg') . '" height=13 width=13 />';
 		}
 
-		$wgOut->addHTML("<form method='post'>" );
-		$wgOut->addHTML("<br/><center><table width='500px' align='center' class='status'>" );
+		$out->addHTML("<form method='post'>" );
+		$out->addHTML("<br/><center><table width='500px' align='center' class='status'>" );
 		// display header
 		$index = 1;
-		$aen_email = wfMsg('aen_form_email');
-		$aen_title = wfMsg('aen_form_title');
-		$aen_created = wfMsg('aen_form_created');
-		$wgOut->addHTML("<tr>
+		$aen_email = wfMessage('aen_form_email')->text();
+		$aen_title = wfMessage('aen_form_title')->text();
+		$aen_created = wfMessage('aen_form_created')->text();
+		$out->addHTML("<tr>
 			<td><strong>$aen_email</strong></td>
 			<td><strong>$aen_title</strong></td>
 			<td><strong>$aen_created</strong> <a id='aen_date' onclick='aenReorder(this);'>$orderby</a></td>
@@ -755,47 +717,46 @@ class AuthorEmailNotification extends SpecialPage {
 
 			$fedate = date('M d, Y', strtotime($row->fe_timestamp ." UTC"));
 
-			$wgOut->addHTML("<tr $class >");
-			$wgOut->addHTML("<td align='center'><input type='checkbox' name='articles-". $index ."' value='". $row->page_id ."' $checked /></td><td><a href='/". htmlspecialchars($row->page_title,ENT_QUOTES) ."' >".$t."</a></td><td align='center'>".$fedate." <!--".$row->page_id."--></td>\n");
-			$wgOut->addHTML("</tr>");
+			$out->addHTML("<tr $class >");
+			$out->addHTML("<td align='center'><input type='checkbox' name='articles-". $index ."' value='". $row->page_id ."' $checked /></td><td><a href='/". htmlspecialchars($row->page_title,ENT_QUOTES) ."' >".$t."</a></td><td align='center'>".$fedate." <!--".$row->page_id."--></td>\n");
+			$out->addHTML("</tr>");
 			$watched[ $row->page_id ] = 99;
 			$index++;
 		}
-		$wgOut->addHTML("</table>");
+		$out->addHTML("</table>");
 
-		$wgOut->addHTML("<br/><div style='width:500px;text-align:right;'>" );
-		$wgOut->addHTML("<input type='hidden' name='articlecount' value='".$index."' />\n");
-		$wgOut->addHTML("<input type='submit' name='action' value='Save' />\n");
-		$wgOut->addHTML("<br/></div>");
+		$out->addHTML("<br/><div style='width:500px;text-align:right;'>" );
+		$out->addHTML("<input type='hidden' name='articlecount' value='".$index."' />\n");
+		$out->addHTML("<input type='submit' name='action' value='Save' />\n");
+		$out->addHTML("<br/></div>");
 
-		$wgOut->addHTML("</div>");
+		$out->addHTML("</div>");
 
 		foreach ($watched as $key => $value) {
 			$t = Title::newFromID( $key );
 			if ($value != 99)
-				$wgOut->addHTML("<!-- DEBUG AEN not FE: $key ==> $value *** $t <br /> -->\n");
+				$out->addHTML("<!-- DEBUG AEN not FE: $key ==> $value *** $t <br /> -->\n");
 		}
 
 		//DEBUG CODE TO TEST EMAILS
 /*
-		$wgOut->addHTML("<br /><br />
+		$out->addHTML("<br /><br />
 				<input type='button' name='aen_rs_email' value='rising star email' onClick='send_test(\"rs\");'  />
 				<input type='button' name='aen_mod_email' value='edit email' onClick='send_test(\"mod\");'  />
 				<input type='button' name='aen_featured_email' value='featured email' onClick='send_test(\"featured\");'  />
 				<input type='button' name='aen_viewership' value='viewership email' onClick='send_test(\"viewership\");'  />\n");
 */
 
-		$dbr->freeResult($res);
-		$wgOut->addHTML("</center>\n");
-		$wgOut->addHTML("</form>\n");
+		$out->addHTML("</center>\n");
+		$out->addHTML("</form>\n");
 	}
 
 	public static function addUserWatch($target, $watch) {
-		global $wgUser;
 		$dbw = wfGetDB(DB_MASTER);
+		$user = RequestContext::getMain()->getUser();
 
 		$sql = 'INSERT INTO email_notifications (en_user, en_page, en_watch) VALUES (' .
-			$dbw->makeList( array($wgUser->getID(), $target, $watch) ) .
+			$dbw->makeList( array($user->getID(), $target, $watch) ) .
 			') ON DUPLICATE KEY UPDATE en_watch=' . $dbw->addQuotes($watch);
 
 		$ret = $dbw->query($sql, __METHOD__);
@@ -803,13 +764,13 @@ class AuthorEmailNotification extends SpecialPage {
 	}
 
 	private static function addUserWatchBulk($articles) {
-		global $wgUser;
 		$dbw = wfGetDB(DB_MASTER);
+		$user = RequestContext::getMain()->getUser();
 
 		//RESET ALL FOR USER
 		$ret = $dbw->update('email_notifications',
 			array('en_watch' => 0),
-			array('en_user' => $wgUser->getID() ),
+			array('en_user' => $user->getID() ),
 			__METHOD__);
 
 		//SET ARTICLES TO WATCH
@@ -817,7 +778,7 @@ class AuthorEmailNotification extends SpecialPage {
 
 		foreach ($articles as $article) {
 			$sql = 'INSERT INTO email_notifications (en_user, en_page, en_watch) VALUES (' .
-				$dbw->makeList( array($wgUser->getID(), $article, 1) ) .
+				$dbw->makeList( array($user->getID(), $article, 1) ) .
 				') ON DUPLICATE KEY UPDATE en_watch=1';
 
 			$dbw->query($sql, __METHOD__);
@@ -825,37 +786,40 @@ class AuthorEmailNotification extends SpecialPage {
 	}
 
 	public function execute($par) {
-		global $wgCanonicalServer, $wgRequest, $wgOut, $wgUser;
+		global $wgCanonicalServer;
 
-		if( $wgUser->isBlocked() ) {
-			$wgOut->blockedPage();
+		$req = $this->getRequest();
+		$out = $this->getOutput();
+		$user = $this->getUser();
+
+		if ( !$user || $user->getID() == 0) {
+			$out->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
 			return;
 		}
 
-		if( $wgUser->getID() == 0) {
-			$wgOut->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
-			return;
+		if ( $user->isBlocked() ) {
+			throw new UserBlockedError( $user->getBlock() );
 		}
 
-		$target = isset( $par ) ? $par : $wgRequest->getVal( 'target' );
-		$action = $wgRequest->getVal( 'action' );
+		$target = isset( $par ) ? $par : $req->getVal( 'target' );
+		$action = $req->getVal( 'action' );
 
 		$me = Title::makeTitle(NS_SPECIAL, "AuthorEmailNotification");
 
 		if ($action == 'Save') {
 			$articles = array();
-			$articlecount = $wgRequest->getVal( 'articlecount' );
-			for($i=1;$i<= ($articlecount + 1);$i++) {
-				$item = $wgRequest->getVal( 'articles-'.$i );
+			$articlecount = $req->getVal( 'articlecount' );
+			for ($i=1;$i<= ($articlecount + 1);$i++) {
+				$item = $req->getVal( 'articles-'.$i );
 				if (($item != '') && ($item != 0)) {
 					array_push($articles, $item);
 				}
 			}
 
 			self::addUserWatchBulk($articles);
-		} else if ($action == 'update') {
+		} elseif ($action == 'update') {
 			$watch = 1;
-			$watch = $wgRequest->getVal( 'watch' );
+			$watch = $req->getVal( 'watch' );
 
 			if ( ($target != "") ) {
 				self::addUserWatch($target, $watch);
@@ -863,25 +827,25 @@ class AuthorEmailNotification extends SpecialPage {
 				wfDebug('Ajax call for AuthorEmailNotifications with improper parameters.');
 			}
 			return;
-		} else if ($action == 'addNotification') {
+		} elseif ($action == 'addNotification') {
 
 			$email = '';
-			$email = $wgRequest->getVal( 'email' );
-			$value = $wgRequest->getVal( 'value' );
+			$email = $req->getVal( 'email' );
+			$value = $req->getVal( 'value' );
 
-			self::addNotification( $target, $email, $value );
+			$this->addNotification( $target, $email, $value );
 
 			return;
-		} else if ($action == 'updatePreferences') {
+		} elseif ($action == 'updatePreferences') {
 			wfDebug("AEN DEBUG in updatepreferences\n");
-			if ($wgRequest->getVal( 'dontshow' ) == 1) {
+			if ($req->getVal( 'dontshow' ) == 1) {
 				wfDebug("AEN DEBUG in dontshow\n");
-				$wgUser->setOption( 'enableauthoremail', 1 );
+				$user->setOption( 'enableauthoremail', 1 );
 				wfDebug("AEN DEBUG in settingoption\n");
-				$wgUser->saveSettings();
+				$user->saveSettings();
 			}
 			return;
-		} else if ($action == 'testsend') {
+		} elseif ($action == 'testsend') {
 			//FOR TESTING
 		   $subject = "";
 		   $body = "";
@@ -889,48 +853,46 @@ class AuthorEmailNotification extends SpecialPage {
 			  $title = "Help Your Dog Lose Weight";
 			  $titlelink = "<a href='$wgCanonicalServer/Help-Your-Dog-Lose-Weight'>Help Your Dog Lose Weight</a>";
 
-			switch($target) {
+			switch ($target) {
 				case 'rs':
-		   $subject = wfMsg('aen_rs_subject', $title);
-		   $body = wfMsg('aen_rs_body', $wgUser->getName(), $titlelink);
+					$subject = wfMessage('aen_rs_subject', $title)->text();
+					$body = wfMessage('aen_rs_body', $user->getName(), $titlelink)->text();
 					break;
 				case 'mod':
-		   $subject = wfMsg('aen_mod_subject', $title);
-		   $body = wfMsg('aen_mod_body', $wgUser->getName(), $titlelink);
+					$subject = wfMessage('aen_mod_subject', $title)->text();
+					$body = wfMessage('aen_mod_body', $user->getName(), $titlelink)->text();
 					break;
 				case 'featured':
-		   $subject = wfMsg('aen_featured_subject', $title);
-		   $body = wfMsg('aen_featured_body', $wgUser->getName(), $titlelink);
+					$subject = wfMessage('aen_featured_subject', $title)->text();
+					$body = wfMessage('aen_featured_body', $user->getName(), $titlelink)->text();
 					break;
 				case 'viewership':
-		   $subject = wfMsg('aen_viewership_subject', $title, '12768');
-		   $body = wfMsg('aen_viewership_body', $wgUser->getName(), $titlelink, '12768');
+					$subject = wfMessage('aen_viewership_subject', $title, '12768')->text();
+					$body = wfMessage('aen_viewership_body', $user->getName(), $titlelink, '12768')->text();
 					break;
 			}
 
-			if ( $wgUser->getEmail() != '')  {
-			$from_name = wfMsg('aen_from');
-			self::notify($wgUser, $from_name, $subject, $body, "", false, "aen_readership");
+			if ( $user->getEmail() )  {
+				$from_name = wfMessage('aen_from')->text();
+				self::notify($user, $from_name, $subject, $body, "", false, "aen_readership");
 			}
 
 			return;
 		}
 
-		$wgOut->addHTML("
+		$out->addHTML("
 			<script type='text/javascript' src='" . wfGetPad('/extensions/wikihow/authors/authoremails.js?rev=') . WH_SITEREV . "'></script>
 		");
 
-		$wgOut->addHTML(wfMsg('emailn_title') . "<br/><br/>");
-		self::showUser();
-
-		return;
+		$out->addHTML(wfMessage('emailn_title')->text() . "<br/><br/>");
+		$this->showUser();
 	}
 
 	public static function getCTA($campaign, $medium) {
 		$rand = 1; //rand(1, 3); //choose which of the sentences to use
 
 		$link = self::getCTALink($campaign, $medium);
-		$sentence = wfMsg('aen_cta_'.$rand, $link);
+		$sentence = wfMessage('aen_cta_'.$rand, $link)->text();
 
 		return $sentence;
 	}
@@ -938,7 +900,7 @@ class AuthorEmailNotification extends SpecialPage {
 	public static function getCTALink($campaign, $medium) {
 		$randAction = rand(1, 9); //chose which action to suggest to them
 
-		switch($randAction) {
+		switch ($randAction) {
 			case 1:
 				$title = "Special:CreatePage";
 				$text = "writing a new article";
@@ -955,9 +917,9 @@ class AuthorEmailNotification extends SpecialPage {
 				$term = "patrol";
 				break;
 			case 4:
-				$title = "Special:Videoadder";
-				$text = "adding a video";
-				$term = "add_video";
+				$title = "Special:AnswerQuestions";
+				$text = "answering reader questions";
+				$term = "answer_questions";
 				break;
 			case 5:
 				$title = "Special:Random";
@@ -981,7 +943,6 @@ class AuthorEmailNotification extends SpecialPage {
 				break;
 			case 9:
 			default:
-				//spellchecker
 				$title = "Special:Spellchecker";
 				$text = "fixing a spelling error";
 				$term = "spelling";
@@ -1018,7 +979,7 @@ class AuthorEmailNotification extends SpecialPage {
 
 			//verify we're emailling this author
 			if (!empty($to_email)) {
-				$dbr = wfGetDB(DB_SLAVE);
+				$dbr = wfGetDB(DB_REPLICA);
 				$watch = $dbr->selectField('email_notifications', 'en_watch', array('en_page' => $pageid, 'en_user' => $og->getID()), __METHOD__ );
 				if ($watch == 1) $res = $to_email;
 			}

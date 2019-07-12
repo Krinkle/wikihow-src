@@ -27,7 +27,6 @@
 		hard_3: function() {
 			$('#icon-categoryguardian').hide();
 			$('#icon-tipsguardian').hide();
-			$('#icon-kbguardian').hide();
 			$('#icon-techfeedback').show();
 			$('#icon-rclite').show();
 			$('#icon-unitguardian').show();
@@ -37,7 +36,6 @@
 			$('#icon-techfeedback').hide();
 			$('#icon-rclite').hide();
 			$('#icon-unitguardian').hide();
-			$('#icon-kbguardian').hide();
 			$('#icon-categoryguardian').show();
 			$('#icon-tipsguardian').show();
 		},
@@ -45,7 +43,6 @@
 		hard_2: function() {
 			$('#icon-categoryguardian').hide();
 			$('#icon-tipsguardian').hide();
-			$('#icon-kbguardian').hide();
 			$('#icon-rclite').hide();
 			$('#icon-techfeedback').show();
 			$('#icon-unitguardian').show();
@@ -67,12 +64,6 @@
 			
 			$('#icon-tipsguardian a').click(function() {
 				toolname = 'TipsGuardian';
-				WH.whEvent(WH.TestAnalytics.cat, 'mm_menu_click_tool', WH.TestAnalytics.group, toolname);
-				$.cookie(WH.TestAnalytics.cookie_name+toolname, toolname+','+WH.TestAnalytics.group+','+1, { expires: 1 });
-			});
-			
-			$('#icon-kbguardian a').click(function() {
-				toolname = 'KBGuardian';
 				WH.whEvent(WH.TestAnalytics.cat, 'mm_menu_click_tool', WH.TestAnalytics.group, toolname);
 				$.cookie(WH.TestAnalytics.cookie_name+toolname, toolname+','+WH.TestAnalytics.group+','+1, { expires: 1 });
 			});

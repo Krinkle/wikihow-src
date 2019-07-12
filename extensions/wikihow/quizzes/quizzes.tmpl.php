@@ -10,7 +10,7 @@
 	<? if ($quiz_found != '') { ?>
 	<div class="quiz_sidebubble">
 		<div class="sidebar_carrot"></div>
-		<h4><?=wfMsg('quiz-header-found')?></h4>
+		<h4><?=wfMessage('quiz-header-found')?></h4>
 		<table class="quiz_sidelist">
 		<?=$quiz_found?>
 		</table>
@@ -19,13 +19,13 @@
 	<?= $quiz_ads ?>
 	<? if ($quiz_related != '') { ?>
 	<div class="quiz_sidebubble">
-		<h4><?=wfMsg('quiz-header-related')?></h4>
+		<h4><?=wfMessage('quiz-header-related')?></h4>
 		<?=$quiz_related?>
 	</div>
 	<? } ?>
 </div>
 
-<h1 id="quiz_title"><?=$quiz_title.' '.wfMsg('quiz-suffix')?></h1>
+<h1 id="quiz_title"><?=$quiz_title.' '.wfMessage('quiz-suffix')?></h1>
 <div id="the_quiz_bg"<?if ($quiz_bg) {?> style="background-image: url(<?=$quiz_bg?>)"<?}?>></div>
 <div id="quiz_progress"><?=$quiz_progress?></div>
 <div id="the_quiz">
@@ -40,8 +40,8 @@
 		<div id="quiz_response"></div>
 		<div id="quiz_reason"></div>
 	</div>
-	<a href="#" id="quiz_submit" class="quiz_button"><?=wfMsg('quiz-submit-button')?></a>
-	<a href="#" id="quiz_next" class="quiz_button"><?=wfMsg('quiz-next-button')?></a>
+	<a href="#" id="quiz_submit" class="quiz_button"><?=wfMessage('quiz-submit-button')?></a>
+	<a href="#" id="quiz_next" class="quiz_button"><?=wfMessage('quiz-next-button')?></a>
 </div>
 
 <?=$quiz_ads3?>

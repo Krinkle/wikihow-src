@@ -9,10 +9,10 @@ $wgExtensionCredits['specialpage'][] = array(
 );
 
 $wgSpecialPages['QAPatrol'] = 'QAPatrol';
-$wgAutoloadClasses['QAPatrol'] = dirname(__FILE__) . '/QAPatrol.body.php';
-$wgAutoloadClasses['QAPatrolStats'] = dirname(__FILE__) . '/QAPatrolStats.class.php';
-$wgAutoloadClasses['QAPatrolItem'] = dirname(__FILE__) . '/model/QAPatrolItem.php';
-$wgExtensionMessagesFiles['QAPatrol'] = dirname(__FILE__) . '/QAPatrol.i18n.php';
+$wgAutoloadClasses['QAPatrol'] = __DIR__ . '/QAPatrol.body.php';
+$wgAutoloadClasses['QAPatrolStats'] = __DIR__ . '/QAPatrolStats.class.php';
+$wgAutoloadClasses['QAPatrolItem'] = __DIR__ . '/model/QAPatrolItem.php';
+$wgExtensionMessagesFiles['QAPatrol'] = __DIR__ . '/QAPatrol.i18n.php';
 
 $wgLogTypes[] = 'qa_patrol';
 $wgLogNames['qa_patrol'] = 'qa_patrol';
@@ -29,8 +29,26 @@ $wgResourceModules['ext.wikihow.qa_patrol'] = array(
 		'qap_flag_great',
 		'qap_flag_thanks'
 	),
-	'localBasePath' => dirname(__FILE__) . '/',
+	'localBasePath' => __DIR__ . '/',
 	'remoteExtPath' => 'wikihow/QAPatrol',
 	'position' => 'top',
 	'targets' => array( 'desktop', 'mobile' )
 );
+
+$wgResourceModules['ext.wikihow.qa_patrol_stats'] = [
+	'scripts' => 'qa_patrol_stats.js',
+	'localBasePath' => __DIR__ . '/',
+	'remoteExtPath' => 'wikihow/QAPatrol',
+	'targets' => ['desktop'],
+	'dependencies' => [
+		'jquery.ui.datepicker'
+	]
+];
+
+$wgResourceModules['ext.wikihow.qa_patrol_stats.style'] = [
+	'styles' => 'qa_patrol_stats.css',
+	'localBasePath' => __DIR__ . '/',
+	'remoteExtPath' => 'wikihow/QAPatrol',
+	'position' => 'top',
+	'targets' => ['desktop'],
+];

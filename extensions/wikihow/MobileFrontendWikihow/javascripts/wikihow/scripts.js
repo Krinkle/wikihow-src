@@ -34,7 +34,6 @@ function initializeArticlePage() {
 	// it is hidden by default since it requires javascript to work
 	$('#uci_section').show();
 	$('.trvote_box').show();
-	$('#articleinfo').show();
 	$('.section.video').show();
 	$('#hp_navigation').show();
 
@@ -43,14 +42,15 @@ function initializeArticlePage() {
 		$('#ca-edit').hide();
 	}
 
-	$('#info_link').on('click', function(e){
+	$(document).one("click", "#summary_wrapper .collapse_link", function(e){
 		e.preventDefault();
-
-		$.ajax({
-			url: '/api.php?action=app&subcmd=credits&id=' + $(this).attr('aid') + '&format=json',
-			async: false,
-			success: processArticleInfo
-		});
+		$("#summary_text").show();
+		$(this).addClass("open");
+	});
+	$(document).one("click", "#other_languages .collapse_link", function(e){
+		e.preventDefault();
+		$("#language_links").show();
+		$(this).addClass("open");
 	});
 
 	$('.checkmark').on('click', function() {
@@ -128,37 +128,24 @@ $(document).ready(function() {
 		}
 	});
 
-	$('.header .search').click(function() {
-		// Hide the visibility of the search button as it wraps if visibile
-		// when the search bar animates to its open state
-		$('.wh_search .cse_sa').css('visibility', 'hidden');
-		$('#search_oversearch').fadeIn(100, function() {
-			$('#cse-search-box').animate(marginAnimShow, 500, function() {
-				$('.wh_search .cse_sa').css( {
-					'background-size': '18px',
-					'top': 'auto',
-					'right': 'auto',
-					'visibility': 'visible'
-				} );
-			});
-			var $cseClose = $('.cse_x');
-			$cseClose.fadeIn();
-			$cseClose.click(function() {
-				$('.wh_search .cse_sa').css('visibility', 'hidden');
-				$cseClose.fadeOut();
-				$('#cse-search-box').animate(marginAnimHide,500,function() {
-					$('#search_oversearch').hide();
-
-				});
-			});
-		});
-		//focus has to be down here for this to work with iOS devices
-		// Don't focus for search results since we don't want to automatically
-		// pull up the keyboard
-		if (mw.config.get('wgTitle') != 'LSearch') {
-			$('#search_oversearch').find('.cse_q').focus();
+	var hs_touched = false;
+	$( '#hs_query' ).click( function () {
+		if ( !$( '#hs' ).hasClass( 'hs_active' ) || !hs_touched ) {
+			hs_touched = true;
+			$( '#hs' ).addClass( 'hs_active' );
+			var input = this;
+			setTimeout( function () {
+				if ( 'setSelectionRange' in input ) {
+					input.setSelectionRange( 0, 9999 );
+				} else if ( 'selectionStart' in input ) {
+					input.selectionStart = 0;
+					input.selectionEnd = input.value.length;
+				}
+			}, 10 );
 		}
-
+	} );
+	$( '#hs_close' ).click( function () {
+		$( '#hs' ).removeClass( 'hs_active' );
 	});
 
 	//add our click handers
@@ -187,88 +174,6 @@ function addNoFollowAndBlank(stringHtml) {
 	return $('<div />').append($html).html();
 }
 
-function processArticleInfo(data) {
-	var sources = null;
-	var images = null;
-	var info = '';
-
-	var hasSources = data.app.article_sources && data.app.article_sources.numbered.length;
-	var hasExtraSources = $('#extra_sources a').length;
-	if (hasSources || hasExtraSources) {
-		sources = '<div class="section sourcesandcitations"><h2><span class="mw-headline">' +
-			mw.message('sources') + '</span></h2><div class="section_text">';
-		if (hasSources) {
-			sources += '<ol class="references">';
-			for (var i = 0; i < data.app.article_sources.numbered.length; i++) {
-				sources += '<a class="reference-anchor" id="_refanchor-' + (i+1) + '"></a>';
-				sources += '<li id="_note-' + (i+1) + '">' + addNoFollowAndBlank(data.app.article_sources.numbered[i].html) + '</li>';
-			}
-			sources += '</ol>';
-		}
-		if (hasExtraSources) {
-			var style = hasSources ? ' style="margin-top: 15px;"' : '';
-			var extra = $('<ul' + style + '></ul>');
-			$('#extra_sources a').each(function(/*i*/) {
-				extra.append($('<li></li>').append(this));
-			});
-			sources += $(extra)[0].outerHTML;
-		}
-		sources += '</div></div>';
-	}
-
-	if (data.app.image_sources.uploaders.length > 0 || data.app.image_sources.licenses.length > 0) {
-		images = '<div class="section imageattribution"><h2><span class="mw-headline">' + mw.message('image-attribution').text() + '</span></h2><div class="section_text"><ul>';
-		for (var i = 0; i < data.app.image_sources.uploaders.length; i++) {
-			images += '<li><span class="info_label">Uploaded by:</span>' + data.app.image_sources.uploaders[i] + '</li>';
-		}
-		if (data.app.image_sources.licenses.length > 0) {
-			for (var i = 0; i < data.app.image_sources.licenses.length; i++) {
-				images += '<li><span class="info_label">Licenses:</span>' + data.app.image_sources.licenses[i] + '</li>';
-			}
-		}
-		images += '</ul></div></div>';
-	}
-
-	// George 2015-06-18: Disabled for international due to EU privacy
-	// protection laws affecting Google results.
-	if (mw.config.get('wgContentLanguage') == 'en') {
-		info = '<ul><li><span class="info_label">' + mw.message('thanks_to_all_authors').text() + '</span><br />';
-		for (var i = 0; i < data.app.authors.length; i++) {
-			if (i > 0) {
-				info += ', ';
-			}
-			info += data.app.authors[i];
-		}
-		info += '</li>';
-	}
-
-	// [sc] 12/16 - moved this to the About This WikiHow section
-	// if (data.app.categories.length > 0) {
-	// 	info += '<li><span class="info_label">' + mw.message('categories').text() + ':</span><br />';
-	// 	for(i = 0; i < data.app.categories.length; i++) {
-	// 		if (i > 0)
-	// 			info += ', ';
-	// 		info +=  data.app.categories[i];
-	// 	}
-	// 	info += '</li></ul>';
-	// }
-
-	if (info.length) {
-		$('#articleinfo').html(info);
-	} else {
-		$('#articleinfo').remove();
-	}
-
-	var sections = '';
-	if (sources) {
-		sections += sources;
-	}
-	if (images) {
-		sections += images;
-	}
-	$('.articleinfo').before(sections);
-}
-
 function resizeVideo() {
 	// Don't make changes for iPad
 	if ( navigator.userAgent.match(/iPad/i) ) {
@@ -294,18 +199,9 @@ function iOSheaderFixes() {
 			//search box is being used
 			//WARNING: the iOS keyboard approacheth!!!
 			$('.header').css('position','absolute');
-			$('#search_oversearch').css('position','absolute');
 			$(window).scrollTop(0);
-
-			//complete hack fix for Chrome on iPhone
-			var isIPhone = navigator.userAgent.match(/(iPod|iPhone)/gi) !== null;
-			var isChrome = navigator.userAgent.match(/(CriOS)/gi) !== null;
-			if (isIPhone && isChrome) {
-				$('#search_oversearch').css('top','40px');
-			}
 		})
 		.blur(function() {
-			$('#search_oversearch').css('position','fixed');
 			$('.header').css('position','fixed');
 		});
 }
@@ -321,6 +217,50 @@ function addClickHandlers() {
 			//e.preventDefault();
 			WH.ga.sendEvent('m-edit', 'pencil', mw.config.get('wgTitle'));
 		});
+
+		// Track Quiz App clicks
+		$(document).on('click', '#icon-quizyourself', function() {
+			WH.maEvent('mobile_menu_quiz_app_click');
+		});
+
+		// Track search clicks
+		var openCount = 0;
+		var closeCount = 0;
+		var hsCloseClicks = 0;
+		var open = $( '.hs_active' ).length > 0;
+		var pageType = 'other';
+		if ( wgIsArticle ) {
+			pageType = 'article';
+		} else if ( wgTitle === 'LSearch' ) {
+			pageType = 'search';
+		} else if ( wgTitle === 'Main Page' ) {
+			pageType = 'main';
+		}
+
+		$('#hs_query').on( 'click', function ( e ) {
+			if ( !open ) {
+				openCount++;
+				open = true;
+				WH.maEvent( 'mobile_search_open', { count: openCount, pageType: pageType } );
+			}
+		} );
+		$('#hs_close').on( 'click', function ( e ) {
+			closeCount++;
+			open = false;
+			WH.maEvent( 'mobile_search_close', { count: closeCount, pageType: pageType } );
+		} );
+		var hsFormSubmitLogged = false;
+		$('#hs form').on( 'submit', function ( e ) {
+			if ( !hsFormSubmitLogged ) {
+				WH.maEvent( 'mobile_search_submit', { pageType: pageType }, function () {
+					hsFormSubmitLogged = true;
+					$('#hs form').submit();
+				} );
+				e.preventDefault();
+				return false;
+			}
+		} );
+
 }
 
 $(document).ready(function() {

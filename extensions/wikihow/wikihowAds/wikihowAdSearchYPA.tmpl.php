@@ -2,10 +2,12 @@
 	var initAds = $.getScript('https://s.yimg.com/uv/dm/scripts/syndication.js', function() {
 		var adOptions = {
 			DeskTop: {
+                AdRange: '<?= $rangeTop ?>',
 				SiteLink: false,
 				EnhancedSiteLink: false
 			},
 			Mobile: {
+                AdRange: '<?= $rangeTop ?>',
 				SiteLink: false,
 				EnhancedSiteLink: false
 			}
@@ -101,6 +103,17 @@
 
 		var adOptions2 = $.extend(true, {}, adOptions);
 		var templateOptions2 = $.extend(true, {}, templateOptions);
+		adOptions2.DeskTop.AdRange = adOptions2.Mobile.AdRange = '3-3';
+
+		var adOptions3 = $.extend(true, {}, adOptions);
+		var templateOptions3 = $.extend(true, {}, templateOptions);
+		adOptions3.DeskTop.AdRange = adOptions3.Mobile.AdRange = '4-6';
+
+		var onNoAd = function(errObj, slotInfo) {
+			if (slotInfo.ypaAdDivId) {
+				$('#' + slotInfo.ypaAdDivId).remove();
+			}
+		};
 
 		var slotIdPrefix = '<?=$slotIdPrefix?>';
 		var adConfig = '<?=$adConfig;?>';
@@ -110,32 +123,48 @@
 			ypaAdConfig   : adConfig,
 			ypaAdTypeTag  : adTagType,
 			ypaPubParams : {
-				query: mw.util.getParamValue('search'),
+				query: <?= $query ?>,
 			},
+			ypaPageCount: <?= $page ?>,
 			ypaAdSlotInfo : [
 				{
 					EnhancedSiteLink: false,
 					SiteLink: false,
 					ypaAdSlotId : slotIdPrefix + 'WH_Top_Center',
-					ypaAdDivId  : 'search_adcontainer1',
+					ypaAdDivId  : 'search_adblock_top',
 					ypaAdWidth  : '722',
-					ypaAdHeight : '312',
+					ypaAdHeight : '127',
 					ypaSlotOptions : {
 						AdOptions: adOptions,
 						TemplateOptions : templateOptions
 					},
+					ypaOnNoAd: onNoAd
 				},
 				{
 					EnhancedSiteLink: false,
 					SiteLink: false,
 					ypaAdSlotId : slotIdPrefix + 'WH_Mid_Center',
-					ypaAdDivId  : 'search_adcontainer3',
+					ypaAdDivId  : 'search_adblock_middle',
 					ypaAdWidth  : '722',
-					ypaAdHeight : '312',
+					ypaAdHeight : '127',
 					ypaSlotOptions : {
 						AdOptions: adOptions2,
 						TemplateOptions : templateOptions2
-					}
+					},
+					ypaOnNoAd: onNoAd
+				},
+				{
+					EnhancedSiteLink: false,
+					SiteLink: false,
+					ypaAdSlotId : slotIdPrefix + 'WH_Bottom_Center',
+					ypaAdDivId  : 'search_adblock_bottom',
+					ypaAdWidth  : '722',
+					ypaAdHeight : '127',
+					ypaSlotOptions : {
+						AdOptions: adOptions3,
+						TemplateOptions : templateOptions3
+					},
+					ypaOnNoAd: onNoAd
 				}
 			]
 		});

@@ -288,6 +288,19 @@ class Preferences {
 			'help-message' => 'prefs-help-realname',
 		);
 
+		 // AG wikiHow added this section to have links to download your data or delete your account
+		$downloadAccount = Html::rawElement( 'a', ['id'=>'prefs_download', 'href'=>'/Special:GDPR'], wfMessage('prefs-privacy-message-download')->text() );
+		$deleteAccount = Html::rawElement( 'div', ['id'=>'prefs_delete'], wfMessage('prefs-privacy-message-delete')->parse() );
+		$privacyDefault = Html::rawElement( 'div', ['id'=>'prefs_privacy'], $downloadAccount . $deleteAccount );
+		$defaultPreferences['downloaddata'] = array(
+			'type' => 'info',
+			'raw' => true,
+			'label-message' => 'prefs-privacy',
+			'default' => $privacyDefault,
+			'section' => 'personal/info',
+		);
+		// AG wikiHow end section that I added
+
 		if ( $canEditPrivateInfo && $wgAuth->allowPasswordChange() ) {
 			$link = Linker::link( SpecialPage::getTitleFor( 'ChangePassword' ),
 				$context->msg( 'prefs-resetpass' )->escaped(), array(),

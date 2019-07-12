@@ -1,12 +1,12 @@
 <?php
 
-class Categoryhelper extends UnlistedSpecialPage {
+class CategoryHelper extends UnlistedSpecialPage {
 
 	function __construct() {
-		parent::__construct( 'Categoryhelper' );
+		parent::__construct( 'CategoryHelper' );
 	}
 
-	static function getCategoryDropDownTree() {
+	private static function getCategoryDropDownTree() {
 		//global $wgMemc;
 
 		//$key = wfMemcKey('category', 'dropdowntree', 'wikihow');
@@ -15,7 +15,7 @@ class Categoryhelper extends UnlistedSpecialPage {
 			$t = Title::makeTitle(NS_PROJECT, wfMessage('categories')->text());
 			$r = Revision::newFromTitle($t);
 			if (!$r) return array();
-			$text = $r->getText();
+			$text = ContentHandler::getContentText( $r->getContent() );
 
 			$lines = explode("\n", $text);
 			$bucket = array();
@@ -37,35 +37,53 @@ class Categoryhelper extends UnlistedSpecialPage {
 		//}
 		return $result;
 	}
-	
-	static function decategorize($pageId, $categorySlug, $summary, $flags=null, $user=null) {
+
+	// Used in category guardian
+	public static function decategorize($pageId, $categorySlug, $summary, $flags=null, $user=null) {
 		global $wgContLang;
-		
-		$article = Article::newFromId($pageId);
+
+		$wikiPage = WikiPage::newFromID($pageId);
 
 		$cat = "[[" . $wgContLang->getNSText(NS_CATEGORY) . ":$categorySlug]]";
 		$spaceCat = str_replace('-', ' ', $cat);
-		
-		if ($article && $article->exists()) {
-			$text = $article->getContent();
-			
-			$text = str_replace(array($cat, $spaceCat), '', $text);			
-			$content = ContentHandler::makeContent($text, $article->getTitle());
-			$article->doEditContent($content, $summary, $flags, false, $user);
+
+		if ($wikiPage && $wikiPage->exists()) {
+			$text = ContentHandler::getContentText( $wikiPage->getContent() );
+
+			$text = str_replace(array($cat, $spaceCat), '', $text);
+			$content = ContentHandler::makeContent($text, $wikiPage->getTitle());
+			$wikiPage->doEditContent($content, $summary, $flags, false, $user);
 		}
 	}
 
-	static function makeCategoryArray($current_lvl, &$lines) {
+	private static function makeCategoryArray($current_lvl, &$lines) {
 		$pattern = '/^(\*+)/';
 		$bucket2 = array();
 
+		// Remove any leading lines of the category messages, before the first
+		// line that has a "*" at the start. This has been a problem on INTL.
+		if ($current_lvl == 1) {
+			while (count($lines) > 0) {
+				$line = array_shift($lines);
+				if (preg_match($pattern, $line, $matches)) {
+					array_unshift($lines, $line);
+					break;
+				}
+			}
+		}
+
 		$cat = null;
-		while (count($lines)>0) {
+		while (count($lines) > 0) {
 			$line = array_shift($lines);
+			// skip blank lines
+			if (trim($line) == "") continue;
+
 			preg_match($pattern, $line, $matches);
 			$lvl = count($matches) ? strlen($matches[0]) : 0;
+
 			$prevcat = $cat;
 			$cat = trim(str_replace("*", "", $line));
+			$cat = self::removeQuotesFromCategoryName($cat);
 
 			if ($current_lvl == $lvl) {
 				//array_push($bucket2,$cat);
@@ -78,26 +96,51 @@ class Categoryhelper extends UnlistedSpecialPage {
 				return $bucket2;
 			}
 		}
+
 		return $bucket2;
 	}
 
+	/**
+	 * Category names on INTL can sometimes have a symmetric number of
+	 * single-quote character (') around the title. We want to strip that
+	 * if we can detect it.
+	 *
+	 * For example:
+	 * INPUT: '''''Animaux et Animaux de Compagnie'''''
+	 * OUTPUT: Animaux et Animaux de Compagnie
+	 */
+	private static function removeQuotesFromCategoryName($cat) {
+		// Use regex back references to detect and remove the quotes
+		if ( preg_match("@^('+)(.*)\\1$@", $cat, $matches) ) {
+			$cat = $matches[2];
+		}
+		return $cat;
+	}
+
+	/* UNUSED
 	static function getRandomCategory() {
 		$lines = self::getAllCategories();
 		$index = array_rand($lines);
 		$title = str_replace('*', '', $lines[$index]);
 		return Title::newFromText($title, NS_CATEGORY); // fix for URL bug
-	}
+	} */
 
-	static function getAllCategories() {
+	// Used in this class and in Category Guardian
+	public static function getAllCategories() {
 		//global $wgMemc;
 
 		//$key = wfMemcKey('category', 'arraytree', 'wikihow');
 		//$result = $wgMemc->get( $key );
 		//if (!$result) {
-		$t = Title::makeTitle(NS_PROJECT, wfMessage('categories')->text());
-		$r = Revision::newFromTitle($t);
-		if (!$r) return array();
-		$text = $r->getText();
+
+		// Try the natively named category structure project page first
+		$title = self::getCategoryTreeTitle();
+		$rev = Revision::newFromTitle($title);
+		if (!$rev) {
+			return [];
+		}
+
+		$text = ContentHandler::getContentText( $rev->getContent() );
 		$text = preg_replace('/^\n/m', '', $text);
 
 		$lines = explode("\n", $text);
@@ -106,13 +149,52 @@ class Categoryhelper extends UnlistedSpecialPage {
 		return $lines;
 	}
 
-	static function getCategoryTreeArray() {
+	public static function getCategoryTreeArray() {
 		$lines = self::getAllCategories();
 		$result = self::makeCategoryArray(1, $lines);
 		return $result;
 	}
 
-	static function getCurrentParentCategories($title = null) {
+	/**
+	 * Get all indexable categories in the tree as a hash table:
+	 *   array (
+	 *     'Arts and Entertainment' => 1,
+	 *     'Amusement and Theme Parks' => 1,
+	 *     'Carnivals' => 1,
+	 *     ...
+	 */
+	public static function getIndexableCategoriesFromTree(): array {
+		global $wgMemc;
+
+		$lastID = self::getCategoryTreeTitle()->getLatestRevID();
+		$cacheKey = wfMemcKey('categ_tree_map');
+		$data = $wgMemc->get($cacheKey);
+
+		if (is_array($data) && $data['last_id'] == $lastID) {
+			return $data['map'];
+		}
+
+		$tree = self::getCategoryTreeArray();
+		unset($tree['WikiHow']); // We don't want these categories to be indexed
+
+		$map = [];
+		$getKeys = function(array $tree) use (&$map, &$getKeys) {
+			foreach ($tree as $categ => $subTree) {
+				$map[$categ] = 1;
+				if (is_array($subTree)) {
+					$getKeys($subTree);
+				}
+			}
+		};
+		$getKeys($tree);
+
+		$data = [ 'last_id' => $lastID, 'map' => $map ];
+		$wgMemc->set($cacheKey, $data); // cache until there is a new tree revision
+
+		return $map;
+	}
+
+	public static function getCurrentParentCategories($title = null) {
 		global $wgTitle, $wgMemc;
 
 		$title = $title ?: $wgTitle;
@@ -127,7 +209,7 @@ class Categoryhelper extends UnlistedSpecialPage {
 		return $cats;
 	}
 
-	static function getCurrentParentCategoryTree($title = null) {
+	public static function getCurrentParentCategoryTree($title = null) {
 		global $wgTitle, $wgMemc;
 
 		if (!$title) {
@@ -158,7 +240,8 @@ class Categoryhelper extends UnlistedSpecialPage {
 		return $cats;
 	}
 
-	static function cleanUpCategoryTree($tree) {
+	// Used in this class and by wikihowAds.php
+	public static function cleanUpCategoryTree($tree) {
 		$results = array();
 		if (!is_array($tree)) return $results;
 		foreach ($tree as $cat) {
@@ -169,7 +252,7 @@ class Categoryhelper extends UnlistedSpecialPage {
 		return $results;
 	}
 
-	static function flattenCategoryTree($tree) {
+	public static function flattenCategoryTree($tree) {
 		if (is_array($tree)) {
 			$results = array();
 			foreach ($tree as $key => $value) {
@@ -187,7 +270,7 @@ class Categoryhelper extends UnlistedSpecialPage {
 		}
 	}
 
-	static function getIconMap() {
+	public static function getIconMap() {
 		$catmap = array(
 			wfMessage("arts-and-entertainment")->text() => "Image:Category_arts.jpg",
 			wfMessage("health")->text() => "Image:Category_health.jpg",
@@ -213,11 +296,29 @@ class Categoryhelper extends UnlistedSpecialPage {
 		return $catmap;
 	}
 
-	static function getTopCategory($title = null) {
+	public static function getBreadcrumbCategories( $title = null ) {
+		$tree = self::getCurrentParentCategoryTree( $title );
+		if ( is_array( $tree ) ) {
+			$tree = array_reverse( $tree );
+			$top = str_replace( '-', ' ', self::getTopCategory( $title ) );
+			// Get the first sub-tree that matches the top category as a list
+			foreach ( $tree as $cat => $subtree ) {
+				$list = self::cleanCurrentParentCategoryTree( [ $cat => $subtree ] );
+				$trimmedList = array_slice( $list, -1 );
+				if ( array_pop( $trimmedList ) === $top ) {
+					return $list;
+				}
+			}
+		}
+
+		return null;
+	}
+
+	public static function getTopCategory($title = null) {
 		global $wgContLang;
 		if (!$title) {
 			// an optimization because memcache is hit
-			$parenttree = Categoryhelper::getCurrentParentCategoryTree();
+			$parenttree = self::getCurrentParentCategoryTree();
 		} else {
 			$parenttree = $title->getParentCategoryTree();
 		}
@@ -242,15 +343,44 @@ class Categoryhelper extends UnlistedSpecialPage {
 		return $result;
 	}
 
-	static function displayCategoryArray($lvl, $catary, &$display, $toplevel) {
+	public static function getTopCategoryIncludingWikiHow($title = null) {
+		global $wgContLang;
+		if (!$title) {
+			// an optimization because memcache is hit
+			$parenttree = self::getCurrentParentCategoryTree();
+		} else {
+			$parenttree = $title->getParentCategoryTree();
+		}
+		$catNamespace = $wgContLang->getNSText(NS_CATEGORY) . ":";
+		$parenttree_tier1 = $parenttree;
+
+		$result = null;
+		while (!$result && is_array($parenttree)) {
+			$a = array_shift($parenttree);
+			if (!$a) {
+				$keys = array_keys($parenttree_tier1);
+				$result = str_replace($catNamespace, "", @$keys[0]);
+				break;
+			}
+			$last = $a;
+			while (sizeof($a) > 0 && $a = array_shift($a) ) {
+				$last = $a;
+			}
+			$keys = array_keys($last);
+			$result = str_replace($catNamespace, "", $keys[0]);
+		}
+		return $result;
+	}
+
+	private static function displayCategoryArray($lvl, $catary, &$display, $toplevel) {
 		$indent = "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
 
 		if (is_array($catary)) {
-			foreach(array_keys($catary) as $cat) {
+			foreach (array_keys($catary) as $cat) {
 				if ($lvl == 0) { $toplevel = $cat; }
 
 				$fmt = "";
-				for($i=0;$i<$lvl;$i++) {
+				for ($i = 0; $i < $lvl; $i++) {
 					$fmt .= $indent;
 				}
 				$display .= "<a name=\"".urlencode(strtoupper($cat))."\" id=\"".urlencode(strtoupper($cat))."\" ></a>\n";
@@ -264,7 +394,7 @@ class Categoryhelper extends UnlistedSpecialPage {
 				if ($lvl == 0) {
 					$display .= "$cat <br />\n";
 				}else {
-					$display .= "<INPUT TYPE=CHECKBOX NAME=\"".$toplevel.",".$cat."\" >  " . $cat . "<br />\n";
+					$display .= "<input type=checkbox name=\"".$toplevel.",".$cat."\" >  " . $cat . "<br />\n";
 				}
 
 				$display .= "<div id=\"toggle_".urlencode(strtoupper($cat)) ."\" style=\"display:none\">\n";
@@ -279,7 +409,8 @@ class Categoryhelper extends UnlistedSpecialPage {
 		}
 	}
 
-	static function flattenary(&$bucket, $lines) {
+	// Used in this class and sendContributorEmails.php script
+	public static function flattenary(&$bucket, $lines) {
 		foreach (array_keys($lines) as $line) {
 			if (is_array($lines[$line])) {
 				array_push($bucket, $line);
@@ -290,7 +421,7 @@ class Categoryhelper extends UnlistedSpecialPage {
 		}
 	}
 
-	static function json2Array() {
+	private static function json2Array() {
 		global $wgRequest;
 		$val = array();
 
@@ -306,33 +437,32 @@ class Categoryhelper extends UnlistedSpecialPage {
 		return $val;
 	}
 
-	function execute($par) {
+	public function execute($par) {
 		global $wgOut, $wgRequest;
 		$wgOut->setArticleBodyOnly(true);
 		if ($wgRequest->getVal('cat')) {
 			$category = $wgRequest->getVal('cat');
 			$options = self::getCategoryDropDownTree();
-			foreach($options[$category] as $sub) {
-				echo self::getHTMLForCategoryOption($sub, '', true);
+			foreach ($options[$category] as $sub) {
+				print self::getHTMLForCategoryOption($sub, '', true);
 			}
 		}
 
 		if ($wgRequest->getVal('type') == "categorypopup") {
 			$options2 = self::getCategoryTreeArray();
-			echo self::getHTMLForPopup($options2);
+			print self::getHTMLForPopup($options2);
 		}
 
-		$jsonAry = self::json2Array();
-		if ($jsonAry['type'] == "supSubmit") {
-			$jsonAry['ctitle'] = preg_replace('/-whPERIOD-/m',".",$jsonAry['ctitle']);
-			$jsonAry['ctitle'] = preg_replace('/-whDOUBLEQUOTE-/m',"\"",$jsonAry['ctitle']);
-			echo self::getHTMLsupSubmit($jsonAry);
+		$jsonArr = self::json2Array();
+		if ($jsonArr['type'] == "supSubmit") {
+			$jsonArr['ctitle'] = preg_replace('/-whPERIOD-/m',".",$jsonArr['ctitle']);
+			$jsonArr['ctitle'] = preg_replace('/-whDOUBLEQUOTE-/m',"\"",$jsonArr['ctitle']);
+			print self::getHTMLsupSubmit($jsonArr);
 		}
-
-		return;
 	}
 
-	static function getTopLevelCategoriesForDropDown() {
+	// Used in Video Adder and category listing API
+	public static function getTopLevelCategoriesForDropDown() {
 		$results = array();
 		$options = self::getCategoryDropDownTree();
 		foreach ($options as $key=>$value) {
@@ -341,11 +471,11 @@ class Categoryhelper extends UnlistedSpecialPage {
 		return $results;
 	}
 
-	static function modifiedParentCategoryTree($parents = array(), $children = array() ) {
-		if($parents != '') {
-			foreach($parents as $parent => $current) {
+	private static function modifiedParentCategoryTree($parents = array(), $children = array() ) {
+		if ($parents) {
+			foreach ($parents as $parent => $current) {
 				if ( array_key_exists( $parent, $children ) ) {
-					# Circular reference
+					// Circular reference
 					$stack[$parent] = array();
 				} else {
 					$nt = Title::newFromText($parent);
@@ -360,7 +490,8 @@ class Categoryhelper extends UnlistedSpecialPage {
 		}
 	}
 
-	static function getCategoryOptionsForm($default, $cats = null) {
+	// Used in Guided Editor
+	public static function getCategoryOptionsForm($default, $cats = null) {
 		global $wgUser, $wgRequest, $wgTitle;
 
         $maxCategories = 2;
@@ -377,7 +508,7 @@ class Categoryhelper extends UnlistedSpecialPage {
 			$fakeparent = array();
             $defaultCategories = explode( '|', $default);
             $tree = array();
-            foreach( $defaultCategories as $defaultCategory ) {
+            foreach ( $defaultCategories as $defaultCategory ) {
                 if (!$defaultCategory) {
                     continue;
                 }
@@ -423,7 +554,7 @@ class Categoryhelper extends UnlistedSpecialPage {
 					}
 				} else {
 					#print_r($tree);
-					#echo "shit! <b>{$bl_title->getText()}</b><br/><br/>"; print_r($bl_title); print_r($valid_cats);
+					#echo "oops <b>{$bl_title->getText()}</b><br/><br/>"; print_r($bl_title); print_r($valid_cats);
 				}
 			}
 		}
@@ -456,17 +587,18 @@ class Categoryhelper extends UnlistedSpecialPage {
 		return $html;
 	}
 
-	static function getHTMLForCategoryOption($sub, $default, $for_js = false) {
+	private static function getHTMLForCategoryOption($sub, $default, $for_js = false) {
 		$style = "";
 		if (strpos($sub, "**") !== false && strpos($sub, "***") === false)
 			$style = 'style="font-weight: bold;"';
 		$sub = substr($sub, 2);
 		$value = trim(str_replace("*", "", $sub));
 		$display = str_replace("*", "&nbsp;&nbsp;&nbsp;&nbsp;", $sub);
-		return "<OPTION VALUE=\"{$value}\" " . ($default == $value ? "SELECTED" : "") . " $style>$display</OPTION>\n";
+		return "<option value=\"{$value}\" " . ($default == $value ? "selected" : "") . " $style>$display</option>\n";
 	}
 
-	static function getHTMLForPopup($treearray) {
+	// TODO: this method should be refactored into a different class and use Mustache templating
+	private static function getHTMLForPopup($treearray) {
 		$css = HtmlSnips::makeUrlTag('/extensions/wikihow/categories/categoriespopup.css');
 		$style = "";
 		$display = "";
@@ -553,36 +685,36 @@ new Autocompleter.Local(\'category_search\', \'cat_search\', Category_list, {ful
 	/**
 	 * processSupSubmit - process SpecialUncategorizedpages Submit to set category.  AJAX call.
 	 */
-	static function getHTMLsupSubmit($jsonAry) {
+	private static function getHTMLsupSubmit($jsonArr) {
 		global $wgUser;
 
 		$category = "";
 		$textnew = "";
 
 		if ($wgUser->getID() <= 0) {
-			echo "User not logged in";
+			print "User not logged in";
 			return false;
 		}
 
-		$ctitle = $jsonAry["ctitle"];
-		if ($jsonAry["topcategory0"] != "") {
-			$category0 = urldecode($jsonAry["category0"]);
+		$ctitle = $jsonArr["ctitle"];
+		if ($jsonArr["topcategory0"] != "") {
+			$category0 = urldecode($jsonArr["category0"]);
 			$category .= "[[Category:".$category0."]]\n";
-			if ($jsonAry["topcategory1"] != "") {
-				$category1 = urldecode($jsonAry["category1"]);
+			if ($jsonArr["topcategory1"] != "") {
+				$category1 = urldecode($jsonArr["category1"]);
 				$category .= "[[Category:".$category1."]]\n";
 			}
 
 			$title = Title::newFromURL(urldecode($ctitle));
 			if ($title == null) {
-				echo "ERROR: title is null for $url";
+				print "ERROR: title is null for $url";
 				exit;
 			}
 
 			if ($title->getArticleID() > 0) {
 				// we want the most recent version, don't want to overwrite changes
-				$a = new Article($title);
-				$text = $a->getContent();
+				$wikiPage = WikiPage::factory($title);
+				$text = ContentHandler::getContentText( $wikiPage->getContent() );
 
 				$pattern = '/== .*? ==/';
 				if (preg_match($pattern, $text, $matches, PREG_OFFSET_CAPTURE)) {
@@ -596,22 +728,23 @@ new Autocompleter.Local(\'category_search\', \'cat_search\', Category_list, {ful
 					$watchthis = "";
 					$bot = true;
 
-					# update the article here
-					if( $a->doEdit( $textnew, $summary, $minoredit, $watchthis ) ) {
-						wfRunHooks("CategoryHelperSuccess", array());
-						echo "Category Successfully Saved.\n";
+					// update the article here
+					$contentnew = ContentHandler::makeContent($textnew, $title);
+					if ( $wikiPage->doEditContent( $contentnew, $summary, $minoredit, $watchthis ) ) {
+						Hooks::run("CategoryHelperSuccess", array());
+						print "Category Successfully Saved.\n";
 						return true;
 					} else {
-						echo "ERROR: Category could not be saved.\n";
+						print "ERROR: Category could not be saved.\n";
 					}
 				} else {
-					echo "ERROR: Category section could not be located.\n";
+					print "ERROR: Category section could not be located.\n";
 				}
 			} else {
-				echo "ERROR: Article could not be found. [$url]\n";
+				print "ERROR: Article could not be found. [$url]\n";
 			}
 		} else {
-			echo "No Category selected\n";
+			print "No Category selected\n";
 		}
 		return false;
 	}
@@ -621,9 +754,9 @@ new Autocompleter.Local(\'category_search\', \'cat_search\', Category_list, {ful
      * if you are going to update the page_catinfo, otherwise you should just get it
      * from the page table and not recalculate
      */
-	static function getTitleCategoryMask( $title ) {
+	public static function getTitleCategoryMask( $title ) {
 		global $wgCategoryNames;
-		if ( !$title || $title->getNamespace() != NS_MAIN ) {
+		if ( !$title || !$title->inNamespace(NS_MAIN) ) {
 			return 0;
 		}
 
@@ -637,9 +770,9 @@ new Autocompleter.Local(\'category_search\', \'cat_search\', Category_list, {ful
 		return $val;
 	}
 
-	static function getTitleTopLevelCategories($title) {
+	public static function getTitleTopLevelCategories($title) {
 		global $wgCategoryNames, $wgContLang;
-		if ( !$title || $title->getNamespace() != NS_MAIN ) {
+		if ( !$title || !$title->inNamespace(NS_MAIN) ) {
 			return array();
 		}
 		$tree = $title->getParentCategoryTree();
@@ -658,7 +791,7 @@ new Autocompleter.Local(\'category_search\', \'cat_search\', Category_list, {ful
 	// Reuben: moved this function from Misc.php into here. 12/16/2014
 	// Aaron says it's buggy and we should stop using it too, but
 	// it's still in use in a couple places
-	static function flattenArrayCategoryKeys($arg, &$results = array()) {
+	public static function flattenArrayCategoryKeys($arg, &$results = array()) {
 		if (is_array($arg)) {
 			foreach ($arg as $a=>$p) {
 				$results[] = $a;
@@ -672,7 +805,7 @@ new Autocompleter.Local(\'category_search\', \'cat_search\', Category_list, {ful
 
 	// same as flatten category tree but handles a $tree that has multiple arrays in it
 	// whereas flattenCategorTree only returns the first array
-    static function flattenMultiCategoryTree($tree) {
+    private static function flattenMultiCategoryTree($tree) {
         $results = array();
 
         if (is_array($tree)) {
@@ -695,17 +828,17 @@ new Autocompleter.Local(\'category_search\', \'cat_search\', Category_list, {ful
 	// this function takes a parent catagory tree (the result of calling getCurrentParentCategoryTree()
 	// and flattens it and removes the "Category" string from the beginning as well
 	// so it can be easily used for comparisons
-	static function cleanCurrentParentCategoryTree($currentParentTree) {
+	public static function cleanCurrentParentCategoryTree($currentParentTree) {
 		$tree = self::flattenMultiCategoryTree($currentParentTree);
 		$tree = self::cleanUpCategoryTree($tree);
 		return $tree;
 	}
 
     public static function isTitleInCategory( $title, $category ) {
-        $tree = Categoryhelper::getCurrentParentCategoryTree( $title );
-        $cats = Categoryhelper::cleanCurrentParentCategoryTree( $tree );
+        $tree = self::getCurrentParentCategoryTree( $title );
+        $cats = self::cleanCurrentParentCategoryTree( $tree );
 
-        foreach( $cats as $cat ) {
+        foreach ( $cats as $cat ) {
             if ( $cat === $category ) {
                 return true;
             }
@@ -714,18 +847,21 @@ new Autocompleter.Local(\'category_search\', \'cat_search\', Category_list, {ful
         return false;
     }
 
+	public static function onPageContentSaveComplete($wikiPage, $user, $content, $summary, $isMinor,
+			$isWatch, $section, $flags, $revision, $status, $baseRevId) {
+		if ($wikiPage) {
+			self::recalcCategoryMask($wikiPage);
+		}
+	}
+
     /*
      * Recalculates the category mask and updates the page table
      * Delete the memcache key that stores the parent category breadcrumbs
      */
-	public static function onArticleSaveComplete( $article, $user, $text, $summary, $flags ) {
+	private static function recalcCategoryMask(WikiPage $page) {
 		global $wgMemc;
 
-		if ( !$article ) {
-            return;
-        }
-
-        $title = $article->getTitle();
+        $title = $page->getTitle();
         if ( !$title || !$title->inNamespace( NS_MAIN ) ) {
             return;
         }
@@ -734,7 +870,7 @@ new Autocompleter.Local(\'category_search\', \'cat_search\', Category_list, {ful
         $key = wfMemcKey( 'parentcattree', $pageId );
         $wgMemc->delete( $key );
 
-        $mask = Categoryhelper::getTitleCategoryMask( $title );
+        $mask = self::getTitleCategoryMask( $title );
         $dbw = wfGetDB( DB_MASTER );
         $dbw->update(
             'page',
@@ -743,5 +879,94 @@ new Autocompleter.Local(\'category_search\', \'cat_search\', Category_list, {ful
             __METHOD__
         );
 	}
+
+	/*
+	These two methods are not used, but could come in handy in the future (Alberto, 2018-08)
+
+	/**
+	 * Recalculate the indexation policy of modified categories in wikiHow:Categories.
+	 *
+	 * wikiHow:Categories contains a category tree which some tools rely upon. RobotPolicy
+	 * flags categories that are not in the tree as "noindex,nofollow". Therefore, when the
+	 * category tree changes, we recalculate the relevant policies so that removed categories
+	 * become noindex, and vice-versa.
+	 *
+	private static function recalcCategoryPolicies(WikiPage $page, Revision $rev) {
+		// Check if the page is wikiHow:Categories
+		$title = $page->getTitle();
+		$isTreePage = $title && $title->exists() && $title->equals(self::getCategoryTreeTitle());
+		if (!$isTreePage) {
+			return;
+		}
+
+		// Recalculate the policies of categories that were removed or added
+		$categs = self::getCategsFromDiff($title, $rev->getParentId(), $rev->getId());
+		set_time_limit( max(30, count($categs)) ); // 30 seconds or 1s per item
+		foreach ($categs as $categ) {
+			$page = WikiPage::factory(Title::newFromText($categ, NS_CATEGORY));
+			RobotPolicy::recalcArticlePolicy($page);
+		}
+	}
+
+	/**
+	 * Given 2 revisions of wikiHow:Categories, return the lines that changed (i.e. the
+	 * categories that were added or removed)
+	 *
+	private static function getCategsFromDiff(Title $title, int $oldRev, int $newRev): array {
+		global $wgContLang;
+
+		// Diff the 2 revisions
+		$diffEng = new DifferenceEngine($title, $oldRev, $newRev);
+		$diffEng->loadText();
+
+		$oldTxt = str_replace("\r\n", "\n", $diffEng->mOldContent->serialize());
+		$newTxt = str_replace("\r\n", "\n", $diffEng->mNewContent->serialize());
+		$diff = new Diff(
+			explode("\n", $wgContLang->segmentForDiff($oldTxt)),
+			explode("\n", $wgContLang->segmentForDiff($newTxt))
+		);
+
+		// Extract categories from the diff
+		$categs = [];
+		foreach ($diff->edits as $edit) {
+			if ($edit->type == 'copy') // No changes in this line
+				continue;
+
+			$lines = array_merge( 	// Combine added and removed lines
+				$edit->orig ? $edit->orig : [],
+				$edit->closing ? $edit->closing : []
+			);
+			foreach ($lines as $line) {
+				$categ = trim(str_replace('*', '', $line));
+				if ($categ) {
+					$categ = self::removeQuotesFromCategoryName($categ);
+					$categs[$categ] = true; // Deduplicate
+				}
+			}
+
+		}
+		return array_keys($categs);
+	}
+
+	*/
+
+	/**
+	 * A bit tricky because some languages use a localized version, but other use English:
+	 *
+	 * de.wikihow.com/wikiHow:Kategorien
+	 * zh.wikihow.com/wikiHow:Categories
+	 *
+	 * @return Title  /wikiHow:Categories
+	 */
+	public static function getCategoryTreeTitle(): Title {
+		// Try the natively named category structure project page first
+		$title = Title::makeTitle(NS_PROJECT, wfMessage('categories')->text());
+		if (!$title->exists()) {
+			// If that didn't work, try the English-titled page wikiHow:Categories
+			$title = Title::makeTitle(NS_PROJECT, 'Categories');
+		}
+		return $title;
+	}
+
 }
 

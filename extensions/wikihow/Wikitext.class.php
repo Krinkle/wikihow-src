@@ -1,4 +1,4 @@
-<?
+<?php
 
 /**
  * Follows something like the active record pattern.
@@ -61,7 +61,7 @@ class Wikitext {
 
 	/**
 	 * Remove wikitext markup from a single section of an article to return
-	 * the flattened text.  Removes some unicode characters, templates, 
+	 * the flattened text.  Removes some unicode characters, templates,
 	 * links (leaves the descriptive text in the link though) and images.
 	 * @param string $text wikitext to flatten
 	 * @return string the flattened text
@@ -76,7 +76,7 @@ class Wikitext {
 
 		// remove [[Image:foo.jpg]] images and [[Link]] links
 		$text = preg_replace_callback(
-			'@\[\[([^\]|]+(#[^\]|]*)?)((\|[^\]|]*)*\|([^\]|]*))?\]\]@', 
+			'@\[\[([^\]|]+(#[^\]|]*)?)((\|[^\]|]*)*\|([^\]|]*))?\]\]@',
 			function ($m) {
 
 				// if the link text has Image: or something at the start,
@@ -97,9 +97,9 @@ class Wikitext {
 
 		// remove [http://link.com/ Link] links
 		$text = preg_replace_callback(
-			'@\[http://[^\] ]+( ([^\]]*))?\]@', 
+			'@\[http://[^\] ]+( ([^\]]*))?\]@',
 			function ($m) {
-				// if the link looks like [http://link/ Link], we try to 
+				// if the link looks like [http://link/ Link], we try to
 				// grab the stuff after the space
 				if (isset($m[2])) {
 					return $m[2];
@@ -128,14 +128,14 @@ class Wikitext {
 	}
 
 	/**
-	 * Remove references such as "[2]" from "Dogs have tails.[2]" in 
+	 * Remove references such as "[2]" from "Dogs have tails.[2]" in
 	 * flattened (markup-free) wikitext.
 	 */
 	public static function removeRefsFromFlattened($flattenedText) {
 		$text = preg_replace('@\[[0-9]{1,2}\]@', '', $flattenedText);
 		return $text;
 	}
-	
+
 	/**
 	 * Remove http:// links from text
 	 * (sometimes caused by <ref> links
@@ -163,24 +163,34 @@ class Wikitext {
 	}
 
 	/**
+	 * Get the first summary section heading from admin tags or return null
+	 */
+	public static function getFirstSummarizedSectionHeading() {
+		$result = null;
+
+		$headings = explode("\n", ConfigStorage::dbGetConfig(self::SUMMARIZED_HEADINGS_KEY));
+		if ( !$headings || count( $headings ) < 1 ) {
+			return $result;
+		}
+		return $headings[0];
+	}
+	/**
 	 * Get the summarized section wikitext if exists. Return empty string otherwise.
 	 */
 	public static function getSummarizedSection($wikitext) {
 		global $wgParser;
-		wfProfileIn(__METHOD__);
 		$content = '';
 		$headings = explode("\n", ConfigStorage::dbGetConfig(self::SUMMARIZED_HEADINGS_KEY));
 		for ($i = 1; $i < 100; $i++) {
 			$section = $wgParser->getSection($wikitext, $i);
 			if (empty($section)) break;
 			if (preg_match('@^\s*==\s*([^=]+)\s*==\s*$((.|\n){0,1000})@m', $section, $m)) {
-				if (preg_grep('@' . trim($m[1]) . '@i', $headings)) {
+				if ( in_array( trim( $m[1] ), $headings ) ) {
 					$content = $section;
 					break;
 				}
 			}
 		}
-		wfProfileOut(__METHOD__);
 		return $content;
 	}
 
@@ -280,7 +290,7 @@ class Wikitext {
 	 * Count the number of steps in the Steps section.
 	 */
 	public static function countSteps($stepsText) {
-		$num_steps = 0; 
+		$num_steps = 0;
 		if ($stepsText) {
 			// has steps section, so assume valid candidate for detailed title
 			$num_steps = preg_match_all('/^#[^*]/im', $stepsText, $m);
@@ -304,6 +314,11 @@ class Wikitext {
 		return $num_videos;
 	}
 
+	public static function countSummaryVideos($wikitext) {
+		$num_videos = preg_match_all('/\{\{whvid\|.*Step 0/im', $wikitext, $m);
+		return $num_videos;
+	}
+
 	/**
 	 * Extract a particular section from the wikitext of an article.
 	 *
@@ -315,7 +330,6 @@ class Wikitext {
 	public static function getSection($wikitext, $sectionMsg, $withHeader) {
 		global $wgParser;
 		if (empty($sectionMsg)) throw new Exception('Must provide the section message');
-		wfProfileIn(__METHOD__);
 		$content = '';
 		$id = 0;
 		for ($i = 1; $i < 100; $i++) {
@@ -333,7 +347,6 @@ class Wikitext {
 				}
 			}
 		}
-		wfProfileOut(__METHOD__);
 		return array($content, $id);
 	}
 
@@ -372,11 +385,11 @@ class Wikitext {
 	}
 
 	/**
-	 * Split an alternate method, or the Steps section, into different 
+	 * Split an alternate method, or the Steps section, into different
 	 * steps (returned as an array).
 	 */
 	public static function splitSteps($wikitext, $includeSubsteps = true) {
-		$regex = $includeSubsteps ? '@^#@m' : '@^#[^*]@m';
+		$regex = $includeSubsteps ? '@^#@m' : '@^#(?!\*)@m';
 		$steps = preg_split($regex, $wikitext);
 		for ($i = 1; $i < count($steps); $i++) {
 			$steps[$i] = "#" . $steps[$i];
@@ -393,7 +406,7 @@ class Wikitext {
 		// Special case: Check for random text at the beginning of the section.  If it's there
 		// add it as an element to the $tips array even though it's technically not a tip
 		$firstElement = trim(array_shift($split));
-		if(preg_match('@^[^*]@', $firstElement)) {
+		if (preg_match('@^[^*]@', $firstElement)) {
 			$tips[] = $firstElement;
 		}
 
@@ -456,8 +469,8 @@ class Wikitext {
 	 */
 	public static function removeImageCaption($img) {
 		$params = self::parseImageTag($img);
-		if(sizeof($params) < 2) {
-			return($img);	
+		if (sizeof($params) < 2) {
+			return($img);
 		}
 
 		$opts = array('right', 'left', 'center', 'none', 'thumb', 'frame', 'border');
@@ -465,10 +478,10 @@ class Wikitext {
 
 		$newParams = array();
 		$newParams[] = $params[0];
-		for($n=1; $n<sizeof($params); $n++) {
+		for ($n=1; $n<sizeof($params); $n++) {
 			// If it doesn't match the regex, it is a caption
-			if(preg_match($regex, $params[$n])) {
-				$newParams[] = $params[$n];	
+			if (preg_match($regex, $params[$n])) {
+				$newParams[] = $params[$n];
 			}
 		}
 		return(self::buildImageTagFromParams($newParams));
@@ -585,7 +598,6 @@ class Wikitext {
 	 * Utility method to return the wikitext for an article
 	 */
 	public static function getWikitext(&$dbr, $title) {
-		global $wgTitle;
 		if (!$title) return false;
 		// try to see if the wikihow article editor instance already has this title loaded
 		$whow = WikihowArticleEditor::wikiHowArticleIfMatchingTitle($title);
@@ -596,7 +608,7 @@ class Wikitext {
 			if (!$rev) {
 				return false;
 			}
-			$wikitext = $rev->getText();
+			$wikitext = ContentHandler::getContentText( $rev->getContent() );
 		}
 		return $wikitext;
 	}
@@ -605,13 +617,12 @@ class Wikitext {
 	 * Utility method to save wikitext of an article
 	 */
 	public static function saveWikitext($title, $wikitext, $comment) {
-		$saved = false;
-		$article = new Article($title);
+		$wikiPage = WikiPage::factory($title);
+		$content = ContentHandler::makeContent($wikitext, $title);
 
-		$content = ContentHandler::makeContent( $wikitext, $title );
-		$saved = $article->doEditContent($content, $comment);
-		
-		if (!$saved) {
+		$saved = $wikiPage->doEditContent($content, $comment);
+
+		if ( !$saved->isOK() ) {
 			return 'Unable to save wikitext for article: ' . $title->getText();
 		} else {
 			return '';
@@ -635,16 +646,16 @@ class Wikitext {
 //debugging
 //$t = Title::newFromText('Assess Your Relationship Stage');
 //$r = Revision::loadFromTitle($dbw, $t, 7607372);
-//$wikitext = $r->getText();
+//$wikitext = ContentHandler::getContentText( $r->getContent() );
 		if ($wikitext) {
-			list($stepsText, $sectionID) = 
+			list($stepsText, $sectionID) =
 				self::getStepsSection($wikitext, true);
 		}
 
 		if (!$stepsText) {
 			$err = 'Unable to load wikitext';
 		} else {
-			list($stepsText, $numImages, $err) = 
+			list($stepsText, $numImages, $err) =
 				self::enlargeImagesInWikitext($stepsText, $recenter, $px, false);
 			if (!$err) {
 				$wikitext = self::replaceStepsSection($wikitext, $sectionID, $stepsText, true);
@@ -655,11 +666,11 @@ class Wikitext {
 
 				if ($introPx) {
 					$intro = self::getIntro($wikitext);
-					list($intro, $introImages, $err) = 
+					list($intro, $introImages, $err) =
 						self::enlargeImagesInWikitext($intro, '', $introPx, true);
 					$numImages += $introImages;
 					$wikitext = self::replaceIntro($wikitext, $intro);
-					
+
 					$comment .= '; enlarging intro image';
 				}
 
@@ -737,23 +748,20 @@ class Wikitext {
 
 	public static function getTitleImage($title, $skip_parser = false) {
 		global $wgContLang, $wgLanguageCode;
-	
-		wfProfileIn(__METHOD__);
+
 		//resolve redirects
 		$r = Revision::newFromTitle($title);
-		if (!$r) { 
-			wfProfileOut(__METHOD__);
+		if (!$r) {
 			return "";
 		}
-		$text = $r->getText();
-		if($wgLanguageCode == "zh") {
-			$text = $wgContLang->convert($text);	
+		$text = ContentHandler::getContentText( $r->getContent() );
+		if ($wgLanguageCode == "zh") {
+			$text = $wgContLang->convert($text);
 		}
 		if (preg_match("/^#REDIRECT \[\[(.*?)\]\]/", $text, $matches)) {
 			if ($matches[1]) {
 				$title = Title::newFromText($matches[1]);
 				if (!$title || !$title->exists()) {
-					wfProfileOut(__METHOD__);
 					return '';
 				}
 
@@ -762,7 +770,7 @@ class Wikitext {
 				$rev = $revId ? Revision::newFromId($revId) : Revision::newFromTitle($title);
 				if (!$rev) return '';
 
-				$text = $rev->getText();
+				$text = ContentHandler::getContentText( $rev->getContent() );
 			}
 		}
 
@@ -772,32 +780,26 @@ class Wikitext {
 
 		//check the steps
 		$matches = '';
-		
+
 		if ($skip_parser) {
 			$steps[0] = self::getStepsNoParser($text);
 		} else {
 			$steps = self::getStepsSection($text, true);
 		}
-	
-		wfProfileIn(__METHOD__.'-imagematch');
+
 		//[[Image:...]]
 		preg_match_all("@\[\[" . $nsTxt . ":([^\|]+)[^\]]*\]\]@im", $steps[0], $matches_img);
-		wfProfileOut(__METHOD__.'-imagematch');
 		if (!empty($matches_img[2])) {
 			$matches = $matches_img[2];
 		}
-		else {			
+		else {
 			//{{largeimage|...}}
-			wfProfileIn(__METHOD__.'-largeimagematch');
 			preg_match_all("@\{\{largeimage\|([^\||\}]+)\}\}@im", $steps[0], $matches_lgimg);
-			wfProfileOut(__METHOD__.'-largeimagematch');
 			if (!empty($matches_lgimg[1])) $matches = $matches_lgimg[1];
 		}
 
 		if (empty($matches)) {
-			wfProfileIn(__METHOD__.'-whvidmatch');
 			preg_match_all("@(\{\{whvid\|[^\}]*\}\})@im", $steps[0], $matches_whvid);
-			wfProfileOut(__METHOD__.'-whvidmatch');
 			$whvid = array();
 			if (!empty($matches_whvid[1])) {
 				$matches = array();
@@ -809,11 +811,12 @@ class Wikitext {
 				$params = explode( "|", $match );
 				$preview = null;
 				$img = null;
+				$default = null;
 				// each param of each {{whvid|...|...}} block
 				foreach ( $params as $param ) {
 					if ( substr_compare( $param, 'preview.jpg',  -strlen( 'preview.jpg' ) ) === 0 ) {
 						$preview = $param;
-					} else if ( substr($param, -4) == ".jpg" ) {
+					} elseif ( substr($param, -4) == ".jpg" ) {
 						$default = $param;
 					}
 				}
@@ -827,49 +830,44 @@ class Wikitext {
 		if ($matches) {
 			//grab the last image that appears in the steps section
 			$file = wfFindFile(str_replace(" ", "-", end($matches)));
-			
+
 			if ($file && isset($file)) {
-				wfProfileOut(__METHOD__);
 				return $file;
 			}
 		}
-		wfProfileOut(__METHOD__);
 	}
 
 	public static function getDefaultTitleImage($title = null, $wide = false) {
 		global $wgLanguageCode;
 
-		wfProfileIn(__METHOD__);
 
 		$intlSuffix = "";
-		if($wgLanguageCode != "en") {
-			$intlSuffix = "_intl";	
+		if ($wgLanguageCode != "en") {
+			$intlSuffix = "_intl";
 		}
 		if ($wide) {
-			$image = mt_rand(0,1) == 0 ? 
+			$image = mt_rand(0,1) == 0 ?
 				 "Default_wikihow_green_wide" . $intlSuffix . ".png" : "Default_wikihow_blue_wide" . $intlSuffix . ".png";
 		} else {
-			$image = mt_rand(0,1) == 0 ? 
+			$image = mt_rand(0,1) == 0 ?
 				"Default_wikihow_green" . $intlSuffix . ".png" : "Default_wikihow_blue" . $intlSuffix. ".png";
 		}
 		$file = wfFindFile($image, false);
-		if(!$file) {
+		if (!$file) {
 			$file = wfFindFile("Default_wikihow.jpg");
 		}
 
-		wfProfileOut(__METHOD__);
 		if ($file) {
 			return $file;
 		} else {
 			return false;
 		}
 	}
-	
+
 	/*
 	 * currently only used by getTitleImage.  Runs way faster than using parser
 	 */
-	private function getStepsNoParser($text) {
-		wfProfileIn(__METHOD__);
+	private static function getStepsNoParser($text) {
 		$stepsName = strtolower(wfMessage("steps")->inContentLanguage()->text());
 		$parts = preg_split('@^\s*==\s*([^=\s]+)\s*==\s*$@m', $text, 0, PREG_SPLIT_DELIM_CAPTURE);
 		for ($i = 0; $i < sizeof($parts); $i++) {
@@ -878,7 +876,6 @@ class Wikitext {
 				break;
 			}
 		}
-		wfProfileOut(__METHOD__);
 		return $result;
 	}
 
@@ -898,8 +895,8 @@ class Wikitext {
 		if (!$fromTitle || !$fromTitle->exists()) return false;
 		$revision = Revision::newFromTitle($fromTitle);
 		if (!$revision) return false;
-		$text = $revision->getText();
-		foreach($imageTitles as $imageTitle) {
+		$text = ContentHandler::getContentText( $revision->getContent() );
+		foreach ($imageTitles as $imageTitle) {
 			$text = preg_replace(
 					'@(<\s*br\s*[\/]?>)*\s*\[\['.
 					preg_quote( $imageTitle->getFullText() ) .'([^\]]*)\]\]@im',

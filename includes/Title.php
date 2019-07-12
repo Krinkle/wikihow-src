@@ -3570,24 +3570,9 @@ class Title {
 	 * @return Array of String the URLs
 	 */
 	public function getSquidURLs() {
-		global $wgLanguageCode, $wgIsDevServer;
 		$urls = array();
 
-		// NOTE: this core change should be moved to wikiHow's 
-		// PageHooks::onTitleSquidURLsPurgeVariants -- Reuben
-		$mainUrl = $this->getInternalURL();
-		if (!$wgIsDevServer) {
-			// On the tools and data servers the Host is localhost. Since a lot of
-			// maintenance scripts run off these servers, we want to purge the
-			// canonical urls for the desktop and mobile sites instead.
-			$partialUrl = preg_replace("@^https?://[^/]+/@", "/", $mainUrl);
-			$mainUrl = Misc::getLangBaseURL($wgLanguageCode, false) . $partialUrl;
-			$mobileUrl = Misc::getLangBaseURL($wgLanguageCode, true) . $partialUrl;
-			
-			$urls[] = $mobileUrl;
-		}
-
-		$urls[] = $mainUrl;
+		$urls[] = $this->getInternalURL();
 
 		$pageLang = $this->getPageLanguage();
 		if ( $pageLang->hasVariants() ) {
@@ -3615,6 +3600,7 @@ class Title {
 		global $wgUseSquid;
 		if ( $wgUseSquid ) {
 			$urls = $this->getSquidURLs();
+			wfRunHooks( 'PreCDNPurge', array( $this, &$urls ) );
 			$u = new SquidUpdate( $urls );
 			$u->doUpdate();
 		}

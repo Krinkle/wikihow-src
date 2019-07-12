@@ -114,7 +114,7 @@ class AdminTags extends UnlistedSpecialPage {
 
 		$userGroups = $user->getGroups();
 		if ($user->isBlocked() || !in_array('staff', $userGroups)) {
-			$out->setRobotpolicy('noindex,nofollow');
+			$out->setRobotPolicy('noindex,nofollow');
 			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
@@ -148,7 +148,7 @@ class AdminTags extends UnlistedSpecialPage {
 					$result['article-list'] = $isArticleList;
 				}
 
-				$allowed = ConfigStorage::checkUserRestrictions($key);
+				$allowed = ConfigStorage::hasUserRestrictions($key);
 				if (!$allowed) {
 					$result['restriction'] = 'Please contact Elizabeth to be able to edit this key';
 				}
@@ -252,6 +252,18 @@ class AdminTags extends UnlistedSpecialPage {
 					}
 				}
 				$result = ['result' => $result, 'error' => $err, 'debug' => print_r($_POST, true)];
+			} elseif ('csh-history' == $action) {
+				$csh_id = $req->getInt('cshid', 0);
+				$data = ConfigStorageHistory::dbGetDetails($csh_id);
+				if (!$data) {
+					$result = ['error' => 'not found'];
+				} else {
+					$result = [
+						'csh_key' => $data['csh_key'],
+						'csh_summary' => $data['csh_log_short'],
+						'csh_changes' => $data['csh_log_full'],
+					];
+				}
 /*
 			} elseif ('remove-line' == $action) {
 				$key = $req->getVal('config-key', '');
@@ -267,8 +279,8 @@ class AdminTags extends UnlistedSpecialPage {
 
 		} else {
 
-			$out->addModules('jquery.ui.dialog');
-			$out->setHTMLTitle(wfMsg('pagetitle', 'Admin - Article Tag Editor'));
+			$out->addModules( ['jquery.ui.dialog', 'ext.wikihow.AdminTags'] );
+			$out->setHTMLTitle(wfMessage('pagetitle', 'Admin - Article Tag Editor'));
 			$listConfigs = ConfigStorage::dbListConfigKeys();
 
 			$tmpl = $this->getGuts($listConfigs, $style);
@@ -285,6 +297,7 @@ class AdminTags extends UnlistedSpecialPage {
 		$params['configs'] = $configs;
 		$params['bURL'] = $style == 'url';
 		$params['specialPage'] = $this->specialPage;
+		$params['history'] = ConfigStorageHistory::dbListHistory();
 		$html = EasyTemplate::html('admin-config-guts.tmpl.php', $params);
 		return $html;
 	}

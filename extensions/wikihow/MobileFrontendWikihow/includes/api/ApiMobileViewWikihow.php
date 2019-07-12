@@ -6,7 +6,6 @@ class ApiMobileViewWikihow extends ApiMobileView {
 	 * FIXME: Write some unit tests for API results
 	 */
 	public function execute() {
-		wfProfileIn( __METHOD__ );
 
 		parent::execute();
 
@@ -19,7 +18,7 @@ class ApiMobileViewWikihow extends ApiMobileView {
 
 		$contentHandler = new WikitextContentHandler();
 		$revision = Revision::newFromTitle($title);
-		$content = $contentHandler->unserializeContent($revision->getText());
+		$content = $revision->getContent();
 
 		$edit = (object)array();
 

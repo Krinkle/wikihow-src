@@ -9,9 +9,10 @@ class AdminCustomMeta extends UnlistedSpecialPage {
 	var $customMeta, $type;
 
 	public function __construct() {
-		$this->action = $GLOBALS['wgTitle']->getPartialUrl();
+		global $wgHooks;
+		$this->action = RequestContext::getMain()->getTitle()->getText();
 		parent::__construct($this->action);
-		$GLOBALS['wgHooks']['ShowSideBar'][] = array('AdminCustomMeta::removeSideBarCallback');
+		$wgHooks['ShowSideBar'][] = array('AdminCustomMeta::removeSideBarCallback');
 	}
 
 	// Callback indicating to remove the right rail
@@ -112,7 +113,7 @@ class AdminCustomMeta extends UnlistedSpecialPage {
 		// Check permissions
 		$userGroups = $user->getGroups();
 		if ($user->isBlocked() || !in_array('staff', $userGroups)) {
-			$out->setRobotpolicy('noindex,nofollow');
+			$out->setRobotPolicy('noindex,nofollow');
 			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
@@ -129,14 +130,17 @@ class AdminCustomMeta extends UnlistedSpecialPage {
 		} elseif ($this->type == 'desc') {
 			$this->customMeta = new CustomDescChanges;
 		} else {
-			throw new Exception('Invalid action or special page: ' .
-				($this->type ? $this->type : $this->action));
+			$m = new Mustache_Engine;
+			$html = $m->render('Please use either the <a href="/Special:AdminTitles">titles</a> ' .
+				'or <a href="/Special:AdminMetaDescs">meta descriptions</a> editing tool.', []);
+			$out->addHTML($html);
+			return;
 		}
 
 		$req = $this->getRequest();
 		if ($req->wasPosted()) {
 			set_time_limit(0);
-			$out->setArticleBodyOnly(true);
+			$out->disable();
 			$error = "";
 			$action = $req->getVal('action');
 			if ($action == 'save-list') {
@@ -162,20 +166,26 @@ class AdminCustomMeta extends UnlistedSpecialPage {
 		$tmpl = $this->getGuts();
 		$out->addHTML($tmpl);
 	}
-		
+
 	private function getGuts() {
 		$action = $this->action;
 		$recent = self::displayRecentChanges();
 		$switchPage = $this->type == 'title' ? 'Special:AdminMetaDescs' : 'Special:AdminTitles';
 		$switchName = $this->type == 'title' ? 'meta descriptions' : 'titles';
-		$tmpl = new EasyTemplate( __DIR__ );
+		$switchPage2 = $this->type == 'title' ? 'Special:AdminEditPageTitles' : 'Special:AdminEditMetaInfo';
+		$switchName2 = $this->type == 'title' ? 'individual titles' : 'individual meta descriptions';
+		$tmpl = new EasyTemplate( __DIR__ . '/templates' );
 		$tmpl->set_vars( [
 			'action' => $action,
 			'recent' => $recent,
 			'switchPage' => $switchPage,
 			'switchName' => $switchName,
+			'switchPage2' => $switchPage2,
+			'switchName2' => $switchName2,
 		] );
 		$html = $tmpl->execute('admin-custom-meta.tmpl.php');
+		// Note: we should refactor this to use Mustache
+		//$mustache = new Mustache_Engine(['loader' => new Mustache_Loader_FilesystemLoader(__DIR__ . '/templates')]);
 		return $html;
 	}
 }
@@ -185,14 +195,14 @@ class CustomTitleChanges extends CustomMetaChanges {
 		parent::__construct('title');
 	}
 
-	// list custom titles from TitleTests class
+	// list custom titles from CustomTitle class
 	public function getCustomList($labelledData) {
-		$dbr = wfGetDB(DB_SLAVE);
-		$titles = TitleTests::dbListCustomTitles($dbr);
+		$dbr = wfGetDB(DB_REPLICA);
+		$titles = CustomTitle::dbListCustomTitles($dbr);
 		$output = array();
 		foreach ($titles as $row) {
-			$id = $row['tt_pageid'];
-			$data = [ 'custom' => $row['tt_custom'], 'custom_note' => $row['tt_custom_note'] ];
+			$id = $row['ct_pageid'];
+			$data = [ 'custom' => $row['ct_custom'], 'custom_note' => $row['ct_custom_note'] ];
 			if ($labelledData) {
 				$output[ $id ] = $data;
 			} else {
@@ -208,15 +218,21 @@ class CustomTitleChanges extends CustomMetaChanges {
 	}
 
 	protected function dbDeleteItemID($dbw, $pageid) {
-		TitleTests::dbRemoveTitleID($dbw, $pageid);
+		CustomTitle::dbRemoveTitleID($dbw, $pageid);
 	}
 
 	protected function dbSetItemID($dbw, $titleObj, $item) {
-		TitleTests::dbSetCustomTitle($dbw, $titleObj, $item['custom'], $item['custom_note']);
+		CustomTitle::dbSetCustomTitle($dbw, $titleObj, $item['custom'], $item['custom_note']);
 	}
 }
 
 class CustomDescChanges extends CustomMetaChanges {
+
+	const CUSTOM_MAX_LENGTH = 700;
+
+	// this reflects the database schema maximum currently
+	const CUSTOM_NOTE_MAX_LENGTH = 255;
+
 	public function __construct() {
 		parent::__construct('desc');
 	}
@@ -251,9 +267,14 @@ class CustomDescChanges extends CustomMetaChanges {
 
 	protected function dbSetItemID($dbw, $titleObj, $item) {
 		$ami = new ArticleMetaInfo($titleObj);
-		$item['custom'] = static::maybeShorten($item['custom'], 255);
-		$item['custom_note'] = static::maybeShorten($item['custom_note'], 255);
-		$ami->setEditedDescription($item['custom'], $item['custom_note']);
+
+		// NOTE/WARNING: we don't consider utf8 strings at all here, which can be more than
+		// 1 byte per character. If we break the string in the middle of a utf8 character,
+		// it could make an invalid encoding.
+		$item['custom'] = static::maybeShorten($item['custom'], self::CUSTOM_MAX_LENGTH);
+		$item['custom_note'] = static::maybeShorten($item['custom_note'], self::CUSTOM_NOTE_MAX_LENGTH);
+
+		$ami->setEditedDescription($item['custom'], $item['custom_note'], self::CUSTOM_MAX_LENGTH);
 	}
 }
 
@@ -318,15 +339,18 @@ abstract class CustomMetaChanges {
 			}
 		}
 
-		// For any item no longer in change set, we delete them (per Chris, 7/12)
-		// so that there is effectively a "Master" spreadsheet of custom changes
-		foreach ($list as $pageid => &$item) {
-			if (!$item['status']) {
-				$item['status'] = 'delete';
-				$summary .= "Delete $pageid\n";
-				$stats['delete']++;
-			}
-		}
+		// [sc] per the new CustomTitles change, this tool will include most of our
+		// article titles, so turning this feature off (so the spreadsheets can be smaller)
+		//
+		// // For any item no longer in change set, we delete them (per Chris, 7/12)
+		// // so that there is effectively a "Master" spreadsheet of custom changes
+		// foreach ($list as $pageid => &$item) {
+		// 	if (!$item['status']) {
+		// 		$item['status'] = 'delete';
+		// 		$summary .= "Delete $pageid\n";
+		// 		$stats['delete']++;
+		// 	}
+		// }
 
 		// I separated this into a different function so we could fairly
 		// easily do dry runs
@@ -355,7 +379,7 @@ abstract class CustomMetaChanges {
 				// status == 'nochange'
 			}
 		}
-		
+
 		if ($errors) {
 			$summary = "Warning: there were unexpected errors with page IDs: " . join(',', $errors) . "\n" . $summary;
 		}
@@ -389,7 +413,7 @@ CREATE TABLE meta_custom_change_log (
 class CustomMetaChangesLog {
 
 	public static function dbGetRecentChanges($numChanges) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->select('meta_custom_change_log',
 			'*',
 			array(),

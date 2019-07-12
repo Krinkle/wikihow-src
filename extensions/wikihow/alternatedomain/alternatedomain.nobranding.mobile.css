@@ -16,7 +16,7 @@ a, a:active, a:visited {
 .sp_namelink {
 	pointer-events: none;
 }
-.sp_fullbox,#page-actions,.header,#hdr_prefix,#footer,.pswp,.content .edit-page,.interwiki_otherdomain {
+.sp_fullbox,#page-actions,.header,#footer,.pswp,.content .edit-page,.interwiki_otherdomain {
 	display: none;
 }
 a.addtip {

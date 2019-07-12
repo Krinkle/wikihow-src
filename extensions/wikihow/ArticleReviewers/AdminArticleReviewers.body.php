@@ -2,32 +2,31 @@
 
 class AdminArticleReviewers extends UnlistedSpecialPage {
 
-	function __construct() {
+	public function __construct() {
 		parent::__construct('AdminArticleReviewers');
 	}
 
-	function execute($par) {
+	public function execute($par) {
 		global $wgCanonicalServer;
 
 		$user = $this->getUser();
 		$out = $this->getOutput();
 		$req = $this->getRequest();
 
-		$out->setRobotpolicy( 'noindex,nofollow' );
+		$out->setRobotPolicy( 'noindex,nofollow' );
 
-		if ($user->isBlocked()) {
-			$out->blockedPage();
-			return;
+		if ($user && $user->isBlocked()) {
+			throw new UserBlockedError( $user->getBlock() );
 		}
 
-		if ($user->getID() == 0 || !in_array('staff', $user->getGroups())) {
+		if ( !$user || $user->getID() == 0 || !in_array('staff', $user->getGroups()) || Misc::isIntl() ) {
 			$out->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
 			return;
 		}
 
 		// lame way to load this javascript, but resource loader was breaking it for some reason
 		$out->addHeadItem('uploadify_script',
-			'<script src="/extensions/uploadify/jquery.uploadify.min.js"></script>');
+			'<script src="/extensions/wikihow/common/uploadify/jquery.uploadify.min.js"></script>');
 		$out->addModules("ext.wikihow.adminarticlereviewers");
 
 		$this->postSuccessful = true;
@@ -50,8 +49,9 @@ class AdminArticleReviewers extends UnlistedSpecialPage {
 						$limit = array();
 						$limit['move'] = "sysop";
 						$limit['edit'] = "sysop";
-						$article = new Article($imageTitle);
-						$protectResult = $article->updateRestrictions($limit, "Used for Article Reviewers");
+						$wikiPage = WikiPage::factory($imageTitle);
+						$cascade = false;
+						$protectResult = $wikiPage->doUpdateRestrictions($limit, [], $cascade, "Used for Article Reviewers", $user)->isOK();
 						$result['url'] = $wgCanonicalServer . $imageTitle->getLocalURL();
 						$result['success'] = true;
 					} else {
@@ -59,12 +59,12 @@ class AdminArticleReviewers extends UnlistedSpecialPage {
 						$result['success'] = false;
 					}
 				}
-				print_r(json_encode($result));
+				print(json_encode($result));
 				return;
 			} else {
 				$result['message'] = 'Invalid file type.';
 				$result['success'] = false;
-				print_r(json_encode($result));
+				print(json_encode($result));
 				return;
 			}
 
@@ -77,7 +77,7 @@ class AdminArticleReviewers extends UnlistedSpecialPage {
 	function displayForm() {
 		global $wgOut;
 
-		$tmpl = new EasyTemplate( dirname(__FILE__) );
+		$tmpl = new EasyTemplate( __DIR__ );
 		$html = $tmpl->execute('adminform.tmpl.php');
 
 		$wgOut->addHTML($html);

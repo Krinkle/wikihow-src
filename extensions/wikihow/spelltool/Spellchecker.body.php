@@ -25,8 +25,7 @@ class Spellchecker extends UnlistedSpecialPage {
 		$out = $this->getContext()->getOutput();
 
 		if ($user->isBlocked()) {
-			$out->blockedPage();
-			return;
+			throw new UserBlockedError( $user->getBlock() );
 		}
 
 		$maintenanceMode = false;
@@ -55,19 +54,19 @@ class Spellchecker extends UnlistedSpecialPage {
 				$result['debug']['log'] = MWDebug::getLog();
 			}
 
-			print_r(json_encode($result));
+			print(json_encode($result));
 			return;
 		}
-		else if ( $request->getVal('deleteCache') ) {
+		elseif ( $request->getVal('deleteCache') ) {
 			if (in_array('staff', $user->getGroups())) {
 				self::deleteSpellCheckerCacheKeys();
 			}
 		}
-		else if ($request->wasPosted()) {
+		elseif ($request->wasPosted()) {
 			$out->setArticleBodyOnly(true);
 			//user has edited the article from within the Spellchecker tool
 			if ( $request->getVal('submit')) {
-				$out->disable();
+				$out->setArticleBodyOnly(true);
 				// Don't submit any anon edits
 				if ($request->getInt('plantId')) {
 					$this->savePlantVote();
@@ -81,7 +80,7 @@ class Spellchecker extends UnlistedSpecialPage {
 				}
 
 				$result['increment'] = $incrementStats;
-				print_r(json_encode($result));
+				print(json_encode($result));
 				return;
 			}
 		}
@@ -103,7 +102,7 @@ class Spellchecker extends UnlistedSpecialPage {
 	public static function getBreadCrumbsCallback(&$breadcrumb) {
 		$mainPageObj = Title::newMainPage();
 		$spellchecker = Title::newFromText("Spellchecker", NS_SPECIAL);
-		$sep = wfMsgHtml( 'catseparator' );
+		$sep = wfMessage( 'catseparator' )->escaped();
 		$breadcrumb = "<li class='home'><a href='{$mainPageObj->getLocalURL()}'>Home</a></li><li>{$sep} <a href='{$spellchecker->getLocalURL()}'>{$spellchecker->getText()}</a></li>";
 		return true;
 	}
@@ -141,7 +140,7 @@ class Spellchecker extends UnlistedSpecialPage {
 				$wgMemc->set($lastCheckedKey, $lastChecked);
 
 				MWDebug::log("Getting new spellchecker ids since last check was : " . date($lastChecked));
-				$dbr = wfGetDB(DB_SLAVE);
+				$dbr = wfGetDB(DB_REPLICA);
 				$expired = wfTimestamp(TS_MW, time() - Spellchecker::SPELLCHECKER_EXPIRED);
 				$res = $dbr->select('spellchecker',
 					'sc_page',
@@ -150,7 +149,7 @@ class Spellchecker extends UnlistedSpecialPage {
 					array("LIMIT" => 500, "ORDER BY" => "RAND()"));
 
 				$newIds = array();
-				while ($row = $dbr->fetchObject($res)) {
+				foreach ($res as $row) {
 					$newIds[] = $row->sc_page;
 				}
 
@@ -219,14 +218,14 @@ class Spellchecker extends UnlistedSpecialPage {
 	private function getNextArticle($articleName = '') {
 		global $wgOut;
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
-		if(class_exists('Plants') && Plants::usesPlants('Spellchecker') ) {
+		if (class_exists('Plants') && Plants::usesPlants('Spellchecker') ) {
 			$plants = new SpellingPlants();
 			$next = $plants->getNextPlant();
 			if ($next != null) {
 				$title = Title::newFromID($next->page);
-				if($title) {
+				if ($title) {
 					$revision = Revision::newFromTitle($title, $next->oldid);
 					$content['title'] = "<a href='{$title->getFullURL()}' target='new'>" . wfMessage('howto', $title->getText())->text() . "</a>";
 					$content['text_title'] = wfMessage('howto', $title->getText())->text();
@@ -244,7 +243,7 @@ class Spellchecker extends UnlistedSpecialPage {
 		}
 
         $title = empty($articleName) ?	null : Title::newFromText($articleName);
-		if($title && $title->getArticleID() > 0) {
+		if ($title && $title->getArticleID() > 0) {
 			$articleId = $title->getArticleID();
 		}
 		else {
@@ -336,17 +335,17 @@ class Spellchecker extends UnlistedSpecialPage {
 			if ($wgRequest->getVal('error', 0)) {
 				self::onArticleDemoted($t->getArticleID());
 			}
-			$a = WikiPage::factory($t);
-			if ($a && $a->exists()) {
-				$text = ContentHandler::getContentText($a->getContent());
+			$wp = WikiPage::factory($t);
+			if ($wp && $wp->exists()) {
+				$text = ContentHandler::getContentText($wp->getContent());
 				$result = $this->replaceMisspelledWords($text);
 				if ($result['replaced']) {
 					//save the edit
 					$summaryMessage = $user->isAnon() ? 'spch-edit-summary-anon' : 'spch-edit-summary';
 					$summary = wfMessage($summaryMessage)->text();
 					$content = ContentHandler::makeContent( $text, $t );
-					$a->doEditContent($content, $summary, EDIT_UPDATE);
-					wfRunHooks("Spellchecked", array($wgUser, $t, '0'));
+					$wp->doEditContent($content, $summary, EDIT_UPDATE);
+					Hooks::run("Spellchecked", array($wgUser, $t, '0'));
 				}
 
 				// Remove article from spellchecker queue if the user
@@ -358,12 +357,12 @@ class Spellchecker extends UnlistedSpecialPage {
 
 					// Add a log entry
 					$log = new LogPage( 'spellcheck', false ); // false - dont show in recentchanges, it'll show up for the doEdit call
-					$msg = wfMsgHtml('spch-edit-message', "[[{$t->getText()}]]");
+					$msg = wfMessage('spch-edit-message')->rawParams("[[{$t->getText()}]]")->escaped();
 					$entryType = $result['replaced'] ? 'edit' : '';
 					$log->addEntry($entryType, $t, $msg, null);
 					$incrementStats = true;
 				}
-				$this->skipTool->unUseItem($a->getID());
+				$this->skipTool->unUseItem($wp->getID());
 			}
 		}
 
@@ -381,7 +380,7 @@ class Spellchecker extends UnlistedSpecialPage {
 				$replacementKey = str_replace($word['misspelled'], $word['correction'], $word['key']);
 				$text = str_replace($word['key'], $replacementKey, $text);
 				$replaced = true;
-			} else if ($word['misspelled'] == $word['correction']) {
+			} elseif ($word['misspelled'] == $word['correction']) {
 				$whitelistWords[] = $word['misspelled'];
 				$whitelisted = true;
 			}
@@ -454,8 +453,8 @@ class Spellchecker extends UnlistedSpecialPage {
 		$popts = $out->parserOptions();
 		$popts->setTidy(true);
 		$out->setPageTitle($title->getFullText());
-		$parserOutput = $out->parse($revision->getText(), $title, $popts);
-		$magic = WikihowArticleHTML::grabTheMagic($revision->getText());
+		$parserOutput = $out->parse(ContentHandler::getContentText( $revision->getContent() ), $title, $popts);
+		$magic = WikihowArticleHTML::grabTheMagic(ContentHandler::getContentText( $revision->getContent() ));
 		$html = WikihowArticleHTML::processArticleHTML($parserOutput, array('no-ads' => true, 'ns' => NS_MAIN, 'magic-word' => $magic));
 		return $html;
 	}
@@ -472,7 +471,7 @@ class Spellchecker extends UnlistedSpecialPage {
 	 * @param $out
 	 */
 	protected function addSpellCheckerTemplateHtml($out) {
-		$tmpl = new EasyTemplate(dirname(__FILE__));
+		$tmpl = new EasyTemplate(__DIR__);
 		$out->addHTML($tmpl->execute('Spellchecker.tmpl.php'));
 	}
 
@@ -504,29 +503,30 @@ class Spellcheckerwhitelist extends UnlistedSpecialPage {
 	}
 
 	public function execute($par) {
-		global $wgOut, $wgUser;
+		$out = $this->getOutput();
+		$user = $this->getUser();
 
-		if ($wgUser->isBlocked()) {
-			$wgOut->blockedPage();
+		if ($user->isBlocked()) {
+			throw new UserBlockedError( $user->getBlock() );
 			return;
 		}
 
-		$isStaff = in_array('staff', $wgUser->getGroups());
+		$isStaff = in_array('staff', $user->getGroups());
 
 		if (!$isStaff) {
-			$wgOut->setRobotpolicy( 'noindex,nofollow' );
-			$wgOut->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
+			$out->setRobotPolicy( 'noindex,nofollow' );
+			$out->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
 			return;
 		}
 
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
-		$wgOut->addWikiText(wfMsg('spch-whitelist-inst'));
+		$out->addWikiText(wfMessage('spch-whitelist-inst'));
 
 		$words = array();
 		$res = $dbr->select(wikiHowDictionary::WHITELIST_TABLE, "*", '', __METHOD__);
-		while($row = $dbr->fetchObject($res)) {
+		while ($row = $dbr->fetchObject($res)) {
 			$words[] = $row;
 		}
 		asort($words);
@@ -534,31 +534,31 @@ class Spellcheckerwhitelist extends UnlistedSpecialPage {
 		$res = $dbr->select(wikiHowDictionary::CAPS_TABLE, "*", '', __METHOD__);
 
 		$caps = array();
-		while($row = $dbr->fetchObject($res)) {
+		while ($row = $dbr->fetchObject($res)) {
 			$caps[] = $row->sc_word;
 		}
 		asort($caps);
 
-		$wgOut->addHTML("<ul>");
-		foreach($words as $word) {
-			if($word->{wikiHowDictionary::WORD_FIELD} != "")
-				$wgOut->addHTML("<li>" . $word->{wikiHowDictionary::WORD_FIELD} );
-			if($isStaff && $word->{wikiHowDictionary::USER_FIELD} > 0) {
+		$out->addHTML("<ul>");
+		foreach ($words as $word) {
+			if ($word->{wikiHowDictionary::WORD_FIELD} != "")
+				$out->addHTML("<li>" . $word->{wikiHowDictionary::WORD_FIELD} );
+			if ($isStaff && $word->{wikiHowDictionary::USER_FIELD} > 0) {
 				$user = User::newFromId($word->{wikiHowDictionary::USER_FIELD});
-				$wgOut->addHTML(" (" . $user->getName() . ")");
+				$out->addHTML(" (" . $user->getName() . ")");
 			}
-			$wgOut->addHTML("</li>");
+			$out->addHTML("</li>");
 		}
 
-		foreach($caps as $word) {
-			if($word != "")
-				$wgOut->addHTML("<li>" . $word . "</li>");
+		foreach ($caps as $word) {
+			if ($word != "")
+				$out->addHTML("<li>" . $word . "</li>");
 		}
 
-		$wgOut->addHTML("</ul>");
+		$out->addHTML("</ul>");
 
-		$wgOut->setHTMLTitle(wfMsg('spch-whitelist'));
-		$wgOut->setPageTitle(wfMsg('spch-whitelist'));
+		$out->setHTMLTitle(wfMessage('spch-whitelist'));
+		$out->setPageTitle(wfMessage('spch-whitelist'));
 	}
 }
 
@@ -572,7 +572,7 @@ class SpellcheckerArticleWhitelist extends UnlistedSpecialPage {
 		global $wgOut, $wgUser, $wgRequest;
 
 		if (!in_array('staff', $wgUser->getGroups())) {
-			$wgOut->setRobotpolicy( 'noindex,nofollow' );
+			$wgOut->setRobotPolicy( 'noindex,nofollow' );
 			$wgOut->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
 			return;
 		}
@@ -585,8 +585,8 @@ class SpellcheckerArticleWhitelist extends UnlistedSpecialPage {
 			$articleText = $wgRequest->getVal('articleName');
 			$title = Title::newFromText($articleText);
 
-			if($title && $title->getArticleID() > 0) {
-				if($this->addArticleToWhitelist($title))
+			if ($title && $title->getArticleID() > 0) {
+				if ($this->addArticleToWhitelist($title))
 					$message = $title->getText() . " was added to the article whitelist.";
 				else
 					$message = $articleText . " could not be added to the article whitelist.";
@@ -595,26 +595,26 @@ class SpellcheckerArticleWhitelist extends UnlistedSpecialPage {
 				$message = $articleText . " could not be added to the article whitelist.";
 		}
 
-		$tmpl = new EasyTemplate( dirname(__FILE__) );
+		$tmpl = new EasyTemplate( __DIR__ );
 
 		$tmpl->set_vars(array('message' => $message));
 
 		$wgOut->addHTML($tmpl->execute('ArticleWhitelist.tmpl.php'));
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->select("spellchecker", "sc_page", array("sc_exempt" => 1));
 
 		$wgOut->addHTML("<ol>");
-		while($row = $dbr->fetchObject($res)) {
+		while ($row = $dbr->fetchObject($res)) {
 			$title = Title::newFromID($row->sc_page);
 
-			if($title)
+			if ($title)
 				$wgOut->addHTML("<li><a href='" . $title->getFullURL() . "'>" . $title->getText() . "</a></li>");
 		}
 		$wgOut->addHTML("</ol>");
 
-		$wgOut->setHTMLTitle(wfMsg('spch-articlewhitelist'));
-		$wgOut->setPageTitle(wfMsg('spch-articlewhitelist'));
+		$wgOut->setHTMLTitle(wfMessage('spch-articlewhitelist'));
+		$wgOut->setPageTitle(wfMessage('spch-articlewhitelist'));
 	}
 
 	public function addArticleToWhitelist($title) {
@@ -626,7 +626,7 @@ class SpellcheckerArticleWhitelist extends UnlistedSpecialPage {
 }
 
 class wikiHowDictionary {
-	const DICTIONARY_LOC	= "/maintenance/spellcheck/custom.pws";
+	const DICTIONARY_LOC	= "/maintenance/wikihow/spellcheck/custom.pws";
 	const WHITELIST_TABLE	= "spellchecker_whitelist";
 	const CAPS_TABLE		= "spellchecker_caps";
 	const WORD_TABLE		= "spellchecker_word";
@@ -728,7 +728,7 @@ class wikiHowDictionary {
 	public static function addWordsToWhitelist($words) {
 		$success = true;
 
-		foreach($words as $word) {
+		foreach ($words as $word) {
 			$success = self::addWordToWhitelist($word) && $success;
 		}
 
@@ -784,7 +784,7 @@ class wikiHowDictionary {
 		//check against our internal whitelist
 		// only check lowercase
 		$lc = strtolower($word);
-		if(isset($wordArray[$lc]) && $wordArray[$lc] === true) {
+		if (isset($wordArray[$lc]) && $wordArray[$lc] === true) {
 			return -1;
 		}
 
@@ -792,7 +792,7 @@ class wikiHowDictionary {
 		//if only the first letter is capitalized, then
 		//uncapitalize it and see if its in our list
 //		$regWord = lcfirst($word);
-//		if($wordArray[$regWord] === true) {
+//		if ($wordArray[$regWord] === true) {
 //			return -1;
 //		}
 
@@ -847,13 +847,13 @@ class wikiHowDictionary {
 		$key = wfMemcKey('spellchecker_whitelist');
 		$wordArray = $wgMemc->get($key);
 
-		if(!is_array($wordArray)) {
-			$dbr = wfGetDB(DB_SLAVE);
+		if (!is_array($wordArray)) {
+			$dbr = wfGetDB(DB_REPLICA);
 			$res = $dbr->select(self::WHITELIST_TABLE,
 				'*', array('sw_votes > '. self::MIN_VOTES), __METHOD__);
 
 			$wordArray = array();
-			foreach($res as $word) {
+			foreach ($res as $word) {
 				$wordArray[$word->sw_word] = true;
 			}
 
@@ -873,12 +873,12 @@ class wikiHowDictionary {
 	 */
 /* seems to be unused, 4/2016:
 	public static function getCaps() {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$res = $dbr->select(self::CAPS_TABLE, "*", '', __METHOD__);
 
 		$capsString = "";
-		while($row = $dbr->fetchObject($res)) {
+		while ($row = $dbr->fetchObject($res)) {
 			$capsString .= " " . $row->sc_word . " ";
 		}
 

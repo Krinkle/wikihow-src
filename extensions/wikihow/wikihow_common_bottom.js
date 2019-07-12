@@ -42,6 +42,15 @@ WH.ratings.ratingReason = function(reason, itemId, type, rating, name, email, de
 		$('#' + type + '_rating').html(data);
 	});
 };
+
+WH.ratings.customizeForm = function () {
+	if (typeof(WH.gdpr) != 'undefined' && !WH.gdpr.isEULocation()) {
+		$('#ar_public_radio_yes').prop('checked',true);
+	}
+
+	$('#article_rating_header').hide();
+};
+
 WH.ratings.gRated = false;
 WH.ratings.rateItem = function(r, itemId, type, source) {
 	if (!WH.ratings.gRated) {
@@ -63,8 +72,8 @@ WH.ratings.rateItem = function(r, itemId, type, source) {
 		};
 
 		var ratingsData = '';
-
-		var displayMethodHelpfulnessBottomForm = r == 1 && WH.displayMethodHelpfulness && type != 'sample';
+		var sample_rating = type == 'sample';
+		var discuss_tab = WH.DiscussTab && source == 'discuss_tab';
 
 		$.ajax({
 			type: 'POST',
@@ -78,67 +87,36 @@ WH.ratings.rateItem = function(r, itemId, type, source) {
 					WH.RatingSidebar.showResult(r);
 					$('#article_rating').slideUp();
 				}
-				else if (source == 'desktop') {
+				else if (source == 'desktop' || discuss_tab) {
 					WH.RatingSidebar.disappear();
 				}
 			}
 
-			var scrollDown = source != 'sidebar' && !displayMethodHelpfulnessBottomForm;
+			var scrollDown = 	source != 'sidebar' &&
+												!discuss_tab &&
+												!sample_rating;
 
 			if (scrollDown) {
 				setTimeout(function () {
 					$('#article_rating').html(ratingsData);
 					$('#article_rating').css('max-width', 'none');
 					$('body').scrollTo('#article_rating');
+					WH.ratings.customizeForm();
 				}, 1);
 			}
 
-			if (type == 'sample') {
-				$('#sample_rating').html(ratingsData);
+			if (sample_rating) $('#sample_rating').html(ratingsData);
+
+			if (discuss_tab) {
+				$('#article_rating_modal').html(ratingsData);
+				$('#article_rating').slideUp();
 			}
 		});
-
-		if (displayMethodHelpfulnessBottomForm && source != 'sidebar') {
-			// User clicked 'Yes' and the article has methods
-			var helpfulnessData = {
-				'action': 'cta',
-				'type': 'bottom_form',
-				'aid': mw.config.get('wgArticleId'),
-				'methods': JSON.stringify(WH.methods),
-				'platform': source
-			};
-
-			$.ajax({
-				type: 'POST',
-				url: '/Special:MethodHelpfulness',
-				data: helpfulnessData,
-				dataType: 'json'
-			}).done(function(result) {
-				var mh = $('<div>', {
-					'class': 'article_rating_result'
-				});
-
-				if (window.mw) {
-					mw.loader.using([result.resourceModule], function () {
-						mh.html(result.cta);
-						// A 1 ms delay seems to prevent flickering on some devices
-						setTimeout(function () {
-							$('#article_rating').html(mh);
-							$('body').scrollTo('#article_rating');
-						}, 1);
-					});
-				}
-			}).fail(function (/*result*/) {
-				$('#article_rating').html(ratingsData);
-				$('#article_rating').css('max-width', 'none');
-				$('body').scrollTo('#article_rating');
-			});
-		}
 	}
+
 	WH.ratings.gRated = true;
 };
 
-WH.displayMethodHelpfulness = false;
 WH.methods = [];
 
 WH.checkMethods = function() {
@@ -151,51 +129,31 @@ WH.checkMethods = function() {
 		$(methodSelector).each(function () {
 			WH.methods.push($(this).data('title'));
 		});
-
-		WH.displayMethodHelpfulness = WH.methods.length > 1;
 	}
 };
 
-WH.injectMethodThumbs = function() {
-	var tmplElem = $('.mh-method-thumbs-template');
-
-	if (!tmplElem.length) {
+// update any external links on project pages from www.wikihow to m.wikihow
+// if we are on mobile domain. this is done because some intl pages now have
+// links to english wikihow about pages and cookie policy pages
+// and this is simpler to do than to change fastlys rules for redirecting to mobile
+WH.updateProjectLinks = function() {
+	if (wgNamespaceNumber != 4) {
 		return;
 	}
 
-	if (!WH.displayMethodHelpfulness || !WH.methodThumbsCTAActive) {
-		tmplElem.remove();
+	if (!window.WH.isMobile) {
 		return;
 	}
 
-	var platform = WH.isMobileDomain ? 'mobile' : 'desktop';
-
-	// TODO: Remove this when/if we want a desktop CTA as well
-	if (platform !== 'mobile') {
-		tmplElem.remove();
-		return;
-	}
-
-	var params = {
-		questionText: mw.message('mhmt-question').plain()
-	};
-
-	var helpedText = mw.message('mhmt-helped').plain();
-	var thanksText = mw.message('mhmt-thanks').plain();
-	var cheerList = mw.message('mhmt-cheer').plain().split("\n");
-	var oopsList = mw.message('mhmt-oops').plain().split("\n");
-
-	$('.section.steps:not(:has(h2>span#Steps))').each(function (index) {
-		params.methodIndex = index;
-		params.currentMethod = WH.methods[index];
-		params.cheerText = cheerList[Math.floor(Math.random()*cheerList.length)] + ' ' + helpedText;
-		params.oopsText = oopsList[Math.floor(Math.random()*oopsList.length)] + ' ' + thanksText;
-		var cta = Mustache.render(unescape(tmplElem.html()), params);
-		$(this).find('.steps_list_2:last').append(cta);
+	$('.extiw').each(function() {
+		var href = $(this).attr('href');
+		if (href && href.indexOf('www.wikihow.com/wikiHow:') >= 0) {
+			var newHref = href.replace('www.wikihow.com', 'm.wikihow.com');
+			$(this).attr('href', newHref);
+		}
 	});
-
-	tmplElem.remove();
 };
+
 
 /**
  * Late loading of printable styling for @media 'print' to prevent breaking
@@ -203,7 +161,6 @@ WH.injectMethodThumbs = function() {
  */
 WH.loadPrintModule = function () {
 	if (!WH.isMobileDomain &&
-		window.location.href.indexOf('printable=yes') == -1 &&
 		!($.browser.msie && $.browser.version < 10)
 	) {
 		mw.loader.using(['ext.wikihow.printable']);
@@ -265,6 +222,67 @@ $(document).ready(function() {
 });
 
 $(document).ready(function() {
+	// helpfulness text form feedback
+	$('.s-help-feedback-wrap input').on('click', function(event) {
+		var ratingId = $(this).data("rating-id");
+		var text = $('.m-video-helpful-wrap textarea').val();
+
+		// only submit if we have both of these
+		if (!(ratingId && text)) {
+			return;
+		}
+		var postData = {
+			'type': 'itemratingreason',
+			'ratingId': ratingId,
+			'text': text
+		};
+		var requestUrl = '/Special:RateItem';
+		var wrap = $(this).parent().parent();
+		var finishPrompt = $(this).data('finish-prompt');
+		$.post( requestUrl, postData, function(data) {
+			wrap.find('.s-help-prompt').html(finishPrompt);
+			wrap.find('.s-help-feedback-wrap').hide();
+			wrap.parent().find('.s-video-replay').show();
+		});
+	});
+
+	$('.m-video-helpful-wrap button, .s-help-wrap button').on('click', function(event) {
+		var yes = $(this).data("value");
+		var type = $(this).data('type');
+		var promptText = $(this).data('prompt-text');
+		var finishPromptText = $(this).data('finish-prompt');
+		var textareaPrompt = $(this).data('textarea-prompt');
+		var textFeedback = $(this).data('text-feedback');
+		var postData = {
+			'pageId': wgArticleId,
+			'type': type,
+			'rating': yes
+		};
+		var wrap = $(this).parent();
+		var requestUrl = '/Special:RateItem';
+		$.post( requestUrl, postData, function(data) {
+			// hide the buttons
+			wrap.find('button').hide();
+			wrap.parent().find('.s-video-replay').addClass('s-video-replay-center');
+			wrap.parent().find('.s-video-replay').hide();
+
+			// set the feedback for text
+			wrap.find('.s-help-textarea').attr('placeholder', textareaPrompt);
+
+			// show the feedback form wrapper only if text feedback is active
+			if (textFeedback) {
+				$(wrap).find('.s-help-feedback-wrap').show();
+				// pass forward data to the feedback form for when it is submitted
+				$('.s-help-feedback-wrap input').data('rating-id', parseInt(data));
+				$('.s-help-feedback-wrap input').data('finish-prompt', finishPromptText);
+				$('.s-help-prompt').text(promptText);
+			} else {
+				$('.s-help-prompt').html(finishPromptText);
+			}
+
+		});
+	});
+
 	$('.aritem').on('click', function() {
 		var type = 'desktop';
 		if (WH.isMobileDomain) {
@@ -274,6 +292,10 @@ $(document).ready(function() {
 		var rating = 0;
 		if ($(this).attr('id') == 'gatAccuracyYes') {
 			rating = 1;
+			/*** This is for wikihow.tech ***/
+			if (typeof updateCount == 'function') {
+				updateCount();
+			}
 		}
 
 		var pageId = $(this).attr('pageid');
@@ -282,9 +304,9 @@ $(document).ready(function() {
 
 	$('#article_rating').on('change', '.ar_public', function() {
 		if ($(this).val() == 'yes') {
-			$('#ar_public_info').show();
+			$('.ar_public_info').show();
 		} else {
-			$('#ar_public_info').hide();
+			$('.ar_public_info').hide();
 		}
 	});
 
@@ -305,11 +327,13 @@ $(document).ready(function() {
 		WH.methodThumbsCTAActive = true;
 	}
 
-	if (WH.displayMethodHelpfulness) {
-		WH.injectMethodThumbs();
-	}
-
 	WH.loadPrintModule();
+
+	WH.updateProjectLinks();
+
+	$('#gatFollowNewsletter').click(function() {
+		WH.maEvent('newsletter_signup_rightrail', { category: 'newsletter_signup' }, false);
+	});
 });
 
 // strips step text of extra the text from script tags
@@ -344,91 +368,6 @@ function switchClass(elem, currentClass, replacementClass) {
 	$(elem).removeClass(currentClass).addClass(replacementClass);
 }
 
-// find all of buttons of current class and switches out their class and text with their replacements
-function switchButtons(currentClass, replacementClass, replacementText) {
-	var buttons = $('.' + currentClass);
-	for (i = 0; i < buttons.length; i++) {
-		buttons[i].innerHTML = replacementText;
-		switchClass(buttons[i], currentClass, replacementClass);
-	}
-}
-
-//callback function to reset pause button to '❚► Listen to this step' when text is finished being spoken
-function voiceEndCallback() {
-	switchButtons('pauseSpeech', 'speakButton', "❚► Listen to this step");
-}
-
-//initializes text to speech. Adds buttons to end of each step
-function initTextToSpeech() {
-	responsiveVoice.setDefaultVoice('UK English Female');
-	responsiveVoice.speak('');
-	var speakButtons = $('.step');
-	for (i = 0; i < speakButtons.length; i++) {
-		var textForSpeech = WH.prepareTextForSpeech(speakButtons[i].innerHTML);
-		var start = '<button class=\'button speakButton\' onClick="WH.speakStep(this, \'' + textForSpeech +'\');">❚► Listen to this step</button>';
-		$(speakButtons[i]).append('<div><br>' + start + '</div');
-	}
-}
-
-WH.prepareTextForSpeech = function(textForSpeech) {
-	var textForSpeech = stripScripts(textForSpeech);
-
-	//removes html tags
-	textForSpeech = textForSpeech.replace(/<\/?[^>]+(>|$)/g, '');
-
-	//removes new lines and extra white space so it fits properly in function call
-	textForSpeech = textForSpeech.replace(/(\r\n|\n|\r)/gm, '');
-
-	//strips text of reference tags like [1] so they aren't read aloud.
-	textForSpeech = textForSpeech.replace(/ *\[[^\]]*]/g, '');
-
-	//[sc] computer voice sounds like an idiot when saying things with \' in it
-	//replaces apostrophes with \' so the the string can be made without it prematurely closing it.
-	// textForSpeech = textForSpeech.replace(/'/g, "\\'");
-
-	//removes double quote marks because they will prematurely close out function in html. ex: onClick='function(here is something ' quoted text class='button'
-	textForSpeech = textForSpeech.replace(/"/g, '');
-
-	return textForSpeech;
-}
-
-//loads ResponsiveVoice script and adds 'Listen to this step' button on each step if they have a Text_to_Speech div
-WH.enableTextToSpeech = function() {
-	if ( $('.Text_To_Speech').length ) {
-		if ($.isReady) {
-			initTextToSpeech();
-		} else {
-			responsiveVoice.addEventListener('OnReady', initTextToSpeech);
-		}
-	}
-};
-
-// upon click, pause, play, or resume voice playback depending upon the current text of the button
-WH.speakStep = function (elem, stepText) {
-	var classList = $(elem).attr('class').split(/\s+/);
-	$.each(classList, function(index, curClass) {
-		if (curClass === 'pauseSpeech') {
-			elem.innerHTML = "❚► Resume this Step";
-			switchClass(elem, 'pauseSpeech', 'resumeSpeech');
-			responsiveVoice.pause();
-		} else if (curClass === 'speakButton') {
-			switchButtons('pauseSpeech', 'speakButton', "❚► Listen to this step");
-			switchButtons('resumeSpeech', 'speakButton', "❚► Listen to this step");
-
-			var parameters = { onend: voiceEndCallback};
-			responsiveVoice.speak(stepText, 'UK English Female', parameters);
-
-			elem.innerHTML = "❚❚ Pause this step";
-			switchClass(elem, 'speakButton', 'pauseSpeech');
-		} else if (curClass === 'resumeSpeech') {
-			elem.innerHTML = "❚❚ Pause this step";
-			switchClass(elem, 'resumeSpeech', 'pauseSpeech');
-			responsiveVoice.resume();
-		}
-	});
-};
-
-
 /**
  * Display a notice if we detect an ad blocker. Adapted from:
  * https://www.christianheilmann.com/2015/12/25/detecting-adblock-without-an-extra-http-overhead/
@@ -459,10 +398,16 @@ WH.loadAdblockNotice = function() {
 	}
 };
 
+WH.sendToOpti = function(type, param, paramValue) {
+	window['optimizely'] = window['optimizely'] || [];
+	var info = {};
+	info['type'] = type;
+	info[param] = paramValue;
+	window['optimizely'].push(info);
+};
+
 function onLoadWikihowCommonBottom() {
 	WH.loadAdblockNotice();
 }
-
-$(window).load(onLoadWikihowCommonBottom);
 
 }(mediaWiki, jQuery));

@@ -9,11 +9,12 @@ $wgExtensionCredits['specialpage'][] = array(
 );
 
 $wgSpecialPages['UserLoginBox'] = 'UserLoginBox';
-$wgAutoloadClasses['UserLoginBox'] = dirname( __FILE__ ) . '/UserLoginBox.body.php';
+$wgAutoloadClasses['UserLoginBox'] = __DIR__ . '/UserLoginBox.body.php';
 $wgMessagesDirs['UserLoginBox'] = __DIR__ . '/i18n/';
 
 $wgResourceModules['ext.wikihow.userloginbox'] = array(
 	'scripts' => 'userloginbox.js',
+	'messages' => [ 'ulb-btn-loading' ],
 	'targets' => array( 'desktop' ),
 	'localBasePath' => __DIR__,
 	'remoteExtPath' => 'wikihow/userloginbox',

@@ -7,6 +7,7 @@ CREATE TABLE `qa_box_questions` (
 	`qbq_id` int(10) PRIMARY KEY AUTO_INCREMENT,
 	`qbq_sqid` int(10) NOT NULL DEFAULT 0,
 	`qbq_question` blob NOT NULL,
+	`qbq_submitter_email` blob NOT NULL DEFAULT '',
 	`qbq_page_id` int(10) NOT NULL,
 	`qbq_page_title` varbinary(255) NOT NULL DEFAULT '',
 	`qbq_thumb` varbinary(255) NOT NULL DEFAULT '',
@@ -55,13 +56,13 @@ class QABox extends UnlistedSpecialPage {
 		}
 
 		//nothing normally
-		$out->blockedPage();
+		$out->addHTML("No entry point here");
 		return;
 	}
 
 	public static function getQABoxHTML($answered_sqid) {
 		$loader = new Mustache_Loader_CascadingLoader([
-			new Mustache_Loader_FilesystemLoader(dirname(__FILE__)),
+			new Mustache_Loader_FilesystemLoader(__DIR__),
 		]);
 		$options = array('loader' => $loader);
 		$m = new Mustache_Engine($options);
@@ -76,7 +77,7 @@ class QABox extends UnlistedSpecialPage {
 		//anon only
 		if (!$ctx->getUser()->isAnon()) return;
 
-		if ( !wfRunHooks( 'QABoxAddToArticle', array() ) ) {
+		if ( !Hooks::run( 'QABoxAddToArticle', array() ) ) {
 			return;
 		}
 
@@ -130,7 +131,7 @@ class QABox extends UnlistedSpecialPage {
 	private static function getQuestions($answered_sqid) {
 		$cats = array();
 		$res = false;
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		//first, let's try to get a similar question if the user
 		//has already answered one
@@ -185,7 +186,7 @@ class QABox extends UnlistedSpecialPage {
 				],
 				__METHOD__,
 				[
-					'ORDER BY' => 'qbq_random',
+					'ORDER BY' => "qbq_submitter_email != '' desc",
 					'LIMIT' => self::NUM_OF_QUESTIONS
 				]
 			);

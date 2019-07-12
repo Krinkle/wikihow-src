@@ -65,18 +65,20 @@
 
 .ur_initials, .content .ur_avatar {
 	width: 36px;
-	height: 36px;
+	height: 36px !important;
 	background-color: #adc996;
 	display: inline-block;
+	vertical-align: bottom;
 	border-radius: 18px;
-	margin-right: 5px;
+	margin-right: 10px;
 }
 .ur_author {
-	display: block;
 	margin-top: 5px;
 	color: #c3c3c3;
 	font-weight: normal;
 	display: inline-block;
+	height: 36px;
+	vertical-align: bottom;
 }
 .content .ur_author .ur_name {
 	font-size: 15px;
@@ -148,6 +150,11 @@ only screen and (max-height: 421px) and (min-aspect-ratio: 13/9) {
 		line-height: 30px;
 	}
 
+	.content .ur_author {
+		margin-top: 0;
+		height: 44px;
+	}
+
 	.content .ur_author .ur_name {
 		font-size: 20px;
 	}
@@ -162,7 +169,8 @@ only screen and (max-height: 421px) and (min-aspect-ratio: 13/9) {
 
 	.ur_initials, .content .ur_avatar {
 		width: 44px;
-		height: 44px;
+		height: 44px !important;
+		margin-right: 10px;
 		-webkit-border-radius: 22px;
 		-moz-border-radius: 22px;
 		border-radius: 22px;

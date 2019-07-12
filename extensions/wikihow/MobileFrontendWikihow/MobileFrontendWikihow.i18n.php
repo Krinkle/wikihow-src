@@ -5,8 +5,11 @@ $messages = array();
 $messages['en'] = array (
 	//footer
 	'mobile-frontend-view-desktop-wh' => 'Desktop Site',
+	'mobile-frontend-view-full-site-wh' => 'Full Site',
+	'mobile-frontend-view-other' => 'Other',
 	'mobile-frontend-footer-edit-wh' => 'Edit',
 	'footer-search-placeholder' => 'Search How to...',
+	'header-search-placeholder' => 'Search wikiHow...',
 	'surprise-me-footer' => 'Surprise Me!',
 	//login page
 	'mobile-frontend-login-title' => 'Welcome to wikiHow',
@@ -20,7 +23,6 @@ $messages['en'] = array (
 	'mobile-frontend-account-create-submit-wh' => 'Create Account',
 	'mobile-frontend-generic-signup-action-wh' => 'Joining wikiHow is easy and fun.',
 	'mobile-frontend-profile-title-wh' => 'Profile',
-	'mobile-facebook-login-failed' => "We are sorry, we can't connect you to Facebook. Please try again later.",
 	'mobile-frontend-log-in-via' => "Log in via:",
 	'mobile-frontend-or-log-in-here' => "Or log in here:",
 	'mobile-frontend-sign-up-via' => "Sign up via:",
@@ -50,6 +52,7 @@ $messages['en'] = array (
 	'menu-categories' => 'Browse Articles',
 	'menu-duplicatetitles' => 'Find Duplicate Titles',
 	'menu-spellchecker' => 'Fix Spelling',
+	'menu-aboutwikihow' => 'About wikiHow',
 	'main_tag_mobile' => 'wikiHow to do <span>anything</span>',
 	'loggedout-overlay-heading' => 'You are Logged Out',
 	'loggedout-main-heading' => 'You are Now Logged Out',

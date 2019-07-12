@@ -4,6 +4,10 @@ class SubmittedQuestion {
 	var $id, $userId, $visitorId, $articleId, $email, $platform, $source, $text, $ignore,
 		$flagged, $approved, $proposed, $sorted, $submittedTimestamp, $curated, $lastUpdatedTimestamp;
 
+	static $blacklisted_emails = [
+		'maxnaran@gmail.com'
+	];
+
 	const SOURCE_ARTICLE_PROMPT = 'article page prompt';
 	const SOURCE_HELPFULNESS = 'page helpfulness';
 	const MAX_FLAGGED_COUNT = 2;
@@ -148,4 +152,7 @@ class SubmittedQuestion {
 		return $this->lastUpdatedTimestamp;
 	}
 
+	public static function isBlacklistedQuestionSubmitterEmail($email) {
+		return in_array($email, self::$blacklisted_emails);
+	}
 }

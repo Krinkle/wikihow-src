@@ -1,4 +1,4 @@
-<?
+<?php
 
 require_once( "../../commandLine.inc" );
 
@@ -9,9 +9,6 @@ if( sizeof($argv) < 2 ) {
 
 $className == "";
 switch ($argv[0]) {
-	case "KBGuardian":
-		$className = "KnowledgePlants";
-		break;
 	case "Category":
 		$className = "CategoryPlants";
 		break;

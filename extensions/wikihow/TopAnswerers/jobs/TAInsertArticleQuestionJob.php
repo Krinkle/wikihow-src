@@ -11,10 +11,6 @@ class TAInsertArticleQuestionJob extends Job {
 	}
 
 	/**
-	 * update:
-	 * - average approval rating
-	 * - average similarity score
-	 *
 	 * @return bool
 	 */
 	public function run() {
@@ -27,18 +23,12 @@ class TAInsertArticleQuestionJob extends Job {
 		if ($aq && $aq->getSubmitterUserId()) {
 			$user_id = $aq->getSubmitterUserId();
 
-			$dbw = wfGetDB(DB_MASTER);
-
 			//add category
-			self::addCat($dbw, $aid, $user_id);
-
-			//up the answer count
-			self::upAnswerCount($dbw, $user_id);
+			self::addCat($aid, $user_id);
 
 			//touch the last answer date
 			$ta = new TopAnswerers();
-			$ta->loadByUserId($user_id);
-			$ta->save();
+			if ($ta->loadByUserId($user_id)) $ta->save();
 		}
 	}
 
@@ -52,7 +42,8 @@ class TAInsertArticleQuestionJob extends Job {
 	 * @param $aid 			= article id
 	 * @param $user_id 	= submitter user id
 	 */
-	private static function addCat($dbw, $aid, $user_id) {
+	private static function addCat($aid, $user_id) {
+		$dbw = wfGetDB(DB_MASTER);
 		$cat = TopAnswerers::getCat($aid);
 
 		if ($cat) {
@@ -75,30 +66,6 @@ class TAInsertArticleQuestionJob extends Job {
 				__METHOD__
 			);
 		}
-	}
-
-	/**
-	 * upAnswerCount()
-	 *
-	 * add 1 to the qa_answerer_stats.qas_answer_count
-
-	 * @param $dbw 			= db
-	 * @param $user_id 	= submitter user id
-	 */
-	private static function upAnswerCount($dbw, $user_id) {
-		$res = $dbw->upsert(
-			TopAnswerers::TABLE_ANSWERER_STATS,
-			[
-				'qas_answers_count' => 1,
-				'qas_user_id' => $user_id
-			],
-			['qas_user_id'],
-			[
-				'qas_answers_count = VALUES(qas_answers_count)+qas_answers_count',
-				'qas_user_id = VALUES(qas_user_id)'
-			],
-			__METHOD__
-		);
 	}
 
 }

@@ -20,12 +20,12 @@ class Hello extends UnlistedSpecialPage {
 		$userGroups = $user->getGroups();
 
 		if ( $user->isBlocked() ) {
-			$out->setRobotpolicy('noindex,nofollow');
+			$out->setRobotPolicy('noindex,nofollow');
 			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
 		if ( !Misc::isMobileMode() ) {
-			$out->setRobotpolicy('noindex,nofollow');
+			$out->setRobotPolicy('noindex,nofollow');
 			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
@@ -69,7 +69,6 @@ class Hello extends UnlistedSpecialPage {
 		$vars['howTo'] = wfMessage( 'nojs_search_placeholder' )->text();
 		$vars['surpriseMe'] = wfMessage( "nojs_surpriseme" )->text();
         $vars['css'] = HtmlSnips::makeUrlTag('/extensions/wikihow/NoScriptHomepage/hello.css');
-        $vars['headerClass'] = ($this->getLanguage()->getCode() == 'ja') ? 'lang_ja' : '';
 
         return $vars;
     }

@@ -24,6 +24,20 @@ class SensitiveReason
 		return $reason;
 	}
 
+	public static function newFromDB(int $id): SensitiveReason
+	{
+		$name = '';
+		$enabled = false;
+
+		$res = static::getDao()->getReason($id);
+		foreach ($res as $row) {
+			$name = $row->sr_name;
+			$enabled = (int)$row->sr_enabled;
+		}
+
+		return static::newFromValues($id, $name, $enabled);
+	}
+
 	/**
 	 * Get all items in the database
 	 *
@@ -59,6 +73,13 @@ class SensitiveReason
 			$this->id = static::getDao()->getNewReasonId();
 			$res = static::getDao()->insertReason($this);
 		}
+		return $res;
+	}
+
+	public function delete(): bool
+	{
+		$res = static::getDao()->deleteReason($this);
+		Hooks::run( "SensitiveReasonDeleted" , [$this->id]);
 		return $res;
 	}
 

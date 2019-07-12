@@ -29,7 +29,7 @@ class AdminRCMobile extends SpecialPage {
 	 */
 	protected function getActivePatrollersHtml() {
 		$html = "";
-		$tmpl = new EasyTemplate(dirname(__FILE__));
+		$tmpl = new EasyTemplate(__DIR__);
 
 		$oneDayAgo = wfTimestamp(TS_MW, time() - 24 * 60 * 60);
 		$vars = array();
@@ -52,14 +52,14 @@ class AdminRCMobile extends SpecialPage {
 		$patrollers = array();
 
 		// Get patrollers since given time
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$sql = "SELECT log_user, count(*) as cnt FROM logging FORCE INDEX (times) WHERE log_type='patrol' and log_timestamp >= '$ts' and log_params NOT LIKE '%\"6::auto\";i:1;%' GROUP BY log_user having cnt > 5 ORDER BY cnt DESC";
 		$res = $dbr->query($sql, __METHOD__);
 		foreach ($res as $row) {
 			$patrollersLog[$row->log_user] = $row->cnt;
 		}
 
-		if(!empty($patrollersLog)) {
+		if (!empty($patrollersLog)) {
 			// Shrink list to patrollers that haven't engaged with patrol coach
 			// since this will be the mobile only users
 			$res = $dbr->select(

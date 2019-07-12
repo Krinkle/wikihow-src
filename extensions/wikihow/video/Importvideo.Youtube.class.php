@@ -1,7 +1,7 @@
 <?php
 if (!defined('MEDIAWIKI')) die();
 
-class ImportvideoYoutube extends Importvideo {
+class ImportVideoYoutube extends ImportVideo {
 
 	private $prevOffset;
 	private $nextOffset;
@@ -91,9 +91,9 @@ class ImportvideoYoutube extends Importvideo {
 		$snippet = $this->shortSnippet($v->description);
 
 		if (!$v->embeddable || in_array(strtolower($v->author), $wgImportVideoBadUsers) )  {
-			$importOption = wfMsg('importvideo_noimportpossible');
+			$importOption = wfMessage('importvideo_noimportpossible')->text();
 		} else {
-			$importOption = "<div class='embed_button'><input class='button primary' type='button' value='" . wfMsg('importvideo_embedit') . "' onclick='WH.ImportVideo.importvideo(\"{$id}\"); gatTrack(\"Registered_Editing\",\"Import_video\",\"Editing_page\");'/></div>";
+			$importOption = "<div class='embed_button'><input class='button primary' type='button' value='" . wfMessage('importvideo_embedit')->text() . "' onclick='WH.ImportVideo.importvideo(\"{$id}\"); gatTrack(\"Registered_Editing\",\"Import_video\",\"Editing_page\");'/></div>";
 		}
 
 
@@ -103,15 +103,15 @@ class ImportvideoYoutube extends Importvideo {
 			<table width='100%'>
 				<tr>
 					<td style='text-align:center'>
-					
+
 						<iframe src='https://www.youtube.com/embed/{$id}' width='425' height='350'></iframe>
 					</td>
 				</tr>
 				<tr>
 					<td>
-						<b>" . wfMsg('importvideo_rating') . ": </b>{$rating}<br/><br/>
-						<b>" . wfMsg('importvideo_views') . ": </b>{$views}  <br/><br/>
-						<b>" . wfMsg('importvideo_description') . ": </b>{$snippet}<br /><br />
+						<b>" . wfMessage('importvideo_rating') . ": </b>{$rating}<br/><br/>
+						<b>" . wfMessage('importvideo_views') . ": </b>{$views}  <br/><br/>
+						<b>" . wfMessage('importvideo_description') . ": </b>{$snippet}<br /><br />
 						{$importOption}
 					</td>
 				</tr>
@@ -172,7 +172,7 @@ class ImportvideoYoutube extends Importvideo {
 		}
 
 		if (!$query) {
-			$query = wfMsg('howto', $target);
+			$query = wfMessage('howto', $target)->text();
 		}
 
 		if ( $wgRequest->getVal( 'page' ) ) {
@@ -193,7 +193,7 @@ class ImportvideoYoutube extends Importvideo {
 	function loadVideoText($id) {
 		if (empty($id)){
 			return null;
-		}	
+		}
 		$url = $this->getVideoURL($id);
 		$data = json_decode($this->getResults($url));
 		$this->parseVideo($data->items[0]);
@@ -216,7 +216,7 @@ class ImportvideoYoutube extends Importvideo {
 		global $wgRequest;
 		$query = $wgRequest->getVal('q');
 		$target = preg_replace('@ @','+',$wgRequest->getVal('target'));
-		$me = Title::makeTitle(NS_SPECIAL, "Importvideo");
+		$me = Title::makeTitle(NS_SPECIAL, "ImportVideo");
 
 		// Previous, Next buttons if necessary
 		$s = "<table width='100%'><tr><td>";
@@ -225,14 +225,14 @@ class ImportvideoYoutube extends Importvideo {
 
 		if ($prevOffset != null) {
 			$nurl =  $url ."&page=" . $prevOffset . "&q=" . urlencode($query);
-			$s .= "<a href='$nurl'>" . wfMsg('importvideo_previous_results', 10) . "</a>";
+			$s .= "<a href='$nurl'>" . wfMessage('importvideo_previous_results', 10)->text() . "</a>";
 		}
 
 		$s .= "</td><td align='right'>";
 
 		if ($nextOffset != null) {
 				$nurl = $url . "&page=" . $nextOffset . "&q=" . urlencode($query);
-				$s .= "<a href='$nurl'>" . wfMsg('importvideo_next_results', 10) . "</a>";
+				$s .= "<a href='$nurl'>" . wfMessage('importvideo_next_results', 10)->text() . "</a>";
 		}
 
 		$s .= "</td></tr></table>";
@@ -270,8 +270,8 @@ class ImportvideoYoutube extends Importvideo {
 			$title = Title::makeTitle(NS_VIDEO, $target);
 			$vid = Title::makeTitle(NS_VIDEO, $title->getText());
 			$editSummary = wfMessage('importvideo_addingvideo_summary')->text();
-			Importvideo::updateVideoArticle($vid, $text, $editSummary);
-			Importvideo::updateMainArticle($target, $editSummary);
+			ImportVideo::updateVideoArticle($vid, $text, $editSummary);
+			ImportVideo::updateMainArticle($target, $editSummary);
 			return;
 		}
 
@@ -295,17 +295,17 @@ class ImportvideoYoutube extends Importvideo {
 		}
 
 		$wgOut->addHTML(" <br/>
-			" . wfMsg('importvideo_youtube_sortby') . " <select name='orderby' id='orderby' onchange='WH.ImportVideo.changeUrl();'>
-				<OPTION value='relevance' " . ($orderby == 'relevance' ? "SELECTED" : "") . "> " . wfMsg('importvideo_youtubesort_rel') . "</OPTION>
-				<OPTION value='howto' " . ($orderby == 'howto' ? "SELECTED" : "") . "> " . wfMsg('importvideo_youtubesort_howto') . "</OPTION>
-				<OPTION value='date' " . ($orderby == 'date' ? "SELECTED" : "") . "> " . wfMsg('importvideo_youtubesort_date') . "</OPTION>
-				<OPTION value='viewCount' " . ($orderby == 'viewCount' ? "SELECTED" : "") . "> " . wfMsg('importvideo_youtubesort_views') . "</OPTION>
+			" . wfMessage('importvideo_youtube_sortby')->text() . " <select name='orderby' id='orderby' onchange='WH.ImportVideo.changeUrl();'>
+				<OPTION value='relevance' " . ($orderby == 'relevance' ? "SELECTED" : "") . "> " . wfMessage('importvideo_youtubesort_rel')->text() . "</OPTION>
+				<OPTION value='howto' " . ($orderby == 'howto' ? "SELECTED" : "") . "> " . wfMessage('importvideo_youtubesort_howto')->text() . "</OPTION>
+				<OPTION value='date' " . ($orderby == 'date' ? "SELECTED" : "") . "> " . wfMessage('importvideo_youtubesort_date')->text() . "</OPTION>
+				<OPTION value='viewCount' " . ($orderby == 'viewCount' ? "SELECTED" : "") . "> " . wfMessage('importvideo_youtubesort_views')->text() . "</OPTION>
 			</select>
 			<br/><br/>
 			");
 
 		if ($this->mResults == null) {
-			$wgOut->addHTML(wfMsg("importvideo_error_geting_results"));
+			$wgOut->addHTML(wfMessage("importvideo_error_geting_results")->text());
 			return;
 		}
 
@@ -313,13 +313,13 @@ class ImportvideoYoutube extends Importvideo {
 
 		#print_r($this->mResults);
 		if (sizeof($this->mResults) == 0) {
-			#$wgOut->addHTML(wfMsg('importvideo_noresults', $target) . htmlspecialchars($results) );
-			$wgOut->addHTML(wfMsg('importvideo_noresults', $query));
+			#$wgOut->addHTML(wfMessage('importvideo_noresults', $target) . htmlspecialchars($results) );
+			$wgOut->addHTML(wfMessage('importvideo_noresults', $query)->text());
 			$wgOut->addHTML("</form>");
 			return;
 		}
 
-		$wgOut->addHTML(wfMsg('importvideo_results', $query) );
+		$wgOut->addHTML( wfMessage('importvideo_results', $query)->text() );
 
 		$resultsShown = false;
 		foreach ($this->mResults as $v) {
@@ -328,7 +328,7 @@ class ImportvideoYoutube extends Importvideo {
 		}
 
 		if (!$resultsShown) {
-			$wgOut->addHTML(wfMsg('importvideo_noresults', $query));
+			$wgOut->addHTML(wfMessage('importvideo_noresults', $query)->text());
 			$wgOut->addHTML("</form>");
 			return;
 		}

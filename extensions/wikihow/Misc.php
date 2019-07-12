@@ -2,8 +2,8 @@
 if ( ! defined( 'MEDIAWIKI' ) )
 	die();
 
-$wgExtensionMessagesFiles['Misc'] = dirname(__FILE__) . '/Misc.i18n.php';
-$wgAutoloadClasses['Misc'] = dirname(__FILE__) . '/Misc.body.php';
+$wgExtensionMessagesFiles['Misc'] = __DIR__ . '/Misc.i18n.php';
+$wgAutoloadClasses['Misc'] = __DIR__ . '/Misc.body.php';
 
 $wgHooks['UnitTestsList'][] = array('Misc::onUnitTestsList');
 
@@ -34,7 +34,7 @@ function wfGetPad($relurl = '') {
 	global $wgServer, $wgRequest, $wgIsSecureSite, $wgLanguageCode;
 	global $wgIsStageDomain, $wgIsDevServer, $wgIsImageScaler, $wgIsAnswersDomain;
 
-	$isCanonicalProdDomain = preg_match('@^(https?:)?//(www|m|[a-z]{2}(\.m)?)\.wikihow\.(com|cz|it|jp|vn)$@', $wgServer) > 0;
+	$isCanonicalProdDomain = preg_match('@^(https?:)?//(www|m|[a-z]{2}(\.m)?)\.wikihow\.(com|cz|it|jp|vn|com\.tr)$@', $wgServer) > 0;
 	$isCachedCopy = $wgRequest && $wgRequest->getVal('c') == 't';
 	$externalEnSourceImage = false;
 
@@ -77,37 +77,8 @@ function wfGetPad($relurl = '') {
 		}
 	}
 
-	if ($wgIsSecureSite) {
-		// If on https or INTL, we want to link to the https wikihow EN domain for
-		// these images.
-		return "https://www.wikihow.com{$relurl}";
-	} else {
-		$numPads = 3;
-		// Mask out sign or upper bits to make 32- and 64-bit machines produce
-		// uniform results.
-		$crc = crc32($relurl) & 0x7fffffff;
-		$pad = ($crc % $numPads) + 1;
-		$domain = "pad{$pad}";
-
-		return "http://$domain.whstatic.com{$relurl}";
-	}
-
-	// Code to send half of the requests to one CDN then half to the other
-	/*
-	global $wgTitle, $wgLanguageCode;
-	if ($wgLanguageCode != 'en') {
-		return "http://{$prefix}{$pad}.whstatic.com{$relurl}";
-	} elseif (preg_match('@^/images/(.*)$@', $relurl, $m)) {
-		$rest = $m[1];
-		$title = $wgTitle && strlen($wgTitle->getText()) > 0 ? $wgTitle->getText() : 'Z';
-		if (ord($title{0}) <= ord('D')) {
-			return "http://d1cu6f3ciowfok.cloudfront.net/images_en/" . $rest;
-		} else {
-			return "http://{$prefix}{$pad}.whstatic.com{$relurl}";
-		}
-	}
-	return $relurl;
-	*/
+	// We want to link to the https wikihow EN domain for the rest of these images
+	return "https://www.wikihow.com{$relurl}";
 }
 
 /**
@@ -223,6 +194,7 @@ function wfGetLangCodeFromDomain($domain) {
 	 *   // ...
 	 * );
 	 */
+	global $wgIsDevServer, $wgIsToolsServer;
 	static $domainToLanguageMap = false;
 
 	if ($domainToLanguageMap === false) {
@@ -246,6 +218,12 @@ function wfGetLangCodeFromDomain($domain) {
 	} elseif (preg_match('@^([a-z]{2})\.@', $domain, $m)) {
 		// Fall-back when domain not in list, but does start with two-character code
 		return $m[1];
+	} elseif ($wgIsDevServer || $wgIsToolsServer) {
+		if (preg_match('@(^|[-.])([a-z]{2})([-.])@', $domain, $m)) {
+			return $m[2];
+		} else {
+			return '';
+		}
 	} else {
 		return '';
 	}
@@ -294,8 +272,13 @@ function wfLoadExtensionMessages($module) {
 }
 
 function decho( $name, $value = "", $html = true, $showPrefix = true ) {
+	global $wgCommandLineMode, $wgIsDevServer;
+	if ( !$wgIsDevServer && !$wgCommandLineMode ) {
+		return;
+	}
+
 	$lineEnd = "\n";
-	if ( $html ) {
+	if ( !$wgCommandLineMode && $html ) {
 		$lineEnd = "<br>\n";
 	}
 
@@ -306,7 +289,7 @@ function decho( $name, $value = "", $html = true, $showPrefix = true ) {
 
 	if ( is_string( $value ) ) {
 		echo $prefix.$name.": $value";
-	} else if ( ( !is_array( $value ) || !is_object( $value ) ) && method_exists( $value, '__toString' ) ) {
+	} elseif ( ( !is_array( $value ) || !is_object( $value ) ) && method_exists( $value, '__toString' ) ) {
 		print_r( $prefix.$name.": $value");
 	} else {
 		echo $prefix.$name.": ";

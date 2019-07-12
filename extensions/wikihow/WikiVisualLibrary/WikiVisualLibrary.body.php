@@ -42,7 +42,12 @@ class WikiVisualLibrary extends UnlistedSpecialPage {
 		parent::__construct($this->specialpage);
 	}
 
-	function execute($par) {
+	// method stops redirects when running on titus host
+	public function isSpecialPageAllowedOnTitus() {
+		return true;
+	}
+
+	public function execute($par) {
 		global $wgIsDevServer, $wgServer;
 
 		if (!(preg_match('@^(https?:)?//wvl\.wikiknowhow\.com@', $wgServer) || $wgIsDevServer)) {

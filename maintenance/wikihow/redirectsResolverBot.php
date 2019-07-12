@@ -18,40 +18,61 @@ class UpdateLinks extends Maintenance {
 	public function __construct() {
 		parent::__construct();
 		$this->addOption('limit', 'Specify a limit of number of articles to do', false, true);
+		$this->addOption('debug', "Don't make any changes, just print info to stdout");
 	}
 
 	public function execute() {
-		global $wgUser;
+		global $wgUser, $wgLanguageCode;
 		$this->bot = $wgUser = User::newFromName('RedirectsBot');
 
-		$limit = 0;
+		$limit = $this->getOption('limit', 0);
+		$debug = $this->getOption('debug', 0);
 
-		if ($this->hasOption('limit')) {
-			$limit = $this->getOption('limit');
-		}
+		if ($debug) $this->output("Running in debug mode - the DB will be left intact\n");
 
 		// track number of articles we change so we don't go over the specified limit
 		$articlesUpdated = 0;
 		$this->output("Fetching articles...\n");
 		$articles = $this->fetchArticles();
 
+		if ($debug) $this->output("\npage_id\turl\told_link\tnew_link\n");
+
 		foreach ($articles as $article) {
 			// Added because of fatal errors
 			if (!$article) continue;
 
-			$replacements  = 0;
+			$changed       = false;
 			$links         = $this->getRedirectLinks($article);
+			$pageId        = $article->getArticleID();
 			$text          = $this->getArticleText($article);
 			$initialLength = mb_strlen( $text );
 			$title         = $article->getFullText();
 
 			foreach ($links as $link) {
-				$text = preg_replace("~\[\[" . preg_quote($link->old_link, '~') . "\|([^[]*)\]\]~",
-										"[[" . $link->new_link . "|$1]]",
-										$text, -1, $count);
 
-				if ($count > 0) $replacements += $count;
+				$safeLink = preg_quote($link->old_link, '~');
+				$pattern = '~\[\[' . $safeLink . '(\|([^]]+))?\]\]~'; // e.g. [[Hug]] or [[Hug|hugging]]
+				$changed = preg_match_all($pattern, $text, $matches) || $changed;
+				foreach ($matches[0] as $idx => $match) {
+					$oldLink = $match;
+					$anchorText = $matches[2][$idx];
+					$newLink = $anchorText
+						? '[[' . $link->new_link . "|$anchorText]]"
+						: '[[' . $link->new_link . ']]';
+					$text = str_replace($oldLink, $newLink, $text);
+					if ($debug) {
+						$url = Misc::getLangBaseURL($wgLanguageCode) . $article->getLocalUrl();
+						$this->output("$pageId\t$url\t$oldLink\t$newLink\n");
+					}
+				}
 
+			}
+
+			if ($debug) {
+				if ($changed && (++$articlesUpdated == $limit)) {
+					break;
+				}
+				continue;
 			}
 
 			$newLength = mb_strlen( $text );
@@ -61,7 +82,7 @@ class UpdateLinks extends Maintenance {
 			}
 
 			// We're only going to try publishing if we changed something
-			if ($replacements > 0) {
+			if ($changed > 0) {
 				$status = $this->publishChanges($article, $text, "Updating link to point directly to article instead of redirect");
 
 				if ( $status->isGood() ) {
@@ -86,16 +107,11 @@ class UpdateLinks extends Maintenance {
 	 * @return array of Title objects
 	 */
 	private function fetchArticles() {
-		$dbr      = wfGetDB(DB_SLAVE);
+		$dbr      = wfGetDB(DB_REPLICA);
 		$articles = array();
-		$results  = $dbr->select(array(
-			'page'
-		), array(
-			'page_title'
-		), array(
-			'page_namespace' => NS_MAIN,
-			'page_is_redirect' => 0
-		), __METHOD__);
+		$where = [ 'page_namespace' => NS_MAIN, 'page_is_redirect' => 0 ];
+		$opts = [ 'ORDER BY' => 'page_title' ];
+		$results  = $dbr->select('page', 'page_title', $where, __METHOD__, $opts);
 
 		foreach ($results as $row) {
 			$articles[] = Title::newFromDBkey($row->page_title);
@@ -112,7 +128,7 @@ class UpdateLinks extends Maintenance {
 	 *          - new_link - text form of a title that the redirects points to
 	 */
 	private function getRedirectLinks($article) {
-		$dbr   = wfGetDB(DB_SLAVE);
+		$dbr   = wfGetDB(DB_REPLICA);
 		$links = array();
 
 		// SELECT  pl_title  FROM `pagelinks`,`page`   WHERE
@@ -155,7 +171,7 @@ class UpdateLinks extends Maintenance {
 				'page_is_redirect' => 1 // extra field to assist with quick sorting
 			), __METHOD__);
 
-			$row             = $redirectResults->fetchObject();
+			$row = $redirectResults->fetchObject();
 
 			if (!$row) continue;
 

@@ -14,7 +14,7 @@ class WikihowArticleHTML {
 
 	// this is deprecated.
 	// instead of using it, construct a new instance and call processBody instead
-	static function processArticleHTML($body, $opts = array()) {
+	public static function processArticleHTML($body, $opts = array()) {
 		wfDeprecated( __METHOD__, '1.23' );
 		$wikihowArticleHTML = new WikihowArticleHTML( $body, $opts );
 		return $wikihowArticleHTML->processBody();
@@ -34,17 +34,24 @@ class WikihowArticleHTML {
 	}
 
 	public function processBody() {
-		global $wgUser, $wgTitle, $wgLanguageCode, $wgRequest, $wgOut;
 		$body = $this->mBody;
 		$opts = $this->mOpts;
+		$ctx = RequestContext::getMain();
+		$req = $ctx->getRequest();
+		$out = $ctx->getOutput();
+		$user = $ctx->getUser();
+		$title = $ctx->getTitle();
+		$langCode = $ctx->getLanguage()->getCode();
 
-		wfProfileIn( __METHOD__ . "-pqparse" );
+		// Trevor, 5/22 - Used later on to add structred data to inline summary videos, must be
+		// called here due to mysterious issue with calling it later to be solved in the future
+		$videoSchema = SchemaMarkup::getVideo( $title );
 
 		$doc = phpQuery::newDocument($body);
 		$context = RequestContext::getMain();
 
-		wfProfileOut( __METHOD__ . "-pqparse" );
-		wfProfileIn( __METHOD__ . "-start" );
+
+		Hooks::run('WikihowArticleBeforeProcessBody', array( $title ) );
 
 		$featurestar = pq("div#featurestar");
 		if ($featurestar) {
@@ -53,12 +60,13 @@ class WikihowArticleHTML {
 			$featurestar->remove();
 		}
 
-		$isMainPage = $wgTitle
-			&& $wgTitle->getNamespace() == NS_MAIN
-			&& $wgTitle->getText() == wfMessage('mainpage')->inContentLanguage()->text()
-			&& $wgRequest->getVal('action', 'view') == 'view';
+		$isMainPage = $title
+			&& $title->inNamespace(NS_MAIN)
+			&& $title->getText() == wfMessage('mainpage')->inContentLanguage()->text()
+			&& $req->getVal('action', 'view') == 'view';
 
-		$action = $wgRequest ? $wgRequest->getVal('action') : '';
+		$isNewTocArticle = WikihowToc::isNewArticle();
+		$action = $req ? $req->getVal('action') : '';
 
 		// Remove __TOC__ resulting html from all pages other than User pages
 		if (@$opts['ns'] != NS_USER && pq('div#toc')->length) {
@@ -89,6 +97,9 @@ class WikihowArticleHTML {
 			}
 		}
 
+		//remove top edit link
+		pq("#intro .editsection")->remove();
+
 		// The "whcdn" class is added to all <img> tags whose src contents
 		// should pull from the whstatic.com (CDN) domain. We apply this change
 		// as post-processing after the parser has done its thing so that
@@ -103,17 +114,17 @@ class WikihowArticleHTML {
 		//add a clearall to the end of the intro
 		pq("#intro")->append("<div class='clearall'></div>");
 
-		$showCurrentTitle = $wgLanguageCode == "en"
-			&& $wgTitle->inNamespace(NS_MAIN)
-			&& !$wgTitle->isRedirect()
-			&& $wgTitle->exists()
+		$showCurrentTitle = $langCode == "en"
+			&& $title->inNamespace(NS_MAIN)
+			&& !$title->isRedirect()
+			&& $title->exists()
 			&& PagePolicy::showCurrentTitle($context);
 
-		$showUnnabbed = $showCurrentTitle && !Newarticleboost::isNABbedNoDb($wgTitle->getArticleID());
+		$showUnnabbed = $showCurrentTitle && !NewArticleBoost::isNABbedNoDb($title->getArticleID());
 
 		if ($showUnnabbed) {
 			$intro = pq("#intro");
-			if ($wgRequest->getVal('new',null) == '1' || $wgUser->getOption('showdemoted') == '1') {
+			if ($req->getVal('new',null) == '1' || $user->getOption('showdemoted') == '1') {
 				//just show top bar and don't obfuscate
 				if (pq($intro)->length) {
 					pq("#intro")->before("<div class='unnabbed_alert_top' style='display:block'>" . wfMessage('nab_warning_top')->parse() . "</div>");
@@ -139,8 +150,6 @@ class WikihowArticleHTML {
 		//add the pimpedheader to our h3s!
 		pq('h3')->prepend('<div class="altblock"></div>');
 
-		wfProfileOut( __METHOD__ . "-start" );
-		wfProfileIn( __METHOD__ . "-subsections" );
 
 		// Contains elements with the raw titles of methods (i.e. non-parts)
 		$nonAltMethodElements = array();
@@ -219,15 +228,15 @@ class WikihowArticleHTML {
 
 					$displayMethodCount = $h3Count;
 					$isSample = array();
-					for($i = 1; $i <= $h3Count; $i++) {
+					for ($i = 1; $i <= $h3Count; $i++) {
 						$isSampleItem = false;
-						if(!is_array($h3Elements[$i]) || count($h3Elements[$i]) < 1) {
+						if (!is_array($h3Elements[$i]) || count($h3Elements[$i]) < 1) {
 							$isSampleItem = false;
 						}
 						else {
 							//the sd_container isn't always the first element, need to look through all
-							foreach($h3Elements[$i] as $node) { //not the most efficient way to do this, but couldn't get the find function to work.
-								if(pq($node)->attr("id") == "sd_container") {
+							foreach ($h3Elements[$i] as $node) { //not the most efficient way to do this, but couldn't get the find function to work.
+								if (pq($node)->attr("id") == "sd_container") {
 									$isSampleItem = true;
 									break;
 								}
@@ -265,7 +274,7 @@ class WikihowArticleHTML {
 							$displayMethod++;
 						}
 						pq("span.mw-headline", $h3Tags[$i])->html($methodTitle);
-						if(!$isSample[$i] && $opts['ns'] == NS_MAIN) {
+						if (!$isSample[$i] && $opts['ns'] == NS_MAIN) {
 							pq(".altblock", $h3Tags[$i])->html($methodPrefix);
 						} else {
 							pq(".altblock", $h3Tags[$i])->remove();
@@ -293,7 +302,7 @@ class WikihowArticleHTML {
 						}
 						$overallSet = array();
 						$overallSet[] = $h3Tags[$i];
-						foreach( pq("div#{$sectionName}_{$i}:first") as $temp){
+						foreach ( pq("div#{$sectionName}_{$i}:first") as $temp){
 							$overallSet[] = $temp;
 						}
 						try {
@@ -312,52 +321,17 @@ class WikihowArticleHTML {
 
 					//now we should have all the alt methods,
 					//let's create the links to them under the headline
-					$charCount = 0;
-					$maxCount = 80000; //temporarily turning off hidden headers
-					$hiddenCount = 0;
-					$anchorList = [];
 					self::$methodCount = count($altMethodAnchors);
-					for ($i = 0; $i < count($altMethodAnchors); $i++) {
-						$methodName = pq('<div>' . $altMethodNames[$i] . '</div>')->text();
-						// remove any reference notes
-						$methodName = preg_replace("@\[\d{1,3}\]$@", "", $methodName);
-						$charCount += strlen($methodName);
-						$class = "";
-						if ($charCount > $maxCount) {
-							$class = "hidden excess";
-							$hiddenCount++;
-						}
-						if ($methodName == "") {
-							continue;
-						}
-						$methodName = htmlspecialchars($methodName);
-						$anchorList []= "<a href='#{$altMethodAnchors[$i]}_sub' class='{$class}'>{$methodName}</a>";
-					}
+					$anchorList = self::getAnchorList( $altMethodAnchors, $altMethodNames );
 
-					$hiddentext = "";
-					if ($hiddenCount > 0) {
-						$hiddenText = "<a href='#' id='method_toc_unhide'>{$hiddenCount} more method" . ($hiddenCount > 1?"s":"") . "</a>";
-						$hiddenText .= "<a href='#' id='method_toc_hide' class='hidden'>show less methods</a>";
+					if ($isNewTocArticle) {
+						WikihowToc::setMethods($altMethodAnchors, $altMethodNames);
 					} else {
-						$hiddenText = '';
+						//chance to reformat the alt method_toc before output
+						//using for running tests
+						Hooks::run('BeforeOutputAltMethodTOC', array($wgTitle, &$anchorList));
+						pq('.firstHeading')->after("<p id='method_toc' class='sp_method_toc'>{$anchorList}</p>");
 					}
-
-					// A hook to add anchors to the TOC.
-					wfRunHooks('AddDesktopTOCItems', array($wgTitle, &$anchorList, &$maxCount));
-
-					//add our little list header
-					if ($hasParts) {//ucwords
-						$anchorList = 	'<span>'.ucwords(Misc::numToWord(count($altMethodAnchors),10)).
-										' ' . wfMessage('part_3')->text() . ':</span>' . implode("",$anchorList);
-					} else {
-						$anchorList = 	'<span>'.ucwords(Misc::numToWord(count($altMethodAnchors),10)).
-										' ' . wfMessage('method_3')->text() . ':</span>' . implode("", $anchorList);
-					}
-
-					//chance to reformat the alt method_toc before output
-					//using for running tests
-					wfRunHooks('BeforeOutputAltMethodTOC', array($wgTitle, &$anchorList));
-					pq('.firstHeading')->after("<p id='method_toc' class='sp_method_toc'>{$anchorList}{$hiddenText}</p>");
 				}
 				else {
 					if ($set) {
@@ -369,7 +343,7 @@ class WikihowArticleHTML {
 
 					$overallSet = array();
 					$overallSet[] = $node;
-					foreach( pq("div#{$sectionName}:first") as $temp){
+					foreach ( pq("div#{$sectionName}:first") as $temp){
 						$overallSet[] = $temp;
 					}
 
@@ -377,22 +351,6 @@ class WikihowArticleHTML {
 						pq($overallSet)->wrapAll("<div class='section steps {$sticky}'></div>");
 					} catch (Exception $e) {
 					}
-
-					pq('.firstHeading')->addClass('no_toc');
-
-					/*
-					Disabled as per LH #1952
-
-					// Add TOC
-					$anchorList = [];
-					$maxCount = 80000;
-					// A hook to add anchors to the TOC.
-					wfRunHooks('AddDesktopTOCItems', array($wgTitle, &$anchorList, &$maxCount));
-					if (!empty($anchorList)) {
-						$anchorList = implode("",$anchorList);
-						pq('.firstHeading')->after("<p id='method_toc' class='sp_method_toc'>{$anchorList}</p>");
-					}
-					*/
 				}
 			}
 			else {
@@ -449,14 +407,12 @@ class WikihowArticleHTML {
 			}
 		}
 
-		wfProfileOut( __METHOD__ . "-subsections" );
-		wfProfileIn( __METHOD__ . "-extras" );
 
 		//add a clear to the end of each section_text to make sure
 		//images don't bleed across the bottom
 		pq(".section_text")->append("<div class='clearall'></div>");
 
-		wfRunHooks('AtAGlanceTest', array( $wgTitle ) );
+		Hooks::run('AtAGlanceTest', array( $title ) );
 
 		// Add checkboxes to Ingredients and 'Things You Need' sections, but only to the top-most li
 		$lis = pq('#ingredients > ul > li, #thingsyoullneed > ul > li');
@@ -470,23 +426,23 @@ class WikihowArticleHTML {
 			if (pq($template)->parent()->hasClass('tmp_li')) {
 				pq($template)->addClass('tmp_li');
 			}
-			if ($wgUser->isAnon()) {
+			if ($user->isAnon()) {
 				pq($template)->addClass('notice_bgcolor_lo');
 			} else {
 				pq($template)->addClass('notice_bgcolor_important');
 			}
 
 		}
-		// put templates after the intro div
-		pq('.template_top')->insertAfter('#intro');
 
-		wfProfileOut( __METHOD__ . "-extras" );
-		wfProfileIn( __METHOD__ . "-steps1" );
+		if ( !pq( '.template_top' )->find('#intro')->length ) {
+			pq('.template_top')->insertAfter('#intro');
+		}
+
 
 		if (class_exists("StepEditorParser")) {
-			$stepEditorHelper = new StepEditorParser($wgTitle, 0, $wgOut);
+			$stepEditorHelper = new StepEditorParser($title, 0, $out);
 			if ($stepEditorHelper->hasAnyEditableSteps()) {
-				$wgOut->addModules('ext.wikihow.stepeditor');
+				$out->addModules('ext.wikihow.stepeditor');
 				pq(".steps:last")->after($stepEditorHelper->getParsingMessage());
 			}
 		}
@@ -498,7 +454,7 @@ class WikihowArticleHTML {
 			pq($list)->addClass("steps_list_2");
 			$stepNum = 1;
 			foreach (pq($list)->children() as $step) {
-				$boldStep = WikihowArticleHTML::boldFirstSentence(pq($step)->html());
+				$boldStep = self::boldFirstSentence(pq($step)->html());
 				pq($step)->html($boldStep);
 				pq($step)->prepend("<a name='" . wfMessage('step_anchor', $methodNum, $stepNum) . "' class='stepanchor'></a>");
 				pq($step)->prepend('<div class="step_num" aria-label="' . wfMessage('aria_step_n', $stepNum)->showIfExists() . '">' . $stepNum . '</div>');
@@ -508,7 +464,7 @@ class WikihowArticleHTML {
 					pq($step)->prepend("<a href='#'  class='stepeditlink' style='display:none;'>Edit step</a>");
 					pq($step)->prepend("<span class='absolute_stepnum' style='display:none'>{$absoluteStepNum}</span>");
 				}
-				if(pq(".largeimage", $step)->length > 0) {
+				if (pq(".largeimage", $step)->length > 0) {
 					pq($step)->addClass("hasimage");
 				}
 				$stepNum++;
@@ -521,16 +477,19 @@ class WikihowArticleHTML {
 			pq($step)->addClass("final_li");
 		}
 
-		wfProfileOut( __METHOD__ . "-steps1" );
-		wfProfileIn( __METHOD__ . "-images" );
-
 		// if we find videos, then replace the images with videos
-		foreach( pq( '.m-video' ) as $node ) {
+		$videoCount = 0;
+		foreach ( pq( '.m-video' ) as $node ) {
 			$mVideo = pq( $node );
+			$videoCount++;
 
 			$imgAttributes = array( 'poster', 'data-poster', 'data-poster-mobile', 'data-gifsrc', 'data-giffirstsrc' );
 			foreach ( $imgAttributes as $attrName ) {
-				$attrVal = wfGetPad( $mVideo->attr( $attrName ) );
+				$attrVal = $mVideo->attr( $attrName );
+				if ( !$attrVal ) {
+					continue;
+				}
+				$attrVal = wfGetPad( $attrVal );
 				if ( $attrVal ) {
 					$mVideo->attr( $attrName, $attrVal );
 				}
@@ -549,27 +508,173 @@ class WikihowArticleHTML {
 
 			$mwimg->find( ".image" )->before( $mVideo )->remove();
 
-			if ( $mVideo->attr( 'data-watermark' ) ) {
-				$mVideo->after( WHVid::getVideoWatermarkHtml( $context->getTitle() ) );
+			$mVideo->wrap( '<div class="video-container">' );
+			$videoContainer = $mVideo->parent();
+			$videoContainer->wrap( '<div class="video-player">' );
+			$videoPlayer = $videoContainer->parent();
+			if ( Misc::isIntl() ) {
+				$videoPlayer->addClass( 'intl' );
 			}
-			if ( $mVideo->attr( 'data-controls' ) && $mVideo->attr( 'data-summary' )) {
-				$mVideo->after( WHVid::getVideoControlsSummaryHtml() );
-			} else if ( $mVideo->attr( 'data-controls' ) ) {
-				$mVideo->after( WHVid::getVideoControlsHtml() );
+			$videoPlayer->wrap('<div class="content-spacer" style="padding-top: 56.25%;">');
+			$videoContainer->addClass('content-fill');
+			$mVideo->addClass('content-fill');
+
+			if ( $mVideo->attr( 'data-watermark' ) ) {
+				$videoContainer->after( WHVid::getVideoWatermarkHtml( $context->getTitle() ) );
+			}
+			if ( $mVideo->attr( 'data-summary' ) ) {
+				if ($user && in_array('staff', $user->getGroups() ) ) {
+					$mVideo->attr( 'oncontextmenu', '' );
+				}
+				// this is where we put the ad container to enable video ads which are not active
+				// for this type of video at the moment
+				if ( $title && $title->getArticleID() == 2723473 ) {
+					$videoContainer->after( '<div class="video-ad-container"></div>' );
+					$mVideo->attr( 'data-ad-type', 'linear' );
+				}
+			} elseif ( $videoCount < 2 ) {
+				if ( $title && $title->getArticleID() == 1630 ) {
+					$videoContainer->after( '<div class="video-ad-container"></div>' );
+					$mVideo->attr( 'data-ad-type', 'nonlinear' );
+				}
+			}
+
+			if ( $mVideo->attr( 'data-controls' ) && !$mVideo->attr( 'data-summary' )) {
+				$videoContainer->after( WHVid::getVideoControlsHtml() );
 			}
 		}
 
+		$summary_at_top = true;
+		if ( pq('#summary_position')->length ) {
+			$summary_at_top = pq('#summary_position')->hasClass(SummarySection::SUMMARY_POSITION_TOP_CLASS);
+		}
+
 		$headings = explode("\n", ConfigStorage::dbGetConfig(Wikitext::SUMMARIZED_HEADINGS_KEY));
+		if ( !$headings ) {
+			$headings = array();
+		}
+
 		foreach ( $headings as $heading ) {
-			$headingId = '#' . self::canonicalizeHTMLSectionName( Misc::getSectionName( $heading ) );
+			$canonicalSummaryName = self::canonicalizeHTMLSectionName( Misc::getSectionName( $heading ) );
+			$headingId = '#' . $canonicalSummaryName;
+			if ( pq( $headingId )->length ) {
+				$headingText = $heading;
+				// add helpful feedback section
+
+				if ( pq( $headingId . ' .text_summary_wrapper' )->length != 0 ) {
+					$html = RateItem::getSummarySectionRatingHtml( $summary_at_top );
+					pq( $headingId )->append( $html );
+				}
+				//give the whole section a consistent id
+				pq('.'.$canonicalSummaryName)->attr('id','quick_summary_section');
+				//wrap the text part in a div
+				$textSummary = pq( $headingId )->find(".text_summary_wrapper");
+
+				if ($textSummary->length > 0) {
+					// if there is a mwimg, then make sure to put the text summary after the script tag which follows it
+					// or else the wrapping will not work correctly
+					if ( pq('#quick_summary_section')->find('.mwimg')->prev()->length ) {
+						$textSummary->insertBefore( pq('#quick_summary_section')->find('.s-help-wrap') );
+					}
+
+
+					$textSummary->add($textSummary->siblings('.s-help-wrap'))->wrapAll("<div id='summary_wrapper'><div id='summary_text'></div></div>");
+
+					pq("#summary_text")->prepend("<h2>" . wfMessage('summary_toc')->text() . "<a href='#' id='summary_close'>X</a></h2>");
+
+					//if there's no video, hide the section
+					if ( pq( $headingId . ' video' )->length == 0 ) {
+						pq("#summary_wrapper")->insertBefore(pq("#quick_summary_section"));
+						pq("#quick_summary_section")->remove();
+					} else {
+						//if there is, move this outside of that section so we can use the same css for both cases
+						pq("#summary_wrapper")->appendTo("#quick_summary_section");
+					}
+
+					if ($isNewTocArticle) {
+						//tell the TOC there's a summary
+						WikihowToc::setSummary();
+					} else {
+						//if there's no TOC, make one now
+						if (pq("#method_toc")->length <= 0) {
+							$specialAnchorArray = [Html::element( 'span', [], wfMessage('toc_title') )];
+							Hooks::run('AddDesktopTOCItems', array( RequestContext::getMain()->getTitle(), &$specialAnchorArray ) );
+							$specialAnchorList = implode( "" , $specialAnchorArray );
+							pq('.firstHeading')->after("<p id='method_toc' class='sp_method_toc'>{$specialAnchorList}</p>");
+						}
+
+						SummarySection::addDesktopTOCItems();
+					}
+				}
+			}
 			$headingImages = pq( $headingId . ' .mwimg' )->addClass( 'summarysection' );
-			foreach( $headingImages as $headingImage ) {
+			foreach ( $headingImages as $headingImage ) {
 				$headingImage = pq($headingImage)->remove();
 				if ( $headingImage ) {
 					pq( $headingId )->prepend( pq($headingImage));
 				}
 			}
 			pq( $headingId . ' .m-video-wm' )->remove();
+		}
+
+		if (pq("#method_toc")->length <= 0) {
+			pq('.firstHeading')->addClass('no_toc');
+		}
+
+		// if there is a summary video but no text
+		SummarySection::addIntlDesktopVideoTOCItem();
+
+		// add the controls
+		$summaryHtml = WHVid::getVideoControlsSummaryHtml( $headingText );
+		$summaryHelpfulHtml = WHVid::getDesktopVideoHelpfulness();
+		$replayHtml = WHVid::getVideoReplayHtml();
+		pq( '.summarysection .video-container' )->after( $summaryHtml . $summaryHelpfulHtml . $replayHtml );
+
+		if ( pq('#quick_summary_section video')->length > 0) {
+			$titleText = wfMessage('howto', $title->getText())->text();
+			if (strlen($titleText) > 49) {
+				$titleText = mb_substr($titleText, 0, 46) . '...';
+			}
+			pq("#quick_summary_section h2 span")->html(wfMessage('qs_video_title')->text() . ": " . $titleText);
+			pq( "#quick_summary_section")->addClass("summary_with_video");
+
+			// Structured data
+			if ( $videoSchema ) {
+				pq( '#quick_summary_section .video-player' )->append( SchemaMarkup::getSchemaTag( $videoSchema ) );
+			}
+
+			if ( Misc::isIntl() ) {
+				pq( "#quick_summary_section")->addClass("intl");
+			}
+			WikihowToc::setSummaryVideo();
+		}
+
+		//check the yt vidoes
+		if( pq('.embedvideocontainer')->length > 0 && WHVid::isYtSummaryArticle($title)) {
+			wikihowToc::setSummaryVideo(true);
+			if(pq('.summary_with_video')->length) {
+				pq('.summary_with_video')->replaceWith(pq('#summary_wrapper'));
+			}
+			// Add schema to all YouTube videos that are from our channel
+			foreach ( pq( '.embedvideo' ) as $video ) {
+				$src = pq( $video )->attr( 'data-src' );
+				preg_match( '/youtube\.com\/embed\/([A-Za-z0-9_-]+)/', $src, $matches );
+				if ( $matches[1] ) {
+					$videoSchema = SchemaMarkup::getYouTubeVideo( $title, $matches[1] );
+					// Only videos from our own channel will have publisher information
+					if ( array_key_exists( 'publisher', $videoSchema ) ) {
+						pq( $video )->after(
+							SchemaMarkup::getSchemaTag( $videoSchema ) .
+							'<!-- ' . (
+								$videoSchema ?
+									'YouTube info from cache' :
+									'YouTube info being fetched'
+								) .
+							' -->'
+						);
+					}
+				}
+			}
 		}
 
 		//move each of the large images to the top
@@ -594,7 +699,7 @@ class WikihowArticleHTML {
 			}
 		}
 		// on project pages if the first bullet in a list is an image add a special class
-		if ( $wgTitle->getNamespace() == NS_PROJECT ) {
+		if ( $title->inNamespace(NS_PROJECT) ) {
 			foreach ( pq( '.section_text ul' ) as $node ) {
 				foreach ( pq( $node )->find( 'li:first' ) as $firstItem ) {
 					if ( pq( $firstItem )->find( '.mwimg' )->length ) {
@@ -604,12 +709,6 @@ class WikihowArticleHTML {
 			}
 		}
 
-		wfProfileOut( __METHOD__ . "-images" );
-		wfProfileIn( __METHOD__ . "-relateds" );
-
-		$relatedsName = RelatedWikihows::getSectionName();
-		$this->mRelatedWikihows = new RelatedWikihows( $context, $wgUser, pq( ".section.".$relatedsName ) );
-		$this->mRelatedWikihows->addRelatedWikihowsSection();
 
 		//Made Recently section
 		if (class_exists('UserCompletedImages') && $showCurrentTitle) UserCompletedImages::addDesktopSection($context);
@@ -618,8 +717,6 @@ class WikihowArticleHTML {
 		//marked with the class "introimage"
 		pq("#intro .mwimg:not(.introimage)")->remove();
 
-		wfProfileOut( __METHOD__ . "-relateds" );
-		wfProfileIn( __METHOD__ . "-steps2" );
 
 		//let's mark all the <p> tags that aren't inside a step.
 		//they need special padding
@@ -627,31 +724,27 @@ class WikihowArticleHTML {
 			if (pq($p)->parents(".steps_list_2")->count() == 0 && pq($p)->children(".anchor")->count() == 0) {
 				pq($p)->addClass("lone_p");
 				$content = strtolower(pq($p)->html());
-				if($content == "<br>" || $content == "<br />") {
+				if ($content == "<br>" || $content == "<br />") {
 					pq($p)->remove();
 				}
 
 			}
 		}
 
-		wfProfileOut( __METHOD__ . "-steps2" );
-		wfProfileIn( __METHOD__ . "-paragraphs" );
 
 		//add line breaks between the p tags
-		foreach(pq("p") as $paragraph) {
+		foreach (pq("p") as $paragraph) {
 			$sibling = pq($paragraph)->next();
-			if(!pq($sibling)->is("p"))
+			if (!pq($sibling)->is("p"))
 				continue;
-			if(pq($sibling)->children(":first")->hasClass("anchor"))
+			if (pq($sibling)->children(":first")->hasClass("anchor"))
 				continue;
 			$id = pq($paragraph)->attr("id");
-			if($id == "method_toc")
+			if ($id == "method_toc")
 				continue;
 
 			pq($paragraph)->after("<br />");
 		}
-
-		wfProfileOut( __METHOD__ . "-paragraphs" );
 
 		// remove video section if it has no iframe (which means it has no video)
 		if ( pq("#video")->find('iframe')->length < 1 ) {
@@ -666,58 +759,49 @@ class WikihowArticleHTML {
 			pq( "#video" )->find( 'table:first' )->remove();
 		}
 
+		foreach (pq(".embedvideo_gdpr:first") as $node) {
+			pq( $node )->parents( '.section:first' )->find( '.mw-headline:first' )->after( pq( $node )->html() );
+		}
+		pq( ".embedvideo_gdpr" )->remove();
 		// Truncate the list of sources/citations and show a link to expand it
 		$sourcestext = wfMessage("sources")->text();
 		$sourcesId = str_replace( [' ','(',')'], "", mb_strtolower($sourcestext));
 		$sources = pq("#{$sourcesId}");
 
-		if ($sources->length) {
-			pq($sources)->find("ol, ul")->addClass("sources");
-			$count = pq($sources)->find("ol li, ul li")->length;
-			$limit = 3; // The number of sources/citations to display initially
-
-			$title = $context->getTitle();
-			$request = $context->getRequest();
-			// Making all reference links open in a new browser tab. Feature requested by Michelle.
-			pq('.reference-text a, .sources li a', $sources)->attr('target', '_blank');
-			// Don't hide refs if it's a printable page, we're on a special page, or we're in a diff view
-			if ($count > $limit && !$wgOut->isPrintable()
-				&& ( $title && !$title->inNamespace( NS_SPECIAL ) )
-				&& ( $request && !$request->getVal( 'diff' ) && !$request->getVal( 'oldid') ) ) {
-				$index = $limit - 1; // Index of the last item that we will show
-				// Choose in which order the lists will be truncated
-				$selector = pq($sources)->find(".sources + .references-small")->length
-					? "ul, ol"  // Sources, then citations
-					: "ol, ul"; // Citations, then sources. This will work too if one of the
-								// sections is missing, as that won't affect the selector below.
-				// Hide items from the cutoff point
-				pq($sources)->find($selector)->find("li:gt($index)")->addClass("hidden");
-				// Append link to expand the list
-				$remaining = $count - $limit;
-				pq($sources)->append("<a href='#' class='showsources'>" . wfMessage("Show")->text()
-					. ' ' . strtolower(wfMessage("moredotdotdot")->text()) . " ({$remaining})</a>");
-			}
-
-			// Remove the extra <br> if it exists
-			pq($sources)->children("p")->remove();
+		// if there is no sources section try references instead
+		if ( pq( $sources )->length < 1 ) {
+			$referencesText = wfMessage( 'references' )->text();
+			$referencesId = str_replace( [' ','(',')'], "", mb_strtolower( $referencesText ) );
+			$sources = pq("#{$referencesId}");
 		}
 
-		DOMUtil::hideLinksFromAnons(false);
+		if ( pq( $sources )->find( '.references' )->length ) {
+			$extraItems = pq( $sources )->find( 'ul' )->remove()->html();
+			pq( $sources )->find( '.references' )->append( $extraItems );
+		}
 
-		wfProfileIn( __METHOD__ . "-ads" );
+		// rename the sources and citations section
+		if ($user->isAnon()) {
+			pq($sources)->prev()->find( '.mw-headline' )->text( wfMessage("references")->text() );
+		}
 
-		if(class_exists('ArticleQuizzes')) {
-			$articleQuizzes = new ArticleQuizzes($wgTitle->getArticleID());
+		self::formatSourcesSection( $sources, $context );
+
+		DOMUtil::hideLinksInArticle();
+
+
+		if (class_exists('ArticleQuizzes')) {
+			$articleQuizzes = new ArticleQuizzes($title->getArticleID());
 			$count = 1;
-			foreach(pq(".steps h3") as $headline) {
+			foreach (pq(".steps h3") as $headline) {
 				$methodType = pq(".altblock", $headline)->text();
 				$methodTitle = pq(".mw-headline", $headline)->html();
 				$quiz = $articleQuizzes->getQuiz($methodTitle, $methodType);
-				if($count == 1 && $articleQuizzes->showFirstAtTop()) {
+				if ($count == 1 && $articleQuizzes->showFirstAtTop()) {
 					pq("#intro")->after($quiz);
 				} else {
 					pq($headline)->parent()->append($quiz);
-					if($articleQuizzes->showFirstAtTop()) { //this is temporary while we test
+					if ($articleQuizzes->showFirstAtTop()) { //this is temporary while we test
 						pq($headline)->parent()->find(".qz_top_info")->remove();
 					}
 				}
@@ -725,8 +809,13 @@ class WikihowArticleHTML {
 			}
 		}
 
-		$this->mDesktopAds = new DesktopAds( $context, $wgUser, $wgLanguageCode, $opts, $isMainPage );
+		$this->mDesktopAds = new DesktopAds( $context, $user, $langCode, $opts, $isMainPage );
 		$this->mDesktopAds->addToBody();
+
+		$relatedsName = RelatedWikihows::getSectionName();
+		$this->mRelatedWikihows = new RelatedWikihows( $context, $user, pq( ".section.".$relatedsName ) );
+		$this->mRelatedWikihows->setAdHtml( $this->mDesktopAds->getRelatedAdHtml() );
+		$this->mRelatedWikihows->addRelatedWikihowsSection();
 
 		$markPatrolledLink = self::getMarkPatrolledLink();
 		if ($markPatrolledLink) {
@@ -739,46 +828,118 @@ class WikihowArticleHTML {
 			$widget->addWidget();
 		}
 
-		 if (class_exists('QABox')) {
-			 QABox::addQABoxToArticle();
-		 }
-
 		//special querystring for loading pages faster by removing step images
 		//STAFF ONLY
-		if ($wgUser && in_array('staff', $wgUser->getGroups()) && $wgRequest && $wgRequest->getVal('display_images') == 'false') {
+		if ($user && in_array('staff', $user->getGroups()) && $req && $req->getVal('display_images') == 'false') {
 			pq(".steps_list_2 li .mwimg")->remove();
 		}
 
-		wfRunHooks('ProcessArticleHTMLAfter', array( $wgOut ) );
+		// add id to each stepslist2 li so we can make a url link to it if need be (like in the howto schema)
+		$sectionNumber = 0;
+		$stepNumber = 0;
+		foreach ( pq( '.section.steps .steps_list_2 ' ) as $section ) {
+			foreach ( pq( $section )->children( 'li' ) as $stepItem ) {
+				// check if it has an id already..if it does not add one
+				$stepId = pq( $stepItem )->attr( 'id' );
+				if ( !$stepId ) {
+					pq( $stepItem )->attr('id', 'step-id-' . $sectionNumber . $stepNumber );
+				}
+				$stepNumber++;
+			}
+			$sectionNumber++;
+		}
 
-		wfProfileOut( __METHOD__ . "-ads" );
-		wfProfileIn( __METHOD__ . "-gethtml" );
+		SchemaMarkup::calcHowToSchema( $out );
+
+		Hooks::run('ProcessArticleHTMLAfter', array( $out ) );
+
 
 		UserTiming::modifyDOM($canonicalSteps);
 		PinterestMod::modifyDOM();
 		DeferImages::modifyDOM();
-		Lightbox::modifyDOM($wgTitle->getArticleID());
+		Lightbox::modifyDOM($title->getArticleID());
 		ImageCaption::modifyDOM();
-
-		// get the last video name and add it to article meta info
-		$ami = ArticleMetaInfo::getAMICache();
-
-		if ( pq( '.m-video:first' )->attr( 'data-summary' ) ) {
-			$ami->updateSummaryVideoPath( pq( '.m-video:first' )->attr( 'data-src' ) );
-		} else {
-			$lastVideo = pq('.m-video:last')->attr('data-src');
-			$ami->updateLastVideoPath( $lastVideo );
+		if (class_exists('Donate')) {
+			Donate::addDonateSectionToArticle();
 		}
 
-		if ( class_exists( 'AlternateDomain' ) && AlternateDomain::onAlternateDomain() ) {
+		if ($isNewTocArticle) {
+			WikihowToc::addToc();
+		}
+
+		//english only test
+		if ($langCode == "en" && ArticleTagList::hasTag("test_bold_1", $title->getArticleID())) {
+			$titleText = pq(".firstHeading a")->html();
+			pq(".firstHeading a")->html("<span style='font-weight: normal'>How to </span>" . substr($titleText, 7));
+		}
+		if ($langCode == "en" && ArticleTagList::hasTag("test_bold_2", $title->getArticleID())) {
+			$firstParagraph = pq("#intro > p:not('#method_toc'):first");
+			$text = $firstParagraph->html();
+			$words = explode(" ", $text);
+			if (count($words) > 5) {
+				$start = array_slice($words, 0, 5);
+				$end = array_slice($words, 5);
+				$firstParagraph->html("<span style='font-weight: bold'>" . join(" ", $start) . "</span> " . join(" ", $end));
+			}
+		}
+
+		// do not update video path if we are viewing an old revision
+		if ( !$context->getRequest()->getVal( 'oldid' ) ) {
+			// get the last video name and add it to article meta info
+			$ami = ArticleMetaInfo::getAMICache();
+			$lastVideo = '';
+			$summaryVideo = '';
+			// look through all videos for summary section
+
+			foreach ( pq( '.m-video' ) as $mVideo ) {
+				if ( pq( $mVideo )->attr( 'data-summary' ) ) {
+					$summaryVideo = pq( $mVideo )->attr( 'data-src' );
+				} else {
+					$lastVideo = pq( $mVideo )->attr('data-src');
+				}
+			}
+
+			$ami->updateLastVideoPath( $lastVideo );
+			$ami->updateSummaryVideoPath( $summaryVideo );
+		}
+
+		// Trevor, 10/29/18 - Testing making videos a link to the video browser - this must come
+		// after videos are updated
+		// Trevor, 3/1/19 - Check article being on alt-domain, not just which domain we are on, logged in
+		// users can see alt-domain articles on the main site
+		// Trevor, 6/18/19 - Make a special exception for recipe articles, play those inline
+		$recipeSchema = SchemaMarkup::getRecipeSchema( $title, $context->getOutput()->getRevisionId() );
+		if ( !$recipeSchema && $langCode == 'en' && !AlternateDomain::getAlternateDomainForPage( $title->getArticleID() ) ) {
+			$videoPlayer = pq( '#quick_summary_section .video-player' );
+			if ( $videoPlayer ) {
+				$link = pq( '<a id="summary_video_link">' )->attr(
+					'href', '/Video/' . str_replace( ' ', '-', $context->getTitle()->getText() )
+				);
+				$poster = pq( '<img id="summary_video_poster">' )->attr( 'data-src', $videoPlayer->find( 'video' )->attr( 'data-poster' ) );
+				$poster->addClass( 'm-video' );
+				$poster->addClass( 'content-fill placeholder' );
+				$controls = pq( WHVid::getSummaryIntroOverlayHtml( '', $title ) );
+				// Includes the structured data, which was appened to .video-player
+				$videoPlayer->empty()->append( $link );
+				$link->append( $poster );
+				$link->append( Html::inlineScript( "WH.shared.addScrollLoadItem('summary_video_poster')" ) );
+				$link->append( Html::inlineScript( "WH.shared.addLoadedCallback('summary_video_poster', function(){WH.shared.showVideoPlay(this);})" ) );
+				$link->append( $controls );
+			}
+		}
+
+		//tabs should really be last so that it has access to all the content that might be there
+		if ( class_exists( 'DesktopTabs' ) ) {
+			DesktopTabs::modifyDOM();
+		}
+
+		if ( class_exists( 'AlternateDomain' ) ) {
 			AlternateDomain::modifyDom();
 		}
 
-		if (class_exists( 'TechLayout' ) && TechLayout::isTechLayoutTest($wgTitle)) {
+		if (class_exists( 'TechLayout' ) && TechLayout::isTechLayoutTest($title)) {
 			TechLayout::modifyDom();
 		}
-
-		self::initStepToSpeech();
 
 		if (class_exists('MethodHelpfulness\ArticleMethod')) {
 			MethodHelpfulness\ArticleMethod::modifyDOM($nonAltMethodElements, '#bodycontents', true);
@@ -786,52 +947,23 @@ class WikihowArticleHTML {
 
 		$scripts = [];
 		$snippets = [];
-		wfRunHooks( 'AddTopEmbedJavascript', [&$scripts] );
+		Hooks::run( 'AddTopEmbedJavascript', [&$scripts] );
 		$html = $doc->htmlOuter();
 		if ($scripts) {
 			$html = Html::inlineScript(Misc::getEmbedFiles('js', $scripts)) . $html;
 		}
 
-		wfProfileOut( __METHOD__ . "-gethtml" );
 
 		return $html;
 	}
 
-	// adds text to speech marker div for articles with textToSpeech tag
-	public static function initTextToSpeech(){
-		$context = RequestContext::getMain();
-		$req = $context->getRequest();
-		$title = $context->getTitle();
-		if ( ( !GoogleAmp::hasAmpParam($req)
-				&& ArticleTagList::hasTag( 'textToSpeech', $title->getArticleID() ) )
-			|| $req->getVal('text_to_speech') == '1'
-		) {
-			$finalStep = pq(".steps:last");
-			$finalStep->append('<div class="Text_To_Speech"></div>');
-			$finalStep->append('<script src="//code.responsivevoice.org/responsivevoice.js"></script>');
-		}
-	}
+	// NOTE: used in StepEditor and WikihowMobileTools too
+	public static function boldFirstSentence($htmlText) {
+		$langCode = RequestContext::getMain()->getLanguage()->getCode();
 
-	// adds text to speech marker div for articles with textToSpeech tag
-	public static function initStepToSpeech(){
-		$context = RequestContext::getMain();
-		$req = $context->getRequest();
-		$title = $context->getTitle();
-		if ( ( !GoogleAmp::hasAmpParam($req)
-				&& ArticleTagList::hasTag( 'textToSpeech', $title->getArticleID() ) )
-			|| $req->getVal('text_to_speech') == '1'
-		) {
-			$finalStep = pq(".steps:last");
-			$finalStep->append('<script src="//code.responsivevoice.org/responsivevoice.js"></script>');
-		}
-	}
-
-	static function boldFirstSentence($htmlText) {
-		global $wgLanguageCode;
-
-		if (in_array($wgLanguageCode, ['ja', 'zh'])) {
+		if (in_array($langCode, ['ja', 'zh'])) {
 			$punct = '。\:!\?'; // Use the Japanese and Chinese period character instead
-			if ($wgLanguageCode == 'ja') {
+			if ($langCode == 'ja') {
 				$punct .= '　'; // Double-byte space
 			}
 			$replacement = '$1</b>';
@@ -842,27 +974,58 @@ class WikihowArticleHTML {
 			// ($|\s|\W|\D) = end of line, a space, or any non-word, non-number (skip decimals and urls)
 			$pattern = "@([$punct])($|\s|\W|\D])@im";
 		}
-
-
+		// Array of characters that are used to end sentences (language-specific)
+		$punct_split = str_split( str_replace( "\\", '', $punct ) );
 		$htmlparts = preg_split('@(<[^>]*>)@im', $htmlText,
 			0, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
-		$incaption = false;
+
+		$intag = false;
 		$apply_b = false;
 		$closed_b = false;
+		$endsWithSpecial = false;
+		$endOfLink = false;
 		$p = '';
+
 		while ($x = array_shift($htmlparts)) {
+			// Hack-ish fix for when the sentence ends with a hyperlink that contains a punctuation
+			if( $endsWithSpecial == true && $endOfLink == true ) {
+				$x = '</b>' . $x;
+				$p .= $x;
+				continue;
+			}
+			if ( in_array( substr( trim( $x ), -1 ), $punct_split ) ) {
+				$endsWithSpecial = true;
+			}
+			if ( $x == '</a>' ) {
+				$endOfLink = true;
+			} else {
+				$endOfLink = false;
+			}
 
 			# add any other "line-break" tags here.
 			$is_break_tag = strpos($x, '<ul>') === 0 || strpos($x, '<ol>') === 0;
 
-			# if it's a tag, just append it and keep going (but only if we have already begun bolding)
-			if (!$is_break_tag && strpos($x, '<') === 0 && $apply_b) {
+			# check if it is "in" a tag. If yes, just append it and continue until it is "out" of the tag
+			if (!$is_break_tag && strpos($x, '<') === 0) {
 				# add the tag
 				$p .= $x;
-				if ($x == '<span class="caption">') {
-					$incaption = true;
-				} elseif ($x == "</span>" && $incaption) {
-					$incaption = false;
+
+				# Captions are turned off on the site as on 12th June 2019. However, if these are enabled later,
+				# do not boldface caption text. Continue to next "htmlparts" - Gaurang
+				if( $x == '<span class="caption">' ){
+					$intag = true;
+					continue;
+				}
+
+				# Check if it is in a hyperlink, math template, or keyboard template. If yes, boldface the template text
+				if ( $x == '<span style="white-space: nowrap;">' || strpos($x, '<math') === 0 || strpos($x, '<a') === 0 ) {
+					$p .= '<b class="whb">';
+					$intag = true;
+				} elseif ( ($x == "</span>" || $x == "</math>" || $x == "</a>") && $intag ) {
+					# Stop boldface if at the end of the template. Boldfacing of out-of-template text is handled
+					# seperately below (line 993)
+					$x = '</b>' . $x;
+					$intag = false;
 				}
 				continue;
 			}
@@ -874,7 +1037,7 @@ class WikihowArticleHTML {
 
 
 			# put the closing </b> in if we hit the end of the sentence
-			if (!$incaption) {
+			if (!$intag) {
 				if (!$apply_b && trim($x)) {
 					$p .= '<b class="whb">';
 					$apply_b = true;
@@ -898,7 +1061,6 @@ class WikihowArticleHTML {
 
 		# get anything left over
 		$p .= implode('', $htmlparts);
-
 		return "<div class='step'>". $p . "</div>";
 	}
 
@@ -913,11 +1075,13 @@ class WikihowArticleHTML {
 	 * This method is used to process non-article HTML
 	 */
 	static function processHTML($body, $action='', $opts = array()) {
-		global $wgUser, $wgTitle;
+		$ctx = RequestContext::getMain();
+		$user = $ctx->getUser();
+		$title = $ctx->getTitle();
 
 		$processHTML = true;
-		// $wgTitle isn't used in the hook below
-		wfRunHooks('PreWikihowProcessHTML', array($wgTitle, &$processHTML));
+		// $title isn't used in the hook below
+		Hooks::run('PreWikihowProcessHTML', array($title, &$processHTML));
 		if (!$processHTML) {
 			return $body;
 		}
@@ -956,8 +1120,8 @@ class WikihowArticleHTML {
 
 		//insert postcomment form
 		$pc = new PostComment();
-		$pcf = $pc->getForm(false,$wgTitle,true);
-		if ($pcf && $wgTitle->getFullURL() != $wgUser->getUserPage()->getTalkPage()->getFullURL()) {
+		$pcf = $pc->getForm(false, $title, true);
+		if ($pcf && $title->getFullURL() != $user->getUserPage()->getTalkPage()->getFullURL()) {
 			$pc_form = $pcf;
 			pq("#bodycontents")->append($pc_form);
 		}
@@ -981,7 +1145,7 @@ class WikihowArticleHTML {
 			pq("#wikiDiff")->remove();
 
 			//preview before or after based on user preference
-			if ($wgUser->getOption('previewontop')) {
+			if ($user->getOption('previewontop')) {
 				pq($name)->before($preview);
 				pq($name)->before($changes);
 			}
@@ -1000,13 +1164,14 @@ class WikihowArticleHTML {
 	}
 
 	static function getMarkPatrolledLink() {
-		global $wgRequest, $wgUser;
+		$ctx = RequestContext::getMain();
 
 		// Append a [Mark as Patrolled] link in certain cases
+		$user = $ctx->getUser();
 		$markPatrolledLink = '';
-		$rcid = $wgRequest->getInt('rcid');
-		$fromRC = $wgRequest->getInt('fromrc');
-		if ( $wgUser && $rcid > 0 && $fromRC && $wgUser->isAllowed( 'patrol' ) ) {
+		$rcid = $ctx->getRequest()->getInt('rcid');
+		$fromRC = $ctx->getRequest()->getInt('fromrc');
+		if ( $user && $rcid > 0 && $fromRC && $user->isAllowed( 'patrol' ) ) {
 			$rc = RecentChange::newFromId($rcid);
 			if ($rc) {
 				$oldRevId = $rc->getAttribute('rc_last_oldid');
@@ -1019,6 +1184,7 @@ class WikihowArticleHTML {
 				}
 			}
 		}
+
 		return $markPatrolledLink;
 	}
 
@@ -1026,12 +1192,12 @@ class WikihowArticleHTML {
 	 * Insert ad codes, and other random bits of html, into the body of the article
 	 */
 	static function postProcess($body, $opts = array()) {
-		global $wgWikiHowSections, $wgTitle, $wgUser;
-		$ads = $wgUser->isAnon() && !@$opts['no-ads'];
+		global $wgWikiHowSections;
+		$ctx = RequestContext::getMain();
+		$ads = $ctx->getUser()->isAnon() && !@$opts['no-ads'];
 		$parts = preg_split("@(<h2.*</h2>)@im", $body, 0, PREG_SPLIT_DELIM_CAPTURE);
 		$reverse_msgs = array();
 		$no_third_ad = false;
-		$isRecipe = Microdata::showRecipeTags() && Microdata::showhRecipeTags();
 		foreach ($wgWikiHowSections as $section) {
 			$reverse_msgs[wfMessage($section)->text()] = $section;
 		}
@@ -1043,30 +1209,21 @@ class WikihowArticleHTML {
 				if ($body == "") {
 					// if there is no alt tag for the intro image, so it to be the title of the page
 					preg_match("@<img.*mwimage101[^>]*>@", $parts[$i], $matches);
-					if ($wgTitle && sizeof($matches) > 0) {
+					$title = $ctx->getTitle();
+					if ($title && sizeof($matches) > 0) {
 						$m = $matches[0];
-						$newm = str_replace('alt=""', 'alt="' . htmlspecialchars($wgTitle->getText()) . '"', $m);
+						$newm = str_replace('alt=""', 'alt="' . htmlspecialchars($title->getText()) . '"', $m);
 						if ($m != $newm) {
 							$parts[$i] = str_replace($m, $newm, $parts[$i]);
 						}
 
-						//add microdata
-						if ($isRecipe) {
-							$parts[$i] = preg_replace('/mwimage101"/','mwimage101 photo"',$parts[$i], 1);
-						} else {
-							$parts[$i] = preg_replace('/mwimage101"/','mwimage101" itemprop="image"',$parts[$i], 1);
-						}
+						$parts[$i] = preg_replace('/mwimage101"/','mwimage101" itemprop="image"',$parts[$i], 1);
 						$img_itemprop_done = true;
 					} else {
 						$img_itemprop_done = false;
 					}
 
-					// add microdata
-					if ($isRecipe) {
-						$parts[$i] = preg_replace('/\<p\>/','<p class="summary">',$parts[$i], 1);
-					} else {
-						$parts[$i] = preg_replace('/\<p\>/','<p itemprop="description">',$parts[$i], 1);
-					}
+					$parts[$i] = preg_replace('/\<p\>/','<p itemprop="description">',$parts[$i], 1);
 
 					// done alt test
 					$anchorPos = stripos($parts[$i], "<a name=");
@@ -1080,7 +1237,7 @@ class WikihowArticleHTML {
 							$endVar = "<p><br /></p>\n<p>";
 							$end = substr($content, -1*strlen($endVar));
 
-							if($end == $endVar) {
+							if ($end == $endVar) {
 								$class = 'high'; //this intro has two paragraphs at the end, move ads higher
 							}
 							else{
@@ -1117,16 +1274,7 @@ class WikihowArticleHTML {
 
 				$i++;
 				if ($rev == "steps") {
-					if (Microdata::showRecipeTags()) {
-						if (Microdata::showhRecipeTags()) {
-							$recipe_tag = " instructions'";
-						} else {
-							$recipe_tag = "' itemprop='recipeInstructions'";
-						}
-					} else {
-						$recipe_tag = "'";
-					}
-					$body .= "\n<div id=\"steps\" class='editable{$recipe_tag}>{$parts[$i]}</div>\n";
+					$body .= "\n<div id=\"steps\" class='editable'>{$parts[$i]}</div>\n";
 				} elseif ($rev != "") {
 					$body .= "\n<div id=\"{$rev}\" class='article_inner editable'>{$parts[$i]}</div>\n";
 				} else {
@@ -1142,7 +1290,7 @@ class WikihowArticleHTML {
 		if ($i !== false) {
 			$j = strpos($body, '<div id=', $i+5); //find the position of the next div. Starting after the '<div ' (5 characters)
 			$sub = "sd_"; //want to skip over the samples section if they're there
-			while($j !== false && $sub == "sd_") {
+			while ($j !== false && $sub == "sd_") {
 				$sub = substr($body, $j+9, 3); //find the id of the next div section 9=strlen(<div id="), 3=strlen(sd_)
 				$j = strpos($body, '<div id=', $j+12); //find the position of the next div. Starting after the '<div id="sd_' (12 characters)
 			}
@@ -1221,7 +1369,7 @@ class WikihowArticleHTML {
 									if (preg_match("@(<[^>]*>)@im", $x)) {
 										//tag
 										$p .= $x;
-										if ($x == "<span class='caption'>") {
+										if(preg_match("@<span*@",$x)){
 											$incaption = true;
 										} elseif ($x == "</span>" && $incaption) {
 											$incaption = false;
@@ -1303,7 +1451,7 @@ class WikihowArticleHTML {
 				} elseif ($lp == "</li>" && !$donelast) {
 					// ads after the last step
 					if ($ads) {
-						if(substr($body, $j) == ""){
+						if (substr($body, $j) == ""){
 							$p = "<script>missing_last_ads = true;</script>" . wikihowAds::getAdUnitPlaceholder(1) . $p;
 							$no_third_ad = true;
 						}
@@ -1319,11 +1467,6 @@ class WikihowArticleHTML {
 			$body = substr($body, 0, $i) . $steps . substr($body, $j);
 
 		} // if numsteps == 400?
-
-		//recipe prep time test
-		if (class_exists('Microdata') && $wgTitle) {
-			Microdata::insertPrepTimeTest($wgTitle->getDBkey(), $body);
-		}
 
 		/// ads below tips, walk the sections and put them after the tips
 		if ($ads) {
@@ -1354,15 +1497,17 @@ class WikihowArticleHTML {
 						//tip ad is now at the bottom of the tips section
 						//need to account for the possibility of no sections below this and therefor
 						//no anchor tag
-						if($isAtEnd)
+						if ($isAtEnd) {
 							$anchorTag = "<p></p>";
+						}
 						$body = str_replace($section, $section . $anchorTag . wikihowAds::getAdUnitPlaceholder('2a') , $body);
 						$foundtips = true;
 						break;
 					} else {
 						$foundtips = true;
-						if($isAtEnd)
+						if ($isAtEnd) {
 							$anchorTag = "<p></p>";
+						}
 						$body = str_replace($section, $section . $anchorTag . wikihowAds::getAdUnitPlaceholder(2) , $body);
 						break;
 					}
@@ -1381,7 +1526,7 @@ class WikihowArticleHTML {
 	/*
 	 * look for some key magic words we'll use in processArticleHTML()
 	 */
-	public function grabTheMagic($wikitext) {
+	public static function grabTheMagic($wikitext) {
 
 		//has parts?
 		$mw = MagicWord::get('parts');
@@ -1399,4 +1544,174 @@ class WikihowArticleHTML {
 		return '';
 	}
 
+/* unused - Reuben 3/2019
+	private static function formatSourcesSectionNew( $sources, $context) {
+		$out = RequestContext::getMain()->getOutput();
+
+		if ( !$sources->length ) {
+			return;
+		}
+
+		pq( $sources )->find( "ol, ul" )->addClass( "sources" );
+
+		$count = pq( $sources )->find( "ol li, ul li" )->length;
+
+		$limit = 21;
+
+		$title = $context->getTitle();
+		$request = $context->getRequest();
+		// Making all reference links open in a new browser tab. Feature requested by Michelle.
+		pq('.reference-text a, .sources li a', $sources)->attr('target', '_blank');
+
+		// Remove the extra <br> if it exists
+		pq( $sources )->children("p")->remove();
+
+		$titlesFetched = 0;
+		foreach ( pq( $sources )->find( "li a" ) as $refLink ) {
+			$refTitle = '';
+			$url = pq( $refLink )->text();
+			$refTitle = self::getReferenceTitle( $url );
+			$url = parse_url( $url );
+			$host = $url['host'];
+			$host = explode( '.', $host );
+			if ( count( $host ) > 2 ) {
+				$host = $host[1] . '.' . $host[2];
+			} elseif ( count( $host ) == 2 ) {
+				$host = $host[0] . '.' . $host[1];
+			} elseif ( count( $host ) == 1 ) {
+				$host = $host[0];
+			} else {
+				$host = '';
+			}
+			$refText = '';
+			if ( $host ) {
+				$refText = "[" . $host . "]";
+			}
+			if ( $refTitle ) {
+				$refText = $refTitle . " " . $refText;
+			}
+			$url = pq( $refLink )->text( $refText );
+		}
+
+		if ( $count <= $limit ) {
+			return;
+		}
+
+		// Don't hide refs if it's a printable page
+		if ( $out->isPrintable() ) {
+			return;
+		}
+
+		// Don't hide refs if we're on a special page
+		if ( !$title || $title->inNamespace( NS_SPECIAL ) ) {
+			return;
+		}
+
+		// Don't hide refs if we're in a diff view
+		if ( !$request || $request->getVal( 'diff' ) || $request->getVal( 'oldid') ) {
+			return;
+		}
+
+		// Index of the last item that we will show
+		// Choose in which order the lists will be truncated
+		$index = $limit - 1;
+
+		// Citations, then sources. This will work too if one of the
+		// sections is missing, as that won't affect the selector below.
+		// Hide items from the cutoff point
+		$selector = "ul, ol";
+		if ( pq($sources)->find( ".sources + .references-small" )->length ) {
+			$selector =  "ol, ul";
+		}
+		pq( $sources )->find( $selector )->find( "li:gt($index)" )->addClass( "hidden" );
+
+		// Append link to expand the list
+		$remaining = $count - $limit;
+		pq( $sources )->append("<a href='#' class='showsources'>" . wfMessage("Show")->text() . ' ' . strtolower(wfMessage("moredotdotdot")->text()) . " ({$remaining})</a>");
+	}
+*/
+
+	private static function getReferenceTitle( $url ) {
+		$title = self::getLinkInfo( $url );
+		if ( $title ) {
+			return $title;
+		}
+
+		return $url;
+	}
+
+	public static function getLinkInfo( $url ) {
+		$dbr = wfGetDb( DB_REPLICA );
+        $table = 'link_info';
+        $var = 'li_title';
+		$cond = array( 'li_url' => $url );
+		$options = array();
+		$title = $dbr->selectField( $table, $var, $cond, __METHOD__, $options );
+		return $title;
+	}
+
+	private static function formatSourcesSection( $sources, $context) {
+		$out = RequestContext::getMain()->getOutput();
+
+		if ( !$sources->length ) {
+			return;
+		}
+
+		pq($sources)->find("ol, ul")->addClass("sources");
+		$count = pq($sources)->find("ol li, ul li")->length;
+		$limit = 9;
+
+		$title = $context->getTitle();
+		$request = $context->getRequest();
+		// Making all reference links open in a new browser tab. Feature requested by Michelle.
+		pq('.reference-text a, .sources li a', $sources)->attr('target', '_blank');
+		// Don't hide refs if it's a printable page, we're on a special page, or we're in a diff view
+		if ($count > $limit && !$out->isPrintable()
+				&& ( $title && !$title->inNamespace( NS_SPECIAL ) )
+				&& ( $request && !$request->getVal( 'diff' ) && !$request->getVal( 'oldid') ) ) {
+			$index = $limit - 1; // Index of the last item that we will show
+			// Choose in which order the lists will be truncated
+			$selector = pq($sources)->find(".sources + .references-small")->length
+				? "ul, ol"  // Sources, then citations
+				: "ol, ul"; // Citations, then sources. This will work too if one of the
+			// sections is missing, as that won't affect the selector below.
+			// Hide items from the cutoff point
+			pq($sources)->find($selector)->find("li:gt($index)")->addClass("hidden");
+			// Append link to expand the list
+			$remaining = $count - $limit;
+			pq($sources)->append("<a href='#' class='showsources'>" . wfMessage("Show")->text()
+					. ' ' . strtolower(wfMessage("moredotdotdot")->text()) . " ({$remaining})</a>");
+		}
+
+		// Remove the extra <br> if it exists
+		pq($sources)->children("p")->remove();
+
+		// remove all ISBN links
+		foreach ( pq( $sources )->find( '.mw-magiclink-isbn' ) as $isbn ) {
+			$replaceText = pq( $isbn )->text();
+			pq( $isbn )->replaceWith( $replaceText );
+		}
+	}
+
+	public static function getAnchorList( $altMethodAnchors, $altMethodNames ) {
+		$anchorList = [];
+		for ( $i = 0; $i < count( $altMethodAnchors ); $i++ ) {
+			$methodName = pq( '<div>' . $altMethodNames[$i] . '</div>' )->text();
+			// remove any reference notes
+			$methodName = preg_replace( "@\[\d{1,3}\]$@", "", $methodName );
+			if ( $methodName == "" ) {
+				continue;
+			}
+			$methodName = htmlspecialchars( $methodName );
+			//use rawElement so any special characters from the method name shows up correctly in the TOC
+			$anchorList[] = Html::rawElement( 'a', ['href' => "#{$altMethodAnchors[$i]}_sub"], $methodName );
+		}
+
+		// A hook to add anchors to the TOC.
+		Hooks::run('AddDesktopTOCItems', array( RequestContext::getMain()->getTitle(), &$anchorList ) );
+
+		$result = Html::element( 'span', [], wfMessage('toc_title') );
+		$result .= implode( "" , $anchorList );
+		return $result;
+	}
 }

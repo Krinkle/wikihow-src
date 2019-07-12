@@ -34,7 +34,7 @@ class AlternateDomain {
 			return $result;
 		}
 
-		$brandedAlternateDomains = array ( 'wikihow.tech', 'wikihow.pet', 'wikihow.mom', 'wikihow.life', 'wikihow.fitness' );
+		$brandedAlternateDomains = array ( 'wikihow.tech', 'wikihow.pet', 'wikihow.mom', 'wikihow.life', 'wikihow.fitness', 'wikihow.health', 'wikihow-fun.com' );
 		foreach ( $brandedAlternateDomains as $domain ) {
 			if ( ArticleTagList::hasTag( $domain, $pageId ) ) {
 				$result = $domain;
@@ -47,7 +47,27 @@ class AlternateDomain {
 	 * get list of all alternate domains
 	 */
 	public static function getAlternateDomains() {
-		return array( 'howyougetfit.com', 'howyoulivelife.com', 'wikihow.tech', 'wikihow.pet', 'wikihow.mom', 'wikihow.life', 'wikihow.fitness' );
+		return array( 'howyougetfit.com', 'howyoulivelife.com', 'wikihow.tech', 'wikihow.pet', 'wikihow.mom', 'wikihow.life', 'wikihow.fitness', 'wikihow.health', 'wikihow-fun.com' );
+	}
+
+	public static function getAlternateDomainClass($domain) {
+		$domainMapping = [
+			'howyougetfit.com' => 'howyougetfit',
+			'howyoulivelife.com' => 'howyoulivelife',
+			'wikihow.tech' => 'tech',
+			'wikihow.pet' => 'pet',
+			'wikihow.mom' => 'mom',
+			'wikihow.life' => 'life',
+			'wikihow.fitness' => 'fitness',
+			'wikihow.health' => 'health',
+			'wikihow-fun.com' => 'fun'
+		];
+
+		if(array_key_exists($domain, $domainMapping)) {
+			return $domainMapping[$domain];
+		} else {
+			"";
+		}
 	}
 
 	/*
@@ -66,6 +86,20 @@ class AlternateDomain {
 		foreach ( $domains as $domain ) {
 			if ( strstr( $domainName, $domain ) ) {
 				return true;
+			}
+		}
+		return false;
+	}
+
+	/*
+	 * Returns the alternate domain we're on, false otherwise
+	 */
+	public static function getAlternateDomainForCurrentPage() {
+		global $domainName;
+		$domains = self::getAlternateDomains();
+		foreach ( $domains as $domain ) {
+			if ( strstr( $domainName, $domain ) ) {
+				return $domain;
 			}
 		}
 		return false;
@@ -94,7 +128,7 @@ class AlternateDomain {
 	 */
 	private static function getAlternateDomainPagesForCurrentDomain() {
 		$domain = self::getCurrentRootDomain();
-	    $results = self::getAlternateDomainPagesForDomain($domain);
+		$results = self::getAlternateDomainPagesForDomain($domain);
 		return $results;
 	}
 
@@ -115,7 +149,10 @@ class AlternateDomain {
 		$result = array();
 		$domains = self::getAlternateDomains();
 		foreach ( $domains as $domain ) {
-			$result = $result + array_fill_keys( explode( "\n", ConfigStorage::dbGetConfig( $domain, true ) ), $domain );
+			$config = ConfigStorage::dbGetConfig( $domain, true );
+			if ($config) {
+				$result += array_fill_keys( explode( "\n", $config ), $domain );
+			}
 		}
 		self::$allPages = $result;
 		return $result;
@@ -171,26 +208,26 @@ class AlternateDomain {
 
 		if ( Misc::isMobileMode() ) {
 			if ( self::onNoBrandingDomain() ) {
-				$style = Misc::getEmbedFile( 'css', dirname(__FILE__) . '/alternatedomain.nobranding.mobile.css' );
+				$style = Misc::getEmbedFile( 'css', __DIR__ . '/alternatedomain.nobranding.mobile.css' );
 				if ( $isMainPage ) {
-					$style .= Misc::getEmbedFile( 'css', dirname(__FILE__) . '/alternatedomain.nobranding.mainpage.mobile.css' );
+					$style .= Misc::getEmbedFile( 'css', __DIR__ . '/alternatedomain.nobranding.mainpage.mobile.css' );
 				}
 			} else {
-				$style = Misc::getEmbedFile( 'css', dirname(__FILE__) . '/alternatedomain.mobile.css' );
+				$style = Misc::getEmbedFile( 'css', __DIR__ . '/alternatedomain.mobile.css' );
 				if ( $isMainPage ) {
-					$style .= Misc::getEmbedFile( 'css', dirname(__FILE__) . '/alternatedomain.mainpage.mobile.css' );
+					$style .= Misc::getEmbedFile( 'css', __DIR__ . '/alternatedomain.mainpage.mobile.css' );
 				}
 			}
 		} else {
 			if ( self::onNoBrandingDomain() ) {
-				$style = Misc::getEmbedFile( 'css', dirname(__FILE__) . '/alternatedomain.nobranding.desktop.css' );
+				$style = Misc::getEmbedFile( 'css', __DIR__ . '/alternatedomain.nobranding.desktop.css' );
 				if ( $isMainPage ) {
-					$style .= Misc::getEmbedFile( 'css', dirname(__FILE__) . '/alternatedomain.mainpage.desktop.css' );
+					$style .= Misc::getEmbedFile( 'css', __DIR__ . '/alternatedomain.mainpage.desktop.css' );
 				}
 			} else {
-				$style = Misc::getEmbedFile( 'css', dirname(__FILE__) . '/alternatedomain.desktop.css' );
+				$style = Misc::getEmbedFile( 'css', __DIR__ . '/alternatedomain.desktop.css' );
 				if ( $isMainPage ) {
-					$style .= Misc::getEmbedFile( 'css', dirname(__FILE__) . '/alternatedomain.mainpage.desktop.css' );
+					$style .= Misc::getEmbedFile( 'css', __DIR__ . '/alternatedomain.mainpage.desktop.css' );
 				}
 
 			}
@@ -251,7 +288,7 @@ class AlternateDomain {
 		}
 		$proto = ($wgIsSecureSite ? 'https:' : 'http:');
 		$partialUrl = $title->getPartialUrl();
-		$rootDomain = self::getAlternateDomainForPage( $title->getArticleID() );
+		$rootDomain = self::getCurrentRootDomain();
 		$mobileUrl = "$proto//m.$rootDomain/$partialUrl";
 	}
 
@@ -264,7 +301,7 @@ class AlternateDomain {
 		$pageId = $wgTitle->getArticleID();
 		$pages = self::getAlternateDomainPagesForCurrentDomain();
 
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$table = array( WH_DATABASE_NAME_EN.'.titus_copy' );
 		$vars = array( 'ti_page_id' );
 		$conds = array(
@@ -274,6 +311,12 @@ class AlternateDomain {
 			'ti_robot_policy' => 'index,follow',
 			'ti_num_photos > 0'
 		);
+
+		if ( SensitiveRelatedWikihows::isSensitiveRelatedRemovePage( $wgTitle ) ) {
+			$srpTable = SensitiveRelatedWikihows::SENSITIVE_RELATED_PAGE_TABLE;
+			$conds[] = "ti_page_id NOT IN (select srp_page_id from $srpTable)";
+		}
+
 		$orderBy = 'ti_30day_views DESC';
 		$options = array( 'ORDER BY' => $orderBy, 'LIMIT' => $limit );
 		if ( $offset ) {
@@ -368,9 +411,9 @@ class AlternateDomain {
 			$rowWidth = 2;
 		}
 
-        $pages = array_reverse( self::getAlternateDomainPagesForCurrentDomain() );
-        $pages = array_slice( $pages, 0, 48 );
-        $pages = array_flip( $pages );
+		$pages = array_reverse( self::getAlternateDomainPagesForCurrentDomain() );
+		$pages = array_slice( $pages, 0, 48 );
+		$pages = array_flip( $pages );
 		$related = RelatedWikihows::makeRelatedArticlesData( $pages, false );
 		$html = "";
 		$html2 = "";
@@ -378,7 +421,7 @@ class AlternateDomain {
 		foreach ( $related as $r ) {
 			$html2 .= $r->createDesktopHtml();
 		}
-        $html2 .= '<div style="clear: both;"></div>';
+		$html2 .= '<div style="clear: both;"></div>';
 
 		return true;
 	}
@@ -455,13 +498,12 @@ class AlternateDomain {
 			'RatingReason',
 			'MethodHelpfulness',
 			'QA',
-			'EmailLink',
 			'UserCompletedImages',
 			'LSearch',
 			'Sitemap',
 			'ArticleReviewers',
 			'QABox',
-			'Terms-Of-Use',
+			'BuildWikihowModal',
 		);
 
 		$noRedirect = false;
@@ -477,7 +519,31 @@ class AlternateDomain {
 			return true;
 		}
 
+		// another exception
+		if ( $title->inNamespace( NS_PROJECT ) && $titleText == 'Creative Commons' ) {
+			return true;
+		}
+		if ( $title->inNamespace( NS_PROJECT ) && $titleText == 'Terms of Use' ) {
+			return true;
+		}
+		if ( $title->inNamespace( NS_PROJECT ) ) {
+			$domain = self::getCurrentRootDomain();
+			$aboutPage = wfMessage( "footer_about_wh_{$domain}" )->text();
+			if ( strpos( $aboutPage, $title->getDBKey() ) !== false ) {
+				return true;
+			}
+		}
+
 		return false;
+	}
+
+	public static function isAltDomainLang() {
+		global $wgLanguageCode;
+		if ( $wgLanguageCode == 'en' ) {
+			return true;
+		} else {
+			return false;
+		}
 	}
 
 	/*
@@ -486,7 +552,7 @@ class AlternateDomain {
 	 * we redirect the page to the same url but with no query parameters at all
 	 */
 	public static function onBeforeInitialize( &$title, &$unused, &$output, &$user, $request, $wiki ) {
-		global $domainName, $wgLanguageCode;
+		global $domainName;
 
 		// check if we are on a specific page that never redirects for the alt domains
 		if ( self::isOnNoRedirectPage( $title ) ) {
@@ -499,14 +565,12 @@ class AlternateDomain {
 		}
 
 		// do not redirect if we are not on the english site
-		if ( $wgLanguageCode != 'en' ) {
+		if ( ! self::isAltDomainLang() ) {
 			return true;
 		}
 
 		// in certain cases we want to 404 the current page.. check that
 		if ( self::isOn404Page( $title->getArticleID() ) ) {
-			$output->setArticleBodyOnly(true);
-			$request->response()->header( "HTTP/1.1 404 Not Found" );
 			return true;
 		}
 
@@ -514,9 +578,13 @@ class AlternateDomain {
 		$alternateDomainForPage = self::getAlternateDomainForPage( $pageId );
 		if ( self::onAlternateDomain() ) {
 
-			// if the current page is not on our current test domain
-			// then redirect to wikihow
-			if ( !$alternateDomainForPage || !strstr( $domainName, $alternateDomainForPage ) ) {
+			// Redirect to wikiHow if the page is not on the current alt domain
+			$isCategoryPage = $title->inNamespace(NS_CATEGORY);
+			$redirect = !$isCategoryPage && (
+				!$alternateDomainForPage || !strstr($domainName, $alternateDomainForPage)
+			);
+
+			if ($redirect) {
 				$url = self::getDestUrl( $request->getRequestURL(), "wikihow.com" );
 				$output->redirect( $request->getProtocol() . "://" . $url, 301 );
 				return true;
@@ -534,35 +602,46 @@ class AlternateDomain {
 			}
 
 			// clear out other query params. if we found any
-		    // we must redirect to the same page but without those parameters
+			// we must redirect to the same page but without those parameters
 			$redirectToSelf = false;
-			$query = $request->getValues();
-			foreach ( $query as $key => $value ) {
-				// allow the title key since that is included in the request by default
-				// also allow the oldid param since it is linked to by the verified revision
-				if ( $key == "title" || $key == "oldid" ) {
-					continue;
-				}
+			if (!$isCategoryPage) {
+				$query = $request->getValues();
+				foreach ( $query as $key => $value ) {
+					// allow the title key since that is included in the request by default
+					// also allow the oldid param since it is linked to by the verified revision
+					if ( $key == "title" || $key == "oldid" ) {
+						continue;
+					}
 
-				// allow useformat mobile key/val since it appears when visiting the mobile site
-				if ( $key == "useformat" && $value == "mobile" ) {
-					continue;
-				}
+					// allow useformat mobile key/val since it appears when visiting the mobile site
+					if ( $key == "useformat" && $value == "mobile" ) {
+						continue;
+					}
 
-				// allow printable view
-				if ( $key == "printable" && $value == "yes" ) {
-					continue;
-				}
+					// allow printable view
+					if ( $key == "printable" && $value == "yes" ) {
+						continue;
+					}
 
-				// if on mobile then allow the amp param for amp mode
-				if ( Misc::isMobileMode() && $key == "amp" && $value == "1") {
-					continue;
-				}
+					// if on mobile then allow the amp param for amp mode
+					if ( Misc::isMobileMode() && $key == "amp" && $value == "1") {
+						continue;
+					}
 
-				// if we found any extra params, then set a flag to redirect
-				// and unset that query parameter
-				$redirectToSelf = true;
-				unset( $query[$key] );
+					// If on mobile allow the Android app request parameter
+					if ( Misc::isMobileMode() &&
+						class_exists('AndroidHelper') &&
+						AndroidHelper::isAndroidRequest() &&
+						$key == AndroidHelper::QUERY_STRING_PARAM &&
+						$value == "1" ) {
+						continue;
+					}
+
+					// if we found any extra params, then set a flag to redirect
+					// and unset that query parameter
+					$redirectToSelf = true;
+					unset( $query[$key] );
+				}
 			}
 
 			if ( $redirectToSelf == true ) {
@@ -601,12 +680,14 @@ class AlternateDomain {
 	 * this is used to get the domain name we are currently on
 	 * for use in mediawiki messages for example
 	 */
-	private static function getCurrentRootDomain() {
+	public static function getCurrentRootDomain() {
 		global $domainName;
 		$domain = explode ( '.', $domainName );
 		if ( count( $domain ) < 2 ) {
 			return "";
-		} else if ( count ( $domain ) == 3 ) {
+		} elseif ( count ( $domain ) == 2 ) {
+			// do nothing
+		} elseif ( count ( $domain ) == 3 ) {
 			array_shift( $domain );
 		} else {
 			array_shift( $domain );
@@ -623,9 +704,9 @@ class AlternateDomain {
 		if ( !self::onAlternateDomain() ) {
 			return true;
 		}
-        global $domainName;
-        $key = $key . $domainName;
-    }
+		global $domainName;
+		$key = $key . $domainName;
+	}
 
 	/*
 	 * override the lsearch to strip out domain name of url
@@ -635,46 +716,46 @@ class AlternateDomain {
 			return true;
 		}
 
-        $rootDomain = str_replace( '.', '\.', self::getCurrentRootDomain() );
+		$rootDomain = str_replace( '.', '\.', self::getCurrentRootDomain() );
 		$result = preg_replace('@^https?://([^/]+\.)?'.$rootDomain.'/@', '', $url);
-    }
+	}
 
-    /*
-     * override the lsearch to alter the domain keyword search param
-     */
-    public static function onLSearchBeforeYahooSearch( &$siteKeyword, &$surl ) {
-        if ( !self::onAlternateDomain() ) {
-            return true;
-        }
-        $siteKeyword = "www.".self::getCurrentRootDomain();
+	/*
+	 * override the lsearch to alter the domain keyword search param
+	 */
+	public static function onLSearchBeforeYahooSearch( &$siteKeyword, &$surl ) {
+		if ( !self::onAlternateDomain() ) {
+			return true;
+		}
+		$siteKeyword = "www.".self::getCurrentRootDomain();
 
-        $surl = self::getCurrentRootDomain();
-        if ( Misc::isMobileMode() ) {
-            $surl = "mobile." . $surl;
-        }
-        $surl = "http://" . $surl;
-    }
+		$surl = self::getCurrentRootDomain();
+		if ( Misc::isMobileMode() ) {
+			$surl = "mobile." . $surl;
+		}
+		$surl = "http://" . $surl;
+	}
 
-    /*
-     * override the lsearch to alter the domain keyword search param
-     */
-    public static function onWikihowAdsAfterGetTypeTag( &$typeTag ) {
-        if ( !self::onAlternateDomain() ) {
-            return true;
-        }
+	/*
+	 * override the lsearch to alter the domain keyword search param
+	 */
+	public static function onWikihowAdsAfterGetTypeTag( &$typeTag ) {
+		if ( !self::onAlternateDomain() ) {
+			return true;
+		}
 
-        global $domainName;
-        $typeTag = str_replace( '.', '_', self::getCurrentRootDomain() );
-        if ( Misc::isMobileMode() ) {
-            $typeTag = 'mobile_' . $typeTag;
-        }
-        $typeTag = '__alt__ddc_' . $typeTag;
-    }
+		global $domainName;
+		$typeTag = str_replace( '.', '_', self::getCurrentRootDomain() );
+		if ( Misc::isMobileMode() ) {
+			$typeTag = 'mobile_' . $typeTag;
+		}
+		$typeTag = '__alt__ddc_' . $typeTag;
+	}
 
-    /*
-     * override the lsearch to filter out any results that are not on
-     * the current alternate domain
-     */
+	/*
+	 * override the lsearch to filter out any results that are not on
+	 * the current alternate domain
+	 */
 	public static function onLSearchRegularSearch( &$results ) {
 		if ( !self::onAlternateDomain() ) {
 			return true;
@@ -717,6 +798,7 @@ class AlternateDomain {
 		$pages = self::getAlternateDomainPagesForCurrentDomain();
 		foreach ( $pages as $pageId ) {
 			$title = Title::newFromID( $pageId );
+			if (!$title || !$title->exists()) continue;
 			$titlesHtml .= Html::rawElement( "li", array(), Linker::link( $title, $title->getText() ) );
 		}
 		$html = Html::rawElement( 'ul', array(), $titlesHtml );
@@ -764,7 +846,7 @@ class AlternateDomain {
 					'related' => '5001600976'
 				]
 			];
-		} else if ( strstr( $domainName, "wikihow.tech" ) ) {
+		} elseif ( strstr( $domainName, "wikihow.tech" ) ) {
 			$data['slots'] = [
 				'small' => [
 					'intro' => '6757535770',
@@ -780,7 +862,7 @@ class AlternateDomain {
 					'related' => '2187735379'
 				]
 			];
-		} else if ( strstr( $domainName, "wikihow.pet" ) ) {
+		} elseif ( strstr( $domainName, "wikihow.pet" ) ) {
 			$data['slots'] = [
 				'small' => [
 					'intro' => '7189227370',
@@ -796,7 +878,7 @@ class AlternateDomain {
 					'related' => '8665960573'
 				]
 			];
-		} else if ( strstr( $domainName, "howyoulivelife.com" ) ) {
+		} elseif ( strstr( $domainName, "howyoulivelife.com" ) ) {
 			$data['slots'] = [
 				'small' => [
 					'intro' => '4370814181',
@@ -812,7 +894,7 @@ class AlternateDomain {
 					'related' => '5189071838'
 				]
 			];
-		} else if ( strstr( $domainName, "wikihow.mom" ) ) {
+		} elseif ( strstr( $domainName, "wikihow.mom" ) ) {
 			$data['slots'] = [
 				'small' => [
 					'intro' => '2618748819',
@@ -828,7 +910,7 @@ class AlternateDomain {
 					'related' => '3245434778'
 				]
 			];
-		} else if ( strstr( $domainName, "wikihow.life" ) ) {
+		} elseif ( strstr( $domainName, "wikihow.life" ) ) {
 			$data['slots'] = [
 				'small' => [
 					'intro' => '7567823162',
@@ -844,7 +926,7 @@ class AlternateDomain {
 					'related' => '8497761450'
 				]
 			];
-		} else if ( strstr( $domainName, "wikihow.fitness" ) ) {
+		} elseif ( strstr( $domainName, "wikihow.fitness" ) ) {
 			$data['slots'] = [
 				'small' => [
 					'intro' => '1743816697',
@@ -858,6 +940,40 @@ class AlternateDomain {
 					'intro' => '1743816697',
 					'method' => '6084841797',
 					'related' => '6084841797'
+				]
+			];
+		} elseif ( strstr( $domainName, "wikihow.health" ) ) {
+			// ads are currently disabled for this domain in another part of the code
+			// if they were to be turned on then these would need to be defined for ads to work
+			$data['slots'] = [
+				'small' => [
+					'intro' => '0',
+					'method' => '0',
+					'related' => '0'
+				],
+				'medium' => [
+
+				],
+				'large' => [
+					'intro' => '0',
+					'method' => '0',
+					'related' => '0'
+				]
+			];
+		} else if ( strstr( $domainName, "wikihow-fun.com" ) ) {
+			$data['slots'] = [
+				'small' => [
+					'intro' => '7550202981',
+					'method' => '8138372250',
+					'related' => '4199127249'
+				],
+				'medium' => [
+
+				],
+				'large' => [
+					'intro' => '7550202981',
+					'method' => '8138372250',
+					'related' => '4199127249'
 				]
 			];
 		}
@@ -877,18 +993,22 @@ class AlternateDomain {
 
 		if ( strstr( $domainName, "howyougetfit.com") ) {
 			$codes['UA-2375655-16'] = 'howyougetfit';
-		} else if ( strstr( $domainName, "wikihow.tech") ) {
+		} elseif ( strstr( $domainName, "wikihow.tech") ) {
 			$codes['UA-2375655-17'] = 'wikihowtech';
-		} else if ( strstr( $domainName, "wikihow.pet") ) {
+		} elseif ( strstr( $domainName, "wikihow.pet") ) {
 			$codes['UA-2375655-20'] = 'wikihowpet';
-		} else if ( strstr( $domainName, "howyoulivelife.com") ) {
+		} elseif ( strstr( $domainName, "howyoulivelife.com") ) {
 			$codes['UA-2375655-28'] = 'howyoulivelife';
-		} else if ( strstr( $domainName, "wikihow.mom") ) {
+		} elseif ( strstr( $domainName, "wikihow.mom") ) {
 			$codes['UA-2375655-25'] = 'wikihowmom';
-		} else if ( strstr( $domainName, "wikihow.life") ) {
+		} elseif ( strstr( $domainName, "wikihow.life") ) {
 			$codes['UA-2375655-27'] = 'wikihowlife';
-		} else if ( strstr( $domainName, "wikihow.fitness") ) {
+		} elseif ( strstr( $domainName, "wikihow.fitness") ) {
 			$codes['UA-2375655-26'] = 'wikihowfitness';
+		} elseif ( strstr( $domainName, "wikihow.health") ) {
+			$codes['UA-2375655-31'] = 'wikihowhealth';
+		} else if ( strstr( $domainName, "wikihow-fun.com") ) {
+			$codes['UA-2375655-32'] = 'wikihowfun';
 		}
 	}
 
@@ -897,14 +1017,19 @@ class AlternateDomain {
 	 * if the user is logged in do not filter out the pages
 	 */
 	public static function onWikihowCategoryViewerQueryBeforeProcessTitle( $pageId ) {
-		global $wgUser;
+		global $wgUser, $domainName;
 
 		// if the user is logged in then do not filter out any pages
 		if ( !$wgUser->isAnon() ) {
 			return true;
 		}
 
-		if ( self::getAlternateDomainForPage( $pageId ) ) {
+		$weAreOnAltDomain = self::onAlternateDomain();
+		$articleAltDomain = self::getAlternateDomainForPage($pageId);
+		if (!$weAreOnAltDomain && $articleAltDomain) {
+			return false;
+		}
+		if ($weAreOnAltDomain && !strstr($domainName, $articleAltDomain)) {
 			return false;
 		}
 
@@ -1000,18 +1125,16 @@ class AlternateDomain {
 		unset( $headLinks['apple-touch-icon'] );
 		unset( $headLinks['favicon'] );
 		unset( $headLinks['rsd'] );
-		if ( self::onNoBrandingDomain() ) {
+
+		if ( $out->getTitle()->isMainPage() ) {
 			$headLinks['meta-keywords'] = Html::element(
 				'meta',
 				['name' => 'keywords', 'content' => wfMessage( 'meta_keywords_' . $domain )]
 			);
-
-			if ( $out->getTitle()->isMainPage() ) {
-				$headLinks['meta-description'] = Html::element(
-					'meta', ['name' => 'description','content' => wfMessage( 'meta_description_hp_' . $domain )]
-				);
-			}
+			$headLinks['meta-description'] = Html::element( 'meta', ['name' => 'description','content' => wfMessage( 'meta_description_' . $domain )] );
 		}
+
+		$hasAmpHtml = false;
 		foreach ( $headLinks as $key => $val ) {
 			if ( strstr( $val, 'atom' ) ) {
 				unset( $headLinks[$key] );
@@ -1020,6 +1143,7 @@ class AlternateDomain {
 				unset( $headLinks[$key] );
 			}
 			if ( strstr( $val, 'amphtml' ) ) {
+				$hasAmpHtml = true;
 				unset( $headLinks[$key] );
 			}
 		}
@@ -1032,38 +1156,31 @@ class AlternateDomain {
 		) );
 
 		$serverUrl = "https://m.".$domain;
-		$ampUrl = wfExpandUrl( $serverUrl . '/' . $out->getContext()->getTitle()->getPrefixedURL(), PROTO_CANONICAL );
-		$ampUrl =  $ampUrl . "?amp=1";
+		if ( $hasAmpHtml ) {
+			$ampUrl = wfExpandUrl( $serverUrl . '/' . $out->getContext()->getTitle()->getPrefixedURL(), PROTO_CANONICAL );
+			$ampUrl =  $ampUrl . "?amp=1";
 
-		$headLinks[] = Html::element( "link", array( "rel" => "amphtml", "href" => $ampUrl ) );
+			$headLinks[] = Html::element( "link", array( "rel" => "amphtml", "href" => $ampUrl ) );
+		}
 		return true;
 	}
 
-	/*
-	 * this hook does two things:
-	 * 1. Remove any alternate language links from the intl wikiwow sites that
-	 * point to an english page which is in on an alternate domain
-	 * 2. Remove all language links from the alternate domain pages
+	/**
+	 * Keep track of language links that point to alt pages, so we can use the
+	 * correct alt domain in the INTL hreflang link instead of www.wikihow.com
 	 */
 	public static function onTranslationLinkAddLanguageLink( $translationLink ) {
-		// if we are on non wikihow domain then do not add any translation links
-		if ( self::onAlternateDomain() ) {
-			return false;
-		}
+		global $wgAltLanguageLinks;
 
-		// if we are in english, then just return true as normal
-		global $wgLanguageCode;
-		if ( $wgLanguageCode == 'en' ) {
+		if (!Misc::isIntl()) {
 			return true;
 		}
 
-		// if not on english then we will look for a fromAID that matches
-		// a page in the alternate domain (since the lookup for translation links always is FROM english)
-		$pageId = intval( $translationLink->fromAID );
+		$wgAltLanguageLinks = $wgAltLanguageLinks ?? [];
+		$pageId = (int) $translationLink->fromAID;
 		$allPages = self::getAllPages();
-
 		if ( isset( $allPages[$pageId] ) ) {
-			return false;
+			$wgAltLanguageLinks[$translationLink->fromURL] = $allPages[$pageId];
 		}
 
 		return true;
@@ -1091,6 +1208,24 @@ class AlternateDomain {
 			if ( $lckey == 'pagetitle' ) {
 				$lckey = "pagetitle_alternate_domain";
 			}
+			if ( $lckey == 'footer_about_wh' ) {
+				$lckey = "footer_about_wh_{$domain}";
+			}
+			if ( $lckey == 'noarticletext' ) {
+				$lckey = "noarticletext_altdomain";
+			}
+			if ( $lckey == 'pagepolicy_review_header' ) {
+				$lckey = "pagepolicy_review_header_altdomain";
+			}
+			if ( $lckey == 'pagepolicy_review_message' ) {
+				$lckey = "noarticletext_altdomain";
+			}
+			if ( $lckey == 'pagepolicy_search_header' ) {
+				$lckey = "altdomain_blank";
+			}
+			if ( $lckey == 'pagepolicy_home_message' ) {
+				$lckey = "altdomain_blank";
+			}
 		}
 
 		if ( self::onNoBrandingDomain() ) {
@@ -1099,9 +1234,6 @@ class AlternateDomain {
 			}
 			if ( $lckey == 'qa_generic_username' ) {
 				$lckey = 'qausername_nobranding';
-			}
-			if ( $lckey == 'sub_footer_new_anon' || $lckey == 'sub_footer_new' ) {
-				$lckey = 'sub_footer_domain_nobranding';
 			}
 		}
 
@@ -1131,7 +1263,7 @@ class AlternateDomain {
 	 * do not show edit links on no branding domain
 	 */
 	public static function onRelatedWikihowsShowEditLink() {
-		if ( !self::onNoBrandingDomain() ) {
+		if ( !self::onAlternateDomain() ) {
 			return true;
 		}
 		return false;
@@ -1146,12 +1278,50 @@ class AlternateDomain {
 
 	/*
 	 * remove nav tabs on no branding domain
+	 * alter the nav tabs on branded alt domain
 	 */
 	public static function onHeaderBuilderAfterGenNavTabs( &$navTabs ) {
-		if ( !self::onNoBrandingDomain() ) {
+		if ( self::onNoBrandingDomain() ) {
+			$navTabs = array();
+		} elseif ( self::onAlternateDomain() ) {
+			$html = Linker::link( Title::makeTitle(NS_SPECIAL, 'Randomizer'), wfMessage('randompage')->text(), ['role' => 'menuitem'] );
+			//$html .= Linker::link( Title::makeTitle(NS_SPECIAL, "CategoryListing"), wfMessage('navmenu_categories')->text(), ['role' => 'menuitem'] );
+			$html = '<div class="menu" role="menu">'.$html.'</div>';
+			$navTabs['nav_explore']['menu'] = $html;
+			unset( $navTabs['nav_help'] );
+			unset( $navTabs['nav_messages'] );
+			unset( $navTabs['nav_profile'] );
+			unset( $navTabs['nav_edit'] );
+		} else {
 			return true;
 		}
-		$navTabs = array();
+	}
+
+	/*
+	* used to show the regular 404 page on alt domains
+	*/
+	public static function onPagePolicyShowCurrentTitle( $title, &$showCurrentTitle ) {
+		// since we are only ever setting this to false under certain conditions
+		// we can return early if it is already false
+		if ( $showCurrentTitle == false) {
+			return;
+		}
+
+		if ( !self::onAlternateDomain() ) {
+			return;
+		}
+
+		if ( !$title->exists() ) {
+			return;
+		}
+
+		if ( self::isOnNoRedirectPage( $title ) ) {
+			return;
+		}
+
+		if ( self::isOn404Page( $title->getArticleID() ) ) {
+			$showCurrentTitle = false;
+		}
 	}
 
 	/*
@@ -1160,18 +1330,50 @@ class AlternateDomain {
 	 * it might be possbile if we hook in to the parser to do these two
 	 */
 	public static function modifyDom() {
-		if ( self::onNoBrandingDomain() ) {
-			pq( '.edit-page' )->remove();
-		}
+		global $wgTitle;
 		if ( self::onAlternateDomain() ) {
+			pq( '.editsection' )->remove();
+			pq( '.edit-page' )->remove();
 			// Replace links to other domains with their anchor text
 			foreach(pq('a.interwiki_otherdomain') as $link) {
 				$pqObject = pq($link);
 				$pqObject->replaceWith($pqObject->text());
 			}
 			pq( '#sd_container' )->parents( '.section:first' )->remove();
-		}
+			pq( '#sourcesandcitations .internal' )->remove();
+			pq( '#references .internal' )->remove();
+			pq( '.sp_fullbox' )->remove();
 
+			//add the alt domain info as a class to intro
+			pq("#intro")->addClass(self::getAlternateDomainClass(self::getAlternateDomainForCurrentPage()));
+		} else {
+			foreach(pq('a.interwiki_otherdomain') as $link) {
+				$pqObject = pq($link);
+				$pqObject->replaceWith($pqObject->text());
+			}
+		}
+	}
+
+	/*
+	 * remove footer placeholder on no branding domains
+	 */
+	public static function onWikihowArticleBeforeProcessBody( $title ) {
+		if ( !self::onAlternateDomain() ) {
+			return true;
+		}
+		$titleText = $title->getText();
+		if ( $title->inNamespace( NS_PROJECT ) && $titleText == 'Creative Commons' ) {
+			$domain = self::getCurrentRootDomain();
+			$msg = wfMessage( "cc_{$domain}" )->parse();
+			pq('div:first')->replaceWith( $msg );
+			return true;
+		}
+		if ( $title->inNamespace( NS_PROJECT ) && $titleText == 'Terms of Use' ) {
+			$domain = self::getCurrentRootDomain();
+			$msg = wfMessage( "termsofuse_{$domain}" )->parse();
+			pq('div:first')->replaceWith( $msg );
+			return true;
+		}
 	}
 
 	/*
@@ -1242,10 +1444,27 @@ class AlternateDomain {
 	 * which is then used to hide those links
 	 */
 	public static function onGetLinkColours( $linkcolour_ids, &$colours ) {
-		if ( !self::onAlternateDomain() ) {
+		global $wgTitle;
+
+		if ( !$wgTitle ) {
 			return true;
 		}
-		$pages = array_flip(self::getAlternateDomainPagesForCurrentDomain());
+		$pageId = $wgTitle->getArticleID();
+		if ( !$pageId ) {
+			return true;
+		}
+		$altDomain = self::getAlternateDomainForPage($wgTitle->getArticleID());
+
+		if (!$altDomain) {
+			foreach ( $linkcolour_ids as $pageId => $colourKey ) {
+				if ( self::getAlternateDomainForPage( $pageId ) ) {
+					$colours[$colourKey] = 'interwiki_otherdomain';
+				}
+			}
+
+			return true;
+		}
+		$pages = array_flip(self::getAlternateDomainPagesForDomain($altDomain));
 
 		// add the terms of use page
 		$pages[898454] = 1;
@@ -1262,10 +1481,12 @@ class AlternateDomain {
 	 * set output on 404 page for special pages
 	 */
 	public static function onSpecialPageBeforeExecute( $page, $subPage ) {
+		if ( !self::onAlternateDomain() ) {
+			return true;
+		}
 		if ( !self::onNoBrandingDomain() ) {
 			return true;
 		}
-
 		if ( self::isOnNoRedirectPage( $page->getTitle() ) ) {
 			return true;
 		}
@@ -1280,14 +1501,18 @@ class AlternateDomain {
 		if ( !self::onAlternateDomain() ) {
 			return true;
 		}
+		$title = $out->getTitle();
+		$titleText = $title->getText();
+		if ( $title->inNamespace( NS_PROJECT ) && $titleText == 'Creative Commons' ) {
+			return true;
+		}
+		if ( $title->inNamespace( NS_PROJECT ) && $titleText == 'Terms of Use' ) {
+			return true;
+		}
 		if ( !self::onNoBrandingDomain() ) {
-			if ( $out->getTitle()->getNamespace() != 0 ) {
+			if ( !$out->getTitle()->inNamespace(NS_MAIN) ) {
 				return true;
 			}
-		}
-		if ( self::isOn404Page( $out->getTitle()->getArticleID() ) ) {
-			echo "page not found";
-			die();
 		}
 	}
 
@@ -1304,7 +1529,7 @@ class AlternateDomain {
 		// if on regular wikihow branded alternate domain
 		if ( !self::onNoBrandingDomain() ) {
 			// if the title is not in the main namespace then do not 404 the page
-			if ( $wgTitle->getNamespace() != 0 ) {
+			if ( !$wgTitle->inNamespace(NS_MAIN) ) {
 				return false;
 			}
 		}
@@ -1371,11 +1596,17 @@ class AlternateDomain {
 		global $domainName;
 
 		if ( strstr( $domainName, "wikihow.tech") ) {
-			$logoPath = '/skins/owl/images/wikihow_logo_tech_3.png';
+			$logoPath = '/skins/owl/images/wikihow_logo_tech_4.png';
 			$logoClass[] = 'tech_logo';
-		} else if ( strstr( $domainName, "wikihow.pet") ) {
-			$logoPath = '/skins/owl/images/wikihow_logo_pet_2.png';
+		} elseif ( strstr( $domainName, "wikihow.pet") ) {
+			$logoPath = '/skins/owl/images/wikihow_logo_pet_3.png';
 			$logoClass[] = 'pet_logo';
+		} elseif ( strstr( $domainName, "wikihow.mom") ) {
+			$logoPath = '/skins/owl/images/wikihow_logo_mom.png';
+			$logoClass[] = 'mom_logo';
+		} elseif ( strstr( $domainName, "wikihow.fitness") ) {
+			$logoPath = '/skins/owl/images/wikihow_logo_fitness.png';
+			$logoClass[] = 'fitness_logo';
 		}
 	}
 
@@ -1388,11 +1619,23 @@ class AlternateDomain {
 			} else {
 				$headerClass = 'tech_logo';
 			}
-		} else if ( strstr( $domainName, "wikihow.pet") ) {
+		} elseif ( strstr( $domainName, "wikihow.pet") ) {
 			if ( $headerClass ) {
 				$headerClass = $headerClass . ' pet_logo';
 			} else {
 				$headerClass = 'pet_logo';
+			}
+		} elseif ( strstr( $domainName, "wikihow.mom") ) {
+			if ( $headerClass ) {
+				$headerClass = $headerClass . ' mom_logo';
+			} else {
+				$headerClass = 'mom_logo';
+			}
+		} elseif ( strstr( $domainName, "wikihow.fitness") ) {
+			if ( $headerClass ) {
+				$headerClass = $headerClass . ' fitness_logo';
+			} else {
+				$headerClass = 'fitness_logo';
 			}
 		}
 	}
@@ -1420,12 +1663,12 @@ class AlternateDomain {
 
 			// allow visitors to mobile or desktop vesion of the alternate domain page
 			if ( $httpHost == $desktopDomain || $httpHost == $mobileDomain ) {
-				$wgServer = '//' . $httpHost;
+				$wgServer = 'https://' . $httpHost;
 			}
 
 			// if the visitor hits the alternate domain without a prefix (eg http://howyougetfit.com) then set the server to the desktop domain
 			if ( $httpHost == $domain ) {
-				$wgServer = '//' . $desktopDomain;
+				$wgServer = 'https://' . $desktopDomain;
 			}
 
 			// it would normally be done in onSetupAfterCacheSetMobile in PageHooks
@@ -1441,43 +1684,49 @@ class AlternateDomain {
 	 * a hook alters the google amp ad slot data
 	 */
 	public static function onGoogleAmpAfterGetSlotData( &$slotData ) {
-        if ( !self::onAlternateDomain() ) {
-            return true;
-        }
+		if ( !self::onAlternateDomain() ) {
+			return true;
+		}
 
 		global $domainName;
 
 		if ( strstr( $domainName, "howyougetfit.com") ) {
-            $firstAd = 6329126174;
-            $regularAd = 7805859374;
-		} else if ( strstr( $domainName, "wikihow.tech") ) {
-            $firstAd = 3236058970;
-            $regularAd = 4712792172;
-		} else if ( strstr( $domainName, "wikihow.pet") ) {
-            $firstAd = 9282592570;
-            $regularAd = 1759325775;
-		} else if ( strstr( $domainName, "howyoulivelife.com") ) {
+			$firstAd = 6329126174;
+			$regularAd = 7805859374;
+		} elseif ( strstr( $domainName, "wikihow.tech") ) {
+			$firstAd = 3236058970;
+			$regularAd = 4712792172;
+		} elseif ( strstr( $domainName, "wikihow.pet") ) {
+			$firstAd = 9282592570;
+			$regularAd = 1759325775;
+		} elseif ( strstr( $domainName, "howyoulivelife.com") ) {
 			$firstAd = 7885008625;
 			$regularAd = 1407230185;
-		} else if ( strstr( $domainName, "wikihow.life") ) {
+		} elseif ( strstr( $domainName, "wikihow.life") ) {
 			$firstAd = 2905689278;
 			$regularAd = 5874633394;
-		} else if ( strstr( $domainName, "wikihow.mom") ) {
+		} elseif ( strstr( $domainName, "wikihow.mom") ) {
 			$firstAd = 7962574839;
 			$regularAd = 8359172411;
-		} else if ( strstr( $domainName, "wikihow.fitness") ) {
+		} elseif ( strstr( $domainName, "wikihow.fitness") ) {
 			$firstAd = 3823185129;
 			$regularAd = 6557993821;
+		} elseif ( strstr( $domainName, "wikihow.health") ) {
+			$firstAd = 0;
+			$regularAd = 0;
+		} else if ( strstr( $domainName, "wikihow-fun.com") ) {
+			$firstAd = 4732467955;
+			$regularAd = 6442147207;
 		}
 
-        $slotData['en'] = array(
-            1 => $firstAd,
-            2 => $firstAd,
-            3 => $regularAd,
-            4 => $regularAd,
-            5 => $regularAd,
-        );
-    }
+		$slotData['en'] = array(
+			1 => $firstAd,
+			2 => $firstAd,
+			3 => $regularAd,
+			4 => $regularAd,
+			5 => $regularAd,
+		);
+	}
 
 	/*
 	 * a hook alters the main page title
@@ -1488,6 +1737,79 @@ class AlternateDomain {
 		}
 		$domain = self::getCurrentRootDomain();
 		$htmlTitle = wfMessage("main_title_{$domain}")->text();
-    }
+	}
+
+	/*
+	 * a hook alters the main page title
+	 */
+	public static function onGetTabsArrayShowDiscussTab( &$showDiscussTab ) {
+		if ( !self::onAlternateDomain() ) {
+			return true;
+		}
+		$showDiscussTab = false;
+	}
+	/*
+	 * a hook alters the links in the sidebar on mobile
+	 */
+	public static function onWikihowMobileSkinAfterPrepareDiscoveryTools( &$items ) {
+		if ( !self::onAlternateDomain() ) {
+			return true;
+		}
+		unset( $items['categories'] );
+		unset( $items['morethings'] );
+		unset( $items['spellchecker'] );
+		unset( $items['techfeedback'] );
+		unset( $items['sortquestions'] );
+		unset( $items['notifications'] );
+		unset( $items['addtip'] );
+		unset( $items['header2'] );
+		unset( $items['header3'] );
+		unset( $items['quizyourself'] );
+	}
+
+	/*
+	 * another hook alters the links in the sidebar on mobile
+	 */
+	public static function onWikihowMobileSkinAfterPreparePersonalTools( &$items ) {
+		if ( !self::onAlternateDomain() ) {
+			return true;
+		}
+		unset( $items['auth'] );
+	}
+
+	/*
+	 * remove the links from the top tabs (like article and edit links)
+	 */
+	public static function onHeaderBuilderAfterGetTabsArray( &$tabs ) {
+		if ( !self::onAlternateDomain() ) {
+			return true;
+		}
+		$tabs = array();
+	}
+
+	/*
+	 * remove the resource modules on mobile which create userlogin links on the page
+	 */
+	public static function onResourceLoaderRegisterModules( &$resourceLoader ) {
+		if ( !self::onAlternateDomain() ) {
+			return true;
+		}
+		global $wgResourceModules;
+		unset( $wgResourceModules[ 'mobile.newusers' ] );
+		unset( $wgResourceModules[ 'mobile.editor' ] );
+		if ( ( $key = array_search( 'javascripts/modules/mf-watchstar.js', $wgResourceModules['mobile.stable']['scripts'] ) ) !== false) {
+				unset( $wgResourceModules['mobile.stable']['scripts'][$key] );
+		}
+	}
+
+	/*
+	 * disable showing the category listing link until it is ready
+	 */
+	public static function onHeaderBuilderGetCategoryLinksShowCategoryListing( &$showCategoryListing ) {
+		if ( !self::onAlternateDomain() ) {
+			return true;
+		}
+		$showCategoryListing = false;
+	}
 }
 

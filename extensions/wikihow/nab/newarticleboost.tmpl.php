@@ -1,6 +1,6 @@
 <div id="nab-article-container">
 <div class="arrow_box">
-	<form action="/Special:Newarticleboost" name="nap_form" id="nap_form" method="post">
+	<form action="/Special:NewArticleBoost" name="nap_form" id="nap_form" method="post">
 		<a class="button secondary" id="nap_promote" data-event_action='promote'>Promote</a>
 		<a class="button secondary" id="nap_star" data-event_action='rising_star'>&nbsp;</a>
 		<br />
@@ -18,6 +18,7 @@
 			<option VALUE='dru'>Recreational drug based</option>
 			<option VALUE='hat'>Hate based or racist content</option>
 			<option VALUE='imp'>Impossible instructions</option>
+			<option VALUE='inc'>Incomplete</option>
 			<option VALUE='jok'>Joke topic</option>
 			<option VALUE='mea'>Mean spirited activity</option>
 			<option VALUE='not'>Not a how-to</option>
@@ -31,6 +32,7 @@
 		</select>
 		<input type="hidden" name="nap_submit" id="nap_submit" value="" />
 		<input type="hidden" name="template1_nfd" id="template1_nfd" value="" />
+		<input type="hidden" name="wikitext_template" id="wikitext_template" value="" />
 		<input type="hidden" name="template3_merge" id="template3_merge" />
 		<input type="hidden" name="param3_param1" id="param3_param1" />
 		<input type='hidden' name='cb_risingstar' id="cb_risingstar" />
@@ -53,39 +55,39 @@
 	<div id="author_info">
 		<?= $authorInfo ?> <br />
 		Score: <?= $score ?>
-		<a style="float:right;" href="/Special:Newarticleboost?sortOrder=<?=$sortOrder?>&sortValue=<?=$sortValue?>&low=<?=$low?>">&larr; Back to NAB</a>
+		<a style="float:right;" href="/Special:NewArticleBoost?sortOrder=<?=$sortOrder?>&sortValue=<?=$sortValue?>&low=<?=$low?>">&larr; Back to NAB</a>
 	</div>
 	<?= $lockedMsg ?>
 	<?= $patrolledMsg ?>
 </div>
 <div class='minor_section'>
-	<h2><?= wfMsg('nap_similarresults')?><span class="nap_expand"> </span></h2>
+	<h2><?= wfMessage('nap_similarresults')?><span class="nap_expand"> </span></h2>
 	<div class='nap_body section_text'>
-		<?php if(count($matches) > 0): ?>
-			<?= wfMsg('nap_already-related-topics') ?>
+		<?php if (count($matches) > 0): ?>
+			<?= wfMessage('nap_already-related-topics') ?>
 			<table id="nap_duplicates" cellspacing="0" cellpadding="0">
-				<?php foreach($matches as $match): ?>
+				<?php foreach ($matches as $match): ?>
 					<tr class=" <?= $match['count']%2?'even':'odd'; ?>">
 						<td style="width:473px;"><?= $match['relatedLink'] ?></td>
 						<td class="nap_duplicates_actions">
-							<a href='#' onclick='window.WH.nab.merge("<?= $match['safeTitle'] ?>"); return false;' class="button secondary top_link" data-event_action='merge' data-assoc_id='<?=$match['relatedId']?>'><?= wfMsg('nap_merge') ?></a>
+							<a href='#' onclick='window.WH.nab.addTemplateNfdDup("<?= $match['safeTitle'] ?>"); return false;' class="button secondary top_link" data-event_action='nfd' data-assoc_id='<?=$match['relatedId']?>'><?= wfMessage('nap_deleteduplicate') ?></a>
 						</td>
 					</tr>
 				<? endforeach ?>
 			</table>
 		<? else: ?>
-			<?= wfMsg('nap_no-related-topics') ?>
+			<?= wfMessage('nap_no-related-topics') ?>
 		<? endif; ?>
 	</div>
 </div>
 
 <div class='minor_section'>
 	<a name='article' id='anchor-article'></a>
-	<h2><a href="<?= $fullUrl ?>" target="_blank"><?= wfMsg('nap_articlepreview')?></a>
+	<h2><a href="<?= $fullUrl ?>" target="_blank"><?= wfMessage('nap_articlepreview')?></a>
 		<span class="nap_expand"> </span>
-		<a href="<?= $editUrl ?>" target="new" class="button secondary top_link" style="float:right;" data-event_action='edit' data-edit_type='normal_edit'><?= $externalLinkImg?> <?= wfMsg('edit')?></a>
-		<a href="<?= $fullUrl ?>?action=history" target="new" class="button secondary top_link" style="float:right;"><?= $externalLinkImg ?> <?= wfMsg('history') ?></a>
-		<a href="<?= $talkUrl ?>" target="new" class="button secondary top_link" style="float:right;"><?= $externalLinkImg ?> <?= wfMsg('discuss') ?></a>
+		<a href="<?= $editUrl ?>" target="new" class="button secondary top_link" style="float:right;" data-event_action='edit' data-edit_type='normal_edit'><?= $externalLinkImg?> <?= wfMessage('edit')?></a>
+		<a href="<?= $fullUrl ?>?action=history" target="new" class="button secondary top_link" style="float:right;"><?= $externalLinkImg ?> <?= wfMessage('history') ?></a>
+		<a href="<?= $talkUrl ?>" target="new" class="button secondary top_link" style="float:right;"><?= $externalLinkImg ?> <?= wfMessage('discuss') ?></a>
 		<input id='editButton' type='button' class='button secondary top_link editButton' name='wpEdit' value='Quick Edit' onclick='window.WH.nab.editClick("<?= $quickEditUrl ?>");' data-event_action='edit' data-edit_type='quick_edit_top'/>
 	</h2>
 	<div class='nap_body'>
@@ -99,7 +101,7 @@
 
 <div class='minor_section'>
 	<a name='talk' id='anchor-talk'></a>
-	<h2><a href="<?= $talkUrl ?>" target="_blank"><?= wfMsg('nap_discussion') ?></a>
+	<h2><a href="<?= $talkUrl ?>" target="_blank"><?= wfMessage('nap_discussion') ?></a>
 		<span class="nap_expand"> </span>
 	</h2>
 	<div class='nap_body section_text'>
@@ -112,7 +114,7 @@
 
 <div class='minor_section'>
 	<a name='user' id='anchor-user'></a>
-	<h2><a href="<?= $userTalkUrl?>" target="_blank"><?= wfMsg('nap_userinfo') ?></a><span class="nap_expand"> </span></h2>
+	<h2><a href="<?= $userTalkUrl?>" target="_blank"><?= wfMessage('nap_userinfo') ?></a><span class="nap_expand"> </span></h2>
 	<div class='nap_body section_text' id="nap_user_talk">
 		<?= $userInfo ?>
 		<?= $userMsg ?>

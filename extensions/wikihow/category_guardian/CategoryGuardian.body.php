@@ -35,8 +35,8 @@ class CategoryGuardian extends UnlistedSpecialPage {
 
 	function execute($par) {
 		$request = $this->getRequest();
-		
-		$this->out->setRobotpolicy('noindex,nofollow');
+
+		$this->out->setRobotPolicy('noindex,nofollow');
 		$this->out->setHTMLTitle(wfMessage('category-guardian')->text());
 		$this->out->setPageTitle(wfMessage('category-guardian')->text());
 
@@ -44,7 +44,7 @@ class CategoryGuardian extends UnlistedSpecialPage {
 		$user = $this->getUser();
 		if ( $user->isBlocked() ) {
 			throw new UserBlockedError( $user->getBlock() );
-		} else if (self::MAINTENANCE_MODE) {
+		} elseif (self::MAINTENANCE_MODE) {
 			$this->out->addWikiText(wfMessage('catch-disabled')->text());
 			return;
 		}
@@ -54,7 +54,7 @@ class CategoryGuardian extends UnlistedSpecialPage {
 			print_r($this->getJSON());
 			return;
 
-		} else if ($request->wasPosted()) {
+		} elseif ($request->wasPosted()) {
 		  if (!XSSFilter::isValidRequest()) {
 				$this->out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 				return;
@@ -80,7 +80,7 @@ class CategoryGuardian extends UnlistedSpecialPage {
 
 	protected function getJSON() {
 		$result = null;
-		if(class_exists('Plants') && Plants::usesPlants('CategoryGuardian') ) {
+		if (class_exists('Plants') && Plants::usesPlants('CategoryGuardian') ) {
 			$plants = new CategoryPlants();
 			$result = $plants->getNextPlant();
 		}
@@ -95,11 +95,14 @@ class CategoryGuardian extends UnlistedSpecialPage {
 		foreach ($result['articles'] as $row) {
 			$article = (array) $row;
 			$sum = new Summary($row->page_id);
-			
+
 			if ($sum->page) {
+				$page_title = mb_convert_encoding($sum->getTitleText(), 'UTF-8', 'UTF-8');
+				$blurb = mb_convert_encoding($sum->getSummary(), 'UTF-8', 'UTF-8');
+
 				$item = array(
-					'page_title' => $sum->getTitleText(),
-					'blurb' => $sum->getSummary()
+					'page_title' => $page_title,
+					'blurb' => $blurb
 				);
 
 				array_push($slugs, array_merge($article, $item));
@@ -147,18 +150,13 @@ class CategoryGuardian extends UnlistedSpecialPage {
 	  }
 	}
 
-	public static function onArticleChange($article) {
-		if ($article) {
+	public static function onArticleChange($wikiPage) {
+		if ($wikiPage) {
 			$sql = new SqlSuper();
-/* Note from Reuben: I'm commenting this fixed code since $article->mArticleID didn't
- exist and was generating an error on doh. I didn't want to publish the 4 line fix
- below on Friday without Dave around though.
-
-			$articleID = $article->getTitle()->getArticleID();
+			$articleID = $wikiPage->getID();
 			if ($articleID) {
-				$sql->delete('category_article_votes', array('page_id' => $articleID));
+				$sql->delete('category_article_votes', array('page_id' => $articleID), __METHOD__);
 			}
- */
 		}
 
 		return true;
@@ -210,5 +208,10 @@ class CategoryGuardian extends UnlistedSpecialPage {
 
 		$group = new CategoryGuardianStandingsGroup();
 		$group->addStandingsWidget();
+	}
+
+	public static function getRemainingCount() {
+		$get = new GetArticles();
+		return $get->getRemainingCount();
 	}
 }

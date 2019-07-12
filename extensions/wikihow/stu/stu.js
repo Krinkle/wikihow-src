@@ -1,7 +1,8 @@
 var STU_BUILD = '6';
 
 // EXIT TIMER MODULE
-WH.Stu = (function () {
+window['WH'] = window['WH'] || {};
+window['WH']['Stu'] = (function () {
 	'use strict';
 
 // Make it really clear that we can't use jQuery in this context because it may
@@ -14,12 +15,13 @@ WH.Stu = (function () {
 // Only enable Stu pings if running on English, not on mobile,
 // with the view action of an article page. Only enable ping timers on
 // production because they require a varnish front end to catch and log them.
-var countableView = typeof WH.stuCount != 'undefined' ? WH.stuCount : 0,
-	pageLang = typeof WH.pageLang != 'undefined' ? WH.pageLang : '',
-	isMobile = typeof WH.isMobile != 'undefined' ? WH.isMobile : 0,
-	exitTimerEnabled = countableView && pageLang == 'en' && !isMobile,
+var WH = window['WH'];
+var countableView = WH['stuCount'],
+	pageLang = WH['pageLang'],
+	isMobile = WH['isMobile'],
 	dev = !!(location.href.match(/\.wikidogs\.com/)),
-	pingTimersEnabled = !!(location.href.match(/\.wikihow\.com/)) || dev,
+	exitTimerEnabled = (countableView && pageLang == 'en') || dev,
+	pingTimersEnabled = (location.href.match(/\.wikihow\.[a-z]+\//) && pageLang == 'en') || dev,
 	startTime = false,
 	restartTime = false,
 	activeElapsed = 0,
@@ -28,14 +30,47 @@ var countableView = typeof WH.stuCount != 'undefined' ? WH.stuCount : 0,
 	exitSent = false,
 	randPageViewSessionID,
 	msieVersion = false,
-	currentTimerIndex = 0;
+	currentTimerIndex = 0,
+	CONTENT_SECTIONS_SELECTOR = '#intro, .section.steps, #quick_summary_section';
+
+var activityTotalTime = 180.0,
+
+	// this interval is the length of our sample (in time) for
+	// how much activity we've seen in terms of user-generated
+	// events like scrolling, clicking, etc. it must be > 0.
+	ACTIVITY_INTERVAL_SECS = 3,
+
+	activityIntervals = activityTotalTime / ACTIVITY_INTERVAL_SECS,
+	activityIntervalCount = 0,
+	activitySum = 0,
+	activityEvents = 0,
+	activityLastActiveTime = 0,
+
+	// this represents the number of hidden sections that we break
+	// the article up into, for the purposes of watching user/viewport
+	// scroll activity. this value must be > 0.
+	ACTIVITY_NUM_BUCKETS = 128,
+
+	// scroll timing buckets
+	activityTimings = [],
+
+	// the activityRecalcScrollSectionsLastRun does a couple things: it
+	// is used to throttle the scroll handler so that the section
+	// length recomputations don't happen more than once every
+	// 250ms. we don't want to recompute this more often because
+	// it requires DOM lookups, which can be slow. eventually,
+	// this value is set to -1, which means that we don't want to
+	// do any more recomputation from within the scroll handler.
+	activityRecalcScrollSectionsLastRun = 0,
+	activityMin = 0, activityMax = 0,
+	activityLastActive = 0;
 
 var debugCallbackFunc = null,
 	debugQueue = [];
 
 // Project LIA -- logging data on periodic visitors to the site so that we
 // can eventually offer to edit articles that might be in their interests.
-var timers = [{'t':1}, {'t':10}, {'t':30}, {'t':60}, {'t':120}, {'t':180}];
+var timers = [{'t':1}, {'t':10}, {'t':20}, {'t':30}, {'t':45}, {'t':60}, {'t':90}, {'t':120}, {'t':180}, {'t':240}, {'t':300}, {'t':360}, {'t':420}, {'t':480}, {'t':540}, {'t':600} ];
 
 function makeID(len) {
 	var text = '';
@@ -57,18 +92,24 @@ function sendRestRequest(u, a) {
 	var r = new XMLHttpRequest();
 	r.open('GET', u, a);
 	r.send();
-
-	pingDebug(u);
 }
 
 function sendExitPing(priority, domain, message, doAsync) {
-	var loggerUrl = (!dev ? '/Special:Stu' : '/x/devstu') + '?v=6';
+	var stats = basicStatsGen({});
+	delete stats['dl']; // we don't send this longer attribute 'dl' with exit pings
+
+	var attrs = {
+		'd': domain,
+		'm': message,
+		'b': STU_BUILD
+	};
 	if (priority != DEFAULT_PRIORITY) {
-		loggerUrl += '&p=' + priority;
+		attrs['p'] = priority;
 	}
-	loggerUrl += '&d=' + domain;
-	loggerUrl += '&m=' + encodeURI(message);
-	loggerUrl += '&b=' + STU_BUILD;
+
+	var loggerUrl = (!dev ? '/Special:Stu' : '/x/devstu') + '?v=' + STU_BUILD;
+	loggerUrl += '&' + encodeAttrs(attrs) + '&' + encodeAttrs(stats);
+
 	sendRestRequest(loggerUrl, doAsync);
 }
 
@@ -108,7 +149,7 @@ function getCurrentActiveTime() {
 
 function collectExitTime() {
 	var activeTime = getCurrentActiveTime();
-	var message = WH.pageName + ' btraw ' + (activeTime / 1000);
+	var message = WH['pageName'] + ' btraw ' + (activeTime / 1000);
 	var domain = getDomain();
 
 	// No pinging for IE 6
@@ -122,9 +163,9 @@ function collectExitTime() {
 function onUnload(e) {
 	// Flowplayer fires unload events erroneously. We won't call
 	// onUnload if triggered by flowplayer elements.
-	if ( typeof e !== undefined && typeof e.target !== undefined && typeof e.target.getAttribute !== 'undefined') {
+	if ( typeof e !== 'undefined' && typeof e.target !== 'undefined' && typeof e.target.getAttribute !== 'undefined') {
 		var target = e.target.getAttribute('id');
-		if ( target !== undefined && target.indexOf('whvid-player') !== 0 ) {
+		if ( typeof target !== 'undefined' && target.indexOf('whvid-player') !== 0 ) {
 			return;
 		}
 	}
@@ -176,11 +217,11 @@ function start() {
 	randPageViewSessionID = makeID(12);
 
 	// Check if user is coming in from Google (since those are the exiting timings
-	// we care most about. Set startTime based on the WH.timeStart if it's been
+	// we care most about. Set startTime based on the WH['timeStart'] if it's been
 	// set at the top of the page.
 	fromGoogle = checkFromGoogle();
-	if (typeof WH.timeStart == 'number' && WH.timeStart > 0) {
-		startTime = WH.timeStart;
+	if (typeof WH['timeStart'] == 'number' && WH['timeStart'] > 0) {
+		startTime = WH['timeStart'];
 	} else {
 		startTime = getTime();
 	}
@@ -199,6 +240,8 @@ function start() {
 		setupNextTimerPing();
 	}
 
+	// Set onFocus and onBlur event handlers to track "active" time on page
+	//
 	// Use a different event for IE 7-9
 	// reference: http://www.thefutureoftheweb.com/blog/detect-browser-window-focus
 	if (msieVersion && 7 <= msieVersion && msieVersion <= 9) {
@@ -209,22 +252,190 @@ function start() {
 		window.onblur = onBlur;
 	}
 
-	// If we are exit timing this page, set onUnload, onFocus and onBlur event handlers
+	// do a test where we enable exit timers on mobile for a set of articles
+	//var testArticles = [6256, 273369, 2161942, 1215252, 1756524, 86484, 1099813, 703191, 1410426, 1151586, 33060, 1464781, 4063687, 2854494, 3037374, 2660480, 192336, 4458945, 1231084, 2115025, 2850868, 7495, 4019578, 373667, 2188607, 441133, 5868, 4082, 5884688, 25067, 45696, 26479, 237241, 129781, 2723288, 36973, 867321, 175672, 391387, 75604, 381649, 2768446, 1365615, 650388, 13498, 232692, 2053, 1685302, 784172, 47930, 3126454, 23163];
+	//if (testArticles.indexOf(WH['pageID']) !== -1) {
+	//}
+
+	// If we are exit timing this page, set onUnload (and onBeforeUnload) event handlers
 	if (exitTimerEnabled) {
 		window.onunload = onUnload;
 		window.onbeforeunload = onUnload;
 	}
+
+	if (exitTimerEnabled || pingTimersEnabled) {
+		addActivityListeners();
+	}
+}
+
+function activityRecalcScrollSections() {
+	var nodes = document.querySelectorAll(CONTENT_SECTIONS_SELECTOR);
+	if (!nodes) { return; }
+	var min = 1000000, max = 0;
+	Array.prototype.forEach.call( nodes, function(i) {
+		var start = getYPosition(i);
+		var height = getElementHeight(i);
+		min = Math.min( start, min );
+		max = Math.max( start+height, max );
+	});
+
+	// TODO: we could detect if these change here and adjust bucket values if necessary.
+	// this isn't a high prio thing to do because we don't expect these numbers to change much,
+	// and it's kinda complicated to do.
+	activityMin = min;
+	activityMax = max;
+}
+
+function activityRecordScrollTiming() {
+	var activeTime = getCurrentActiveTime();
+	var diff = activeTime - activityLastActive;
+	activityLastActive = activeTime;
+	if (diff <= 0) return;
+
+	var scrollTop = getScrollTop();
+	var windowHeight = getViewportHeight();
+	var scrollBottom = scrollTop + windowHeight;
+	if (scrollTop > activityMax || scrollBottom < activityMin) return;
+	var pixelsHeight = activityMax - activityMin;
+	if (pixelsHeight <= 0) return;
+	var first = Math.floor( ACTIVITY_NUM_BUCKETS * (1.0*scrollTop - activityMin) / pixelsHeight );
+	if (first < 0) first = 0;
+	var last = Math.ceil( ACTIVITY_NUM_BUCKETS * (1.0*scrollBottom - activityMin) / pixelsHeight );
+	if (last > ACTIVITY_NUM_BUCKETS - 1) last = ACTIVITY_NUM_BUCKETS - 1;
+
+	var i = first;
+	while (i <= last) {
+		if (typeof activityTimings[i] === 'undefined') {
+			activityTimings[i] = 0;
+		}
+		activityTimings[i] += diff;
+		i++;
+	}
+}
+
+// Gives the top of the window's vertical scroll position in the page, in CSS pixels.
+// For example, if the page is 2500 CSS pixels tall, the window is 500 CSS pixels tall,
+// and the window is scrolled to about the halfway point, this function would return
+// about 1000.
+//
+// https://www.quirksmode.org/mobile/tableViewport.html
+function getScrollTop() {
+	return window.scrollY || window.pageYOffset;
+}
+
+// Gives the window's viewport height in CSS pixels (not device pixels).
+//
+// https://www.quirksmode.org/mobile/tableViewport.html
+function getViewportHeight() {
+	return window.innerHeight || document.documentElement.clientHeight;
+}
+
+// Gets the Y position (vertical offset) of a DOM element relative to the top of
+// the page. This value is in CSS pixels.
+//
+// Simplified for what we need from:
+// https://www.kirupa.com/html5/get_element_position_using_javascript.htm
+function getYPosition(el) {
+	var yPos = 0;
+	while (el) {
+		yPos += (el.offsetTop - el.clientTop);
+		el = el.offsetParent;
+	}
+	return yPos;
+}
+
+// Gets the height of a DOM element in CSS pixels
+function getElementHeight(i) {
+	return i.offsetHeight || i.clientHeight;
+}
+
+// Added user input event listening for activity metrics
+function addActivityListeners() {
+
+	// Feature test for passive event listener support. From:
+	// https://github.com/WICG/EventListenerOptions/blob/gh-pages/explainer.md
+
+	// Test via a getter in the options object to see if the passive property is accessed
+	var supportsPassive = false;
+	try {
+		var opts = Object.defineProperty({}, 'passive', {
+			get: function() {
+				supportsPassive = true;
+			}
+		});
+		window.addEventListener('testPassive', null, opts);
+		window.removeEventListener('testPassive', null, opts);
+	} catch (e) {}
+
+	window.addEventListener('scroll', function(/*e*/) {
+		activityEvents++;
+
+		// we run this at the start of the page load every 250ms, when
+		// the setInterval for 3s isn't active yet
+		if (activityRecalcScrollSectionsLastRun != -1) {
+			// don't allow this method to run more often than every 250ms
+			var time = getTime() - startTime;
+			if (time >= activityRecalcScrollSectionsLastRun + 250) {
+				activityRecalcScrollSectionsLastRun = time;
+				activityRecalcScrollSections();
+			}
+		}
+
+		// record how long viewport stays active over important parts of the page
+		activityRecordScrollTiming();
+	});
+
+	window.addEventListener('resize', function(/*e*/) { activityEvents++; });
+	window.addEventListener('click', function(/*e*/) { activityEvents++; });
+
+	// touchpad events
+	var passiveParam = supportsPassive ? { passive: true } : false;
+	window.addEventListener('touchstart', function(/*e*/) { activityEvents++; }, passiveParam);
+	window.addEventListener('touchend', function(/*e*/) { activityEvents++; });
+	window.addEventListener('touchcancel', function(/*e*/) { activityEvents++; });
+	window.addEventListener('touchmove', function(/*e*/) { activityEvents++; }, passiveParam);
+
+	// keyboard events
+	document.addEventListener('keydown', function(/*e*/) { activityEvents++; });
+	document.addEventListener('keyup', function(/*e*/) { activityEvents++; });
+	document.addEventListener('keypress', function(/*e*/) { activityEvents++; });
+
+	// every n seconds, update counts to see if there was activity in that interval
+	setInterval(function () {
+		// stop this from running in scroll handler
+		activityRecalcScrollSectionsLastRun = -1;
+		activityRecalcScrollSections();
+
+		if (activityEvents > 0) {
+			activitySum++;
+			activityEvents = 0;
+		}
+
+		// if window was not active, we don't count it as an interval
+		var activeTime = getCurrentActiveTime();
+		if (activeTime > activityLastActiveTime) {
+			activityLastActiveTime = activeTime;
+			if (activityIntervalCount < activityIntervals) {
+				activityIntervalCount++;
+			}
+		}
+	}, 1000 * ACTIVITY_INTERVAL_SECS);
 }
 
 // Ping our servers to collect data about how long the user might have stayed on the page
 function eventPing(pingType, stats) {
 	// location url of where to ping
-	var loc = '/x/collect?t=' + pingType + '&' + stats;
+	var loc = '/x/collect?t=' + pingType + '&' + encodeAttrs(stats);
 	sendRestRequest(loc, true);
 }
 
 function customEventPing(attrs) {
-	eventPing( 'event', basicStatsGen(attrs) );
+	// Only send custom pings if either exit or ping timers are enabled.
+	// I made this change to make it so that Stu plugins don't send events
+	// out of the context of all the events generated.
+	if (exitTimerEnabled || pingTimersEnabled) {
+		eventPing( 'event', basicStatsGen(attrs) );
+	}
 }
 
 // Set up a callback to external stu debug code. Callback is
@@ -236,23 +447,27 @@ function registerDebug(func) {
 	}
 
 	debugCallbackFunc = func;
-	for (i = 0; i < debugQueue.length; i++) {
+	for (var i = 0; i < debugQueue.length; i++) {
 		debugCallbackFunc(debugQueue[i]);
 	}
 	debugQueue = [];
 }
 
-function pingDebug(url) {
-	// Only turn on this logging if we think we're in debug mode.
-	// See StuInspector.php for the php side of this Stu debug code.
-	if (location.href.indexOf('stu=debug') === -1) {
-		return;
-	}
+var pingDebugFirst = true;
+function pingDebug(line) {
 
+	// debugCallbackFunc only gets set when Stu is in debug mode.
+	// See StuInspector.php for the php side of this Stu debug code.
 	if (debugCallbackFunc) {
-		debugCallbackFunc(url);
+		debugCallbackFunc(line);
+		if (pingDebugFirst) {
+			setInterval( function() {
+				basicStatsGen({});
+			}, 1000);
+			pingDebugFirst = false;
+		}
 	} else {
-		debugQueue.push(url);
+		debugQueue.push(line);
 	}
 }
 
@@ -395,19 +610,33 @@ function fullStatsGen(extraAttrs) {
 		// for debugging
 		//console.log('err',e);
 	}
-	return '';
+	return {};
+}
+
+function calcTotalElapsedSeconds() {
+	var totalElapsedSeconds = Math.round( (getTime() - startTime) / 1000.0 );
+	return totalElapsedSeconds;
+}
+
+function calcActiveElapsedSeconds() {
+	var activeElapsedSeconds = Math.round( getCurrentActiveTime() / 1000.0 );
+	return activeElapsedSeconds;
 }
 
 function basicStatsGen(extraAttrs) {
-	var totalElapsedSeconds = Math.round( (getTime() - startTime) / 1000.0 );
-	var activeElapsedSeconds = Math.round( getCurrentActiveTime() / 1000.0 );
+
+	var wordCount = getWordCount();
+	if (wordCount < 250) {
+		// guess at it if it's wrong
+		wordCount = 1500;
+	}
 
 	var attrs = {
 		'gg': fromGoogle,
-		'to': totalElapsedSeconds,
-		'ac': activeElapsedSeconds,
-		'pg': WH.pageID,
-		'ns': WH.pageNamespace,
+		'to': calcTotalElapsedSeconds(),
+		'ac': calcActiveElapsedSeconds(),
+		'pg': WH['pageID'],
+		'ns': WH['pageNamespace'],
 		'ra': randPageViewSessionID,
 		'cv': countableView,
 		'cl': pageLang,
@@ -416,20 +645,93 @@ function basicStatsGen(extraAttrs) {
 		'b': STU_BUILD
 	};
 
-	extraAttrs = mergeObjects(extraAttrs, attrs);
+	attrs = mergeObjects(extraAttrs, attrs);
 
+	if (WH['pageNamespace'] === 0) {
+		attrs['a1'] = calcActivityScore(wordCount);
+	}
+
+	return attrs;
+}
+
+function encodeAttrs(attrs) {
 	var encoded = '', first = true;
-	for (var key in extraAttrs) {
-		if (!extraAttrs.hasOwnProperty(key)) continue;
+	for (var key in attrs) {
+		if (!attrs.hasOwnProperty(key)) continue;
 
-		encoded += (first ? '' : '&') + key + '=' + encodeURIComponent(extraAttrs[key]);
+		encoded += (first ? '' : '&') + key + '=' + encodeURIComponent(attrs[key]);
 		first = false;
 	}
 
 	return encoded;
 }
 
-// Expose WH.Stu.start method
+// Count the words of text (roughly) in all content sections of the page.
+//
+// https://techstacker.com/posts/jxqYn8vEuPyWK9SYi/vanilla-javascript-count-all-words-on-a-webpage
+function getWordCount() {
+
+	// Word count here can contain non-word things, such as the content of <noscript> tags.
+	// We're ok with this because these non-words counted as words should be reasonably
+	// constant across articles. If there are more images than average, word count might
+	// be artificially a little higher, but maybe "reading" time should be a little longer
+	// with lots of images too.
+	var nodes = document.querySelectorAll(CONTENT_SECTIONS_SELECTOR);
+	if (!nodes) { return 0; }
+
+	var wordCount = 0;
+	Array.prototype.forEach.call( nodes, function(i) {
+		var count = i.textContent.split(/\s/).filter(function(n) { return n !== ''; }).length;
+		wordCount += count;
+	});
+
+	return wordCount;
+}
+
+function calcActivityScore(wordCount) {
+	// Activity metric uses the number of user-generated events (such as scroll events,
+	// clicks, touches to the screen, keys being pressed, etc) and measures whether there
+	// was any activity within (roughly) a series of 3s windows. If there was any activity
+	// in the window, the score goes up. We expect activity based on the amount of time
+	// that we expect it would take to read on the article, which is based on its word count.
+	//
+	// We'll say average word count is 1500 words, and we adjust as a ratio upwards
+	// (or downwards) if more (or less) words than that. We watch for 180 seconds
+	// when there are 1500 words, so we adjust, using the ratio, that number of seconds.
+	var ratio = (wordCount / 1500.0);
+	activityTotalTime = ratio * 180.0;
+	activityIntervals = activityTotalTime / ACTIVITY_INTERVAL_SECS;
+	var score1 = Math.round(100.0 * activitySum / activityIntervals);
+	if (score1 < 0) score1 = 0;
+	if (score1 > 100) score1 = 100;
+
+	// This activity metric is calculated using a sort of heat map about where the
+	// user views on the important parts of the article page. All the parts between
+	// the intro, quick summary and steps sections are split up into ACTIVITY_NUM_BUCKETS
+	// parts, and every moment of activity when the viewport is over these parts
+	// is logged. For any given parts, if the user stays <= 1s on that parts, the
+	// score for it is 0. Is the user stays >= 10s, the score is 100. The score is
+	// the average of the ACTIVITY_NUM_BUCKETS parts.
+//	var score2 = 0.0;
+//	for (var i = 0; i < ACTIVITY_NUM_BUCKETS; i++) {
+//		var ms = 0;
+//		if (typeof activityTimings[i] !== 'undefined') {
+//			ms = activityTimings[i];
+//		}
+//		var pct = (ms/1000.0 - 1.0) / (10.0 - 1.0);
+//		if (pct < 0.0) pct = 0.0;
+//		if (pct > 1.0) pct = 1.0;
+//		score2 += pct;
+//	}
+//	score2 = Math.round(100 * score2 / ACTIVITY_NUM_BUCKETS);
+
+	// Elizabeth wants 100% of score1 now...
+	var score = Math.round(score1);
+//	pingDebug('<span class="replace_line">score: ' + score + ' = 50% of ' + score1 + ' + 50% of ' + score2 + '</span>');
+	return score;
+}
+
+// Expose WH['Stu'].start method
 return {
 	'start': start,
 	'ping': customEventPing,
@@ -439,4 +741,4 @@ return {
 })();
 
 // Start stu event handlers here now
-WH.Stu.start();
+window['WH']['Stu'].start();

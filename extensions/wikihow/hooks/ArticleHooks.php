@@ -4,31 +4,31 @@ if (!defined('MEDIAWIKI')) die();
 
 class ArticleHooks {
 
-	public static function onArticleSaveUndoEditMarkPatrolled($article, $user, $p2, $p3, $p5, $p6, $p7) {
+	public static function onPageContentSaveUndoEditMarkPatrolled($wikiPage, $user, $content, $p4, $p5, $p6, $p7) {
 		global $wgMemc, $wgRequest;
 
 		$oldid = $wgRequest->getInt('wpUndoEdit');
 		if ($oldid) {
 			// using db master to avoid db replication lag
-			$dbr = wfGetDB(DB_MASTER);
-			$rcid = $dbr->selectField('recentchanges', 'rc_id', array('rc_this_oldid' => $oldid), __METHOD__);
+			$dbw = wfGetDB(DB_MASTER);
+			$rcid = $dbw->selectField('recentchanges', 'rc_id', array('rc_this_oldid' => $oldid), __METHOD__);
 			RecentChange::markPatrolled($rcid);
 			PatrolLog::record($rcid, false);
 		}
 
 		// In WikiHowSkin.php we cache the info for the author line. we want to
 		// remove this if that article was edited so that old info isn't cached.
-		if ($article && class_exists('SkinWikihowskin')) {
-			$cachekey = ArticleAuthors::getLoadAuthorsCachekey($article->getID());
+		if ($wikiPage && class_exists('SkinWikihowskin')) {
+			$cachekey = ArticleAuthors::getLoadAuthorsCachekey($wikiPage->getID());
 			$wgMemc->delete($cachekey);
 		}
 
 		return true;
 	}
 
-	public static function updatePageFeaturedFurtherEditing($article, $user, $text, $summary, $flags) {
-		if ($article) {
-			$t = $article->getTitle();
+	public static function updatePageFeaturedFurtherEditing($wikiPage, $user, $content, $summary, $flags) {
+		if ($wikiPage) {
+			$t = $wikiPage->getTitle();
 			if (!$t || !$t->inNamespace(NS_MAIN)) {
 				return true;
 			}
@@ -43,14 +43,15 @@ class ArticleHooks {
 		}
 		$re = "@" . implode("|", $regexps) . "@i";
 
+		$wikitext = ContentHandler::getContentText($content);
 		$updates = array();
-		if (preg_match_all($re, $text, $matches)) {
+		if (preg_match_all($re, $wikitext, $matches)) {
 			$updates['page_further_editing'] = 1;
 		}
 		else{
 			$updates['page_further_editing'] = 0; //added this to remove the further_editing tag if its no longer needed
 		}
-		if (preg_match("@\{\{fa\}\}@i", $text)) {
+		if (preg_match("@\{\{fa\}\}@i", $wikitext)) {
 			$updates['page_is_featured'] = 1;
 		}
 		if (sizeof($updates) > 0) {
@@ -105,7 +106,7 @@ class ArticleHooks {
 		return true;
 	}
 
-	function onDoEditSectionLink($skin, $nt, $section, $tooltip, &$result, $lang) {
+	public static function onDoEditSectionLink($skin, $nt, $section, $tooltip, &$result, $lang) {
 		$query = array();
 		$query['action'] = "edit";
 		$query['section'] = $section;
@@ -141,8 +142,8 @@ class ArticleHooks {
 	// Add to the list of available JS vars on every page
 	public static function addJSglobals(&$vars) {
 		$vars['wgCDNbase'] = wfGetPad('');
-        $tree = Categoryhelper::getCurrentParentCategoryTree();
-        $cats = Categoryhelper::cleanCurrentParentCategoryTree( $tree );
+		$tree = CategoryHelper::getCurrentParentCategoryTree();
+		$cats = CategoryHelper::cleanCurrentParentCategoryTree( $tree );
 		$vars['wgCategories'] = $cats;
 		return true;
 	}
@@ -192,7 +193,7 @@ class ArticleHooks {
 		if (!$first_edit) return true;
 
 		// it must have at least two revisions to show popup
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$rev_count = $dbr->selectField('revision', 'count(*)', array('rev_page' => $page->getID()), __METHOD__);
 		if ($rev_count < 2) return true;
 
@@ -235,11 +236,47 @@ class ArticleHooks {
 
 	// hook run when the good revision for an article has been updated
 	public static function updateExpertVerifiedRevision( $pageId, $revisionId ) {
-		if ( class_exists( 'ArticleVerifyReview' ) && class_exists( 'VerifyData' ) ) {
-			if ( VerifyData::inVerifyList( $pageId ) ) {
-				ArticleVerifyReview::addItem( $pageId, $revisionId );
+		$ok =  class_exists( 'ArticleVerifyReview' )
+			&& class_exists( 'VerifyData' )
+			&& VerifyData::isVerified( $pageId )
+			&& VerifyData::isOKToPatrol( $pageId );
+		if ($ok) {
+			ArticleVerifyReview::addItem( $pageId, $revisionId );
+		}
+		return true;
+	}
+
+	public static function BuildMuscleHook($out) {
+		$context = RequestContext::getMain();
+		if ($context->getLanguage()->getCode() != 'en' || GoogleAmp::isAmpMode($out)) {
+			return true;
+		}
+
+		$title = $out->getTitle();
+		if ($title && $title->getArticleID() == 19958) {
+			if (Misc::isMobileMode()) {
+				pq("#intro")->after(wfMessage("Muscle_test_mobile")->text());
+			} else {
+				pq("#intro")->after(wfMessage("Muscle_test")->text());
 			}
 		}
+		return true;
+	}
+
+	public static function addDesktopTOCItems($wgTitle, &$anchorList) {
+		if ( Misc::isMobileMode() ) {
+			return true;
+		}
+
+		$refId = Misc::getReferencesID();
+		$refLabel = wfMessage('references')->text();
+		$refCount = Misc::getReferencesCount();
+		if ($refCount >= SocialProofStats::MESSAGE_CITATIONS_LIMIT) {
+			$anchorList[] = Html::rawElement('a', ['href'=>$refId, 'id'=>'toc_ref'], "$refCount $refLabel");
+		} elseif( $refCount > 0 ) {
+			$anchorList[] = Html::rawElement('a', ['href'=>$refId, 'id'=>'toc_ref'], $refLabel);
+		}
+
 		return true;
 	}
 

@@ -7,15 +7,21 @@ class HistoricalPV extends UnlistedSpecialPage {
 	var $redshift = null;
 
 	function __construct() {
+		global $wgHooks;
 		parent::__construct('HistoricalPV');
 
 		// moar ram
 		ini_set('memory_limit', '2048M');
-		$GLOBALS['wgHooks']['ShowSideBar'][] = ['HistoricalPV::removeSideBarCallback'];
+		$wgHooks['ShowSideBar'][] = ['HistoricalPV::removeSideBarCallback'];
 	}
 
-	static function removeSideBarCallback(&$showSideBar) {
+	public static function removeSideBarCallback(&$showSideBar) {
 		$showSideBar = false;
+		return true;
+	}
+
+	// method stops redirects when running on titus host
+	public function isSpecialPageAllowedOnTitus() {
 		return true;
 	}
 
@@ -23,7 +29,7 @@ class HistoricalPV extends UnlistedSpecialPage {
 		set_time_limit(600);
 
 		if ($this->isPageRestricted()) {
-			$this->getOutput()->setRobotpolicy('noindex,nofollow');
+			$this->getOutput()->setRobotPolicy('noindex,nofollow');
 			$this->getOutput()->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return false;
 		}
@@ -55,7 +61,7 @@ class HistoricalPV extends UnlistedSpecialPage {
 		}
 
 		$this->getOutput()->setPageTitle('Historical Pageview Analysis');
-		EasyTemplate::set_path(dirname(__FILE__) . '/');
+		EasyTemplate::set_path(__DIR__ . '/');
 
 		if ($redis) {
 			$job_status = $redis->hGetAll('sidekiq-andromedon:status');
@@ -95,7 +101,7 @@ class HistoricalPV extends UnlistedSpecialPage {
 			foreach ($d as $k => $v) {
 				$d[$k] = self::utf8ize($v);
 			}
-		} else if (is_string ($d)) {
+		} elseif (is_string ($d)) {
 			return utf8_encode($d);
 		}
 

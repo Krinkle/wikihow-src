@@ -1,4 +1,4 @@
-<?
+<?php
 	$messages['en'] = array(
 		'suggest_header'		=> 'Suggest a Topic for an Article',
 		'suggest_sub_header'	=> '<h2 class="subheader">Request an article using the form below</h2>',
@@ -34,7 +34,7 @@
 				    </td>
 				</tr>
 			</table>",
-		'suggest_captcha_failed' => "<font color='red'>Sorry, the words you entered did not match.</font>",
+		'suggest_captcha_failed' => "Sorry, the words you entered did not match.",
 		'suggest_please_select_cat'	=> "Please select a category to submit your request",
 		'suggest_please_enter_title'	=> "Please enter a title to submit your request",
 		'suggest_please_enter_email'	=> "Please enter your email to receive a notification when the article has been written",
@@ -74,18 +74,6 @@
 			 <input type='submit' id='st_search_btn' class='button white_button_100 submit_button' onmouseout='button_unswap(this);' onmouseover='button_swap(this);' type='button' value='Search'/>
 			</td></tr></table>
 				</form></div></center>",
-		'suggested_edit_title_title' => 'Edit title',
-		'suggested_edit_title'	=> '<center>
-			<input type="text" id="newsuggestion" value="$1" class="input_med" /><br/><br/>
-			<input type="button" class="button primary" onclick="WH.SuggestedTopics.saveSuggestion();" value="Save"/></center>
-			<input type="hidden" id="title_id" value="$2" />',
-		'suggested_article_exists_title'	=> "<h2>Good news!</h2>",
-		'suggested_article_exists_info'	=> "An article with the title \"How to $1\" already exists. <br/><br/>Do you want to read the article?
-				<br/><br/><center>
-				<table width='50%' align='center'><tr><td>
-				<input type='button' value='Yes, take me to the article!' onclick='window.location.href=\"$2\";'>
-				</td><td style='text-align: right;'><a href='/Main-Page'>No Thanks</a>
-				</td></tr></table></center>",
 		'suggested_notify_email_subject' => 'The how to you requested on wikiHow has been answered.',
 		'suggested_notify_email_from' => 'wikiHow Team <support@wikihow.com>',
 		'suggested_notify_email_plain' => 'Congratulations! The how to you requested on wikiHow has been answered.

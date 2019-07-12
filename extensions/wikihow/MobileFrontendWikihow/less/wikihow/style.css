@@ -10,54 +10,12 @@ a:hover {
 	text-decoration: none;
 }
 
-#sharing_buttons {
-	border: 1px solid #bfbfbf;
-	border-radius: 4px;
-	background-color: #ffffff;
-	padding: 5px;
-	-webkit-border-radius: 4px;
-}
-
-.share_icons {
-	display: inline-block;
-	text-align:left;
-	margin: 4px 4px 1px 8px;
-	height: 38px;
-	width: 38px;
-	position: relative;
-	background-size: cover;
-}
-
-#email_button {
-	/* @embed */
-	background-image: url(../../../../../skins/owl/images/email_icon.svg);
-}
-#facebook_share_button {
-	/* @embed */
-	background-image: url(../../../../../skins/owl/images/facebook2.svg);
-}
-
-#twitter_share_button {
-	/* @embed */
-	background-image: url(../../../../../skins/owl/images/twitter3.svg);
-}
-
-#gplus_share_button {
-	/* @embed */
-	background-image: url(../../../../../skins/owl/images/gplus2.svg);
-}
-
-#pinterest_share_button {
-	/* @embed */
-	background-image: url(../../../../../skins/owl/images/pinterest.svg);
-}
-
 /**********
  * FOOTER *
  **********/
 
 #footer {
-	border-top:none;
+	border-top: none;
 	padding: 0;
 	margin: 0;
 	position: absolute;
@@ -66,24 +24,66 @@ a:hover {
 	font-size: .9em;
 }
 
-#footer a{
+#footer a {
 	color: #93B874;
 }
 
 #footer_bar {
-	display: table;
 	position: relative;
 	z-index: 3;
 	width: 100%;
 	background-color: #93B874;
 	-webkit-box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.10);
 	box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.10);
-	padding:0 !important;
+	padding: 10px;
+	box-sizing: border-box;
 }
 
-/*for tablet footer only*/
-#footer_logo { display: none !important; }
+#search_footer #cse-search-box {
+	margin: 0 10px;
+}
 
+#search_footer .cse_q {
+	color: #FFF;
+	background-color: #B3CE9C;
+	width: 86%;
+}
+#search_footer .cse_sa {
+	top: auto;
+	right: auto;
+	background-color: #B3CE9C;
+	background-image: url(/extensions/wikihow/mobile/images/white_mag.png);
+	/* @embed */
+	background-image: url(/extensions/wikihow/mobile/images/white_mag.svg);
+}
+
+#footer_random_button {
+	text-align: center;
+	width: 100px;
+	margin: auto;
+}
+
+.creature {
+	width: 100px;
+	height: 100px;
+	position: relative;
+	z-index: 2;
+	margin-bottom: -20px;
+}
+.creature .creature_path { fill: #93B874; }
+.creature:hover .creature_path { fill: #58773A; }
+.creature .creature_text, .creature_text_flat {
+	font-weight: bold;
+	font-size: 2em;
+	fill: #93B874;
+}
+.creature:hover .creature_text, .creature:hover + .creature_text_flat { fill: #58773A; }
+.creature_text_flat {
+	position:absolute;
+	bottom: 95px;
+	width: 100px;
+	text-align: center;
+}
 /* End footer */
 
 #mw-mf-last-modified{
@@ -146,7 +146,7 @@ a.addtip {
 .tips li div.trvote_box, .warnings li div.trvote_box { display: block; }
 
 /* for those sticky headers */
-.section h2.sticking, .section h3.sticking, .tool div.sticking, #method_toc {
+.section h2.sticking, .section h3.sticking, .tool div.sticking {
 	position: fixed;
 	top: 40px;
 	z-index: 5;
@@ -217,18 +217,6 @@ a.addtip {
 	border: none;
 }
 
-#mw-mf-display-toggle {
-	background-image:  url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4NCjwhLS0gR2VuZXJhdG9yOiBBZG9iZSBJbGx1c3RyYXRvciAxOC4wLjAsIFNWRyBFeHBvcnQgUGx1Zy1JbiAuIFNWRyBWZXJzaW9uOiA2LjAwIEJ1aWxkIDApICAtLT4NCjwhRE9DVFlQRSBzdmcgUFVCTElDICItLy9XM0MvL0RURCBTVkcgMS4xLy9FTiIgImh0dHA6Ly93d3cudzMub3JnL0dyYXBoaWNzL1NWRy8xLjEvRFREL3N2ZzExLmR0ZCI+DQo8c3ZnIHZlcnNpb249IjEuMSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgeD0iMHB4IiB5PSIwcHgiDQoJIHdpZHRoPSIzNS4yMTRweCIgaGVpZ2h0PSIzMC45ODhweCIgdmlld0JveD0iMCAwIDM1LjIxNCAzMC45ODgiIGVuYWJsZS1iYWNrZ3JvdW5kPSJuZXcgMCAwIDM1LjIxNCAzMC45ODgiIHhtbDpzcGFjZT0icHJlc2VydmUiPg0KPGcgaWQ9IkxheWVyXzEiPg0KCTxwYXRoIGZpbGw9IiNDRENEQ0QiIGQ9Ik0zMS42OTIsMEgzLjUyMUMxLjU4NSwwLDAsMS41ODUsMCwzLjUyMXYxOS4zNjdjMCwxLjkzNywxLjU1NCwzLjgzMiwzLjQ1Myw0LjIxMmw3LjY5NywxLjU0DQoJCWMwLDAtNi42MjUsMi4zNDgtMi4zNDcsMi4zNDhIMjYuNDFjNC4yNzksMC0yLjM0Ny0yLjM0OC0yLjM0Ny0yLjM0OGw3LjY5OC0xLjU0YzEuODk5LTAuMzgsMy40NTMtMi4yNzUsMy40NTMtNC4yMTJWMy41MjENCgkJQzM1LjIxNCwxLjU4NSwzMy42MjksMCwzMS42OTIsMHogTTMxLjY5MiwyMi43MTNIMy41MjFWMy4xNjloMjguMTcxVjIyLjcxM3oiLz4NCjwvZz4NCjxnIGlkPSJMYXllcl8yIj4NCjwvZz4NCjwvc3ZnPg0K);
-	background-repeat: no-repeat;
-	background-size: 17px;
-	padding-left: 25px;
-	position: absolute;
-	bottom: 0;
-	margin: 0 0 10px 13px;
-	color: #AFAFAF;
-	font-size: .75em;
-}
-
 body.navigation-enabled {
 	background: #FFF;
 	border: none;
@@ -275,82 +263,10 @@ body.navigation-enabled #footer {
 	background: rgba(255,255,255,0.2);
 }
 
-#search_footer {
-	display: table-cell;
-	background-color: #93B874;
-	padding: 8px 0;
-}
-
-#search_footer #cse-search-box {
-	margin: 0 10px;
-}
-
-#search_footer .cse_q {
-	color: #FFF;
-	background-color: #B3CE9C;
-	width: 86%;
-}
-#search_footer .cse_sa {
-	background-color: #B3CE9C !important;
-	background-image: url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4NCjwhRE9DVFlQRSBzdmcgUFVCTElDICItLy9XM0MvL0RURCBTVkcgMS4xLy9FTiIgImh0dHA6Ly93d3cudzMub3JnL0dyYXBoaWNzL1NWRy8xLjEvRFREL3N2ZzExLmR0ZCI+DQo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4Ig0KCSB3aWR0aD0iMzIuNTQ1cHgiIGhlaWdodD0iMzIuOTExcHgiIHZpZXdCb3g9IjAgMCAzMi41NDUgMzIuOTExIiBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDAgMCAzMi41NDUgMzIuOTExIiB4bWw6c3BhY2U9InByZXNlcnZlIj4NCjxwYXRoIGZpbGw9IiNGRkZGRkYiIGQ9Ik0zMS43OTgsMjguNTYybC05Ljc3Ni05Ljc3NmMxLjMwMy0xLjkyNCwyLjA2NC00LjI0NSwyLjA2NC02Ljc0M0MyNC4wODYsNS4zOTIsMTguNjk0LDAsMTIuMDQzLDANCglDNS4zOTIsMCwwLDUuMzkyLDAsMTIuMDQzYzAsNi42NTEsNS4zOTIsMTIuMDQzLDEyLjA0MywxMi4wNDNjMi4zMDksMCw0LjQ1OS0wLjY2Miw2LjI5Mi0xLjc4OQ0KCWMwLjAxMywwLjAxMywwLjAyMSwwLjAyOSwwLjAzNCwwLjA0Mmw5LjgyNyw5LjgyNmMwLjQ5OCwwLjQ5NywxLjE0OSwwLjc0NiwxLjgwMSwwLjc0NmMwLjY1MiwwLDEuMzA0LTAuMjQ5LDEuODAxLTAuNzQ2DQoJQzMyLjc5MywzMS4xNywzMi43OTMsMjkuNTU3LDMxLjc5OCwyOC41NjJ6IE0xMi4wNDMsMTkuODRjLTQuMjk5LDAtNy43OTctMy40OTgtNy43OTctNy43OTdzMy40OTgtNy43OTcsNy43OTctNy43OTcNCgljNC4yOTksMCw3Ljc5NywzLjQ5OCw3Ljc5Nyw3Ljc5N1MxNi4zNDIsMTkuODQsMTIuMDQzLDE5Ljg0eiIvPg0KPC9zdmc+DQo=) !important;
-}
-
-#search_oversearch .cse_x {
-	float: left;
-	background-color: #93B874;
-	background-size: 25px;
-	height: 25px;
-	width: 25px;
-	margin: 2px 0 0 8px;
-	cursor: pointer;
-	display: none;
-}
-
 .header > form {
 	width: 3em;
 	height: 25px;
 	padding: 0;
-}
-
-#footer ul {
-	display: table;
-	width: 100%;
-	height: 35px;
-}
-#footer ul li {
-	display: table-cell;
-	vertical-align: middle;
-	text-align: center;
-	line-height: normal;
-	padding: 0;
-}
-
-#footer_random_button {
-	text-align: center;
-	width: 100px;
-	margin: auto;
-}
-
-.creature {
-	width: 100px;
-	height: 100px;
-	position: relative;
-	z-index: 2;
-	margin-bottom: -20px;
-}
-.creature .creature_path { fill: #93B874; }
-.creature:hover .creature_path { fill: #58773A; }
-.creature .creature_text, .creature_text_flat {
-	font-weight: bold;
-	font-size: 2em;
-	fill: #93B874;
-}
-.creature:hover .creature_text, .creature:hover + .creature_text_flat { fill: #58773A; }
-.creature_text_flat {
-	position:absolute;
-	bottom: 95px;
-	width: 100px;
-	text-align: center;
 }
 
 .thumbnail {
@@ -459,6 +375,10 @@ body.navigation-enabled #footer {
 	background-size: 25px;
 }
 
+#mw-mf-page-left ul li.icon-aboutwikihow a {
+	background-image: url(/skins/owl/images/wikihow_logo_round.png);
+	background-size: 20px;
+}
 /*
 #mw-mf-page-left ul li.icon-picturepatrol a {
 	background-image: url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4NCjwhLS0gR2VuZXJhdG9yOiBBZG9iZSBJbGx1c3RyYXRvciAxOC4wLjAsIFNWRyBFeHBvcnQgUGx1Zy1JbiAuIFNWRyBWZXJzaW9uOiA2LjAwIEJ1aWxkIDApICAtLT4NCjwhRE9DVFlQRSBzdmcgUFVCTElDICItLy9XM0MvL0RURCBTVkcgMS4xLy9FTiIgImh0dHA6Ly93d3cudzMub3JnL0dyYXBoaWNzL1NWRy8xLjEvRFREL3N2ZzExLmR0ZCI+DQo8c3ZnIHZlcnNpb249IjEuMSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgeD0iMHB4IiB5PSIwcHgiDQoJIHdpZHRoPSIzMS44NjhweCIgaGVpZ2h0PSIzMC4yNzNweCIgdmlld0JveD0iMCAwIDMxLjg2OCAzMC4yNzMiIGVuYWJsZS1iYWNrZ3JvdW5kPSJuZXcgMCAwIDMxLjg2OCAzMC4yNzMiIHhtbDpzcGFjZT0icHJlc2VydmUiPg0KPGcgaWQ9IkxheWVyXzEiPg0KCTxnPg0KCQk8cGF0aCBmaWxsPSIjOTNCODc0IiBkPSJNMjQuMDg5LDkuODA5bC0zLjk1Mi00Ljc4MWwtNi44MjEsNC43ODFINy41NzljLTIuMjMxLDAtNC4wOCwxLjkxMy00LjA4LDQuMTQ0djUuMUwwLjA1NSw5LjYxOA0KCQkJYy0wLjE5LTAuNzAxLDAuMTI4LTEuNDAyLDAuNzAxLTEuNjU3bDIxLjY3Ni03LjkwNWMwLjYzOC0wLjE5MSwxLjMzOSwwLjEyNywxLjU5NCwwLjc2NWwzLjI1MSw4Ljk4OUgyNC4wODl6IE0zMS44NjgsMTMuOTUzDQoJCQl2MTUuMDQ1YzAsMC43MDItMC41MTEsMS4yNzUtMS4yMTIsMS4yNzVINy41NzljLTAuNjM4LDAtMS4yMTItMC41NzQtMS4yMTItMS4yNzVWMTMuOTUzYzAtMC43MDIsMC41NzQtMS4yNzUsMS4yMTItMS4yNzVoMjMuMDc3DQoJCQlDMzEuMzU3LDEyLjY3OCwzMS44NjgsMTMuMjUxLDMxLjg2OCwxMy45NTN6IE0yOC44NzEsMjEuOTIybC0yLjI5NS01LjFsLTUuMjkxLDEuOTEzbC00LjE0NCw0LjIwOGwtNC4zOTktNS40MTlsLTIuOTMzLDYuODIxDQoJCQl2Mi43NDJoMTkuMDYyVjIxLjkyMnoiLz4NCgk8L2c+DQo8L2c+DQo8ZyBpZD0iTGF5ZXJfMiI+DQo8L2c+DQo8L3N2Zz4NCg==);
@@ -469,10 +389,6 @@ body.navigation-enabled #footer {
 #mw-mf-page-left ul li.icon-rclite a {
 	background-image: url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4NCjwhLS0gR2VuZXJhdG9yOiBBZG9iZSBJbGx1c3RyYXRvciAxOC4wLjAsIFNWRyBFeHBvcnQgUGx1Zy1JbiAuIFNWRyBWZXJzaW9uOiA2LjAwIEJ1aWxkIDApICAtLT4NCjwhRE9DVFlQRSBzdmcgUFVCTElDICItLy9XM0MvL0RURCBTVkcgMS4xLy9FTiIgImh0dHA6Ly93d3cudzMub3JnL0dyYXBoaWNzL1NWRy8xLjEvRFREL3N2ZzExLmR0ZCI+DQo8c3ZnIHZlcnNpb249IjEuMSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgeD0iMHB4IiB5PSIwcHgiDQoJIHdpZHRoPSIxNS40MzFweCIgaGVpZ2h0PSIxNC4xMTdweCIgdmlld0JveD0iMCAwIDE1LjQzMSAxNC4xMTciIGVuYWJsZS1iYWNrZ3JvdW5kPSJuZXcgMCAwIDE1LjQzMSAxNC4xMTciIHhtbDpzcGFjZT0icHJlc2VydmUiPg0KPGcgaWQ9IkxheWVyXzEiPg0KPC9nPg0KPGcgaWQ9IkxheWVyXzIiPg0KCTxnPg0KCQk8cGF0aCBmaWxsPSIjOTNCODc0IiBkPSJNMy4zMDYsOC43ODVMMi45NTQsOS4xMzdsLTAuMjYyLDEuMjE2YzAuMjE5LDAuMTE4LDAuNDM5LDAuMjU5LDAuNjk4LDAuNTE3DQoJCQljMC4yNTksMC4yNTksMC40LDAuNDc4LDAuNTE3LDAuNjk4bDEuMjE2LTAuMjYybDAuMzUyLTAuMzUxYzAsMC0wLjAxMy0wLjY2Mi0wLjc2LTEuNDA5QzMuOTY3LDguNzk5LDMuMzA2LDguNzg1LDMuMzA2LDguNzg1eiIvPg0KCQk8cGF0aCBmaWxsPSIjOTNCODc0IiBkPSJNMTQuNjc4LDBIMC43NTNDMC4zMzksMCwwLDAuMzM5LDAsMC43NTN2MTIuNjFjMCwwLjQxNCwwLjMzOSwwLjc1MywwLjc1MywwLjc1M2gxMy45MjUNCgkJCWMwLjQxNCwwLDAuNzUzLTAuMzM5LDAuNzUzLTAuNzUzVjAuNzUzQzE1LjQzMSwwLjMzOSwxNS4wOTIsMCwxNC42NzgsMHogTTEwLjYzMiwwLjgxOGMwLDAsMC44MTEtMC4xNjIsMS44OTEsMC45MTkNCgkJCWMxLjA4MSwxLjA4MSwwLjkxOSwxLjg5MiwwLjkxOSwxLjg5MmwtMC40NzUsMC40NzVjLTAuNDgyLTEuNjUxLTEuODA1LTIuNDk5LTIuNzIzLTIuODk4TDEwLjYzMiwwLjgxOHogTTEuNzY5LDEyLjQ5MQ0KCQkJbDAuNzU2LTMuNTY3bDQuMzI0LTQuMzIzbDIuODU4LTIuODU4YzAuODI0LDAuMzA1LDIuMzQ4LDEuMTA5LDIuNjc4LDIuOTQzTDkuNjU5LDcuNDExbC00LjMyMyw0LjMyM0wxLjc2OSwxMi40OTF6IE0xMC45LDEzLjA2Mw0KCQkJYy0wLjE1OCwwLjE1OC0wLjM2NSwwLjIzNy0wLjU3MiwwLjIzN3MtMC40MTQtMC4wNzktMC41NzItMC4yMzdsLTIuMDQtMi4wMzlMOC44Niw5Ljg4bDEuNDY4LDEuNDY3bDMuMDcxLTMuMDcxbDEuMTQ0LDEuMTQ0DQoJCQlMMTAuOSwxMy4wNjN6Ii8+DQoJPC9nPg0KPC9nPg0KPC9zdmc+DQo=);
 	background-size: 19px;
-}
-
-#mw-mf-page-left ul li.icon-kbguardian a {
-	background-image: url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4NCjwhRE9DVFlQRSBzdmcgUFVCTElDICItLy9XM0MvL0RURCBTVkcgMS4xLy9FTiIgImh0dHA6Ly93d3cudzMub3JnL0dyYXBoaWNzL1NWRy8xLjEvRFREL3N2ZzExLmR0ZCI+DQo8c3ZnIHZlcnNpb249IjEuMSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgeD0iMHB4IiB5PSIwcHgiDQoJIHdpZHRoPSIxMy43MTRweCIgaGVpZ2h0PSIxNC42MzhweCIgdmlld0JveD0iMCAwIDEzLjcxNCAxNC42MzgiIGVuYWJsZS1iYWNrZ3JvdW5kPSJuZXcgMCAwIDEzLjcxNCAxNC42MzgiIHhtbDpzcGFjZT0icHJlc2VydmUiPg0KPGcgaWQ9IkxheWVyXzEiPg0KPC9nPg0KPGcgaWQ9IkxheWVyXzIiPg0KCTxnPg0KCQk8cGF0aCBmaWxsPSIjOTNCODc0IiBkPSJNMTIuODEsMS44NTdjMCwzLjk1NSwwLDcuOTA3LDAsMTEuODcyYy0wLjA2NywwLjAwMy0wLjExNywwLjAwOC0wLjE2OCwwLjAwOA0KCQkJYy0zLjU2NCwwLTcuMTI4LDAtMTAuNjkyLDAuMDAxYy0wLjMyNSwwLTAuNjE0LTAuMDc4LTAuODI1LTAuMzQzYy0wLjIyOC0wLjI4Ny0wLjI3LTAuNjEtMC4xMjUtMC45NA0KCQkJYzAuMTQzLTAuMzI1LDAuNDA1LTAuNTA5LDAuNzY1LTAuNTM3YzAuMS0wLjAwOCwwLjItMC4wMSwwLjMtMC4wMWMzLjIwNywwLDYuNDEzLDAsOS42MiwwYzAuMDYxLDAsMC4xMjMsMCwwLjIwMSwwDQoJCQljMC4wMDMtMC4wNTksMC4wMDgtMC4xMSwwLjAwOC0wLjE2YzAtMy44NjQsMC03LjcyOCwwLTExLjU5M2MwLTAuMDUyLTAuMDA5LTAuMTA0LTAuMDE0LTAuMTU1QzguNDc3LDAsNS4wNzUsMCwxLjY3MywwDQoJCQlDMS41MzEsMC4wMzUsMS4zODcsMC4wNjEsMS4yNDksMC4xMDdDMC40OTMsMC4zNTksMCwxLjA0NCwwLDEuODM5YzAsMy42NjQsMCw3LjMyOCwwLDEwLjk5MmMwLDAuODg5LDAuNjQsMS42NSwxLjUxNCwxLjc5OQ0KCQkJYzAuMDQ3LDAuMDA4LDAuMDk1LDAuMDA3LDAuMTQyLDAuMDA3YzMuOTc0LDAsNy45NDgsMCwxMS45MjEsMGMwLjA0MiwwLDAuMDg1LDAsMC4xMzcsMGMwLTQuMjYyLDAtOC41MTUsMC0xMi43ODENCgkJCUMxMy40MTksMS44NTcsMTMuMTIzLDEuODU3LDEyLjgxLDEuODU3eiBNMy43MDMsNC43OThsMS41MTYsMS41MTVsMy4xNzItMy4xNzJsMS4xODIsMS4xODJMNS44MSw4LjA4Ng0KCQkJQzUuNjQ3LDguMjQ5LDUuNDMzLDguMzMsNS4yMTksOC4zM1M0Ljc5MSw4LjI0OSw0LjYyOCw4LjA4NkwyLjUyMiw1Ljk3OUwzLjcwMyw0Ljc5OHoiLz4NCgk8L2c+DQo8L2c+DQo8L3N2Zz4=);
 }
 
 #mw-mf-page-left ul li.icon-unitguardian a {
@@ -503,6 +419,11 @@ body.navigation-enabled #footer {
 	background-position: 12px;
 	/* @embed */
 	background-image: url(../../images/wikihow/icon-categories.svg);
+}
+
+#mw-mf-page-left ul li.icon-quizyourself a {
+	/* @embed */
+	background-image: url(../../images/wikihow/icon-quizyourself.svg);
 }
 
 .toast {
@@ -610,26 +531,35 @@ a.button.disabled:hover, input.button.disabled:hover, a.button.clickfail:hover, 
 /*Samples*/
 .sd_thumb {
 	text-align: center;
+	width: 125px;
+	margin: 6px;
 }
 
 .sd_thumb img {
 	border: 1px solid #BBB;
-	margin: 8px 0 0 0;
-}
-
-.sd_multiple_2, .sd_multiple_3 {
-	float:left;
-	width: 40%;
-	margin: 0 10px 10px 10px;
+	width: 100%;
+	height: auto;
 }
 
 #sd_container {
 	padding:15px;
-	background-color: #ffffff;
+	background-color: #FFF;
 	border: 1px solid rgba(0, 0, 0, .1);
 	-moz-border-radius: 4px;
 	-webkit-border-radius: 4px;
 	border-radius: 4px;
+	display: -ms-flexbox;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-wrap: wrap;
+	-ms-flex-wrap: wrap;
+	flex-wrap: wrap;
+	-webkit-justify-content: space-around;
+	-ms-flex-pack: distribute;
+	justify-content: space-around;
+	-webkit-align-items: stretch;
+	-ms-flex-align: stretch;
+	align-items: stretch;
 }
 
 .overlay { z-index: 20 !important; }
@@ -652,8 +582,7 @@ a.button.disabled:hover, input.button.disabled:hover, a.button.clickfail:hover, 
 .editor-overlay .overlay-header .icon.cancel,
 .editor-overlay .overlay-header .icon.back,
 .editor-overlay .overlay-header .icon.continue,
-.editor-overlay .overlay-header .icon.submit,
-#search_oversearch .cse_x {
+.editor-overlay .overlay-header .icon.submit {
 	background-position: 50%;
 	background-repeat: no-repeat;
 	background-size: 24px;
@@ -666,8 +595,9 @@ a.button.disabled:hover, input.button.disabled:hover, a.button.clickfail:hover, 
 	margin: 5px 0 0 -23px;
 	width: 18px;
 	height: 18px;
-	background-image: url(/extensions/wikihow/mobile/images/white_mag.png);
-	background-image: linear-gradient(transparent, transparent), url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4NCjwhRE9DVFlQRSBzdmcgUFVCTElDICItLy9XM0MvL0RURCBTVkcgMS4xLy9FTiIgImh0dHA6Ly93d3cudzMub3JnL0dyYXBoaWNzL1NWRy8xLjEvRFREL3N2ZzExLmR0ZCI+DQo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4Ig0KCSB3aWR0aD0iMzIuNTQ1cHgiIGhlaWdodD0iMzIuOTExcHgiIHZpZXdCb3g9IjAgMCAzMi41NDUgMzIuOTExIiBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDAgMCAzMi41NDUgMzIuOTExIiB4bWw6c3BhY2U9InByZXNlcnZlIj4NCjxwYXRoIGZpbGw9IiM3NTc1NzUiIGQ9Ik0zMS43OTgsMjguNTYybC05Ljc3Ni05Ljc3NmMxLjMwMy0xLjkyNCwyLjA2NC00LjI0NSwyLjA2NC02Ljc0M0MyNC4wODYsNS4zOTIsMTguNjk0LDAsMTIuMDQzLDANCglDNS4zOTIsMCwwLDUuMzkyLDAsMTIuMDQzYzAsNi42NTEsNS4zOTIsMTIuMDQzLDEyLjA0MywxMi4wNDNjMi4zMDksMCw0LjQ1OS0wLjY2Miw2LjI5Mi0xLjc4OQ0KCWMwLjAxMywwLjAxMywwLjAyMSwwLjAyOSwwLjAzNCwwLjA0Mmw5LjgyNyw5LjgyNmMwLjQ5OCwwLjQ5NywxLjE0OSwwLjc0NiwxLjgwMSwwLjc0NmMwLjY1MiwwLDEuMzA0LTAuMjQ5LDEuODAxLTAuNzQ2DQoJQzMyLjc5MywzMS4xNywzMi43OTMsMjkuNTU3LDMxLjc5OCwyOC41NjJ6IE0xMi4wNDMsMTkuODRjLTQuMjk5LDAtNy43OTctMy40OTgtNy43OTctNy43OTdzMy40OTgtNy43OTcsNy43OTctNy43OTcNCgljNC4yOTksMCw3Ljc5NywzLjQ5OCw3Ljc5Nyw3Ljc5N1MxNi4zNDIsMTkuODQsMTIuMDQzLDE5Ljg0eiIvPg0KPC9zdmc+DQo=);
+	background-image: url(/extensions/wikihow/mobile/images/gray_mag.png);
+	/* @embed */
+	background-image: url(/extensions/wikihow/mobile/images/gray_mag.svg);
 	background-color: #FFF;
 	background-size: 18px;
 	background-repeat: no-repeat;
@@ -676,27 +606,7 @@ a.button.disabled:hover, input.button.disabled:hover, a.button.clickfail:hover, 
 	cursor: pointer;
 }
 
-/* the bottom search bar we want auto settings on top and right for abs positioning */
-#search_footer .cse_sa {
-	top:auto;
-	right:auto;
-	background-image: url(/extensions/wikihow/mobile/images/white_mag.png);
-	background-image: linear-gradient(transparent, transparent), url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4NCjwhRE9DVFlQRSBzdmcgUFVCTElDICItLy9XM0MvL0RURCBTVkcgMS4xLy9FTiIgImh0dHA6Ly93d3cudzMub3JnL0dyYXBoaWNzL1NWRy8xLjEvRFREL3N2ZzExLmR0ZCI+DQo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4Ig0KCSB3aWR0aD0iMzIuNTQ1cHgiIGhlaWdodD0iMzIuOTExcHgiIHZpZXdCb3g9IjAgMCAzMi41NDUgMzIuOTExIiBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDAgMCAzMi41NDUgMzIuOTExIiB4bWw6c3BhY2U9InByZXNlcnZlIj4NCjxwYXRoIGZpbGw9IiM3NTc1NzUiIGQ9Ik0zMS43OTgsMjguNTYybC05Ljc3Ni05Ljc3NmMxLjMwMy0xLjkyNCwyLjA2NC00LjI0NSwyLjA2NC02Ljc0M0MyNC4wODYsNS4zOTIsMTguNjk0LDAsMTIuMDQzLDANCglDNS4zOTIsMCwwLDUuMzkyLDAsMTIuMDQzYzAsNi42NTEsNS4zOTIsMTIuMDQzLDEyLjA0MywxMi4wNDNjMi4zMDksMCw0LjQ1OS0wLjY2Miw2LjI5Mi0xLjc4OQ0KCWMwLjAxMywwLjAxMywwLjAyMSwwLjAyOSwwLjAzNCwwLjA0Mmw5LjgyNyw5LjgyNmMwLjQ5OCwwLjQ5NywxLjE0OSwwLjc0NiwxLjgwMSwwLjc0NmMwLjY1MiwwLDEuMzA0LTAuMjQ5LDEuODAxLTAuNzQ2DQoJQzMyLjc5MywzMS4xNywzMi43OTMsMjkuNTU3LDMxLjc5OCwyOC41NjJ6IE0xMi4wNDMsMTkuODRjLTQuMjk5LDAtNy43OTctMy40OTgtNy43OTctNy43OTdzMy40OTgtNy43OTcsNy43OTctNy43OTcNCgljNC4yOTksMCw3Ljc5NywzLjQ5OCw3Ljc5Nyw3Ljc5N1MxNi4zNDIsMTkuODQsMTIuMDQzLDE5Ljg0eiIvPg0KPC9zdmc+DQo=);
-	background-color: #B3CE9C;
-	background-size: 18px;
-}
-
-#footer_bar {
-	background-color: #93B874;
-	padding:10px;
-}
-
-#search_footer #cse-search-box {
-	margin: 0 10px;
-}
-
 .editor-overlay .overlay-header .icon.cancel { background-image: url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4NCjwhRE9DVFlQRSBzdmcgUFVCTElDICItLy9XM0MvL0RURCBTVkcgMS4xLy9FTiIgImh0dHA6Ly93d3cudzMub3JnL0dyYXBoaWNzL1NWRy8xLjEvRFREL3N2ZzExLmR0ZCI+DQo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4Ig0KCSB3aWR0aD0iMzguOTQ5cHgiIGhlaWdodD0iMzguOTQ5cHgiIHZpZXdCb3g9IjAgMCAzOC45NDkgMzguOTQ5IiBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDAgMCAzOC45NDkgMzguOTQ5IiB4bWw6c3BhY2U9InByZXNlcnZlIj4NCjxwYXRoIGZpbGw9IiM2MDYwNjAiIGQ9Ik0yMy4wMSwxOS40NzRMMzguMjE2LDQuMjY4YzAuOTc3LTAuOTc2LDAuOTc3LTIuNTU5LDAtMy41MzVjLTAuOTc3LTAuOTc3LTIuNTU5LTAuOTc3LTMuNTM1LDANCglMMTkuNDc0LDE1LjkzOUw0LjI2OCwwLjczMmMtMC45NzctMC45NzctMi41NTktMC45NzctMy41MzUsMGMtMC45NzcsMC45NzYtMC45NzcsMi41NTksMCwzLjUzNWwxNS4yMDcsMTUuMjA3TDAuNzMzLDM0LjY4MQ0KCWMtMC45NzcsMC45NzYtMC45NzcsMi41NTksMCwzLjUzNWMwLjQ4OCwwLjQ4OCwxLjEyOCwwLjczMiwxLjc2OCwwLjczMnMxLjI3OS0wLjI0NCwxLjc2OC0wLjczMkwxOS40NzQsMjMuMDFsMTUuMjA3LDE1LjIwNw0KCWMwLjQ4OCwwLjQ4OCwxLjEyOCwwLjczMiwxLjc2OCwwLjczMnMxLjI3OS0wLjI0NCwxLjc2OC0wLjczMmMwLjk3Ny0wLjk3NiwwLjk3Ny0yLjU1OSwwLTMuNTM1TDIzLjAxLDE5LjQ3NHoiLz4NCjwvc3ZnPg==) !important; }
-#search_oversearch .cse_x { background-image: url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4NCjwhRE9DVFlQRSBzdmcgUFVCTElDICItLy9XM0MvL0RURCBTVkcgMS4xLy9FTiIgImh0dHA6Ly93d3cudzMub3JnL0dyYXBoaWNzL1NWRy8xLjEvRFREL3N2ZzExLmR0ZCI+DQo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4Ig0KCSB3aWR0aD0iMzguOTQ5cHgiIGhlaWdodD0iMzguOTQ5cHgiIHZpZXdCb3g9IjAgMCAzOC45NDkgMzguOTQ5IiBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDAgMCAzOC45NDkgMzguOTQ5IiB4bWw6c3BhY2U9InByZXNlcnZlIj4NCjxwYXRoIGZpbGw9IiNGRkZGRkYiIGQ9Ik0yMy4wMSwxOS40NzRMMzguMjE2LDQuMjY4YzAuOTc3LTAuOTc2LDAuOTc3LTIuNTU5LDAtMy41MzVjLTAuOTc3LTAuOTc3LTIuNTU5LTAuOTc3LTMuNTM1LDANCglMMTkuNDc0LDE1LjkzOUw0LjI2OCwwLjczMmMtMC45NzctMC45NzctMi41NTktMC45NzctMy41MzUsMGMtMC45NzcsMC45NzYtMC45NzcsMi41NTksMCwzLjUzNWwxNS4yMDcsMTUuMjA3TDAuNzMzLDM0LjY4MQ0KCWMtMC45NzcsMC45NzYtMC45NzcsMi41NTksMCwzLjUzNWMwLjQ4OCwwLjQ4OCwxLjEyOCwwLjczMiwxLjc2OCwwLjczMnMxLjI3OS0wLjI0NCwxLjc2OC0wLjczMkwxOS40NzQsMjMuMDFsMTUuMjA3LDE1LjIwNw0KCWMwLjQ4OCwwLjQ4OCwxLjEyOCwwLjczMiwxLjc2OCwwLjczMnMxLjI3OS0wLjI0NCwxLjc2OC0wLjczMmMwLjk3Ny0wLjk3NiwwLjk3Ny0yLjU1OSwwLTMuNTM1TDIzLjAxLDE5LjQ3NHoiLz4NCjwvc3ZnPg==) !important; }
 .editor-overlay .overlay-header .icon.back {
 	background-image: url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4NCjwhRE9DVFlQRSBzdmcgUFVCTElDICItLy9XM0MvL0RURCBTVkcgMS4xLy9FTiIgImh0dHA6Ly93d3cudzMub3JnL0dyYXBoaWNzL1NWRy8xLjEvRFREL3N2ZzExLmR0ZCI+DQo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4Ig0KCSB3aWR0aD0iMTcuNTE2cHgiIGhlaWdodD0iMjkuMzc1cHgiIHZpZXdCb3g9IjAgMCAxNy41MTYgMjkuMzc1IiBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDAgMCAxNy41MTYgMjkuMzc1IiB4bWw6c3BhY2U9InByZXNlcnZlIj4NCjxnPg0KCTxwYXRoIGZpbGw9IiM2MDYwNjAiIGQ9Ik0xNS41MTYsMjkuMzc1Yy0wLjUxMiwwLTEuMDIzLTAuMTk1LTEuNDE0LTAuNTg2TDAsMTQuNjg4TDE0LjEwMiwwLjU4NmMwLjc4MS0wLjc4MSwyLjA0Ny0wLjc4MSwyLjgyOCwwDQoJCWMwLjc4MSwwLjc4MSwwLjc4MSwyLjA0NywwLDIuODI4TDUuNjU2LDE0LjY4OEwxNi45MywyNS45NmMwLjc4MSwwLjc4MSwwLjc4MSwyLjA0NywwLDIuODI4DQoJCUMxNi41MzksMjkuMTc5LDE2LjAyNywyOS4zNzUsMTUuNTE2LDI5LjM3NXoiLz4NCjwvZz4NCjwvc3ZnPg==) !important;
 	background-size: 17px;
@@ -782,21 +692,9 @@ a.button.disabled:hover, input.button.disabled:hover, a.button.clickfail:hover, 
 /* search bar at the top should shown as soon as possible */
 @media only screen and (min-width: 450px) and (max-aspect-ratio: 13/9),
 only screen and (max-height: 421px) and (min-aspect-ratio: 13/9) {
-   body #search_oversearch {
-       display: block;
-       right: 0;
-       width: 30%;
-   }
-   body #search_oversearch #cse-search-box { margin: 0 10px; }
-   body #search_oversearch.has_notes { right: 34px; }
    body #cse-search-box .cse_q {
        color: #FFF;
        background-color: #B3CE9C;
-   }
-
-   #search_oversearch .cse_sa {
-       background-color: #B3CE9C !important;
-       background-image: url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4NCjwhRE9DVFlQRSBzdmcgUFVCTElDICItLy9XM0MvL0RURCBTVkcgMS4xLy9FTiIgImh0dHA6Ly93d3cudzMub3JnL0dyYXBoaWNzL1NWRy8xLjEvRFREL3N2ZzExLmR0ZCI+DQo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4Ig0KCSB3aWR0aD0iMzIuNTQ1cHgiIGhlaWdodD0iMzIuOTExcHgiIHZpZXdCb3g9IjAgMCAzMi41NDUgMzIuOTExIiBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDAgMCAzMi41NDUgMzIuOTExIiB4bWw6c3BhY2U9InByZXNlcnZlIj4NCjxwYXRoIGZpbGw9IiNGRkZGRkYiIGQ9Ik0zMS43OTgsMjguNTYybC05Ljc3Ni05Ljc3NmMxLjMwMy0xLjkyNCwyLjA2NC00LjI0NSwyLjA2NC02Ljc0M0MyNC4wODYsNS4zOTIsMTguNjk0LDAsMTIuMDQzLDANCglDNS4zOTIsMCwwLDUuMzkyLDAsMTIuMDQzYzAsNi42NTEsNS4zOTIsMTIuMDQzLDEyLjA0MywxMi4wNDNjMi4zMDksMCw0LjQ1OS0wLjY2Miw2LjI5Mi0xLjc4OQ0KCWMwLjAxMywwLjAxMywwLjAyMSwwLjAyOSwwLjAzNCwwLjA0Mmw5LjgyNyw5LjgyNmMwLjQ5OCwwLjQ5NywxLjE0OSwwLjc0NiwxLjgwMSwwLjc0NmMwLjY1MiwwLDEuMzA0LTAuMjQ5LDEuODAxLTAuNzQ2DQoJQzMyLjc5MywzMS4xNywzMi43OTMsMjkuNTU3LDMxLjc5OCwyOC41NjJ6IE0xMi4wNDMsMTkuODRjLTQuMjk5LDAtNy43OTctMy40OTgtNy43OTctNy43OTdzMy40OTgtNy43OTcsNy43OTctNy43OTcNCgljNC4yOTksMCw3Ljc5NywzLjQ5OCw3Ljc5Nyw3Ljc5N1MxNi4zNDIsMTkuODQsMTIuMDQzLDE5Ljg0eiIvPg0KPC9zdmc+DQo=) !important;
    }
 }
 
@@ -822,29 +720,10 @@ only screen and (max-height: 421px) and (min-aspect-ratio: 13/9) {
 	textarea.newtip {
 		font-size: 18px;
 	}
-
-	#search_footer .cse_saw {
-		background-color: #B3CE9C !important;
-		background-image: url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4NCjwhRE9DVFlQRSBzdmcgUFVCTElDICItLy9XM0MvL0RURCBTVkcgMS4xLy9FTiIgImh0dHA6Ly93d3cudzMub3JnL0dyYXBoaWNzL1NWRy8xLjEvRFREL3N2ZzExLmR0ZCI+DQo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4Ig0KCSB3aWR0aD0iMzIuNTQ1cHgiIGhlaWdodD0iMzIuOTExcHgiIHZpZXdCb3g9IjAgMCAzMi41NDUgMzIuOTExIiBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDAgMCAzMi41NDUgMzIuOTExIiB4bWw6c3BhY2U9InByZXNlcnZlIj4NCjxwYXRoIGZpbGw9IiNGRkZGRkYiIGQ9Ik0zMS43OTgsMjguNTYybC05Ljc3Ni05Ljc3NmMxLjMwMy0xLjkyNCwyLjA2NC00LjI0NSwyLjA2NC02Ljc0M0MyNC4wODYsNS4zOTIsMTguNjk0LDAsMTIuMDQzLDANCglDNS4zOTIsMCwwLDUuMzkyLDAsMTIuMDQzYzAsNi42NTEsNS4zOTIsMTIuMDQzLDEyLjA0MywxMi4wNDNjMi4zMDksMCw0LjQ1OS0wLjY2Miw2LjI5Mi0xLjc4OQ0KCWMwLjAxMywwLjAxMywwLjAyMSwwLjAyOSwwLjAzNCwwLjA0Mmw5LjgyNyw5LjgyNmMwLjQ5OCwwLjQ5NywxLjE0OSwwLjc0NiwxLjgwMSwwLjc0NmMwLjY1MiwwLDEuMzA0LTAuMjQ5LDEuODAxLTAuNzQ2DQoJQzMyLjc5MywzMS4xNywzMi43OTMsMjkuNTU3LDMxLjc5OCwyOC41NjJ6IE0xMi4wNDMsMTkuODRjLTQuMjk5LDAtNy43OTctMy40OTgtNy43OTctNy43OTdzMy40OTgtNy43OTcsNy43OTctNy43OTcNCgljNC4yOTksMCw3Ljc5NywzLjQ5OCw3Ljc5Nyw3Ljc5N1MxNi4zNDIsMTkuODQsMTIuMDQzLDE5Ljg0eiIvPg0KPC9zdmc+DQo=) !important;
+	#search_footer {
+		padding-right: 180px;
 	}
-
-	#search_footer { text-align: right; }
 	#search_footer #cse-search-box .cse_q { width: 24%; }
-	#footer_logo {
-		display: table-cell !important;
-		vertical-align: middle;
-		width: 125px !important;
-		background-image: url(/extensions/wikihow/mobile/images/logo_230_with_tag.png) !important;
-		background-repeat: no-repeat;
-		background-position: center center;
-		background-size: 115px;
-		padding: 0 14px;
-		height: 38px;
-	}
-
-	#footer_logo.footer_logo_intl {
-		background-image: url(/extensions/wikihow/mobile/images/logo_230_without_tag.png) !important;
-	}
 
 	.sticky { padding-top: 67px; }
 
@@ -856,6 +735,8 @@ only screen and (max-height: 421px) and (min-aspect-ratio: 13/9) {
 	body.navigation-enabled #mw-mf-page-left { width: 10.75em; }
 	#mw-mf-page-left { font-size: 1.5em; }
 	#mw-mf-page-left ul li a { line-height: 2em; }
+
+	.sd_thumb { width: 170px; }
 }
 
 @media only screen and (min-width: 500px) {
@@ -927,29 +808,31 @@ a.reference-anchor {
     visibility: hidden;
 }
 
-/* Article info section */
 
-.articleinfo #articleinfo { /* WITHOUT an About this wikiHow section (edge case) */
-	margin-top: 20px;
-}
-
-#social_proof_mobile + .articleinfo #articleinfo { /* WITH an About this wikiHow section (normal case) */
-	padding: 15px;
-	border-top: 1px solid #e7e7e5;
-	border-radius: 0 0 4px 4px;
-	margin-top: -5px;
-	position: relative;
-	z-index: 1;
-}
-
-#articleinfo #info_link {
+.section_text .collapse_link {
 	width: 100%;
 	display: block;
-	background-image: url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4NCjwhRE9DVFlQRSBzdmcgUFVCTElDICItLy9XM0MvL0RURCBTVkcgMS4xLy9FTiIgImh0dHA6Ly93d3cudzMub3JnL0dyYXBoaWNzL1NWRy8xLjEvRFREL3N2ZzExLmR0ZCI+DQo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4Ig0KCSB3aWR0aD0iMjkuMzc1cHgiIGhlaWdodD0iMTcuNTE2cHgiIHZpZXdCb3g9IjAgMCAyOS4zNzUgMTcuNTE2IiBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDAgMCAyOS4zNzUgMTcuNTE2IiB4bWw6c3BhY2U9InByZXNlcnZlIj4NCjxnPg0KCTxwYXRoIGZpbGw9IiNDRENEQ0QiIGQ9Ik0yOS4zNzUsMmMwLDAuNTEyLTAuMTk1LDEuMDIyLTAuNTg2LDEuNDE0TDE0LjY4OCwxNy41MTZMMC41ODYsMy40MTRjLTAuNzgxLTAuNzgxLTAuNzgxLTIuMDQ3LDAtMi44MjgNCgkJYzAuNzgxLTAuNzgxLDIuMDQ3LTAuNzgxLDIuODI4LDBsMTEuMjczLDExLjI3MkwyNS45NiwwLjU4NmMwLjc4MS0wLjc4MSwyLjA0Ny0wLjc4MSwyLjgyOCwwQzI5LjE4LDAuOTc3LDI5LjM3NSwxLjQ4OCwyOS4zNzUsMnoiDQoJCS8+DQo8L2c+DQo8L3N2Zz4NCg==);
-	background-repeat: no-repeat;
-	background-position: center right;
-	background-size: 20px;
 	color: #545454;
+}
+
+.collapse_link.open {
+	margin-bottom: 5px;
+	background-image: none;
+}
+
+.collapse_link.open::after {
+	display: none;
+}
+
+#summary_text {
+	display: none;
+}
+
+#social_proof_mobile +  #summary_wrapper {
+	border-top: 1px solid #e7e7e5;
+	margin-top: -5px;
+	position: relative;
+	border-radius: 0;
 }
 
 /* Checkmarks */
@@ -959,4 +842,39 @@ a.reference-anchor {
 	background-size: 12px;
 }
 
-
+/* this class is set on the contact wikihow template which appears on the cookie policy page */
+.contactwikihow table {
+	background-color: unset !important;
+	display: initial;
+}
+.contactwikihow td {
+	display: block;
+	width: 100% !important;
+	box-sizing: border-box;
+}
+.contactwikihow td p {
+	padding-left: 5px;
+}
+.contactwikihow tbody {
+	display: inline-table;
+	width: 100%;
+}
+#language_links {
+	display: none;
+}
+#summary_wrapper +  #other_languages {
+	border-top: 1px solid #e7e7e5;
+	margin-top: -5px;
+	border-radius: 0;
+}
+#other_languages {
+	position: relative;
+	margin-top: -5px;
+	border-top: 1px solid #e7e7e5;
+}
+.language_link {
+	line-height: 25px;
+}
+.language_link span {
+	padding-right: 3px;
+}

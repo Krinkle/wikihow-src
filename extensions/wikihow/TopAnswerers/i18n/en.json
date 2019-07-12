@@ -5,7 +5,8 @@
 	"ta_title": "Top Answerers",
 	"ta_admin_title": "Top Answerers Admin",
 	"ta_add_button": "Add",
-	"ta_export_button": "Export",
+	"ta_export_button": "Export TAs",
+	"qa_export_button": "Export Q&A data",
 	"ta_blocked_title": "Blacklisted",
 	"ta_blocked_button": "Blacklist",
 	"ta_search_placeholder": "username",
@@ -13,7 +14,8 @@
 	"ta_added_text": "Added",
 	"ta_last_answer_text": "last answer",
 	"ta_type_text": "type",
-	"ta_answers_label": "answers",
+	"ta_answers_live_label": "live answers",
+	"ta_answers_calc_label": "Answers used to calculate scores",
 	"ta_sim_label": "similarity",
 	"ta_rating_label": "approval rate",
 	"ta_subcats_label": "Top subcats",
@@ -28,5 +30,6 @@
 	"ta_resp_unblock_good": "User has been removed from the Top Answerer blacklist. Refresh to see in the results.",
 	"ta_label": "Top Answerer",
 	"ta_grats_subject": "Congratulations, you’re a Top Answerer on wikiHow!",
-	"ta_settings_title": "Top Answerers Settings"
+	"ta_settings_title": "Top Answerers Settings",
+	"ta_answers_label": "answers"
 }

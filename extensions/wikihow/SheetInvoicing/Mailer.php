@@ -13,19 +13,22 @@ abstract class Mailer
 {
 	protected static $templateDir;	// String - To be set by subclasses
 
-	private $reportSender;	// String
-	private $reportSubject;	// String
-	private $mustache;		// Mustache_Engine
+	private $sender;			// MailAddress
+	private $replyTo = null;	// MailAddress
+	private $subject;			// String
+	private $mustache;			// Mustache_Engine
 
 	/**
-	 * @param $reportSender   e.g. 'Jane Doe <jane@foo.com>'
-	 * @param $reportSubject  e.g. 'MyProject Invoicing Report'
-	 * @param $conf           Additional params for subclasses as PHP lacks method overloading :(
+	 * @param $sender   e.g. 'Jane Doe <jane@foo.com>'
+	 * @param $subject  e.g. 'MyProject Invoicing Report'
+	 * @param $conf     Additional params for subclasses as PHP lacks method overloading :(
 	 */
-	protected function __construct(string $reportSender, string $reportSubject, array $conf)
+	protected function __construct(string $sender, string $subject, array $conf)
 	{
-		$this->reportSender = $reportSender;
-		$this->reportSubject = $reportSubject;
+		$this->sender = new MailAddress($sender);
+		if (isset($conf['reply_to']))
+			$this->replyTo = new MailAddress($conf['reply_to']);
+		$this->subject = $subject;
 
 		$loader = new \Mustache_Loader_CascadingLoader([
 			new \Mustache_Loader_FilesystemLoader(__DIR__ . '/templates'),
@@ -50,6 +53,13 @@ abstract class Mailer
 			$entry['subject'] = $this->getSubject($entry);
 			$entry['body'] = $this->mustache->render('invoice.mustache', $entry);
 
+// TODO: remove
+global $wgUser;
+if ( $wgUser->getName() == 'Albur' ) {
+	$entry['fullName'] .= ' (DEV)';
+	$entry['email'] = 'alberto+' . preg_replace("/[^A-Za-z0-9 ]/", '', $entry['email']) . '@wikihow.com';
+}
+
 			$to = new MailAddress("{$entry['fullName']} <{$entry['email']}>");
 			$entry['error'] = $wgIsProduction
 				? $this->sendEmail($to, $entry['subject'], $entry['body'])
@@ -71,15 +81,16 @@ abstract class Mailer
 		];
 		$report = $this->mustache->render('report.mustache', $vars);
 		$to = new MailAddress($recipients);
-		$this->sendEmail($to, $this->reportSubject, $report);
+		$this->sendEmail($to, $this->subject, $report);
 	}
 
 	private function sendEmail(MailAddress $to, string $subject, string $body): string
 	{
-		$from = new MailAddress($this->reportSender);
 		$contentType = 'text/html; charset=UTF-8';
 		try {
-			UserMailer::send($to, $from, $subject, $body, null, $contentType);
+			$status = UserMailer::send($to, $this->sender, $subject, $body, $this->replyTo, $contentType);
+// TODO remove
+wfDebugLog('alber', "From '" . $this->sender . "' to '$to': $subject | " . var_export($status, true) );
 			return '';
 		} catch (\Exception $e) {
 			return $e->getMessage();

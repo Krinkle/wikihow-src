@@ -187,7 +187,9 @@ class SpecialPagesHooks {
 
 	public static function onWebRequestPathInfoRouter( $router ) {
 		$router->addStrict( 'TopicGreenhouse-$1', array( 'title' => 'Special:EditFinder', 'target' => 'Topic', 'topic' => "$1") );
-		if(QADomain::isQADomain()) {
+		$router->addStrict( 'wikiHow:Gives-Back', array( 'title' => 'Special:Charity') );
+		$router->addStrict( 'wikiHow:Contribute', array( 'title' => 'Special:Contribute') );
+		if (QADomain::isQADomain()) {
 			$router->addStrict('$1', array('title' => 'Special:QADomain/$1'));
 		}
 		return true;

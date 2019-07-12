@@ -42,6 +42,6 @@
 			redirectCookie.path, redirectCookie.domain );
 	}
 
-	$( '#mw-mf-display-toggle' ).on( 'click', desktopViewClick );
+	$( '.mw-mf-display-toggle-link' ).on( 'click', desktopViewClick );
 
 }( mw.mobileFrontend, jQuery ) );

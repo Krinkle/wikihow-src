@@ -1,10 +1,9 @@
 <?php
 
 if (!defined('MEDIAWIKI')) die();
+
 class VideoEmbedHelperTool extends UnlistedSpecialPage {
-	/*
-	 * @var string main mustache template (sans extension).
-	 */
+
 	const TEMPLATE = 'SpecialVideoEmbedHelperTool';
 
 	public function __construct() {
@@ -23,8 +22,8 @@ class VideoEmbedHelperTool extends UnlistedSpecialPage {
 		$newWikiText = $wikiText;
 		$limit = -1;
 		$count = 0;
-		
-		$citation = self::formatCitation($citation);	
+
+		$citation = $this->formatCitation($citation);
 		$scHeaderPattern = "/(==\s?Sources\sand\sCitations\s?==\n)(\\n?)/";
 		$scHeader = "==Sources and Citations==";
 		$newWikiText = preg_replace($scHeaderPattern, "$1$2$citation\n", $wikiText, $limit, $count);
@@ -39,37 +38,37 @@ class VideoEmbedHelperTool extends UnlistedSpecialPage {
 		return $newWikiText;
 	}
 
-		
-	// Lovingly plagiarized from Importvideo::updateVideoArticle()
+	// Lovingly plagiarized from ImportVideo::updateVideoArticle()
 	private function updateVideoArticle($videoTitle, $videoId) {
-		$importer = new ImportvideoYoutube("youtube");
+		$importer = new ImportVideoYoutube("youtube");
 		$videoWikiText = $importer->loadVideoText($videoId);
 		if ($videoWikiText == null || empty($videoId)) {
 			return false;
 		}
 		$editSummary = $this->msg('evht_addingvideo_summary');
-		$a = new Article($videoTitle);
-		$a->doEdit($videoWikiText, $editSummary);
-		Importvideo::markVideoAsPatrolled($a->getId());
+		$wikiPage = WikiPage::factory($videoTitle);
+		$content = ContentHandler::makeContent($videoWikiText, $videoTitle);
+		$wikiPage->doEditContent($content, $editSummary);
+		ImportVideo::markVideoAsPatrolled($wikiPage->getId());
 		return true;
 	}
 
-	// Lovingly plagiarized from Importvideo::updateMainArticle()
+	// Lovingly plagiarized from ImportVideo::updateMainArticle()
 	private function updateMainArticle($title, $videoTitle, $videoCitation) {
 		$r = Revision::newFromTitle($title);
 		if (!$r) {
 			return false;
 		}
-		$text = $r->getText();
+		$text = ContentHandler::getContentText( $r->getContent() );
 
 		$tag = "{{" . $videoTitle->getFullText() . "|}}";
-		$newsection .= "\n\n== " . wfMsg('video') . " ==\n{$tag}\n\n";
+		$newsection .= "\n\n== " . wfMessage('video') . " ==\n{$tag}\n\n";
 		$a = new Article($title);
 
 		$newtext = "";
 
 		// Check for existing video section in the target article
-		preg_match("/^==[ ]*" . wfMsg('video') . "/im", $text, $matches, PREG_OFFSET_CAPTURE);
+		preg_match("/^==[ ]*" . wfMessage('video') . "/im", $text, $matches, PREG_OFFSET_CAPTURE);
 		if (sizeof($matches) > 0 ) {
 			// There is an existing video section, replace it
 			$i = $matches[0][1];
@@ -89,7 +88,7 @@ class VideoEmbedHelperTool extends UnlistedSpecialPage {
 			$arr = preg_split('/(^==[^=]*?==\s*?$)/m', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
 			$found = false;
 			for ($i =0 ; $i < sizeof($arr); $i++) {
-				if (preg_match("/^==[ ]*" . wfMsg('steps') . "/", $arr[$i])) {
+				if (preg_match("/^==[ ]*" . wfMessage('steps') . "/", $arr[$i])) {
 					$newtext .= $arr[$i];
 					$i++;
 					if ($i < sizeof($arr))
@@ -109,11 +108,12 @@ class VideoEmbedHelperTool extends UnlistedSpecialPage {
 				}
 			}
 		}
-		if ($newtext == "")
+		if (!$newtext) {
 			$newtext = $newsection;
-		$watch = $title->userIsWatching();
-		$newtext = self::addBulletCitation($newtext,$videoCitation);
-		
+		}
+		$watch = $this->getUser()->isWatched($title);
+		$newtext = $this->addBulletCitation($newtext, $videoCitation);
+
 		$editSummary = $this->msg('evht_addingvideo_summary');
 		$a->updateArticle($newtext, $editSummary, false, $watch);
 
@@ -121,15 +121,15 @@ class VideoEmbedHelperTool extends UnlistedSpecialPage {
 	}
 
 	private function youtubeIdFromUrl($url) {
-	    $pattern = 
-		'%^		# Match any youtube URL
+		$pattern =
+		'%^             # Match any youtube URL
 		(?:https?://)?  # Optional scheme. Either http or https
 		(?:www\.)?      # Optional www subdomain
 		(?:             # Group host alternatives
 		  youtu\.be/    # Either youtu.be,
 		| youtube\.com  # or youtube.com
 		  (?:           # Group path alternatives
-		    /embed/     # Either /embed/
+			/embed/     # Either /embed/
 		  | /v/         # or /v/
 		  | /watch\?v=  # or /watch\?v=
 		  )             # End path alternatives.
@@ -137,26 +137,25 @@ class VideoEmbedHelperTool extends UnlistedSpecialPage {
 		([\w-]{10,12})  # Allow 10-12 for 11 char youtube id.
 		$%x'
 		;
-	    $result = preg_match($pattern, $url, $matches);
-	    if ($result) {
-		return $matches[1];
-	    }
-	    return false;
+		$result = preg_match($pattern, $url, $matches);
+		if ($result) {
+			return $matches[1];
+		}
+		return false;
 	}
 
 	/*
-	 * Return article name from an article 
+	 * Return article name from an article
 	 * URL, by returning the substring after the
 	 * final forward-slash, or if no forward-
-	 * slash exists, returning the entire string. 
-	 *
+	 * slash exists, returning the entire string.
 	 */
 	private function getArticleFromUrl($url) {
 		$pattern = '/^(?:.*\/)?(.*)$/';
-	
-		$url = trim($url);	
+
+		$url = trim($url);
 		$result = preg_match($pattern, $url, $matches);
-		if ($result) { 
+		if ($result) {
 		    return $matches[1];
 		}
 		else {
@@ -174,34 +173,27 @@ class VideoEmbedHelperTool extends UnlistedSpecialPage {
 		return $m->render(self::TEMPLATE, []);
 	}
 
-
-	/**
-	 * Execute special page.  Only available to wikihow staff.
-	 */
 	public function execute($par) {
-		global $wgRequest, $wgOut, $wgUser, $wgLang;
-
-		$user = $wgUser->getName();
-		$userGroups = $wgUser->getGroups();
-		if ($wgUser->isBlocked() || (!in_array('staff', $userGroups) && !in_array('staff_widget', $userGroups))) {
-			$wgOut->setRobotpolicy('noindex,nofollow');
-			$wgOut->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
+		$userGroups = $user->getGroups();
+		if ($user->isBlocked() || (!in_array('staff', $userGroups) && !in_array('staff_widget', $userGroups))) {
+			$out->setRobotPolicy('noindex,nofollow');
+			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
-		
-		if ($wgRequest->wasPosted()) {
-			$wgOut->setArticleBodyOnly(true);
-			$citation = $wgRequest->getVal('citation');
-			$videoUrl = urldecode($wgRequest->getVal('videoUrl'));
-			$videoId = self::youtubeIdFromUrl($videoUrl);
-			$target = urldecode($wgRequest->getVal('target'));
-			$result = array('success' => false, 
+
+		if ($req->wasPosted()) {
+			$out->setArticleBodyOnly(true);
+			$citation = $req->getVal('citation');
+			$videoUrl = urldecode($req->getVal('videoUrl'));
+			$videoId = $this->youtubeIdFromUrl($videoUrl);
+			$target = urldecode($req->getVal('target'));
+			$result = array('success' => false,
 					'target' => $target,
 					'videoId' => $videoId,
 					'videoUrl' => $videoUrl);
-		
-			$target = self::getArticleFromUrl($target);
-			if (preg_match('/[0-9]{1,8}/', $target)) { 
+
+			$target = $this->getArticleFromUrl($target);
+			if (preg_match('/[0-9]{1,8}/', $target)) {
 				$title = Title::newFromID((int)$target);
 			} else {
 				$title = Misc::getTitleFromText($target);
@@ -211,23 +203,22 @@ class VideoEmbedHelperTool extends UnlistedSpecialPage {
 				$result['success'] = false;
 				$result['articleUrl'] = $target;
 				$result['error'] = "Article does not exist";
-				$wgOut->addHtml(json_encode($result));
+				$out->addHtml(json_encode($result));
 				return;
-			}	
+			}
 
 			$result['articleURL'] = $title->getLocalURL();
-		
+
 			$videoTitle = Title::makeTitle(NS_VIDEO, $title->getText());
-			$videoSuccess = self::updateVideoArticle($videoTitle, $videoId);
-			$articleSuccess = self::updateMainArticle($title, $videoTitle, $citation);
+			$videoSuccess = $this->updateVideoArticle($videoTitle, $videoId);
+			$articleSuccess = $this->updateMainArticle($title, $videoTitle, $citation);
 
 			$result['success'] = $articleSuccess && $videoSuccess;
-			$wgOut->addHtml(json_encode($result));
-			return;
+			$out->addHtml(json_encode($result));
 		} else {
-			$wgOut->setHTMLTitle('Video Embed Helper Tool - wikiHow');
-			$wgOut->addModules('ext.wikihow.VideoEmbedHelperTool');
-			$wgOut->addHTML(self::getTemplateHtml());
+			$out->setHTMLTitle('Video Embed Helper Tool - wikiHow');
+			$out->addModules('ext.wikihow.VideoEmbedHelperTool');
+			$out->addHTML($this->getTemplateHtml());
 		}
 	}
 

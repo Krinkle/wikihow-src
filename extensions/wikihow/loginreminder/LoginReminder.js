@@ -118,7 +118,7 @@ $(document).ready(function() {
 });
 
 function checkName(username) {
-	var params = 'username=' + encodeURIComponent(username) + '&fromhttp=1';
+	var params = 'username=' + encodeURIComponent(username);
 	var that = this;
 	var url = '/Special:LoginCheck?' + params;
 	$.get(url, function(json) {
@@ -146,7 +146,7 @@ function getPassword(username) {
 	//make sure the jquery ui is loaded
 	mw.loader.using( ['jquery.ui.dialog'], function () {
 		$('#dialog-box').html('');
-		url = "/Special:LoginReminder?name=" + encodeURIComponent(username) + "&fromhttp=1";
+		url = "/Special:LoginReminder?name=" + encodeURIComponent(username);
 
 		$('#dialog-box').load(url, function() {
 			whWasPasswordReset = false;
@@ -174,7 +174,6 @@ function getPassword(username) {
 
 WH.LoginReminder.checkSubmit = function(name, captchaWord, captchaId) {
 	var params = 'submit=true&name=' + encodeURIComponent($("#" + name).val()) + '&wpCaptchaId=' + $("#" + captchaId).val() + '&wpCaptchaWord=' + $("#" + captchaWord).val();
-	params += '&fromhttp=1';
 	var that = this;
 	var url = '/Special:LoginReminder?' + params;
 	$.get(url, function(json) {

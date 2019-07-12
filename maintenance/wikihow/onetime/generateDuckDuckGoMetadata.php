@@ -1,4 +1,4 @@
-<?
+<?php
 //
 // Generate tabular data dump for the Duck Duck Go search engine to show zero-click 
 // inline results for how-to queries.
@@ -9,7 +9,7 @@
 // https://github.com/duckduckgo/zeroclickinfo-fathead#general-data-file-format
 //
 
-require_once dirname(__FILE__) '/../commandLine.inc';
+require_once __DIR__ . '/../../commandLine.inc';
 
 global $IP;
 require_once "$IP/extensions/wikihow/RobotPolicy.class.php";
@@ -21,7 +21,7 @@ $baseMemory = memory_get_usage();
 function flattenCategories($arg) {
 	$result = array();
 	if (is_array($arg)) {
-		foreach ($arg as $k=>$v) {
+		foreach ($arg as $k => $v) {
 			$result[] = $k;
 			$result = array_merge($result, flattenCategories($v));
 		}
@@ -92,7 +92,7 @@ function synthesizeSummary($wikitext, $maxSteps, $fullURL) {
 // Load the selected titles from the database
 function loadTitles() {
 	global $baseMemory;
-	$dbr = wfGetDB(DB_SLAVE);
+	$dbr = wfGetDB(DB_REPLICA);
 
 	$res = $dbr->select('page',
 		array('page_namespace', 'page_title'),
@@ -110,7 +110,7 @@ function loadTitles() {
 	foreach ($res as $row) {
 		$title = Title::makeTitle($row->page_namespace, $row->page_title);
 		if (!$title) continue;
-		$indexed = RobotPolicy::isIndexable($title);
+		$indexed = RobotPolicy::isTitleIndexable($title);
 		if (!$indexed) continue;
 		$titles[] = $title;
 	}
@@ -120,7 +120,7 @@ function loadTitles() {
 
 // Generate and dump the DDG data to stdout
 function printDDGdata(&$titles) {
-	global $baseMemory;
+	global $baseMemory, $wgParser;
 
 	foreach ($titles as $title) {
 
@@ -128,10 +128,10 @@ function printDDGdata(&$titles) {
 		if (!$rev) continue;
 
 		$full_url = $title->getFullURL();
-		$wikitext = $rev->getText();
+		$wikitext = ContentHandler::getContentText( $rev->getContent() );
 
 		// pull out intro
-		$intro = Article::getSection($wikitext, 0);
+		$intro = $wgParser->getSection($wikitext, 0);
 
 		// try to generate the abstract using a couple different ways
 		$abstract = synthesizeSummary($wikitext, 3, $full_url);
@@ -179,7 +179,7 @@ function printDDGdata(&$titles) {
 		$categories = implode("\\\\n", $cat_strs);
 
 		$regular_title = $title->getText();
-		$howto_title = wfMsg('howto', $regular_title);
+		$howto_title = wfMessage('howto', $regular_title);
 		print "$howto_title\tA\t\t\t$categories\t\t\t\t\t\t$images\t$abstract\t$full_url\n";
 
 		//if (@$index++ % 1000 == 0) {

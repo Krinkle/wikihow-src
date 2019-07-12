@@ -1,6 +1,6 @@
 <?php
 
-class Importvideo extends SpecialPage {
+class ImportVideo extends SpecialPage {
 
 	// youtube, 5min, etc.
 	public $mSource;
@@ -8,7 +8,7 @@ class Importvideo extends SpecialPage {
 	//public $mResponseData = array(), $mCurrentNode, $mResults, $mCurrentTag = array();
 
 	public function __construct($source = null) {
-		parent::__construct( 'Importvideo' );
+		parent::__construct( 'ImportVideo' );
 		$this->mSource = $source;
 	}
 
@@ -19,7 +19,7 @@ class Importvideo extends SpecialPage {
 		global $wgCookiePrefix, $wgCookiePath, $wgCookieDomain, $wgCookieSecure;
 		$req = $this->getRequest();
 		$t = null;
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$vidns = NS_VIDEO;
 		$skip_sql = "";
 		$skipVal = $req->getInt('skip');
@@ -49,16 +49,16 @@ class Importvideo extends SpecialPage {
 	private function getTitleFromCategory($category) {
 		$cat = Title::makeTitle(NS_CATEGORY, $category);
 		$t	 = null;
-		$dbr = wfGetDB(DB_MASTER);
+		$dbw = wfGetDB(DB_MASTER);
 		$sql = "SELECT page_title
 				FROM page
 				LEFT JOIN templatelinks ON tl_from=page_id AND tl_namespace=" . NS_VIDEO . "
 				LEFT JOIN categorylinks ON cl_from = page_id
 				WHERE tl_title is NULL
-					AND	cl_to = " . $dbr->addQuotes($cat->getDBKey()) . "
+					AND	cl_to = " . $dbw->addQuotes($cat->getDBKey()) . "
 				ORDER BY rand() LIMIT 1;";
-		$res = $dbr->query($sql, __METHOD__);
-		if ($row = $dbr->fetchObject($res))
+		$res = $dbw->query($sql, __METHOD__);
+		if ($row = $dbw->fetchObject($res))
 			$t = Title::newFromText($row->page_title);
 		return $t;
 	}
@@ -70,15 +70,15 @@ class Importvideo extends SpecialPage {
 	private function doSearch($target, $orderby, $query, $search) {
 		$req = $this->getRequest();
 		$out = $this->getOutput();
-		$me = Title::makeTitle(NS_SPECIAL, "Importvideo");
-		$out->addHTML(wfMsg('importvideo_searchinstructions') .
+		$me = Title::makeTitle(NS_SPECIAL, 'ImportVideo');
+		$out->addHTML(wfMessage('importvideo_searchinstructions')->text() .
 			"<br/><br/><form action='{$me->getFullURL()}'>
 					<input type='hidden' name='target' value='" . htmlspecialchars($target) . "'/>
 					<input type='hidden' name='orderby' value='{$orderby}'/>
 					<input type='hidden' name='popup' value='{$req->getVal('popup')}'/>
 					<input type='hidden' name='q' value='" . htmlspecialchars($query) . "' >
 					<input type='text' name='dosearch' value='" . ($search != "1" ? htmlspecialchars($search) : "") . "' size='40'/>
-					<input type='submit' value='" . wfMsg('importvideo_search') . "'/>
+					<input type='submit' value='" . wfMessage('importvideo_search') . "'/>
 				</form>
 				<br/>");
 		if ($search != "1") {
@@ -86,14 +86,14 @@ class Importvideo extends SpecialPage {
 			$results = $l->externalSearchResultTitles($search);
 			$base_url = $me->getFullURL() . "?&q=" . urlencode($query) . "&source={$source}";
 			if (sizeof($results) == 0) {
-				$out->addHTML(wfMsg('importvideo_noarticlehits'));
+				$out->addHTML(wfMessage('importvideo_noarticlehits')->text());
 				return;
 			}
 			#output the results
-			$out->addHTML(wfMsg("importvideo_articlesearchresults") . "<ul>");
+			$out->addHTML(wfMessage("importvideo_articlesearchresults")->text() . "<ul>");
 			foreach ($results as $t) {
 			$out->addHTML("<li><a href='" . $base_url . "&target=" . urlencode($t->getText()) . "'>"
-					. wfMsg('howto', $t->getText() . "</a></li>"));
+					. wfMessage('howto', $t->getText() . "</a></li>"));
 			}
 			$out->addHTML("</ul>");
 		}
@@ -113,15 +113,14 @@ class Importvideo extends SpecialPage {
 	}
 
 	public function execute($par) {
-		global $wgImportVideoSources;
+		global $wgImportVideoSources, $wgParser;
 
 		$req = $this->getRequest();
 		$out = $this->getOutput();
 		$user = $this->getUser();
 
 		if ( $user->isBlocked() ) {
-			$out->blockedPage();
-			return;
+			throw new UserBlockedError( $user->getBlock() );
 		}
 
 		if ($req->getVal('popup') == 'true') {
@@ -132,7 +131,7 @@ class Importvideo extends SpecialPage {
 		$source = $this->mSource = $req->getVal('source', 'youtube');
 		$target = isset($par) ? $par : $req->getVal('target');
 		$query = $req->getVal('q');
-		$me = Title::makeTitle(NS_SPECIAL, "Importvideo");
+		$me = Title::makeTitle(NS_SPECIAL, "ImportVideo");
 		$wasnew = $this->getRequest()->getVal('wasnew');
 
 		// some sanity checks on the target
@@ -142,9 +141,8 @@ class Importvideo extends SpecialPage {
 				$out->addHTML("Error: target article does not exist.");
 				return;
 			} else {
-				$article = new Article($title);
-				$article->loadPageData();
-				if ($article->mIsRedirect) {
+				$wikiPage = WikiPage::factory($title);
+				if ($wikiPage->isRedirect()) {
 					$out->addHTML("Error: target article is a redirect.");
 					return;
 				}
@@ -152,7 +150,7 @@ class Importvideo extends SpecialPage {
 		}
 
 		$out->addHTML("<div id='importvideo'>");
-		$out->addHTML("<h2>".wfMsg('add_a_video')."</h2>");
+		$out->addHTML("<h2>".wfMessage('add_a_video')->text()."</h2>");
 		# changing target article feature
 		$search = $req->getVal("dosearch");
 		if ($search) {
@@ -162,11 +160,11 @@ class Importvideo extends SpecialPage {
 		$sp = null;
 		switch ($source) {
 			case 'howcast':
-				$sp = new ImportvideoHowcast($source);
+				$sp = new ImportVideoHowcast($source);
 				break;
 			case 'youtube':
 			default:
-				$sp = new ImportvideoYoutube($source);
+				$sp = new ImportVideoYoutube($source);
 				break;
 		}
 
@@ -198,14 +196,14 @@ class Importvideo extends SpecialPage {
 		//get the steps and intro to show to the user
 		$r = Revision::newFromTitle($title);
 		$text = "";
-		if ($r)
-			$text = $r->getText();
-		$article = new Article($title);
-		$extra  = $article->getSection($text, 0);
+		if ($r) {
+			$text = ContentHandler::getContentText( $r->getContent() );
+		}
+		$extra  = $wgParser->getSection($text, 0);
 		$steps = "";
 		for ($i = 1; $i < 3; $i++) {
-			$xx = $article->getSection($text, $i);
-			if (preg_match("/^==[ ]+" . wfMsg('steps') . "/", $xx)) {
+			$xx = $wgParser->getSection($text, $i);
+			if (preg_match("/^==[ ]+" . wfMessage('steps') . "/", $xx)) {
 				$steps = $xx;
 				break;
 			}
@@ -215,16 +213,16 @@ class Importvideo extends SpecialPage {
 		$steps = $out->parse($steps);
 		$cancel = "";
 
-		$nextlink = "/Special:Importvideo?new=1&skip={$title->getArticleID()}";
+		$nextlink = "/Special:ImportVideo?new=1&skip={$title->getArticleID()}";
 		if ($req->getVal('category'))
-			$nextlink = "/Special:Importvideo?category=" . urlencode($req->getVal('category'));
+			$nextlink = "/Special:ImportVideo?category=" . urlencode($req->getVal('category'));
 
 		if ($req->getVal('popup') != 'true') {
 			$out->addHTML("<div class='article_title'>
-				" . wfMsg('importvideo_article') . "- <a href='{$title->getFullURL()}' target='new'>" . wfMsg('howto', $title->getText()) . "</a>");
+				" . wfMessage('importvideo_article')->text() . "- <a href='{$title->getFullURL()}' target='new'>" . wfMessage('howto', $title->getText()) . "</a>");
 			$out->addHTML("<spanid='showhide' style='font-size: 80%; text-align:right; font-weight: normal;'>
 					(<a href='{$nextlink}' accesskey='s'>next article</a> |
-					<a href='$url&dosearch=1' accesskey='s'>" . wfMsg('importvideo_searchforarticle') . "</a> {$cancel} )
+					<a href='$url&dosearch=1' accesskey='s'>" . wfMessage('importvideo_searchforarticle')->text() . "</a> {$cancel} )
 				</span>");
 			if ($req->getVal('category')) {
 				$out->addHTML("You are adding videos to articles from the \"{$req->getVal('category')}\" category.
@@ -237,8 +235,8 @@ class Importvideo extends SpecialPage {
 					{$extra}
 					<br clear='all'/>
 					<div id='showhide' style='font-size: 80%; text-align:right;'>
-						<span id='showsteps'><a href='#' onclick='WH.ImportVideo.showhidesteps(); return false;'>" . wfMsg('importvideo_showsteps' ) . "</a></span>
-						<span id='hidesteps' style='display: none;'><a href='#' onclick='WH.ImportVideo.showhidesteps(); return false;'>" . wfMsg('importvideo_hidesteps' ) . "</a></span>
+						<span id='showsteps'><a href='#' onclick='WH.ImportVideo.showhidesteps(); return false;'>" . wfMessage('importvideo_showsteps')->text() . "</a></span>
+						<span id='hidesteps' style='display: none;'><a href='#' onclick='WH.ImportVideo.showhidesteps(); return false;'>" . wfMessage('importvideo_hidesteps')->text() . "</a></span>
 					</div>
 					<div id='stepsarea' style='display: none;'>
 					{$steps}
@@ -252,7 +250,7 @@ class Importvideo extends SpecialPage {
 			</script>");
 
 		if (!$req->wasPosted()) {
-			$out->addHTML(wfMsgWikiHtml('add_video_info'));
+			$out->addHTML( wfMessage('add_video_info')->parseAsBlock() );
 			# HEADER for import page
 			$url = $me->getFullURL() . "?target=" . urlencode($target) . "&q=" . urlencode($query) . $this->getURLExtras(). "&source=";
 
@@ -264,13 +262,13 @@ class Importvideo extends SpecialPage {
 			$out->addHTML("<ul id='importvideo_search_tabs'>");
 			foreach ($wgImportVideoSources as $s) {
 				$selected = ($s == $source) ? ' class="iv_selected"' : '';
-				$out->addHTML("<li$selected><a href='{$url}{$s}'>" . wfMsg('importvideo_source_' . $s) . "</a></li>");
+				$out->addHTML("<li$selected><a href='{$url}{$s}'>" . wfMessage('importvideo_source_' . $s)->text() . "</a></li>");
 			}
 			$out->addHTML("</ul>");
 
 			$vt = Title::makeTitle(NS_VIDEO, $target);
 			if ($vt->getArticleID() > 0 && $req->getVal('popup') != 'true') {
-				$out->addHTML("<div class='wh_block importvideo_main'>".wfMsgExt('importvideo_videoexists', 'parse', $vt->getFullText())."</div>");
+				$out->addHTML("<div class='wh_block importvideo_main'>" . wfMessage('importvideo_videoexists', $vt->getFullText())->parse() . "</div>");
 			}
 		}
 
@@ -300,14 +298,14 @@ class Importvideo extends SpecialPage {
 			<input type='hidden' name='source' value='{$this->mSource}'/>
 			{$cat}
 			<input type='text' name='q' value=\"" . htmlspecialchars($query) . "\" id='refinesearch_input' class='search_input' />
-			<input type='submit' class='button' value='" . wfMsg('importvideo_refine') . "'/>
+			<input type='submit' class='button' value='" . wfMessage('importvideo_refine') . "'/>
 			</form></div>
 			<br/>";
 	}
 
 	protected function getPostForm($target) {
 		$req = $this->getRequest();
-		$me = Title::makeTitle(NS_SPECIAL, "Importvideo");
+		$me = Title::makeTitle(NS_SPECIAL, "ImportVideo");
 		$tar_es = htmlspecialchars($target);
 		$query = $req->getVal('q');
 		$popup = $req->getVal('popup') == "true" ?  "true" : "false" ;
@@ -317,7 +315,7 @@ class Importvideo extends SpecialPage {
 					? "<input type='hidden' name='category' value=\"" . htmlspecialchars($req->getVal('category')) . "\"/>" : "";
 		return "<form method='POST' action='{$me->getFullURL()}' name='videouploadform' id='videouploadform'>
 				<input type='hidden' name='description' value='' />
-				<input type='hidden' name='url' id='url' value='/Special:Importvideo?{$_SERVER['QUERY_STRING']}'/>
+				<input type='hidden' name='url' id='url' value='/Special:ImportVideo?{$_SERVER['QUERY_STRING']}'/>
 				<input type='hidden' name='popup' value='{$req->getVal('popup')}'/>
 				{$rand}
 				{$cat}
@@ -341,11 +339,12 @@ class Importvideo extends SpecialPage {
 		return $contents;
 	}
 
-	// Called by Videoadder
+	// Called by VideoAdder
 	public static function updateVideoArticle($title, $text, $editSummary) {
-		$a = new Article($title);
-		$a->doEdit($text, $editSummary);
-		self::markVideoAsPatrolled($a->getId());
+		$wikiPage = WikiPage::factory($title);
+		$content = ContentHandler::makeContent($text, $title);
+		$wikiPage->doEditContent($content, $editSummary);
+		self::markVideoAsPatrolled($wikiPage->getId());
 	}
 
 	// Called externally from video embed helper
@@ -384,20 +383,20 @@ class Importvideo extends SpecialPage {
 			$update = false;
 			$text = "";
 		} else {
-			$text = $r->getText();
+			$text = ContentHandler::getContentText( $r->getContent() );
 		}
 
 		$tag = "{{" . $vid->getFullText() . "|}}";
 		if ($req->getVal('description') != '') {
 			$tag = "{{" . $vid->getFullText() . "|" . $req->getVal('description') . "}}";
 		}
-		$newsection .= "\n\n== " . wfMsg('video') . " ==\n{$tag}\n\n";
+		$newsection .= "\n\n== " . wfMessage('video') . " ==\n{$tag}\n\n";
 		$a = new Article($title);
 
 		$newtext = "";
 
 		// Check for existing video section in the target article
-		preg_match("/^==[ ]*" . wfMsg('video') . "/im", $text, $matches, PREG_OFFSET_CAPTURE);
+		preg_match("/^==[ ]*" . wfMessage('video') . "/im", $text, $matches, PREG_OFFSET_CAPTURE);
 		if (sizeof($matches) > 0 ) {
 			// There is an existing video section, replace it
 			$i = $matches[0][1];
@@ -417,7 +416,7 @@ class Importvideo extends SpecialPage {
 			$arr = preg_split('/(^==[^=]*?==\s*?$)/m', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
 			$found = false;
 			for ($i =0 ; $i < sizeof($arr); $i++) {
-				if (preg_match("/^==[ ]*" . wfMsg('steps') . "/", $arr[$i])) {
+				if (preg_match("/^==[ ]*" . wfMessage('steps') . "/", $arr[$i])) {
 					$newtext .= $arr[$i];
 					$i++;
 					if ($i < sizeof($arr))
@@ -440,7 +439,7 @@ class Importvideo extends SpecialPage {
 		if ($newtext == "") {
 			$newtext = $newsection;
 		}
-		$watch = $title->userIsWatching();
+		$watch = $ctx->getUser()->isWatched($title);
 		if ($update) {
 			$a->updateArticle($newtext, $editSummary, false, $watch);
 		} else {
@@ -449,7 +448,7 @@ class Importvideo extends SpecialPage {
 
 		if ($req->getVal("popup") == "true") {
 			$out->clearHTML();
-			$out->disable();
+			$out->setArticleBodyOnly(true);
 			echo "<script type='text/javascript'>
 			function onLoad() {
 				var e = document.getElementById('video_text');
@@ -457,16 +456,16 @@ class Importvideo extends SpecialPage {
 				WH.PreviewVideo.fetchPreview();
 				var summary = document.getElementById('wpSummary');
 				if (summary.value != '')
-					summary.value += ',  " . ($update ? wfMsg('importvideo_changingvideo_summary') : $editSummary) . "';
+					summary.value += ',  " . ($update ? wfMessage('importvideo_changingvideo_summary')->text() : $editSummary) . "';
 				else
-					summary.value = '" . ($update ? wfMsg('importvideo_changingvideo_summary') : $editSummary) . "';
+					summary.value = '" . ($update ? wfMessage('importvideo_changingvideo_summary')->text() : $editSummary) . "';
 				closeModal();
 			}
 			onLoad();
 				</script>
 				";
 		}
-		$me = Title::makeTitle(NS_SPECIAL, "Importvideo");
+		$me = Title::makeTitle(NS_SPECIAL, "ImportVideo");
 		if ($req->getVal('wasnew') || $req->getVal('new')) {
 			// log it, we track when someone uploads a video for a new article
 			$params = array($title->getArticleID());
@@ -531,10 +530,10 @@ class Importvideo extends SpecialPage {
  * This class is used to grab a description from the user when they
  * insert their video
  */
-class ImportvideoPopup extends UnlistedSpecialPage {
+class ImportVideoPopup extends UnlistedSpecialPage {
 
 	public function __construct() {
-		parent::__construct( 'ImportvideoPopup' );
+		parent::__construct( 'ImportVideoPopup' );
 	}
 
 	public function execute($par) {
@@ -542,26 +541,26 @@ class ImportvideoPopup extends UnlistedSpecialPage {
 		$out = $this->getOutput();
 		$out->setArticleBodyOnly(true);
 		$out->addHTML('<div style="margin-top:20px">');
-		$out->addWikiText(wfMsg('importvideo_add_desc_details'));
+		$out->addWikiText(wfMessage('importvideo_add_desc_details')->text());
 		if ($req->wasPosted()) {
-			$iv = Title::makeTitle(NS_SPECIAL, "Importvideo");
+			$iv = Title::makeTitle(NS_SPECIAL, "ImportVideo");
 			$out->addHTML("<form method='POST' name='importvideofrompopup' action='{$iv->getLocalUrl()}'>");
 			$vals = $req->getValues();
-			foreach($vals as $key=>$val) {
+			foreach ($vals as $key=>$val) {
 				if ($key != "title") {
 					$out->addHTML("<input type='hidden' name='{$key}' value=\"" . htmlspecialchars($val) . "\"/>");
 				}
 			}
 			$out->addHTML(' <p><center><textarea id="importvideo_comment" name="description" style="width:520px; height: 50px;margin-top: 10px"></textarea></p>
 				<br/>
-				<p><input type="submit" class="button primary" value="' . wfMsg('importvideo_popup_add_desc') . '" />
+				<p><input type="submit" class="button primary" value="' . wfMessage('importvideo_popup_add_desc') . '" />
 				</center>
 				</p>
 			</div></form>');
 		} else {
 			$out->addHTML('<br /><center><p><textarea id="importvideo_comment" style="width:550px; height: 50px;"></textarea></p>
 				<br/><br/>
-				<input type="button" class="button primary" value="' . wfMsg('importvideo_popup_add_desc') . '" onclick="WH.ImportVideo.throwdesc();" /> <a href="#" onclick="$(\'#dialog-box\').dialog(\'close\'); return false;" class="button">' . wfMsg('importvideo_popup_changearticle') . '</a>
+				<input type="button" class="button primary" value="' . wfMessage('importvideo_popup_add_desc') . '" onclick="WH.ImportVideo.throwdesc();" /> <a href="#" onclick="$(\'#dialog-box\').dialog(\'close\'); return false;" class="button">' . wfMessage('importvideo_popup_changearticle')->text() . '</a>
 			</center>
 			</div></form>
 			');
@@ -573,9 +572,9 @@ class ImportvideoPopup extends UnlistedSpecialPage {
 /**
  *  This page is used for processing ajax requests to show a video preview in the guided editor
  */
-class Previewvideo extends UnlistedSpecialPage {
+class PreviewVideo extends UnlistedSpecialPage {
 	public function __construct() {
-		parent::__construct( 'Previewvideo' );
+		parent::__construct( 'PreviewVideo' );
 	}
 
 	public function execute($par) {
@@ -583,7 +582,7 @@ class Previewvideo extends UnlistedSpecialPage {
 		$req = $this->getRequest();
 		$out = $this->getOutput();
 
-		$out->disable();
+		$out->setArticleBodyOnly(true);
 
 		$target = !empty($par) ? $par : $req->getVal( 'target' );
 		$vt = Title::newFromURL($target);
@@ -593,7 +592,7 @@ class Previewvideo extends UnlistedSpecialPage {
 		# can we parse from the main naemspace article to include the comment?
 		$r = Revision::newFromTitle($t);
 		if (!$r) return;
-		$text = $r->getText();
+		$text = ContentHandler::getContentText( $r->getContent() );
 
 		preg_match("/{{Video:[^}]*}}/", $text, $matches);
 		if (sizeof($matches) > 0) {
@@ -601,9 +600,9 @@ class Previewvideo extends UnlistedSpecialPage {
 			$comment = preg_replace("/}}/", "", $comment);
 		}
 
-		$rv = Revision::newFromTitle($vt);
-		if (!$rv) return;
-		$text = $rv->getText();
+		$rev = Revision::newFromTitle($vt);
+		if (!$rev) return;
+		$text = ContentHandler::getContentText( $rev->getContent() );
 		$text = str_replace("{{{1}}}", $comment, $text);
 		$html = $out->parse($text, true, true) ;
 		echo $html;
@@ -613,11 +612,11 @@ class Previewvideo extends UnlistedSpecialPage {
 /**
  * This is a leaderboard for users who are adding videos to new articles
  */
-class Newvideoboard extends SpecialPage {
+class NewVideoBoard extends SpecialPage {
 
 
 	public function __construct() {
-		parent::__construct( 'Newvideoboard' );
+		parent::__construct( 'NewVideoBoard' );
 	}
 
 	public function execute($par) {
@@ -626,23 +625,22 @@ class Newvideoboard extends SpecialPage {
 		$user = $this->getUser();
 
 		$target = !empty($par) ? $par : $req->getVal( 'target' );
-		$sk = $user->getSkin();
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$this->setHeaders();
 
 		$out->addModuleStyles('ext.wikihow.PatrolCount');
 
-		$me = Title::makeTitle(NS_SPECIAL, "Newvideoboard");
+		$me = Title::makeTitle(NS_SPECIAL, 'NewVideoBoard');
 		$now = wfTimestamp(TS_UNIX);
 
 		// allow the user to grab the local patrol count relative to their own timezone
 		if ($req->getVal('window', 'day') == 'day') {
-			$links = "[" . Linker::link($me, wfMessage('videoboard_week'), array(), array("window" => "week")) . "] [" . wfMsg('videoboard_day'). "]";
+			$links = "[" . Linker::link($me, wfMessage('videoboard_week'), array(), array("window" => "week")) . "] [" . wfMessage('videoboard_day'). "]";
 			$date1 = substr(wfTimestamp(TS_MW, $now - 24*3600*7), 0, 8) . "000000";
 			$date2 = substr(wfTimestamp(TS_MW, $now + 24*3600), 0, 8) . "000000";
 		} else {
-			$links = "[" . wfMsg('videoboard_week') . "] [" . Linker::link($me, wfMsg('videoboard_day'), array(), array("window" => "day")) . "]";
+			$links = "[" . wfMessage('videoboard_week') . "] [" . Linker::link($me, wfMessage('videoboard_day'), array(), array("window" => "day")) . "]";
 			$date1 = substr(wfTimestamp(TS_MW), 0, 8) . "000000";
 			$date2 = substr(wfTimestamp(TS_MW, $now + 24*3600), 0, 8) . "000000";
 		}
@@ -658,10 +656,10 @@ class Newvideoboard extends SpecialPage {
 		$out->addHTML("<tr>
 						   <td></td>
 							<td>User</td>
-							<td  align='right'>" . wfMsg('videoboard_numberofvidsadded') . "</td>
+							<td  align='right'>" . wfMessage('videoboard_numberofvidsadded')->text() . "</td>
 							</tr>");
 
-		while ( ($row = $dbr->fetchObject($res)) != null) {
+		foreach ($res as $row) {
 			$u = User::newFromID($row->log_user);
 			$count = number_format($row->C, 0, "", ',');
 			$class = "";
@@ -679,7 +677,7 @@ class Newvideoboard extends SpecialPage {
 
 		$out->addHTML("</table></center>");
 		if ($user->getOption('patrolcountlocal', "GMT") != "GMT")  {
-			$out->addHTML("<br/><br/><i><font size='-2'>" . wfMsgWikiHtml('patrolcount_viewlocal_info') . "</font></i>");
+			$out->addHTML("<br/><br/><i><font size='-2'>" . wfMessage('patrolcount_viewlocal_info')->parseAsBlock() . "</font></i>");
 		}
 	}
 }

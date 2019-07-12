@@ -20,6 +20,10 @@
     "rv_override_error_reverified": "The reverification by this id is already reverified",
     "rv_override_error_no_edits": "The reverification by this id has been processed in the Special:ReverificationQuickFeedback tool",
     "rv_status_reset_complete": "The reverification is updated.",
+    "rv_error_create_doc": "There was an error creating a review doc. Please reload and try again.",
     "rv_status": "Status: $1",
-    "rv_throttled": "Too many submissions. Please try again later."
+    "rv_throttled": "Too many submissions. Please try again later.",
+    "rv_error_no_email":  "This tool has features that require us to be able to send you email.  Please check that your email address is verified and you have enabled receiving emails from wikiHow in your <a href='/Special:Preferences#mw-prefsection-echo'>notification preferences</a>.",
+    "rv_create_doc_email_subject": "Expert Review Document: $1 - $2",
+    "rv_create_doc_email_body": "This email is sent to you when you request extensive feedback for an article  within the <a href='http://www.wikihow.com/Special:Reverification'>Reverification Tool</a>.<br><br>Here is the link to the review document:<br><a href='$1'>$1</a>"
 }

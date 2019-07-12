@@ -38,10 +38,14 @@ class Reverification extends UnlistedSpecialPage {
 		$out->setHTMLTitle(wfMessage('rv_tool_title')->text());
 		//$out->addHtml("tool is down for maintenance");return;
 
-
 		if (!$this->isValidUser()) {
-			$out->setRobotpolicy( 'noindex,nofollow' );
+			$out->setRobotPolicy( 'noindex,nofollow' );
 			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
+			return;
+		}
+
+		if (!$this->hasValidEmail($this->getUser())) {
+			$out->addHtml(wfMessage('rv_error_no_email')->text());
 			return;
 		}
 
@@ -56,6 +60,11 @@ class Reverification extends UnlistedSpecialPage {
 
 	protected function isThrottled() {
 		return $this->throttler->getTokenCount() == 0;
+	}
+
+	protected function hasValidEmail($u) {
+		$globalOptout = $u->getIntOption('globalemailoptout');
+		return $u->canReceiveEmail() && !$globalOptout;
 	}
 
 	protected function initThrottler() {
@@ -215,13 +224,63 @@ class Reverification extends UnlistedSpecialPage {
 			$reverification->setExtensiveFeedback(1);
 			$reverification->setNewDateNow();
 			$reverification = $this->handleVerifierOverride($reverification);
+
+			$docUrl = $this->getExtensiveFeedbackDocUrl($reverification);
+			if (!$docUrl) {
+				echo json_encode($this->getErrorResponseData('', wfMessage('rv_error_create_doc')->text()));
+				return;
+			}
+			$reverification->setExtensiveDoc($docUrl);
+
 			$db->update($reverification);
+
+			$this->sendExtensiveDocEmail($reverification);
 		}
 
 		if (ReverificationAdmin::isReverificationByIdRequest($r)) {
 			echo json_encode($this->getErrorResponseData('', wfMessage('rv_status_reset_complete')->text()));
 		} else {
 			echo $this->getNext();
+		}
+	}
+
+	/**
+	 * @param ReverificationData $reverification
+	 * @return string|null
+	 */
+	protected function getExtensiveFeedbackDocUrl($reverification) {
+		global $wgIsDevServer, $IP;
+		require_once("$IP/extensions/wikihow/socialproof/CoauthorSheets/CoauthorSheetTools.php");
+
+		$tools = new CoauthorSheetTools();
+		$title = Title::newFromId($reverification->getAid());
+		$folderId = $wgIsDevServer ?
+			CoauthorSheetTools::CPORTAL_DOH_FOLDER : CoauthorSheetTools::CPORTAL_PROD_FOLDER;
+
+		$doc = $tools->createExpertDoc(null, $title->getText(), null, $this->getContext(), $folderId);
+		return $doc ? $doc->alternateLink : null;
+	}
+
+	/**
+	 * @param ReverificationData $reverification
+	 */
+	protected function sendExtensiveDocEmail($reverification) {
+		$db = ReverificationDB::getInstance();
+		$username = $db->getVerifierUsername($reverification->getVerifierName());
+		$u = User::newFromName($username);
+		$t = Title::newFromID($reverification->getAid());
+
+		if ($t & $u && $u->getEmail()) {
+			$titleText = wfMessage('howto', $t->getText());
+			UserMailer::send(
+				new MailAddress($u->getEmail()),
+				new MailAddress('Daniel Leon <daniel@wikihow.com>'),
+				wfMessage('rv_create_doc_email_subject',
+					$titleText, $this->convertoLocalTime(wfTimestampNow()))->text(),
+				wfMessage('rv_create_doc_email_body', $reverification->getExtensiveDoc())->text(),
+				null,
+				'text/html; charset=utf8'
+			);
 		}
 	}
 
@@ -264,9 +323,11 @@ class Reverification extends UnlistedSpecialPage {
 				$username = $this->getUser()->getName();
 			}
 
-			$name = ReverificationDB::getInstance()->getVerifierName($username);
-			if ($name) {
-				$reverification->setVerifierName($name);
+			$dbr = wfGetDB(DB_REPLICA);
+			$row = $dbr->selectRow(VerifyData::VERIFIER_TABLE, ['vi_id', 'vi_name'], ['vi_user_name' => $username]);
+			if ($row) {
+				$reverification->setVerifierId($row->vi_id);
+				$reverification->setVerifierName($row->vi_name);
 			}
 		}
 
@@ -280,6 +341,7 @@ class Reverification extends UnlistedSpecialPage {
 		$data['rid_old'] = 0;
 		$data['rid_new'] = 0;
 		$data['html'] = '';
+		$data['verifier_id'] = 0;
 		$data['verifier_name'] = '';
 		$data['token_count'] = $this->throttler->getTokenCount();
 
@@ -290,6 +352,7 @@ class Reverification extends UnlistedSpecialPage {
 			$data['rid_old'] = $reverfication->getOldRevId();
 			$data['rid_new'] = $r->getId();
 			$data['html'] = $this->getArticleHtml($r);
+			$data['verifier_id'] = $reverfication->getVerifierId();
 			$data['verifier_name'] = $reverfication->getVerifierName();
 
 		}
@@ -303,6 +366,7 @@ class Reverification extends UnlistedSpecialPage {
 		$data['rid_old'] = 0;
 		$data['rid_new'] = 0;
 		$data['html'] = '';
+		$data['verifier_id'] = 0;
 		$data['verifier_name'] = '';
 		$data['error_msg'] = $errorMsg;
 		$data['status_msg'] = $statusMsg;
@@ -347,7 +411,7 @@ class Reverification extends UnlistedSpecialPage {
 				$this->getRequest()->getVal('overrideUsername', ""))->text();
 		}
 
-		$options = ['loader' => new Mustache_Loader_FilesystemLoader(dirname(__FILE__))];
+		$options = ['loader' => new Mustache_Loader_FilesystemLoader(__DIR__)];
 		$m = new Mustache_Engine($options);
 		return $m->render(self::TEMPLATE_MUSTACHE, $data);
 	}
@@ -364,7 +428,7 @@ class Reverification extends UnlistedSpecialPage {
 
 		if ($this->isViewUsernameRequest()) {
 			$username = $this->getRequest()->getVal('viewUsername', null);
-		} else if ($this->isOverrideRequest()) {
+		} elseif ($this->isOverrideRequest()) {
 			if ($this->hasOverridePermissions()) {
 				$username = $this->getRequest()->getVal('overrideUsername', null);
 			} else {
@@ -398,14 +462,6 @@ class Reverification extends UnlistedSpecialPage {
 	}
 
 	/**
-	 * Permissions to be able to override the verifier name when reverifying an article.
-	 * @return bool
-	 */
-	protected function hasOverridePermissions() {
-		return $this->isAllowedOverride();
-	}
-
-	/**
 	 * Permissions to be able to override the verifier name with a name other than name mapped to the $wgUser username
 	 * when reverifying an article.
 	 * @return bool
@@ -430,15 +486,22 @@ class Reverification extends UnlistedSpecialPage {
 	 * A list of users that are allowed to override items with different verifier names than their own
 	 * @return bool
 	 */
-	protected function isAllowedOverride() {
+	protected function hasOverridePermissions() {
 		$username = $this->getUser()->getName();
 		$usernames = preg_split("@\n@", ConfigStorage::dbGetConfig('reverification_override_list'));
 
-		// Make sure the username is a valid verifier or is Jordan so he can debug things
+		// Make sure the username is a valid verifier or is Jordan/Alberto so they can debug things
 		$isValidReverifier = ReverificationDB::getInstance()->getVerifierName($username) ||
-			$this->getUser()->getName() == 'Jordansmall';
+			in_array($username, ['Jordansmall', 'Albur']);
 
 		return false !== array_search(strtolower($username), array_map('strtolower', $usernames))
 			&& $isValidReverifier;
+	}
+
+	protected function convertoLocalTime(String $date) {
+		$dateTime = new DateTime ($date);
+		$dateTime->setTimezone(new DateTimeZone('America/Los_Angeles'));
+		return $dateTime->format('Y-m-d H:i:s');
+
 	}
 }

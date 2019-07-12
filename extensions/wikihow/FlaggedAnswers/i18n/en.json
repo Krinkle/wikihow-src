@@ -31,5 +31,7 @@
 	"ffa_logentry_delete_answer": "Deleted Q&A answer for [[$1]] -- flag: $4 -- Q: $2 -- A: $3",
 	"ffa_logentry_delete_pair": "Deleted Q&A from [[$1]] -- flag: $4 -- Q: $2 -- A: $3",
 	"log-name-fix_flagged_answers": "Fix Flagged Answers Log",
-	"fix_flagged_answers": "Fix Flagged Answers"
+	"fix_flagged_answers": "Fix Flagged Answers",
+	"ffa_leaderboard_title": "Top Flagged Answer Fixers - Last 7 Days",
+	"ffa_currentstats": "Your Fix Flagged Answers Stats"
 }

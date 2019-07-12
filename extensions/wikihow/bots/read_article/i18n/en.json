@@ -7,8 +7,8 @@
     "wh_stop": "I've stopped reading this article. Is there anything else you would like to learn how to do?",
     "wh_pause_article": "I've paused reading this article.  Say 'resume' to continue reading the article",
     "wh_pause_article_goog": "I've paused reading this article.  Say 'continue' to continue reading the article",
-    "wh_help":  "Hi! You can ask me how to do anything. For example try asking, \"how to survive an ostrich attack?\"",
-    "no_article_selected": "Please ask me how to do something first. You can ask me how to do anything. For example try asking, \"how to survive an ostrich attack?\"",
+    "wh_help":  "Hi! You can ask me how to do anything. For example try asking, \"how do I make french toast without milk?\"",
+    "no_article_selected": "Please ask me how to do something first. You can ask me how to do anything. For example try asking, \"how to get rid of fruit flies?\"",
     "reading_article_instructions" : "\n\nSay 'NEXT', to get the next step",
     "reading_article_last_step" : "Last Step.  ",
     "reading_article_step_num" : "Step $1.  ",
@@ -20,6 +20,8 @@
     "reading_summary_prompt_for_steps": "Say “READ STEPS”, if you want me to read each step in detail.",
     "reading_article_yes":  "Ok. If you like, you can always ask me how to do something else.",
     "wh_end": "Thanks for using wikihow.  You can always ask another question later by saying, open wikihow",
+    "wh_end_test": "Thanks for using wikihow.  You can always ask another question later by saying, talk to  wikihow",
     "reading_article_no_response_prompt": "Thanks for using wikihow.  You can always ask another question later by saying open wikihow",
-    "reading_article_end_of_article": "\n\n\n\nYou've reached the end of the article.  Do you want to learn how to do something else?  You can ask me now."
+    "reading_article_end_of_article": "\n\n\n\nYou've reached the end of the article.  Do you want to learn how to do something else?  You can ask me now.",
+    "no_summary_video": "This article doesn't have a summary video to play"
 }

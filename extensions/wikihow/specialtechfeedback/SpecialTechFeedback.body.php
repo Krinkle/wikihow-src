@@ -17,8 +17,8 @@ class SpecialTechFeedback extends UnlistedSpecialPage {
 
 	const MAX_VOTES = 2;
 	const STF_TABLE = 'special_tech_feedback_item';
-    var $mLogActions = array();
-    var $mUserRemainingCount;
+	var $mLogActions = array();
+	var $mUserRemainingCount;
 
 	public function __construct() {
 		parent::__construct( 'TechFeedback' );
@@ -48,11 +48,11 @@ class SpecialTechFeedback extends UnlistedSpecialPage {
 			print json_encode( $data );
 
 			return;
-		} else if ( $this->request->wasPosted() && XSSFilter::isValidRequest() ) {
+		} elseif ( $this->request->wasPosted() && XSSFilter::isValidRequest() ) {
 			$this->out->setArticleBodyOnly( true );
 			$this->saveVote();
-            $this->updateVoted();
-            $data = array( 'logactions' => $this->mLogActions );
+			$this->updateVoted();
+			$data = array( 'logactions' => $this->mLogActions );
 			print json_encode( $data );
 			return;
 		}
@@ -79,10 +79,10 @@ class SpecialTechFeedback extends UnlistedSpecialPage {
 		return true;
 	}
 
-    public static function isTitleInTechCategory( $title ) {
-		$result = Categoryhelper::isTitleInCategory( $title, 'Computers and Electronics' );
-        return $result;
-    }
+	public static function isTitleInTechCategory( $title ) {
+		$result = CategoryHelper::isTitleInCategory( $title, 'Computers and Electronics' );
+		return $result;
+	}
 
 	/*
 	 * a hook that is called after a rating reason response is made
@@ -111,58 +111,58 @@ class SpecialTechFeedback extends UnlistedSpecialPage {
 		if ( !self::isTitleInTechCategory( $title ) ) {
 			return;
 		}
-        $textAllowed = self::isTextAllowed( $data['ratr_text'] );
-        if ( !$textAllowed ) {
-            return;
-        }
+		$textAllowed = self::isTextAllowed( $data['ratr_text'] );
+		if ( !$textAllowed ) {
+			return;
+		}
 		$dbw = wfGetDB( DB_MASTER );
-        $insertData = array( 'stfi_page_id' => $data['ratr_page_id'], 'stfi_rating_reason_id' => $id );
-        $options = array();
-        $dbw->insert( self::STF_TABLE, $insertData, __METHOD__, $options );
+		$insertData = array( 'stfi_page_id' => $data['ratr_page_id'], 'stfi_rating_reason_id' => $id );
+		$options = array();
+		$dbw->insert( self::STF_TABLE, $insertData, __METHOD__, $options );
 	}
 
-    public static function isTextAllowed( $text ) {
-        if ( strlen( $text ) < 21 ) {
-            return false;
-        }
+	public static function isTextAllowed( $text ) {
+		if ( strlen( $text ) < 21 ) {
+			return false;
+		}
 
-        if ( substr_count( $text, ' ' ) < 2 ) {
-            return false;
-        }
+		if ( substr_count( $text, ' ' ) < 2 ) {
+			return false;
+		}
 
-        if ( BadWordFilter::hasBadWord( $text ) ) {
-            return false;
-        }
+		if ( BadWordFilter::hasBadWord( $text ) ) {
+			return false;
+		}
 
-        $repeatCount = 0;
-        $lastLetter = '';
-        for( $i = 0; $i <= strlen( $text ); $i++ ) {
-            $char = substr( $text, $i, 1 );
-            if ( $char == $lastLetter ) {
-                $repeatCount++;
-            } else {
-                $repeatCount = 0;
-            }
-            if ( $repeatCount >= 2 ) {
-                return false;
-            }
-            $lastLetter = $char;
-        }
+		$repeatCount = 0;
+		$lastLetter = '';
+		for( $i = 0; $i <= strlen( $text ); $i++ ) {
+			$char = substr( $text, $i, 1 );
+			if ( $char == $lastLetter ) {
+				$repeatCount++;
+			} else {
+				$repeatCount = 0;
+			}
+			if ( $repeatCount >= 2 ) {
+				return false;
+			}
+			$lastLetter = $char;
+		}
 
-        return true;
-    }
+		return true;
+	}
 
 	private function getMainHTML() {
-        $titleTop = '';
-        if ( !Misc::isMobileMode() ) {
-            $titleTop = '<div id="desktop-title"><div id="header-remaining"><h3 id="header-count"></h3>remaining</div><h5>Review Tech Feedback</h5><div id="header-title"></div></div>';
-        }
+		$titleTop = '';
+		if ( !Misc::isMobileMode() ) {
+			$titleTop = '<div id="desktop-title"><div id="header-remaining"><h3 id="header-count"></h3>remaining</div><h5>Review Tech Feedback</h5><div id="header-title"></div></div>';
+		}
 		$vars = [
 			'title_top' => $titleTop,
 			'get_next_msg' => wfMessage( 'specialtechfeedbacknext' )->text(),
 		];
 
-		$loader = new Mustache_Loader_CascadingLoader( [new Mustache_Loader_FilesystemLoader( dirname( __FILE__ ) )] );
+		$loader = new Mustache_Loader_CascadingLoader( [new Mustache_Loader_FilesystemLoader( __DIR__ )] );
 		$options = array( 'loader' => $loader );
 		$m = new Mustache_Engine( $options );
 		$html = $m->render( 'specialtechfeedback', $vars );
@@ -171,302 +171,309 @@ class SpecialTechFeedback extends UnlistedSpecialPage {
 	}
 
 	/*
-     * get the next article to vote on
+	 * get the next article to vote on
 	 */
 	private function getNextItem() {
-		$dbr = wfGetDb( DB_SLAVE );
+		$dbr = wfGetDb( DB_REPLICA );
 		$result = [];
-        $conds = [];
-        $userId = $this->getUserId();
+		$conds = [];
+		$userId = $this->getUserId();
 
-        //$conds = "stfi_user_id = '' AND stfi_user_id <> '$userId'";
-        $conds = array( "stfi_user_id" => array( '', $userId ) );
+		//$conds = "stfi_user_id = '' AND stfi_user_id <> '$userId'";
+		$conds = array( "stfi_user_id" => array( '', $userId ) );
 
-        $table = self::STF_TABLE;
-        $vars = array( 'stfi_page_id', 'stfi_rating_reason_id', 'stfi_user_id' );
-        $options = array(
-            'GROUP BY' => 'stfi_page_id, stfi_rating_reason_id',
-            'HAVING' => array( 'count(*) < 2', "stfi_user_id = ''" ),
-            'SQL_CALC_FOUND_ROWS',
-        );
+		$table = self::STF_TABLE;
+		$vars = array( 'stfi_page_id', 'stfi_rating_reason_id', 'stfi_user_id' );
+		$options = array(
+			'GROUP BY' => 'stfi_page_id, stfi_rating_reason_id',
+			'HAVING' => array( 'count(*) < 2', "stfi_user_id = ''" ),
+			'SQL_CALC_FOUND_ROWS',
+		);
 		$row = $dbr->selectRow( $table, $vars, $conds, __METHOD__, $options );
 
-        $result = array(
-            'pageId' => $row->stfi_page_id,
-            'ratingReasonId' => $row->stfi_rating_reason_id
-        );
+		$result = array(
+			'pageId' => $row->stfi_page_id,
+			'ratingReasonId' => $row->stfi_rating_reason_id
+		);
 
-        $res = $dbr->query('SELECT FOUND_ROWS() as count');
+		$res = $dbr->query('SELECT FOUND_ROWS() as count');
 		$row = $dbr->fetchRow( $res );
-        $this->mUserRemainingCount = $row['count'];
+		$this->mUserRemainingCount = $row['count'];
 
 		return $result;
 	}
 
-    private function getRatingReason( $pageId, $ratingReasonId ) {
-		$dbr = wfGetDb( DB_SLAVE );
+	private function getRatingReason( $pageId, $ratingReasonId ) {
+		$dbr = wfGetDb( DB_REPLICA );
 
-        $table = 'rating_reason';
-        $vars = 'ratr_id, ratr_text';
-        $conds = array( 'ratr_id' => $ratingReasonId );
-        $options = array();
+		$table = 'rating_reason';
+		$vars = 'ratr_id, ratr_text';
+		$conds = array( 'ratr_id' => $ratingReasonId );
+		$options = array();
 		$res = $dbr->select( $table, $vars, $conds, __METHOD__, $options );
-        $result = array();
-        foreach ( $res as $row ) {
-            $result[] = array(
-                'ratingReasonId' => $row->ratr_id,
-                'text' => $row->ratr_text,
-                'pageId' => $pageId,
-            );
-        }
+		$result = array();
+		foreach ( $res as $row ) {
+			$result[] = array(
+				'ratingReasonId' => $row->ratr_id,
+				'text' => $row->ratr_text,
+				'pageId' => $pageId,
+			);
+		}
 		return $result;
-    }
+	}
 
-    private function getArticleHtml( $pageId ) {
-        if ( Misc::isMobileMode() ) {
-            return '';
-        }
-        $html = '';
+	private function getArticleHtml( $pageId ) {
+		if ( Misc::isMobileMode() ) {
+			return '';
+		}
+		$html = '';
 		$page = WikiPage::newFromId( $pageId );
-        $out = $this->getOutput();
-        $popts = $out->parserOptions();
-        $popts->setTidy(true);
-        $content = $page->getContent();
-        if ($content) {
-            $parserOutput = $content->getParserOutput($page->getTitle(), null, $popts, false)->getText();
-            $html = WikihowArticleHTML::processArticleHTML($parserOutput, array('no-ads' => true, 'ns' => NS_MAIN));
-            $header = Html::element( 'h2', array(), 'Full Article' );
-            $html = $header . $html;
-        }
-        return $html;
-    }
+		$out = $this->getOutput();
+		$popts = $out->parserOptions();
+		$popts->setTidy(true);
+		$content = $page->getContent();
+		if ($content) {
+			$parserOutput = $content->getParserOutput($page->getTitle(), null, $popts, false)->getText();
+			$html = WikihowArticleHTML::processArticleHTML($parserOutput, array('no-ads' => true, 'ns' => NS_MAIN));
+			$header = Html::element( 'h2', array(), 'Full Article' );
+			$html = $header . $html;
+		}
+		return $html;
+	}
 
 	private function getNextItemData() {
 		$nextItem = $this->getNextItem();
 
-        $ratingReasonId = $nextItem['ratingReasonId'];
-        $pageId = $nextItem['pageId'];
+		$ratingReasonId = $nextItem['ratingReasonId'];
+		$pageId = $nextItem['pageId'];
 
-        if ( !$pageId ) {
+		if ( !$pageId ) {
 
-            $eoq = new EndOfQueue();
-            $msg = $eoq->getMessage('tf');
-            return array(
-                'html' => Html::rawElement( 'div', array( 'class' => 'text-line empty-queue' ), $msg ),
-                'remaining' => 0,
-            );
-        }
+			$eoq = new EndOfQueue();
+			$msg = $eoq->getMessage('tf');
+			return array(
+				'html' => Html::rawElement( 'div', array( 'class' => 'text-line empty-queue' ), $msg ),
+				'remaining' => 0,
+			);
+		}
 
 		$ratingReason = $this->getRatingReason( $pageId ,$ratingReasonId );
 
-        $title = Title::newFromID( $pageId );
+		$title = Title::newFromID( $pageId );
 		$titleText = wfMessage( 'howto', $title->getText() )->text();
 
 		$titleLink = Linker::link( $title, $titleText, ['target'=>'_blank'] );
 
-        if ( Misc::isMobileMode() ) {
-            $platformClass = "mobile";
-        } else {
-            $platformClass = "desktop";
-        }
-        $articleHtml = $this->getArticleHtml( $pageId );
-        $articleLoaded = false;
-        if ( $articleHtml ) {
-            $articleLoaded = true;
-        }
+		if ( Misc::isMobileMode() ) {
+			$platformClass = "mobile";
+		} else {
+			$platformClass = "desktop";
+		}
+		$articleHtml = $this->getArticleHtml( $pageId );
+		$articleLoaded = false;
+		if ( $articleHtml ) {
+			$articleLoaded = true;
+		}
 		$vars = [
 			'items' => $ratingReason,
-            'platformclass' => $platformClass,
+			'platformclass' => $platformClass,
 			'title' => wfMessage( 'specialtechfeedbacktext', $titleLink )->text(),
-            'pageId' => $pageId,
-            'titleText' => $title->getText(),
+			'pageId' => $pageId,
+			'titleText' => $title->getText(),
 			'tool_info' => class_exists( 'ToolInfo' ) ? ToolInfo::getTheIcon( $this->getContext() ) : ''
 		];
 
-		$loader = new Mustache_Loader_CascadingLoader( [new Mustache_Loader_FilesystemLoader( dirname( __FILE__ ) )] );
+		$loader = new Mustache_Loader_CascadingLoader( [new Mustache_Loader_FilesystemLoader( __DIR__ )] );
 
 		$options = array( 'loader' => $loader );
 		$m = new Mustache_Engine( $options );
 
 		$html = $m->render( 'specialtechfeedback_inner', $vars );
 
-        $remainingCount = $this->mUserRemainingCount;
-        $result = array(
-            'html' => $html,
-            'articlehtml' => $articleHtml,
+		$remainingCount = $this->mUserRemainingCount;
+		$result = array(
+			'html' => $html,
+			'articlehtml' => $articleHtml,
 			'title' => $titleLink,
 			'remaining' => $remainingCount,
-            'pageId' => $pageId,
-        );
+			'pageId' => $pageId,
+		);
 		return $result;
 	}
 
-    public static function getRemainingCount() {
-		$dbr = wfGetDb( DB_SLAVE );
-        $table = self::STF_TABLE;
-        $vars = "count('*')";
-        $conds = array( "stfi_user_id" => '' );
-        $options = array();
+	public static function getRemainingCount() {
+		$dbr = wfGetDb( DB_REPLICA );
+		$table = self::STF_TABLE;
+		$vars = "count('*')";
+		$conds = array( "stfi_user_id" => '' );
+		$options = array();
 		$count = $dbr->selectField( $table, $vars, $conds, __METHOD__, $options );
-        return $count;
-    }
+		return $count;
+	}
 
-    private function getUserId() {
-        $userId = $this->user->getID();
-        if ( !$userId ) {
-            $userId = WikihowUser::getVisitorId();
-        }
-        return $userId;
-    }
+	private function getUserId() {
+		$userId = $this->user->getID();
+		if ( !$userId ) {
+			$userId = WikihowUser::getVisitorId();
+		}
+		return $userId;
+	}
 
 	private function saveVote() {
 		$dbw = wfGetDB( DB_MASTER );
 
 		$request = $this->getContext()->getRequest();
-        $ratingReasonId = $request->getInt( 'rrid' );
-        $pageId = $request->getInt( 'pageid' );
-        $userId = $this->getUserId();
-        $vote = $request->getInt( 'vote' );
-        if ( $this->isPowerVoter() ) {
-            $vote = $vote * 2;
-        }
+		$ratingReasonId = $request->getInt( 'rrid' );
+		$pageId = $request->getInt( 'pageid' );
+		$userId = $this->getUserId();
 
-        $table =  self::STF_TABLE;
-        $values = array(
-            'stfi_page_id' => $pageId,
-            'stfi_rating_reason_id' => $ratingReasonId,
-            'stfi_user_id' => $userId,
-            'stfi_vote' => $vote
-        );
+		// if for some reason there is no user id then do not try to save the vote
+		// because the empty user id is always assumed to have a vote of 0
+		if (!$userId) {
+			return;
+		}
 
-        $dbw->insert( $table, $values, __METHOD__ );
+		$vote = $request->getInt( 'vote' );
+		if ( $this->isPowerVoter() ) {
+			$vote = $vote * 2;
+		}
+
+		$table =  self::STF_TABLE;
+		$values = array(
+			'stfi_page_id' => $pageId,
+			'stfi_rating_reason_id' => $ratingReasonId,
+			'stfi_user_id' => $userId,
+			'stfi_vote' => $vote
+		);
+
+		$dbw->insert( $table, $values, __METHOD__ );
 		return;
 	}
 
-    // count votes on the item that was vote upon
+	// count votes on the item that was vote upon
 	private function updateVoted() {
 		$dbw = wfGetDB( DB_MASTER );
 
 		$request = $this->getContext()->getRequest();
-        $ratingReasonId = $request->getInt( 'rrid' );
-        $pageId = $request->getInt( 'pageid' );
+		$ratingReasonId = $request->getInt( 'rrid' );
+		$pageId = $request->getInt( 'pageid' );
 
-        // if the user skipped then we do not need to recalculate
-        $vote = $request->getInt( 'vote' );
-        if ( $vote == 0 ) {
-            $this->mLogActions[] = 'not_sure';
-            return;
-        } else if ( $vote > 0 ) {
-            $this->mLogActions[] = 'vote_up';
-        } else {
-            $this->mLogActions[] = 'vote_down';
-        }
+		// if the user skipped then we do not need to recalculate
+		$vote = $request->getInt( 'vote' );
+		if ( $vote == 0 ) {
+			$this->mLogActions[] = 'not_sure';
+			return;
+		} elseif ( $vote > 0 ) {
+			$this->mLogActions[] = 'vote_up';
+		} else {
+			$this->mLogActions[] = 'vote_down';
+		}
 
-        $table =  self::STF_TABLE;
-        $var = 'SUM(stfi_vote)';
-        $cond = array(
-            'stfi_page_id' => $pageId,
-            'stfi_rating_reason_id' => $ratingReasonId,
-        );
+		$table =  self::STF_TABLE;
+		$var = 'SUM(stfi_vote)';
+		$cond = array(
+			'stfi_page_id' => $pageId,
+			'stfi_rating_reason_id' => $ratingReasonId,
+		);
 
-        $count = $dbw->selectField( $table, $var, $cond, __METHOD__ );
-        if ( abs( $count ) >= self::MAX_VOTES ) {
-            if ( $count >= self::MAX_VOTES ) {
-                $this->mLogActions[] = 'approved';
-            } else {
-                $this->mLogActions[] = 'rejected';
-            }
-            // this item is completed.. remove it from the queue
-            $conds = array(
-                'stfi_page_id' => $pageId,
-                'stfi_rating_reason_id' => $ratingReasonId,
-                'stfi_vote' => 0
-            );
-            $dbw->delete( $table, $conds, __METHOD__ );
+		$count = $dbw->selectField( $table, $var, $cond, __METHOD__ );
+		if ( abs( $count ) >= self::MAX_VOTES ) {
+			if ( $count >= self::MAX_VOTES ) {
+				$this->mLogActions[] = 'approved';
+			} else {
+				$this->mLogActions[] = 'rejected';
+			}
+			// this item is completed.. remove it from the queue
+			$conds = array(
+				'stfi_page_id' => $pageId,
+				'stfi_rating_reason_id' => $ratingReasonId,
+				'stfi_vote' => 0
+			);
+			$dbw->delete( $table, $conds, __METHOD__ );
 
-            $title = Title::newFromID( $pageId );
-            wfRunHooks("SpecialTechFeedbackItemCompleted", array($wgUser, $title, '0'));
-        }
+			$title = Title::newFromID( $pageId );
+			Hooks::run("SpecialTechFeedbackItemCompleted", array($wgUser, $title, '0'));
+		}
 
-        // log the actions
-        foreach ( $this->mLogActions as $action ) {
-            $this->logVote( $action );
-        }
+		// log the actions
+		foreach ( $this->mLogActions as $action ) {
+			$this->logVote( $action );
+		}
 
 		return;
 	}
 
-    private function logVote( $action ) {
+	private function logVote( $action ) {
 		$request = $this->getContext()->getRequest();
-        $ratingReasonId = $request->getInt( 'rrid' );
-        $pageId = $request->getInt( 'pageid' );
+		$ratingReasonId = $request->getInt( 'rrid' );
+		$pageId = $request->getInt( 'pageid' );
 
-        $title = Title::newFromId( $pageId );
-        $logPage = new LogPage( 'tech_update_tool', false );
-        $logData = array( $ratingReasonId );
-        $logMsg = wfMessage( 'specialtechfeedbacklogentryvote', $title->getFullText(), $action, $ratingReasonId )->text();
-        $logPage->addEntry( $action, $title, $logMsg, $logData );
+		$title = Title::newFromId( $pageId );
+		$logPage = new LogPage( 'tech_update_tool', false );
+		$logData = array( $ratingReasonId );
+		$logMsg = wfMessage( 'specialtechfeedbacklogentryvote', $title->getFullText(), $action, $ratingReasonId )->text();
+		$logPage->addEntry( $action, $title, $logMsg, $logData );
 
-        UsageLogs::saveEvent(
-            array(
-                'event_type' => 'tech_update_tool',
-                'event_action' => $action,
-                'article_id' => $pageId,
-                'assoc_id' => $ratingReasonId
-            )
-        );
-    }
+		UsageLogs::saveEvent(
+			array(
+				'event_type' => 'tech_update_tool',
+				'event_action' => $action,
+				'article_id' => $pageId,
+				'assoc_id' => $ratingReasonId
+			)
+		);
+	}
 
 	private function isPowerVoter() {
-        if ( $this->user->isAnon() ) {
-            return false;
-        }
+		if ( $this->user->isAnon() ) {
+			return false;
+		}
 		//check groups
 		$userGroups = $this->user->getGroups();
-        if ( empty( $userGroups ) || !is_array( $userGroups ) ) {
-            return false;
-        }
+		if ( empty( $userGroups ) || !is_array( $userGroups ) ) {
+			return false;
+		}
 		return ( in_array( 'staff', $userGroups ) || in_array( 'admin', $userGroups ) || in_array( 'newarticlepatrol', $userGroups ) );
 	}
 
 	/*
-     * posts voted in data to google spreadsheet
-     */
-    public static function sendToSpreadsheet( $pageId, $date, $comment ) {
-        $file = self::getSheetsFile();
-        $sheet = $file->sheet('default');
-        $data = self::getVoteSpreadsheetData( $pageId, $date, $comment );
-        $sheet->insert( $data );
-    }
+	 * posts voted in data to google spreadsheet
+	 */
+	public static function sendToSpreadsheet( $pageId, $date, $comment ) {
+		$file = self::getSheetsFile();
+		$sheet = $file->sheet('default');
+		$data = self::getVoteSpreadsheetData( $pageId, $date, $comment );
+		$sheet->insert( $data );
+	}
 
 	/*
 	 * @return array data to be sent to feedback google sheet
 	 */
-    private static function getVoteSpreadsheetData( $pageId, $date, $comment ) {
-        global $wgLanguageCode;
-        $dbr = wfGetDB( DB_SLAVE );
+	private static function getVoteSpreadsheetData( $pageId, $date, $comment ) {
+		global $wgLanguageCode;
+		$dbr = wfGetDB( DB_REPLICA );
 		$table = array( 'titus_copy' );
 		$vars = array( 'ti_page_title', 'ti_30day_views_unique', 'ti_helpful_percentage', 'ti_helpful_total' );
 		$conds = array(
 			'ti_page_id' => $pageId,
 			'ti_language_code' => $wgLanguageCode,
 		);
-        $options = array();
+		$options = array();
 
 		$row = $dbr->selectRow( $table, $vars, $conds, __METHOD__, $options );
 
-        $date = date( 'Y-m-d', $date );
-        $data = array(
-            'pageid' => $pageId,
-            'pageurl' => 'http://www.wikihow.com/'.$row->ti_page_title,
-            'pv-30d-unique' => $row->ti_30day_views_unique,
-            'helpful-vote-count' => $row->ti_helpful_total,
-            'helpful-percent' => $row->ti_helpful_percentage,
-            'comment-text' => $comment,
-            'comment-approved-date' => $date,
-        );
-        return $data;
-    }
+		$date = date( 'Y-m-d', $date );
+		$data = array(
+			'pageid' => $pageId,
+			'pageurl' => 'http://www.wikihow.com/'.$row->ti_page_title,
+			'pv-30d-unique' => $row->ti_30day_views_unique,
+			'helpful-vote-count' => $row->ti_helpful_total,
+			'helpful-percent' => $row->ti_helpful_percentage,
+			'comment-text' => $comment,
+			'comment-approved-date' => $date,
+		);
+		return $data;
+	}
 
 	/**
 	 * @return Google_Spreadsheet_File
@@ -486,7 +493,7 @@ class SpecialTechFeedback extends UnlistedSpecialPage {
 			return $client->client;
 		};
 		$rawClient = Closure::bind($rawClient, null, $client);
-        $timeoutLength = 600;
+		$timeoutLength = 600;
 		$configOptions = [
 			CURLOPT_CONNECTTIMEOUT => $timeoutLength,
 			CURLOPT_TIMEOUT => $timeoutLength

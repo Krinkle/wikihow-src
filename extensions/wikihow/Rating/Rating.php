@@ -23,6 +23,8 @@ $wgExtensionCredits['specialpage'][] = array(
 );
 
 $wgExtensionMessagesFiles['RateItem'] = __DIR__ . '/Rating.i18n.php';
+$wgExtensionMessagesFiles['RateItemAliases'] = __DIR__ . '/Rating.alias.php';
+$wgExtensionMessagesFiles['RatingReasonAliases'] = __DIR__ . '/Rating.alias.php';
 
 $wgSpecialPages['RateItem'] = 'RateItem';
 $wgSpecialPages['ListRatings'] = 'ListRatings';
@@ -41,6 +43,7 @@ $wgAutoloadClasses['ClearRatings'] = __DIR__ . '/ClearRatings.php';
 $wgAutoloadClasses['ListRatings'] = __DIR__ . '/ListRatings.php';
 $wgAutoloadClasses['RateItem'] = __DIR__ . '/RateItem.php';
 $wgAutoloadClasses['RatingReason'] = __DIR__ . '/RatingReason.php';
+$wgAutoloadClasses['TechRating'] = __DIR__ . '/techrating/TechRating.class.php';
 
 $wgAutoloadClasses['RatingRedis'] = __DIR__ . '/RatingRedis.php';
 
@@ -104,6 +107,14 @@ $wgResourceModules['ext.wikihow.rating_sidebar.styles'] = array(
 	'localBasePath' => __DIR__,
 	'remoteExtPath' => 'wikihow/Rating',
 	'position' => 'top',
+	'targets' => array('desktop')
+);
+
+$wgResourceModules['ext.wikihow.rating_desktop.style'] = array(
+	'styles' => 'rating_desktop_body.css',
+	'localBasePath' => __DIR__,
+	'remoteExtPath' => 'wikihow/Rating',
+	'position' => 'bottom',
 	'targets' => array('desktop')
 );
 

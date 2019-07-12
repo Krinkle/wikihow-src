@@ -1,4 +1,4 @@
-<?
+<?php
 /********************************************
  * Class that returns the script txt for 	*
  * Google action buttons. Requires the $url	*
@@ -55,7 +55,7 @@ class EmailActionButtonScript {
 				"target": "'.$url.'",
 				"name": "'.$buttonText.'",
 				"url": "'.$url.'"
-			}, 
+			},
 			"description": "'.$desc.'"
 		}
 		</script>';
@@ -97,5 +97,3 @@ class EmailActionButtonScript {
 
 }
 
-
-?>

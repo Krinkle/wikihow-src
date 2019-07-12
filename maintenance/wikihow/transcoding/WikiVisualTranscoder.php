@@ -4,14 +4,14 @@ This is the main class for doing transcoding of videos and placing
 images and videos in the mediawiki db and into the wikitext
 
 ==Quick steps for dev testing a single article
-1. Verify input data is in the test folder s3://wikivisual-upload-test/jordan/
+1. Verify input data is in the test folder s3://wikivisual-upload-test/aaron/
    * How do I do this?
    Run this s3 command to view the contents of the folder in this bucket (yes, it starts with a $)
-   $s3cmd_wikivisual ls s3://wikivisual-upload-test/jordan/
+   $s3cmd_wikivisual ls s3://wikivisual-upload-test/aaron/
 
    You should see a .zip file with the ID of your article like this:
-   $s3cmd_wikivisual ls s3://wikivisual-upload-test/jordan/
-   2016-01-20 18:15  10136878   s3://wikivisual-upload-test/jordan/109659.zip
+   $s3cmd_wikivisual ls s3://wikivisual-upload-test/aaron/
+   2016-01-20 18:15  10136878   s3://wikivisual-upload-test/aaron/109659.zip
 
 If your assets are there, then you can move on to step 2 to run the transcoder.
 
@@ -27,7 +27,7 @@ If your assets are not there, you have to copy them from the production folder.
    will print out the creator of those images.
 
    to copy the zip file from one folder to another do this but with the correct paths:
-   $s3cmd_wikivisual sync s3://wikivisual-upload/todd/4831.zip s3://wikivisual-upload-test/jordan/
+   $s3cmd_wikivisual sync s3://wikivisual-upload/todd/4831.zip s3://wikivisual-upload-test/aaron/
 
 
 2. Run the transcoder on that article ID with the -f argument to run on a single article
@@ -39,6 +39,8 @@ for the videos to be transcoded, then you will have to run the script a second t
 	articles and not submit the videos for transcoding a second time
 
 /opt/wikihow/scripts/whrun --user=apache -- php ~/wikihow/prod/maintenance/wikihow/transcoding/WikiVisualTranscoder.php -f 6918
+
+Note: you can also use the -v flag  to get verbose output
 
 data schema for reference:
     CREATE TABLE wikivisual_article_status ( 
@@ -130,10 +132,10 @@ use Guzzle\Http\EntityBody;
 *  which you can see defined at the top of this file and contain the assets to be processed
 *
 *  if you want to copy data into the test bucket from the main one for testing then execute:
-*  $s3cmd_wikivisual sync s3://wikivisual-upload/todd/4831.zip s3://wikivisual-upload-test/jordan/
+*  $s3cmd_wikivisual sync s3://wikivisual-upload/todd/4831.zip s3://wikivisual-upload-test/aaron/
 *  which will copy the upload for article 4831 from the live bucket to the test bucket
 *  the folder structure is organized by the name of the contractor on the live bucket, but
-*  on the test one we just have a few names of engineers so pick one that already exists (like jordan)
+*  on the test one we just have a few names of engineers so pick one that already exists (like aaron)
 *
 *  The article you are testing on must exist on the aws buckets you defined in AWS_BUCKET or else
 *  when you run the transcoder no assets will be found (esp important on dev)
@@ -148,20 +150,12 @@ use Guzzle\Http\EntityBody;
 *  TODO you can just fake the transcoding part if you already have the converted files (how?)
 */
 
-global $wgIsDevServer;
-if ( $wgIsDevServer ) {
-	define( 'AWS_BUCKET_TMP', 'wikivisual-upload-test' );
-} else {
-	define( 'AWS_BUCKET_TMP', 'wikivisual-upload' );
-}
-
 class WVFileException extends Exception { }
 
 class WikiVisualTranscoder {
 
-	//const AWS_BUCKET = 'wikivisual-upload';
-	//const AWS_BUCKET = 'wikivisual-upload-test';
-	const AWS_BUCKET = AWS_BUCKET_TMP;
+	var $mAwsBucket = '';
+	var $mAwsBucketPrefix = null;
 	
 	const DEFAULT_STAGING_DIR = '/data/wikivisual';
 	const MEDIA_USER = 'wikivisual'; 
@@ -182,10 +176,11 @@ class WikiVisualTranscoder {
 	const TRANSCODER_360P_16x9_PRESET = '1373409713520-t0nqq0';
 	const TRANSCODER_360P_16x9_PRESET_AUDIO = '1503961241607-9swq73';
 	
-	const WARNING_MIN_WIDTH = 3200;
+	const ERROR_MIN_WIDTH = 3200;
+	const ERROR_MIN_WIDTH_VIDEO_COMPANION = 1920;
 	const ERROR_MAX_IMG_DIMEN = 10000;
 	
-	const PHOTO_LICENSE = 'cc-by-sa-nc-3.0-self';
+	const PHOTO_LICENSE = 'WikiVisual';
 	const SCREENSHOT_LICENSE = 'Screenshot';
 
 	// Fri Feb  1 14:19:26 PST 2013
@@ -208,7 +203,7 @@ class WikiVisualTranscoder {
 	static $debugArticleID = '';
 	static $videoExts = array( 'mp4', 'avi', 'flv', 'aac', 'mov' );
 	static $assocVideoExts;
-	static $imgExts = array( 'jpg', 'jpeg', 'gif', 'png' );
+	static $imgExts = array( 'jpg', 'jpeg', 'gif' );
 	static $assocImgExts;
 	static $excludeArticles = array();
 	static $excludeUsers = array( 'old', 'backup' );
@@ -260,18 +255,6 @@ class WikiVisualTranscoder {
 		}
 	}
 
-	public static function urlFromTitleText( $text ) {
-		return 'http://www.wikihow.com/' . $text;
-	}
-		
-	// using this form so the links look right in fred
-	public static function makeWikihowURL( $title ) {
-		if ( !$title ) {
-			return "";
-		}
-		return 'http://www.wikihow.com/' . $title->getDBkey();
-	}
-	
 	public static function getAws() {
 		global $IP;
 		if (is_null(self::$aws)) {
@@ -348,7 +331,7 @@ class WikiVisualTranscoder {
 		static $dbw = null;
 		static $dbr = null;
 		if ('read' == $type) {
-			if (!$dbr) $dbr = wfGetDB(DB_SLAVE);
+			if (!$dbr) $dbr = wfGetDB(DB_REPLICA);
 			return $dbr;
 		} elseif ('write' == $type) {
 			if (!$dbw) $dbw = wfGetDB(DB_MASTER);
@@ -514,7 +497,8 @@ class WikiVisualTranscoder {
 	}
 	
 	private function updateArticleStatusHybridMediaProcessed( $pageId, $err, $warning, $photoCnt, $videoCnt, $replaced, $gifsAdded, $updateProcessed = FALSE ) {
-		$url = self::urlFromTitleText( Title::nameOf( $pageId ) );
+		$title = Title::newFromID( $pageId );
+		$url = $title->getFullURL();
 		$ts = wfTimestampNow(TS_MW);
 		$values = array(
 			'photo_processed' => $photoCnt && $photoCnt > 0 ? $ts : '',
@@ -615,12 +599,22 @@ class WikiVisualTranscoder {
 	/**
 	 * List articles on S3
 	 */
-	private function getS3Articles(&$s3, $bucket) {
-		$list = $s3->getBucket($bucket);
+	private function getS3Articles(&$s3, $bucket, $prefix = null) {
+		$list = $s3->getBucket($bucket, $prefix);
 	
+		if ($prefix) {
+			$prefix = $prefix . '/';
+		}
 		// compile all the articles into a list of files/zips from s3
 		$articles = array();
 		foreach ($list as $path => $details) {
+			// remove prefix from path
+			if ( $prefix && substr( $path, 0, strlen( $prefix ) ) == $prefix ) {
+				$path = substr( $path, strlen( $prefix ) );
+			} else if ( $prefix ) {
+				// if we have a prefix but no prefix path then skip
+				continue;
+			}
 
 			$leaveOldMedia = false;
 			// match string: username/1234.zip
@@ -644,6 +638,10 @@ class WikiVisualTranscoder {
 	
 			if ( $user === 'replace' ) {
 				$leaveOldMedia = true;
+			}
+
+			if ( $prefix ) {
+				$user =  $prefix . $user;
 			}
 
 			// process the list of media files into a list of articles
@@ -674,9 +672,8 @@ class WikiVisualTranscoder {
 				$articles[$id]['time'] = $details['time'];
 				$articles[$id]['leave_old_media'] = $leaveOldMedia;
 			}
-	
 		}
-	
+
 		return $articles;
 	}
 	
@@ -717,8 +714,11 @@ class WikiVisualTranscoder {
 		$ret = glob($dir . '/*.{' . join(',', $exts) . '}', GLOB_BRACE);
 		$err = null;
 		$files = null;
+
 		if (false === $ret) {
-			$err = 'no files unzipped';
+			$err = 'error unzipping files';
+		} else if ( empty( $ret ) ) {
+			$err = 'no valid files unzipped. check your file extensions (png is not supported)';
 		} else {
 			$files = $ret;
 		}
@@ -795,9 +795,9 @@ class WikiVisualTranscoder {
 			$aws_file = $prefix . $file;
 			$file = preg_replace('@/@', '-', $file);
 			$local_file = $dir . '/' . $file;
-			$ret = $s3->getObject(self::AWS_BUCKET, $aws_file, $local_file);
+			$ret = $s3->getObject($this->mAwsBucket, $aws_file, $local_file);
 			if (!$ret || $ret->error) {
-				$err = "problem retrieving file from S3: s3://" . self::AWS_BUCKET . "/$aws_file";
+				$err = "problem retrieving file from S3: s3://" . $this->mAwsBucket . "/$aws_file";
 				break;
 			}
 		}
@@ -823,7 +823,7 @@ class WikiVisualTranscoder {
 	 */
 	private function doS3Cleanup() { 
 		$s3 = new S3 ( WH_AWS_WIKIVISUAL_UPLOAD_ACCESS_KEY, WH_AWS_WIKIVISUAL_UPLOAD_SECRET_KEY );
-		$src = $this->getS3Articles ( $s3, self::AWS_BUCKET );
+		$src = $this->getS3Articles ( $s3, $this->mAwsBucket, $this->mAwsBucketPrefix );
 		foreach ( $src as $id => $details ) {
 			if ($details ['zip'] && $details ['files']) {
 				if ( $details['leave_old_media'] == true && $user != 'replace' ) {
@@ -837,7 +837,7 @@ class WikiVisualTranscoder {
 					self::i("not enough files ($count) to delete $uri: $files");
 				} else {
 					self::i("deleting $uri");
-					$s3->deleteObject ( self::AWS_BUCKET, $uri );
+					$s3->deleteObject ( $this->mAwsBucket, $uri );
 				}
 			}
 		}
@@ -951,7 +951,7 @@ class WikiVisualTranscoder {
 	private function processS3Media() {
 		// get list of the articles in the s3 bucket
 		$s3 = new S3( WH_AWS_WIKIVISUAL_ACCESS_KEY, WH_AWS_WIKIVISUAL_SECRET_KEY );
-		$articles = $this->getS3Articles( $s3, self::AWS_BUCKET );
+		$articles = $this->getS3Articles( $s3, $this->mAwsBucket, $this->mAwsBucketPrefix );
 
 		// also get processed articles from DB to see if we need to retry or flag them
 		$processed = $this->getProcessedArticles();
@@ -1070,7 +1070,7 @@ class WikiVisualTranscoder {
 				$isHybridMedia = $photoCnt > 0 && $vidCnt > 0;
                 self::d( "isHybridMedia", var_export( $isHybridMedia, true ) );
 				//start processing uploads
-				$url = WikiVisualTranscoder::makeWikihowURL( $title );
+				$url = $title->getFullURL();
 				if ($photoCnt > 0 && $vidCnt <= 0) {
 					list( $err, $warning, $replaced ) = 
 						$this->imageTranscoder->processMedia( $id, $details ['user'], $photoList, $warning, $isHybridMedia, $leaveOldMedia, $titleChange );
@@ -1131,8 +1131,20 @@ class WikiVisualTranscoder {
 	}
 	
 	public function main() {
+		global $wgLanguageCode, $wgIsDevServer;
 		date_default_timezone_set('America/Los_Angeles');
 		
+
+		if ( $wgIsDevServer ) {
+			$this->mAwsBucket = 'wikivisual-upload-test';
+		} else {
+			$this->mAwsBucket = 'wikivisual-upload';
+		}
+
+		if ( $wgLanguageCode != 'en' ) {
+			$this->mAwsBucketPrefix = $wgLanguageCode;
+		}
+
 		if ( !self::$assocVideoExts ) {
 			self::$assocVideoExts = Utils::arrToAssoArr(self::$videoExts);
 			self::$assocImgExts = Utils::arrToAssoArr(self::$imgExts);
@@ -1156,12 +1168,20 @@ class WikiVisualTranscoder {
 		if ( empty( self::$stagingDir ) )
 			self::$stagingDir = self::DEFAULT_STAGING_DIR;
 		
-		self::$debugArticleID = @$opts ['f'] ? @$opts ['f'] : @$opts ['force'];
 		if ( array_key_exists( 'v', $opts ) ) {
-			self::d( "running script in debug mode" );
 			self::$DEBUG = true;
+			self::d( "running script in debug mode" );
 		}
 
+		self::d( "using aws bucket", $this->mAwsBucket);
+		if ( $this->mAwsBucketPrefix ) {
+			self::d( "using aws bucket prefix", $this->mAwsBucketPrefix);
+		}
+
+		self::$debugArticleID = @$opts ['f'] ? @$opts ['f'] : @$opts ['force'];
+		if (self::$debugArticleID) {
+			self::d( "running on article id", self::$debugArticleID);
+		}
 		$processTranscodingOnly = false;
 		if ( array_key_exists( 't', $opts ) ) {
 			self::d( "skipping new articles, will only process transcoding jobs" );
@@ -1176,6 +1196,8 @@ class WikiVisualTranscoder {
 			self::e( "script must be run as part of wikivisual-process-media.sh" );
 			exit();
 		}
+
+		self::d( "running in lang", $wgLanguageCode );
 		
 		Misc::loginAsUser ( self::MEDIA_USER );
 		

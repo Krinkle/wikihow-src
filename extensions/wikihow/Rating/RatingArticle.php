@@ -35,7 +35,7 @@ class RatingArticle extends RatingsTool {
 	function getLoggingInfo($title) {
 		global $wgLang, $wgOut;
 
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 
 		// get log
 		$res = $dbr->select ('logging',
@@ -87,6 +87,8 @@ class RatingArticle extends RatingsTool {
 	function getRatingResponse($itemId, $rating, $source, $ratingId) {
 		if ($source == "mobile") {
 			return static::getRatingResponseMobile($itemId, $rating, $ratingId);
+		} elseif ($source == 'discuss_tab') {
+			return static::getRatingResponseModal($itemId, $rating, $ratingId);
 		} else {
 			return static::getRatingResponseDesktop($itemId, $rating, $ratingId);
 		}
@@ -132,7 +134,7 @@ EOHTML;
 	}
 
 	function getRatingResponseDesktop($itemId, $rating, $ratingId) {
-		$tmpl = new EasyTemplate(dirname(__FILE__));
+		$tmpl = new EasyTemplate(__DIR__);
 		$title = Title::newFromID($itemId);
 		$titleText = htmlspecialchars($title->getText(), ENT_QUOTES);
 		$tmpl->set_vars(
@@ -156,7 +158,7 @@ EOHTML;
 
 		/* use this only for (Main) namespace pages that are not the main page - feel free to remove this... */
 		$mainPageObj = Title::newMainPage();
-		if ($wgTitle->getNamespace() != NS_MAIN
+		if (!$wgTitle->inNamespace(NS_MAIN)
 			|| $mainPageObj->getFullText() == $wgTitle->getFullText())
 		{
 			return;
@@ -197,7 +199,7 @@ EOHTML;
 		$context = RequestContext::getMain();
 		$context->getOutput()->addModules(['ext.wikihow.rating_sidebar.styles','ext.wikihow.rating_sidebar']);
 
-		$tmpl = new EasyTemplate(dirname(__FILE__));
+		$tmpl = new EasyTemplate(__DIR__);
 		$tmpl->set_vars([
 			'class' => $class,
 			'is_intl' => ($context->getLanguage()->getCode() != 'en')
@@ -235,67 +237,110 @@ EOHTML;
 
 
 	public static function getDesktopSideForm( $pageId, $class ) {
-        global $wgTitle;
 		$context = RequestContext::getMain();
 		$context->getOutput()->addModules(['ext.wikihow.rating_sidebar.styles','ext.wikihow.rating_sidebar']);
 		$headerText = wfMessage('ratearticle_side_hdr')->text();
-        $noMessage = wfMessage('ras_res_no_top')->text();
-        $showNoForm = false;
-		if ( SpecialTechFeedback::isTitleInTechCategory( $wgTitle ) ) {
+		$noMessage = wfMessage('ras_res_no_top')->text();
+		$showNoForm = false;
+		if ( SpecialTechFeedback::isTitleInTechCategory( $context->getTitle() ) ) {
 			$headerText = wfMessage( 'rateitem_question_tech' )->text();
-            $noMessage = wfMessage('sidebar_no_message_tech')->text();
-            $showNoForm = true;
+			$noMessage = wfMessage('sidebar_no_message_tech')->text();
+			$showNoForm = true;
 		}
 
-		$tmpl = new EasyTemplate(dirname(__FILE__));
+		$tmpl = new EasyTemplate(__DIR__);
 		$tmpl->set_vars([
 			'headerText' => $headerText,
 			'class' => $class,
-            'is_intl' => ($context->getLanguage()->getCode() != 'en'),
-            'noMessage' => $noMessage,
-            'showNoForm' => $showNoForm,
+			'is_intl' => ($context->getLanguage()->getCode() != 'en'),
+			'noMessage' => $noMessage,
+			'showNoForm' => $showNoForm,
 		]);
 		return $tmpl->execute('rating_sidebar.tmpl.php');
 	}
 
 	public static function getDesktopBodyForm( $pageId ) {
-        global $wgTitle;
-		$msgText = wfMessage( 'rateitem_question_desktop' )->text();
-		$yesText = wfMessage('rateitem_yes_button')->text();
-		$noText = wfMessage('rateitem_no_button')->text();
+		$context = RequestContext::getMain();
+		$context->getOutput()->addModules('ext.wikihow.rating_desktop.style');
 
-		if ( SpecialTechFeedback::isTitleInTechCategory( $wgTitle ) ) {
+		if ( SpecialTechFeedback::isTitleInTechCategory( $context->getTitle() ) )
 			$msgText = wfMessage( 'rateitem_question_tech' )->text();
-		}
-		$tmpl = new EasyTemplate(dirname(__FILE__));
-		$tmpl->set_vars(
-			array(
-				'msgText' => $msgText,
-				'yesText' => $yesText,
-				'noText' => $noText,
-				'pageId' => $pageId
-		));
-		return $tmpl->execute('rating_desktop_body.tmpl.php');
+		else
+			$msgText = wfMessage( 'rateitem_question_desktop' )->text();
+
+		$show_koala = mt_rand(1, 20) == 1 || $context->getRequest()->getInt('show_koala',0) == 1;
+
+		$vars = [
+			'msgText' => $msgText,
+			'yesText' => wfMessage('rateitem_yes_button')->text(),
+			'noText' => wfMessage('rateitem_no_button')->text(),
+			'pageId' => $pageId,
+			'show_koala' => $show_koala
+		];
+
+		$loader = new Mustache_Loader_CascadingLoader( [
+			new Mustache_Loader_FilesystemLoader( __DIR__ )
+		] );
+		$m = new Mustache_Engine(['loader' => $loader]);
+
+		$html = $m->render('rating_desktop_body', $vars);
+		return $html;
 	}
 
-	public static function getMobileForm( $pageId ) {
-        global $wgTitle;
+	public static function getMobileForm( $pageId, $isAmp = false ) {
+		$context = RequestContext::getMain();
 		$msgText = wfMessage( 'rateitem_question_mobile' )->text();
-		$yesText = wfMessage('rateitem_yes_button')->text();
-		$noText = wfMessage('rateitem_no_button')->text();
+		$ampResponseYesText = '';
+		$ampResponseNoText = '';
 
-		if ( SpecialTechFeedback::isTitleInTechCategory( $wgTitle ) ) {
+		if ( SpecialTechFeedback::isTitleInTechCategory( $context->getTitle() ) ) {
 			$msgText = wfMessage( 'rateitem_question_tech' )->text();
 		}
-		$tmpl = new EasyTemplate(dirname(__FILE__));
+
+		if ($isAmp) {
+			$title = Title::newFromId($pageId);
+			$search_term = $title ? str_replace(' ', '+', $title->getText()) : '';
+			$search_term = htmlspecialchars($search_term);
+
+			$ampResponseYesText = wfMessage('ratearticle_reason_submitted_yes', $search_term)->text();
+			$ampResponseNoText = wfMessage('ratearticle_reason_submitted', $search_term)->text();
+		}
+
+		$tmpl = new EasyTemplate(__DIR__);
 		$tmpl->set_vars(
 			array(
 				'msgText' => $msgText,
-				'yesText' => $yesText,
-				'noText' => $noText,
-				'pageId' => $pageId
+				'yesText' => wfMessage('rateitem_yes_button')->text(),
+				'noText' => wfMessage('rateitem_no_button')->text(),
+				'pageId' => $pageId,
+				'amp' => $isAmp,
+				'amp_form_yes_response' => $ampResponseYesText,
+				'amp_form_no_response' => $ampResponseNoText
 		));
 		return $tmpl->execute('rating_form_mobile.tmpl.php');
+	}
+
+	public static function getDesktopModalForm($aid) {
+		$title = Title::newFromId($aid);
+		$msgText = wfMessage( 'rateitem_question_desktop' )->text();
+
+		if ( SpecialTechFeedback::isTitleInTechCategory( $title ) ) {
+			$msgText = wfMessage( 'rateitem_question_tech' )->text();
+		}
+
+		$vars = [
+			'msgText' => $msgText,
+			'yesText' => wfMessage('rateitem_yes_button')->text(),
+			'noText' => wfMessage('rateitem_no_button')->text(),
+			'pageId' => $title->getArticleID()
+		];
+
+		$loader = new Mustache_Loader_CascadingLoader( [
+			new Mustache_Loader_FilesystemLoader( __DIR__ )
+		] );
+		$m = new Mustache_Engine(['loader' => $loader]);
+		$html = $m->render('rating_desktop_modal', $vars);
+		return $html;
 	}
 
 	// deprecated
@@ -325,20 +370,44 @@ EOHTML;
 	}
 
 	function getRatingResponseMessage($rating, $isMobile) {
-		    return 'ratearticle_reason_submitted' . ( $isMobile ? '_mobile' : '' ) . ( $rating ? '_yes' : '' );
+		    return 'ratearticle_reason_submitted' . ( $rating ? '_yes' : '' );
 	}
 
 	public function getRatingReasonResponse($rating, $itemId = null) {
-
+		$search_term = '';
 		$context = RequestContext::getMain();
 
 		if ($itemId) {
-			$context->setTitle( Title::newFromText($itemId) );
+			$title = Title::newFromText($itemId);
+
+			if (!empty($title)) {
+				$context->setTitle($title);
+				$search_term = str_replace(' ', '+', $title->getText());
+				$search_term = htmlspecialchars($search_term);
+			}
 		}
 
 		$msg = $this->getRatingResponseMessage(intval($rating), Misc::isMobileMode());
 
-		return $context->msg($msg)->parse();
+		return $context->msg($msg, $search_term)->text();
+	}
+
+	public function getRatingCountForPeriod($articleId, $startDate) {
+		$dbr = wfGetDB(DB_REPLICA);
+
+		$count = $dbr->selectField(
+			$this->tableName,
+			'count(*)',
+			[
+				'rat_page' => $articleId,
+				"rat_timestamp > '{$startDate}'",
+				'rat_isdeleted' => 0,
+				'rat_rating' => 1
+			],
+			__METHOD__
+		);
+
+		return $count;
 	}
 }
 

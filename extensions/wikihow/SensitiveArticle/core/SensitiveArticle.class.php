@@ -61,8 +61,15 @@ class SensitiveArticle
 	 */
 	public function save(): bool
 	{
-		static::getDao()->deleteSensitiveArticleData($this->pageId);
-		return static::getDao()->insertSensitiveArticleData($this);
+		$result = static::getDao()->deleteSensitiveArticleData($this->pageId);
+
+		if (!empty($this->reasonIds)) {
+			$result = static::getDao()->insertSensitiveArticleData($this);
+		}
+
+		Hooks::run( "SensitiveArticleEdited" , [$this->pageId, $this->reasonIds]);
+
+		return $result;
 	}
 
 	/**
@@ -75,6 +82,14 @@ class SensitiveArticle
 		}
 		$sa = static::$articles[$pageId];
 		return !empty(array_intersect($reasonIds, $sa->reasonIds));
+	}
+
+	public static function getSensitiveArticleCountByReasonId(int $reasonId): int {
+		return static::getDao()->getSensitiveArticleCountByReasonId($reasonId);
+	}
+
+	public static function onSensitiveReasonDeleted(int $reasonId) {
+		static::getDao()->deleteSensitiveArticleDataByReasonId($reasonId);
 	}
 
 	/**

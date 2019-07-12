@@ -9,9 +9,13 @@
 #wh_modal_close {
 	position: absolute;
 	color: #FFF;
-	right: 5px;
-	top: 5px;
+	right: 15px;
+	top: 12px;
 	cursor: pointer;
+}
+
+#wh_modal_close:hover {
+	text-decoration: none;
 }
 
 #wh_modal_top {
@@ -22,6 +26,7 @@
 }
 .wh_modal_section {
 	padding: 1em;
+	font-size: 0.8em;
 }
 
 .userlogin_links {

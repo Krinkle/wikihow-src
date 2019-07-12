@@ -1,6 +1,6 @@
-<?
+<?php
 
-class ImportvideoHowcast extends Importvideo {
+class ImportVideoHowcast extends ImportVideo {
 
 	function parseStartElement ($parser, $name, $attrs) {
 	   switch ($name) {
@@ -50,7 +50,7 @@ class ImportvideoHowcast extends Importvideo {
 			$url = "http://msapi.howcast.com/howtos/{$id}.xml?channel=howcast";
 			$results = $this->getResults($url);
 			if ($results == null) {
-				$wgOut->addHTML(wfMsg("importvideo_error_geting_results"));
+				$wgOut->addHTML(wfMessage("importvideo_error_geting_results")->text());
 				return;
 			}
 
@@ -65,7 +65,7 @@ class ImportvideoHowcast extends Importvideo {
 			$text = "{{Curatevideo|howcast|$id|{$titletext}|{$tags}|{$v['description']}||{$desc}}}
 {{VideoDescription|{{{1}}} }}";
 			$editSummary = wfMessage('importvideo_addingvideo_summary')->text();
-			Importvideo::updateVideoArticle($title, $text, $editSummary);
+			ImportVideo::updateVideoArticle($title, $text, $editSummary);
 			ImportVideo::updateMainArticle($target, $editSummary);
 			return;
 		}
@@ -84,7 +84,7 @@ class ImportvideoHowcast extends Importvideo {
 		$wgOut->addHTML($this->getPostForm($target));
 
 		if (!is_array($this->mResults) || sizeof($this->mResults) == 0) {
-			$wgOut->addHTML(wfMsg('importvideo_noarticlehits'));
+			$wgOut->addHTML(wfMessage('importvideo_noarticlehits')->text());
 			$wgOut->addHTML("</form>");
 			return;
 		}
@@ -99,7 +99,7 @@ class ImportvideoHowcast extends Importvideo {
 			$this->addResult($v);
 		}
 		if (!$resultsShown) {
-			$wgOut->addHTML(wfMsg('importvideo_noarticlehits'));
+			$wgOut->addHTML(wfMessage('importvideo_noarticlehits')->text());
 			$wgOut->addHTML("</form>");
 			return;
 		}
@@ -117,21 +117,21 @@ class ImportvideoHowcast extends Importvideo {
 		$snippet = substr($v['description'], 0, $min);
 		if ($min == 255) $snippet .= "...";
 		$title = $v['title'];
-		$vid = wfMsg('importvideo_howcast_result', $id);
+		$vid = wfMessage('importvideo_howcast_result', $id)->text();
 
 
 		$wgOut->addHTML("
 		<div class='video_result'>
-			<div style='font-size: 120%; font-weight: bold; margin-bottom:10px;'>" . wfMsg('video') . ": {$title}</div>
+			<div style='font-size: 120%; font-weight: bold; margin-bottom:10px;'>" . wfMessage('video') . ": {$title}</div>
 			<table width='100%'>
 				<tr>
 					<td style='text-align:center'>{$vid}</td>
 				</tr>
 				<tr>
 					<td>
-						<b>" . wfMsg('importvideo_description') . ": </b>{$snippet}<br /><br />
+						<b>" . wfMessage('importvideo_description')->text() . ": </b>{$snippet}<br /><br />
 						<div class='embed_button'>
-							<input class='button primary' type='button' value='" . wfMsg('importvideo_embedit') . "' onclick='WH.ImportVideo.importvideo(\"{$id}\"); gatTrack(\"Registered_Editing\",\"Import_video\",\"Editing_page\");'/>
+							<input class='button primary' type='button' value='" . wfMessage('importvideo_embedit')->text() . "' onclick='WH.ImportVideo.importvideo(\"{$id}\"); gatTrack(\"Registered_Editing\",\"Import_video\",\"Editing_page\");'/>
 						</div>
 					</td>
 				</tr>

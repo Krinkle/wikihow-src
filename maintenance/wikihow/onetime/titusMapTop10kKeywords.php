@@ -2503,34 +2503,34 @@ try {
 	$endColumn = 4;
 	$startRow = 2;
 	$cols = $gs->getColumnData( WH_TITUS_TOP10K_GOOGLE_DOC, $startColumn, $endColumn, $startRow );
-	$urlList = array();	
+	$urlList = array();
 	$pageIds = array();
 	$dups = "";
 	$kwl = array();
 	foreach($cols as $col) {
 		if(is_numeric($col[1]) && $wgLanguageCode == $col[2]) {
 			$page_id = $col[1];
-			
+
 			//parse for comma-separated keywords on the same line
 			$kws = explode(',',$col[0]);
 			foreach ($kws as $keywords) {
 				$kwl[$page_id] = trim($keywords);
 			}
-			$ids[] = $page_id;	
+			$ids[] = $page_id;
 		}
 	}
-	
-	if(sizeof($kwl) < 1000 && $wgLangaugeCode == "en") {
+
+	if(sizeof($kwl) < 1000 && $wgLanguageCode == "en") {
 		print("ERROR: Top10k problem fetching spreadsheet. Fewer than 1000 ids found ");
 		return;
 	}
-	
+
 	if($ids) {
 		if (!checkForRedirects($dbw, $ids)) return;
 		//if (!checkForMissing($dbw, $ids)) return;
 		checkForMissing($dbw, $ids);
 	}
-	
+
 	$dup_kw = array();
 	foreach ($kwl as $page_id => $keywords) {
 		if (!$keywords) {
@@ -2566,10 +2566,10 @@ try {
 				'mmk_rating_date' => '',
 				'mmk_language_code' => 'en',
 				'mmk_last_updated' => 0
-				);	
+				);
 		$dbw->insert('mmk.mmk_manager',$cols,__METHOD__);
 	}
-	
+
 	if (count($dup_kw) > 0) {
 		print "MULTIPLE PAGES IN SPREADSHEET FOR THESE KEYWORDS:\n";
 		print implode("\n",$dup_kw);
@@ -2633,7 +2633,7 @@ foreach ($res as $row) {
 	//already done?
 	$count = $dbw->selectField('mmk.mmk_manager', array('count(*)'), array('mmk_keyword' => $row->title), __METHOD__);
 	if ($count > 0) continue;
-	
+
 	//leave out the keywords & page_title and grab those on the insert
 	$cols = array(
 			'mmk_position' => $row->position,
@@ -2662,10 +2662,10 @@ function checkForRedirects(&$dbr, &$ids) {
 	$redirects = "";
 	foreach($res as $row) {
 		if($redirects == "") {
-			$redirects = "The following pages are redirects:\n";	
+			$redirects = "The following pages are redirects:\n";
 		}
 		else {
-			$redirects .= "\n";	
+			$redirects .= "\n";
 		}
 		$redirects .= getBaseUrl() . '/' . $row->page_title . " (" . $row->page_id . ")";
 
@@ -2695,9 +2695,9 @@ function checkForMissing(&$dbr, &$ids) {
 function getBaseUrl() {
 	global $wgLanguageCode;
 	if($wgLanguageCode == "en") {
-		return("http://www.wikihow.com");       
+		return("http://www.wikihow.com");
 	}
   else {
-		return("http://" . $wgLanguageCode . ".wikihow.com"); 
+		return("http://" . $wgLanguageCode . ".wikihow.com");
   }
 }

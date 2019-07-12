@@ -21,9 +21,6 @@ CREATE TABLE mmk.mmk_manager_log (
  */
 
 
-global $IP;
-require_once("$IP/extensions/wikihow/titus/Titus.class.php");
-
 class MMKManager extends UnlistedSpecialPage {
 
 	const MMK_STATUS_ANY		= -1;	//don't worry about the status (also don't mark the as being in review)
@@ -33,39 +30,45 @@ class MMKManager extends UnlistedSpecialPage {
 	const MMK_STATUS_MATCHED	= 3; 	//matched (query has been associated with a wikiHow page)
 	const MMK_STATUS_DONE		= 4; 	//done (matched page, editing and visual work is complete)
 	const MMK_STATUS_BAD		= 5;	//bad (query is a topic we do not want or is malformed/not a how to)
-	
+
 	static $status_names = array('Available','In Review','Writing','Matched','Done','Bad');
 	static $title_changes = 0;
 	static $errors = array();
-	
-	function __construct() {
-		$this->action = $GLOBALS['wgTitle']->getPartialUrl();
+
+	public function __construct() {
+		global $wgHooks;
+		$this->action = RequestContext::getMain()->getTitle()->getPartialUrl();
 		parent::__construct($this->action);
-		$GLOBALS['wgHooks']['ShowSideBar'][] = array('MMKManager::removeSideBarCallback');
+		$wgHooks['ShowSideBar'][] = array('MMKManager::removeSideBarCallback');
 	}
 
-    static function removeSideBarCallback(&$showSideBar) {
+	public static function removeSideBarCallback(&$showSideBar) {
 		$showSideBar = false;
 		return true;
 	}
 
-    static function httpDownloadHeaders($filename) {
+	// method stops redirects when running on titus host
+	public function isSpecialPageAllowedOnTitus() {
+		return true;
+	}
+
+	static function httpDownloadHeaders($filename) {
 		header('Content-type: application/force-download');
 		header('Content-disposition: attachment; filename="' . $filename . '"');
 	}
-	
+
 	function doKeywordQuery($posted_values) {
-		global $wgLanguageCode;
-		
+		$langCode = $this->getLanguage()->getCode();
+
 		$keywords = $posted_values['keywords'];
-		$query_rank = ($posted_values['query_rank']) ? $posted_values['query_rank'] : '1';
-		$query_status = $posted_values['query_status'];
+		$query_rank = (int) ($posted_values['query_rank'] ?? 1);
+		$query_status = (int) ($posted_values['query_status'] ?? 0);
 		$limit = $posted_values['query_limit'];
 		$change_status = $posted_values['auto_mark_status'];
-	
+
 		if (empty($limit)) $limit = 1000;
-	
-		$dbr = wfGetDB(DB_SLAVE);
+
+		$dbr = wfGetDB(DB_REPLICA);
 		$kws = ($keywords) ? ' and match(title) against (' . $dbr->addQuotes($keywords) . ') ' : '';
 
 		//status queries need a little help
@@ -74,13 +77,13 @@ class MMKManager extends UnlistedSpecialPage {
 		elseif ($query_status == self::MMK_STATUS_DEFAULT)
 			$status_query = ' and (mmk_status = 0 or mmk_status IS NULL) ';
 		else
-			$status_query = ' and mmk_status = '.$query_status.' '; 
-		
+			$status_query = " and mmk_status = $query_status ";
+
 		// Find keywords, which match keyword database
-		$sql = "select keywords.* from mmk.keywords 
-				left join mmk.mmk_manager on position = mmk_position 
+		$sql = "select keywords.* from mmk.keywords
+				left join mmk.mmk_manager on position = mmk_position
 				where position >= $query_rank $kws $status_query
-				and (mmk_language_code = " . $dbr->addQuotes($wgLanguageCode) . " or mmk_language_code IS NULL) 
+				and (mmk_language_code = " . $dbr->addQuotes($langCode) . " or mmk_language_code IS NULL)
 				order by position limit $limit";
 		$res = $dbr->query($sql, __METHOD__);
 
@@ -88,7 +91,7 @@ class MMKManager extends UnlistedSpecialPage {
 		foreach ( $res as $row ) {
 			$queryInfo[] = array('title' => $row->title, 'position' => $row->position);
 		}
-		
+
 		header("Content-Type: text/tsv");
 		header("Content-Disposition: attachment; filename=\"keyword.xls\"");
 
@@ -105,10 +108,10 @@ class MMKManager extends UnlistedSpecialPage {
 
 			$altKeywords = array($dbr->addQuotes($qi['title']));
 			$sql = 'select ti.*, mmkm.* from mmk.mmk_manager mmkm
-					left join ' . TitusDB::getDBname().'.'.TitusDB::TITUS_INTL_TABLE_NAME . ' ti 
-					on ti_page_id = mmk_page_id and ti_language_code = '. $dbr->addQuotes($wgLanguageCode).' 
-					where mmk_keyword in (' . implode(',', $altKeywords) . ') 
-					and mmk_language_code = ' . $dbr->addQuotes($wgLanguageCode);
+					left join ' . TitusDB::getDBname().'.'.TitusDB::TITUS_INTL_TABLE_NAME . ' ti
+					on ti_page_id = mmk_page_id and ti_language_code = '. $dbr->addQuotes($langCode).'
+					where mmk_keyword in (' . implode(',', $altKeywords) . ')
+					and mmk_language_code = ' . $dbr->addQuotes($langCode);
 			$res = $dbr->query($sql, __METHOD__);
 
 			foreach ($res as $row) {
@@ -120,35 +123,35 @@ class MMKManager extends UnlistedSpecialPage {
 				$qi['rating date'] = ($row->mmk_rating_date) ? $row->mmk_rating_date : $row->ti_rating_date;
 				$last_updated = $row->mmk_last_updated;
 			}
-			
+
 			//make title clickable
 			$page = ($qi['page']) ? 'http://www.wikihow.com/'.$qi['page'] : '';
-			
+
 			print $qi['title'] . "\t" . $qi['position'] . "\t" . $qi['status'] . "\t" . $page. "\t" . $qi['rating'] . "\t" . $qi['rating date'] . "\t" .  $row->mmk_last_updated;
 			if ( $row->ti_page_id ) {
 				print "\t" . $row->ti_is_top10k . "\t" . $row->ti_top10k . "\t" . $row->ti_last_fellow_edit . "\t" . $row->ti_last_fellow_edit_timestamp . "\t" . $row->ti_wikiphoto_timestamp . "\t" . $row->ti_helpful_percentage . "\t" . $row->ti_helpful_total;
 			}
 			print "\n";
-			
+
 			//auto-update the status
 			if ($query_status == self::MMK_STATUS_DEFAULT && $change_status == "on")
 				$this->setStatus($qi,1);
 		}
 		exit;
 	}
-	
+
 	function processUpload($uploadfile) {
-		if(!file_exists($uploadfile) || !is_readable($uploadfile)) {
+		if (!file_exists($uploadfile) || !is_readable($uploadfile)) {
 			self::$errors[] = 'Bad file. Could not upload.';
 			return;
 		}
-		
+
 		$content = file_get_contents($uploadfile);
 		if ($content === false) {
 			self::$errors[] = 'Bad file. Could not upload.';
 			return;
 		}
-		
+
 		$rows = preg_split('@(\r|\n|\r\n)@m', $content);
 		$header = NULL;
 		$result_log = array();
@@ -161,35 +164,35 @@ class MMKManager extends UnlistedSpecialPage {
 			// skip first line if it's the position\t... header
 			$position = intval($fields[1]);
 			if (!$position) {
-				if(!$header) $header = $fields;
+				if (!$header) $header = $fields;
 				continue;
 			}
 
 			$fields = array_pad($fields, count($header), '');
 			$fields = array_combine($header, $fields);
-		
+
 			//resetting "in review" status to "default"
 			$fields['Status'] = ($fields['Status'] == 1) ? 0 : $fields['Status'];
 
 			//save this to the db
-			if ($this->saveUploadedRow($fields)) {			
+			if ($this->saveUploadedRow($fields)) {
 				//update counts for different statuses
 				$result_log[$fields['Status']]++;
 			}
 		}
-		
+
 		//log this upload
 		$this->logUpload($result_log);
-		
+
 		return 'uploaded';
 	}
-	
+
 	private function saveUploadedRow($row) {
-		global $wgLanguageCode;
 		$dbw = wfGetDB(DB_MASTER);
-		
+		$langCode = $this->getLanguage()->getCode();
+
 		$new_page_id = '';
-			
+
 		//what is the page according to the current table?
 		$res = $dbw->select('mmk.mmk_manager',array('mmk_page_title','mmk_page_id'),array('mmk_position' => $row['Position']), __METHOD__);
 		if ($res) {
@@ -202,18 +205,18 @@ class MMKManager extends UnlistedSpecialPage {
 			$old_page_title = '';
 			$old_page_id = '';
 		}
-		
+
 		$new_page_title = trim(preg_replace('@http://www.wikihow.com/@i','',$row['Title']));
 		$new_page_title = preg_replace('@ @','-',$new_page_title);
 		$new_page_title = urldecode($new_page_title);
-		
+
 		if ($old_page_title != $new_page_title) {
 			//I feel a disturbance in the Force...
 			$page_title = $new_page_title;
 			$page_id = '';
-			
+
 			if ($new_page_title != '') {
-				//we have a brand new one! 
+				//we have a brand new one!
 				//grab page id
 				$title = Title::newFromText($new_page_title);
 				if ($title) {
@@ -227,7 +230,7 @@ class MMKManager extends UnlistedSpecialPage {
 					return false;
 				}
 			}
-			
+
 			//count this so that we can log how many we change
 			if ($old_page_title != '') self::$title_changes++;
 		}
@@ -236,7 +239,7 @@ class MMKManager extends UnlistedSpecialPage {
 			$page_title = $old_page_title;
 			$page_id = $old_page_id;
 		}
-		
+
 		$position = array('mmk_position' => $row['Position']);
 		$updates = array('mmk_keyword' => $row['Keyword'],
 						'mmk_status' => $row['Status'],
@@ -245,23 +248,23 @@ class MMKManager extends UnlistedSpecialPage {
 						'mmk_old_page_id' => is_null($old_page_id) ? '' : $old_page_id,
 						'mmk_rating' => $row['rating'],
 						'mmk_rating_date' => $row['rating date'],
-						'mmk_language_code' => $wgLanguageCode,
+						'mmk_language_code' => $langCode,
 						'mmk_last_updated' => wfTimeStampNow());
-		
+
 		$res = $dbw->upsert('mmk.mmk_manager',array_merge($position,$updates),$position,$updates,__METHOD__);
-		
+
 		if (!$res) {
 			self::$errors[] = 'Error updating the database for keywords = '.$row['Keyword'].'. Check your data. Maybe something funky in there?';
 			return false;
 		}
-		
+
 		return true;
 	}
-	
+
 	private function setStatus($row,$new_state) {
-		global $wgLanguageCode;
 		$dbw = wfGetDB(DB_MASTER);
-				
+		$langCode = $this->getLanguage()->getCode();
+
 		$position = array('mmk_position' => $row['position']);
 		$updates = array('mmk_keyword' => $row['title'],
 						'mmk_status' => $new_state,
@@ -270,106 +273,110 @@ class MMKManager extends UnlistedSpecialPage {
 						'mmk_old_page_id' => is_null($old_page_id) ? '' : $old_page_id,
 						'mmk_rating' => $row['rating'],
 						'mmk_rating_date' => $row['rating date'],
-						'mmk_language_code' => $wgLanguageCode,
+						'mmk_language_code' => $langCode,
 						'mmk_last_updated' => wfTimeStampNow());
-		
+
 		$res = $dbw->upsert('mmk.mmk_manager',array_merge($position,$updates),$position,$updates,__METHOD__);
 		return $res;
 	}
-	
+
 	private function logUpload($log) {
 		$dbw = wfGetDB(DB_MASTER);
-		
-		$notes = 'Queries added to writing: '.intval($log[self::MMK_STATUS_WRITING]).'; 
-				Queries matched: '.intval($log[self::MMK_STATUS_MATCHED]).'; 
-				Queries done: '.intval($log[self::MMK_STATUS_DONE]).'; 
-				Queries bad: '.intval($log[self::MMK_STATUS_BAD]).';  
-				Queries released: '.intval($log[self::MMK_STATUS_DEFAULT]).'; 
+
+		$notes = 'Queries added to writing: '.intval($log[self::MMK_STATUS_WRITING]).';
+				Queries matched: '.intval($log[self::MMK_STATUS_MATCHED]).';
+				Queries done: '.intval($log[self::MMK_STATUS_DONE]).';
+				Queries bad: '.intval($log[self::MMK_STATUS_BAD]).';
+				Queries released: '.intval($log[self::MMK_STATUS_DEFAULT]).';
 				Query associations changed: '.intval(self::$title_changes).'.' ;
-		
+
 		$res = $dbw->insert('mmk.mmk_manager_log', array('mml_notes' => $notes), __METHOD__);
 		return $res;
 	}
-	
+
 	private function makeStatusPullDown() {
 		$html = '<select name="query_status" id="query_status">';
-		
+
 		foreach (self::$status_names as $key => $match) {
 			$html .= "<option value='$key'>$match</option>";
 		}
 		$html .= '<option value="-1">Any</option>
 				</select>';
-		
+
 		return $html;
 	}
-	
+
 	private function makeStatusKey() {
 		$html = '<ul>';
 		foreach (self::$status_names as $key => $match) {
 			$html .= "<li>$key = $match</li>";
 		}
 		$html .= '</ul>';
-		
+
 		return $html;
 	}
-	
+
 	private function getRecentActivity() {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$html = '';
-	
+
 		$res = $dbr->select('mmk.mmk_manager_log', array('*'), array(), __METHOD__, array('ORDER BY' => 'mml_uploaded DESC', 'LIMIT' => 10));
 		foreach ($res as $row) {
 			$html .= '<p><b>'.	$row->mml_uploaded.'</b><br />'.$row->mml_notes.'</p>';
 		}
-		
+
 		return $html;
 	}
-		
+
 	/**
 	 * Execute special page.  Only available to wikihow staff.
 	 */
-	function execute($par) {
-		global $wgRequest, $wgOut, $wgUser, $wgLang;
+	public function execute($par) {
+		global $wgIsDevServer;
+
+		$req = $this->getRequest();
+		$out = $this->getOutput();
+		$user = $this->getUser();
 
 		// Check permissions
-		$userGroups = $wgUser->getGroups();
-		if ($wgUser->isBlocked() || !in_array('staff', $userGroups)) {
-			$wgOut->setRobotpolicy('noindex,nofollow');
-			$wgOut->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
+		$userGroups = $user->getGroups();
+		if ($user->isBlocked() || !in_array('staff', $userGroups)) {
+			$out->setRobotPolicy('noindex,nofollow');
+			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
-		
+
 		$titusHost = 'titus.wikiknowhow.com';
-		if ($_SERVER['HTTP_HOST'] != $titusHost) {
-			$wgOut->redirect("https://$titusHost/Special:MMKManager");
+		if (!$wgIsDevServer && $_SERVER['HTTP_HOST'] != $titusHost) {
+			$out->redirect("https://$titusHost/Special:MMKManager");
 		}
-		
+
 		//some of these take a little while
 		set_time_limit(0);
 
-		if ($wgRequest->getVal('keyword')) {
-			$this->doKeywordQuery($wgRequest->getValues());
+		if ($req->getVal('keyword')) {
+			$this->doKeywordQuery($req->getValues());
 			return;
 		}
-		else if ($wgRequest->getVal('upload')) {
-			$html = $this->processUpload($wgRequest->getFileTempName('adminFile'));
+		elseif ($req->getVal('upload')) {
+			$html = $this->processUpload($req->getFileTempName('adminFile'));
 		}
 
-		$wgOut->setHTMLTitle('MMK Manager - wikiHow');
-		$wgOut->setPageTitle('MMK Manager');
+		$out->setHTMLTitle('MMK Manager - wikiHow');
+		$out->setPageTitle('MMK Manager');
 
 		$tmpl = $this->getGuts();
-		
+
 		if ($html) $tmpl .= $html;
-		
+
 		if (!empty(self::$errors)) {
 			$errors = '<div class="errors">ERRORS:<br />'.implode('<br />',self::$errors).'</div>';
 			$tmpl = $errors.  $tmpl;
 		}
-		
-		$wgOut->addHTML($tmpl);
+
+		$out->addHTML($tmpl);
 	}
-	
+
 	function getGuts() {
 		$action = $this->action;
 		$statuses = $this->makeStatusPullDown();
@@ -410,7 +417,7 @@ class MMKManager extends UnlistedSpecialPage {
 			<p><button type="submit" id="keyword-submit">submit</button></p>
 		</div>
 		</form>
-		
+
 		<form id="admin-upload-form" action="/Special:$action?upload=1" method="post" enctype="multipart/form-data">
 		<div class='bx'>
 			<span class='sm'>Upload</span>
@@ -428,7 +435,7 @@ class MMKManager extends UnlistedSpecialPage {
 			<div id='keyword-results'></div>
 		</div>
 		</form>
-		
+
 		<div class=bx>
 			<p class=sm>Recent Activity Log</p>
 			<div class="recent_log">$log</div>

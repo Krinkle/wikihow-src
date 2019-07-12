@@ -1,5 +1,8 @@
 		<tr>
-			<td class="pb-title"><a href="/{{page_title}}">{{title}}</a></td>
+			<td class="pb-title">
+				{{^hide_link}} <a href="/{{page_title}}">{{title}}</a> {{/hide_link}}
+				{{#hide_link}} {{title}} {{/hide_link}}
+			</td>
 			<td class="pb-star">
 				{{#rs}}<div class="pb-icon pb-rising-icon" />{{/rs}}
 			</td>

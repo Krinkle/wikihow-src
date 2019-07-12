@@ -2,9 +2,9 @@
 
 if ( !defined('MEDIAWIKI') ) die();
 
-$wgExtensionMessagesFiles['AlternateDomain'] = dirname(__FILE__) . '/AlternateDomain.i18n.php';
+$wgExtensionMessagesFiles['AlternateDomain'] = __DIR__ . '/AlternateDomain.i18n.php';
 
-$wgAutoloadClasses['AlternateDomain'] = dirname(__FILE__) . '/AlternateDomain.class.php';
+$wgAutoloadClasses['AlternateDomain'] = __DIR__ . '/AlternateDomain.class.php';
 
 $wgHooks['BeforePageDisplay'][] = 'AlternateDomain::onBeforePageDisplay';
 $wgHooks['TitleSquidURLs'][] = array('AlternateDomain::onTitleSquidURLs');
@@ -43,6 +43,15 @@ $wgHooks['SetupAfterCache'][] = 'AlternateDomain::onSetupAfterCache';
 $wgHooks['WikihowTemplateBeforeCreateLogoImage'][] = 'AlternateDomain::onWikihowTemplateBeforeCreateLogoImage';
 $wgHooks['MinervaTemplateWikihowBeforeCreateHeaderLogo'][] = 'AlternateDomain::onMinervaTemplateWikihowBeforeCreateHeaderLogo';
 $wgHooks['WikihowTemplateAfterGetMobileUrl'][] = 'AlternateDomain::onWikihowTemplateAfterGetMobileUrl';
+$wgHooks['GetTabsArrayShowDiscussTab'][] = 'AlternateDomain::onGetTabsArrayShowDiscussTab';
+$wgHooks['WikihowArticleBeforeProcessBody'][] = 'AlternateDomain::onWikihowArticleBeforeProcessBody';
+$wgHooks['WikihowMobileSkinAfterPrepareDiscoveryTools'][] = 'AlternateDomain::onWikihowMobileSkinAfterPrepareDiscoveryTools';
+$wgHooks['WikihowMobileSkinAfterPreparePersonalTools'][] = 'AlternateDomain::onWikihowMobileSkinAfterPreparePersonalTools';
+$wgHooks['HeaderBuilderAfterGetTabsArray'][] = 'AlternateDomain::onHeaderBuilderAfterGetTabsArray';
+$wgHooks['ResourceLoaderRegisterModules'][] = 'AlternateDomain::onResourceLoaderRegisterModules';
+$wgHooks['HeaderBuilderGetCategoryLinksShowCategoryListing'][] = 'AlternateDomain::onHeaderBuilderGetCategoryLinksShowCategoryListing';
+$wgHooks['PagePolicyShowCurrentTitle'][] = 'AlternateDomain::onPagePolicyShowCurrentTitle';
+
 // hooks for no branding site only
 $wgHooks['WikihowTemplateAfterCreateNotices'][] = 'AlternateDomain::onWikihowTemplateAfterCreateNotices';
 $wgHooks['RelatedWikihowsShowEditLink'][] = 'AlternateDomain::onRelatedWikihowsShowEditLink';

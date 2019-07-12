@@ -1,4 +1,4 @@
-<?
+<?php
 abstract class WAPArticle {
 	var $dbType = null;
 	var $page_id = null;
@@ -17,7 +17,7 @@ abstract class WAPArticle {
 	const STATE_EXCLUDED = 'excluded';
 	const STATE_UNASSIGNED = 'unassigned';
 	const STATE_ASSIGNED = 'assigned';
-	const STATE_COMPLETED = 'completed';
+	const STATE_COMPLETE = 'completed';
 	const STATE_NEW = 'new';
 
 	protected function init(&$row, $dbType) {
@@ -88,7 +88,7 @@ abstract class WAPArticle {
 	public function getUser() {
 		if (intVal($this->user_id) == 0) {
 			$this->ca = null;
-		} else if (empty($this->ca)) {
+		} elseif (empty($this->ca)) {
 			$userClass = WAPDB::getInstance($this->dbType)->getWAPConfig()->getUserClassName();
 			$this->ca = $userClass::newFromId($this->user_id, $this->dbType);
 		}

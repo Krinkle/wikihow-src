@@ -4,9 +4,6 @@
 .header, #header_outer, #header_space, #sidebar, #actionbar, .wh_block, #footer{
 	display: none;
 }
-.mediawiki #search_oversearch {
-	display: none !important;
-}
 #mw-mf-page-center {
 	padding-bottom: 0;
 }
@@ -22,9 +19,6 @@
 	position: fixed;
 	top: 0;
 	z-index: 50;
-}
-#nojs_header.lang_ja {
-	background-image: url(/extensions/wikihow/mobile/images/wikihow_logo_230_ja.png);
 }
 .top_section {
 	padding-top: 5px;
@@ -53,9 +47,6 @@
 #search {
 	margin: 15px;
 }
-#search_oversearch {
-	display: none;
-}
 #nojs_input_container {
 	border: 3px solid #97ba78;
 	-webkit-border-radius: 3px;
@@ -81,17 +72,17 @@
 #nojssb_b_input::-webkit-input-placeholder {
 	color: #FFF;
 }
-
+ 
 #nojssb_b_input:-moz-placeholder { /* Firefox 18- */
-	color: #FFF;
+	color: #FFF;  
 }
 
 #nojssb_b_input::-moz-placeholder {  /* Firefox 19+ */
-	color: #FFF;
+	color: #FFF;  
 }
 
-#nojssb_b_input:-ms-input-placeholder {
-	color: #FFF;
+#nojssb_b_input:-ms-input-placeholder {  
+	color: #FFF;  
 }
 
 #nojssb_input {

@@ -1,7 +1,8 @@
-<?
+<?php
 $messages = array();
 $messages['en'] =
 	array(
+		'modal_close' => 'Close',
 		//First Edit Modal Dialog
 		'first_edit_hdr' => 'Thanks for your edit!',
 		'first_edit_txt' => 'There are tons of ways for you to help out wikiHow.<br />What do you want to do next?',
@@ -54,5 +55,7 @@ $messages['en'] =
 		'fad_ta_ph' => 'Details here...',
 		'fad_btn_skip' => 'Skip',
 		'fad_btn_submit' => 'Submit',
+		//Discuss Tab
+		'discuss_tab_hdr' => 'Discuss Article'
 	);
 

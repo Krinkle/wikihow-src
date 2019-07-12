@@ -9,9 +9,8 @@
 if (!defined('MEDIAWIKI'))
 	die();
 
-$wgAutoloadClasses['TechArticle\TechArticleStampHooks'] = dirname( __FILE__ ) . '/TechArticleStamp.hooks.php';
+$wgAutoloadClasses['TechArticle\TechArticleStampHooks'] = __DIR__ . '/TechArticleStamp.hooks.php';
 
-$wgHooks['ProcessArticleHTMLAfter'][] = 'TechArticle\TechArticleStampHooks::onProcessArticleHTMLAfter';
-$wgHooks['BeforeRenderPageActionsMobile'][] = 'TechArticle\TechArticleStampHooks::onBeforeRenderPageActionsMobile';
+$wgHooks['BylineStamp'][] = 'TechArticle\TechArticleStampHooks::setBylineInfo';
 
 $wgMessagesDirs['TechArticleStamp'] = __DIR__ . '/i18n';

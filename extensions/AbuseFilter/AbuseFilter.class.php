@@ -842,7 +842,7 @@ class AbuseFilter {
 
 		// wikiHow (Alberto, 2017-01-24) - Ticket #1834
 		$isNew = $title && !$title->exists();
-		list($mapper, $destUser) = EditMapper\EditMapperHooks::getActiveMapper($isNew, $wgUser);
+		list($mapper, $destUser) = EditMapper\EditMapperHooks::getActiveMapper($title, $wgUser, $isNew);
 		if ($mapper && $destUser && ($mapper instanceof EditMapper\PortalEditMapper)) {
 			$mapper->doMapping($wgUser, $destUser);
 		} else {

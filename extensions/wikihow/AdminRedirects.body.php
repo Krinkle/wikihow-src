@@ -8,10 +8,13 @@ class AdminRedirects extends UnlistedSpecialPage {
 
 	function getIntlRedirect($lang, $pageid) {
 		static $dbr = null;
-		if (!$dbr) $dbr = wfGetDB(DB_SLAVE);
-		$sql = 'SELECT rd_title FROM ' . Misc::getLangDB($lang) . '.redirect WHERE rd_from=' . intval($pageid)
-			   . ' AND rd_namespace=' . NS_MAIN;
-		$res = $dbr->query($sql, __METHOD__);
+		if (!$dbr) $dbr = wfGetDB(DB_REPLICA);
+
+		$tables = Misc::getLangDB($lang) . '.redirect';
+		$fields = 'rd_title';
+		$where = [ 'rd_from' => intval($pageid), 'rd_namespace' => NS_MAIN ];
+
+		$res = $dbr->select($tables, $fields, $where);
 		$row = $res ? $res->fetchObject() : null;
 		return $row ? Misc::getLangBaseURL($lang) . '/' . $row->rd_title : '';
 	}
@@ -26,19 +29,21 @@ class AdminRedirects extends UnlistedSpecialPage {
 	 * Execute special page.  Only available to wikihow staff.
 	 */
 	function execute($par) {
-		global $wgRequest, $wgOut, $wgUser, $wgLang;
+		$req = $this->getRequest();
+		$out = $this->getOutput();
+		$user = $this->getUser();
 
-		$userGroups = $wgUser->getGroups();
-		if ($wgUser->isBlocked() || !in_array('staff', $userGroups)) {
-			$wgOut->setRobotpolicy('noindex,nofollow');
-			$wgOut->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
+		$userGroups = $user->getGroups();
+		if ($user->isBlocked() || !in_array('staff', $userGroups)) {
+			$out->setRobotPolicy('noindex,nofollow');
+			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
 
-		if ($wgRequest->wasPosted()) {
+		if ($req->wasPosted()) {
 			set_time_limit(0);
-			$pageList = $wgRequest->getVal('pages-list', '');
-			$wgOut->setArticleBodyOnly(true);
+			$pageList = $req->getVal('pages-list', '');
+			$out->setArticleBodyOnly(true);
 			if ($pageList) $pageList = urldecode($pageList);
 			$pageList = preg_split('@[\r\n]+@', $pageList);
 			$urls = array();
@@ -108,14 +113,14 @@ class AdminRedirects extends UnlistedSpecialPage {
 			return;
 		}
 
-		$wgOut->setHTMLTitle('Admin - Lookup Redirects - wikiHow');
+		$out->setHTMLTitle('Admin - Lookup Redirects - wikiHow');
 
 		$tmpl = self::getGuts('AdminRedirects');
 
-		$wgOut->addHTML($tmpl);
+		$out->addHTML($tmpl);
 	}
-		
-	function getGuts($action) {			
+
+	function getGuts($action) {
 		return "
 		<script src='/extensions/wikihow/common/download.jQuery.js'></script>
 		<form method='post' action='/Special:$action'>

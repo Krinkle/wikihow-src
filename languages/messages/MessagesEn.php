@@ -5342,7 +5342,7 @@ This page contains statistics gathered by a machine, which may \'\'or may not\'\
 \'\'\'wikiHow does not yet have an article with this exact name.\'\'\'
 *\'\'\'[$2 Write the $1 article.]\'\'\'
 *\'\'\'wikiHow is a collaborative writing project to build the world\'s largest how-to manual.\'\'\'  To learn more, visit the [[Main Page]] or [[About wikiHow]].  You can help others learn \'\'\'How to $1\'\'\' by  [http://www.wikihow.com/index.php?action=easy&title=$2 writing the article now].
-*\'\'\'[[Special:EmailLink?target=$1&returnto=$2|Forward this page]]\'\'\' to a friend who knows \'\'\'"How to $1"\'\'\' and can write this article.
+*\'\'\'Forward this page\'\'\' to a friend who knows \'\'\'"How to $1"\'\'\' and can write this article.
 *[[Special:LSearch/?search=$1|Search for $1]] in other wikiHow articles.
 *If you previously created article under this title, the title may have been changed. Be sure to [[Special:LSearch/?search=$1|Search wikiHow]] for words that might be in the text of the article.
 *Alternatively, the page may have been deleted because it didn\'t follow the wikiHow community guidelines.  See our [[Terms of Use]] for possible reasons why the article may have been deleted.
@@ -5653,6 +5653,7 @@ Article pages are deleted according to wikiHow\'s [[deletion policy]].  Please c
 'congratulations-image' => 'Congratulations. When you save the article you are editing, this image will appear in your article',
 'contextchars' => 'Context per line:',
 'contextlines' => 'Lines per hit:',
+'continue' => 'Continue',
 'contribs' => 'Contribs',
 'contribslink' => 'contribs',
 'contribsub' => 'For $1',
@@ -5929,6 +5930,7 @@ of when the lock will be released',
 'error' => 'Error',
 'error-article-not-found' => 'Error: Article not found.',
 'error-no-title' => 'Error: No title specified.',
+'error-invalid-email-address' => 'Error: Invalid email address given.',
 'errorpagetitle' => 'Error',
 'exbeforeblank' => 'content before blanking was: \'$1\'',
 'exblank' => 'page was empty',
@@ -6942,7 +6944,7 @@ in addition to a hand written note about their new article.',
 'newarticle' => '(New)',
 'newarticleboost' => 'New article boost',
 'newarticlepatrollogpage' => 'New article boost',
-'newarticlepatrollogpagetext' => 'This is the list of log entries for the [[Special:Newarticleboost|New article boost]] feature.',
+'newarticlepatrollogpagetext' => 'This is the list of log entries for the [[Special:NewArticleBoost|New article boost]] feature.',
 'newarticletext' => 'You\'ve followed a link to a page that doesn\'t exist yet.
 To create the page, start typing in the box below
 (see the [[{{ns:help}}:Contents|help page]] for more info).  <br/><br/>
@@ -6991,7 +6993,7 @@ You may enter a user name (not real name) to see if that user name has been crea
 \'\'\'wikiHow does not yet have an article with this exact name.\'\'\'
 *\'\'\'[$2 Write the $1 article.]\'\'\'
 *\'\'\'wikiHow is a collaborative writing project to build the world\'s largest how-to manual.\'\'\'  To learn more, visit the [[Main Page]] or [[About wikiHow]].  You can help others learn \'\'\'How to $1\'\'\' by  [http://www.wikihow.com/index.php?action=easy&title=$2 writing the article now].
-*\'\'\'[[Special:EmailLink?target=$1&returnto=$2|Forward this page]]\'\'\' to a friend who knows \'\'\'"How to $1"\'\'\' and can write this article.
+*\'\'\'Forward this page\'\'\' to a friend who knows \'\'\'"How to $1"\'\'\' and can write this article.
 *[[Special:LSearch/?search=$1|Search for $1]] in other wikiHow articles.
 *If you previously created article under this title, the title may have been changed. Be sure to [[Special:LSearch/?search=$1|Search wikiHow]] for words that might be in the text of the article.
 *Alternatively, the page may have been deleted because it didn\'t follow the wikiHow community guidelines.  See our [[Terms of Use]] for possible reasons why the article may have been deleted.
@@ -7001,7 +7003,7 @@ You may enter a user name (not real name) to see if that user name has been crea
 \'\'\'wikiHow does not yet have an article with this exact name.\'\'\'
 *\'\'\'[$2 Write the $1 article.]\'\'\'
 *\'\'\'wikiHow is a collaborative writing project to build the world\'s largest how-to manual.\'\'\'  To learn more, visit the [[Main Page]] or [[About wikiHow]].  You can help others learn \'\'\'How to $1\'\'\' by  [http://www.wikihow.com/index.php?action=easy&title=$2 writing the article now].
-*\'\'\'[[Special:EmailLink?target=$1&returnto=$2|Forward this page]]\'\'\' to a friend who knows \'\'\'"How to $1"\'\'\' and can write this article.
+*\'\'\'Forward this page\'\'\' to a friend who knows \'\'\'"How to $1"\'\'\' and can write this article.
 *[[Special:LSearch/?search=$1|Search for $1]] in other wikiHow articles.
 *If you previously created article under this title, the title may have been changed. Be sure to [[Special:LSearch/?search=$1|Search wikiHow]] for words that might be in the text of the article.
 *Alternatively, the page may have been deleted because it didn\'t follow the wikiHow community guidelines.  See our [[Terms of Use]] for possible reasons why the article may have been deleted.
@@ -7286,12 +7288,16 @@ $4
 'preferences-summary' => '',
 'prefixindex' => 'Prefix index',
 'prefixindex-summary' => '',
+'prefs-delete-account-confirm' => 'The request to delete your account has been made.',
 'prefs-help-email' => '* E-mail (optional): Enables others to contact you through your user or user_talk page without needing to reveal your identity.',
 'prefs-help-email-enotif' => 'This address is also used to send you e-mail notifications if you enabled the options.',
 'prefs-help-realname' => '* Real name (optional):  If you choose to provide one, this will be used for giving you attribution for your work.  Otherwise, any articles that you create or edit will display your user name.',
 'prefs-misc' => 'Misc',
 'prefs-notifications' => 'On Site Notifications',
 'prefs-personal' => 'User profile',
+'prefs-privacy' => 'Privacy',
+'prefs-privacy-message-delete' => "If you would like to have your wikiHow account and all personal data deleted from our site, we will he happy to do so. Just email [mailto:wiki@wikihow.com wiki@wikihow.com] with the subject line \"Account deletion request\" and provide your wikiHow user name.",
+'prefs-privacy-message-download' => "Download your data",
 'prefs-rc' => 'Recent changes',
 'prefs-watchlist' => 'Watchlist',
 'prefs-watchlist-days' => 'Number of days to show in watchlist:',
@@ -7339,6 +7345,7 @@ You may enter a user name (\'\'not\'\' real name) to view protections and unprot
 'proxyblocker' => 'Proxy blocker',
 'proxyblockreason' => 'Your IP address has been blocked because it is an open proxy. Please contact your Internet service provider or tech support and inform them of this serious security problem.',
 'proxyblocksuccess' => 'Done.',
+'publish' => 'Publish',
 'pubmedurl' => 'http://www.ncbi.nlm.nih.gov/entrez/query.fcgi?cmd=Retrieve&db=pubmed&dopt=Abstract&list_uids=$1',
 'qbbrowse' => 'Browse',
 'qbedit' => 'Edit',
@@ -7780,7 +7787,7 @@ The [http://meta.wikimedia.org/wiki/Help:Job_queue job queue] length is \'\'\'$7
 'textmatches' => 'Page text matches',
 'thank-you-kudos' => '<b>Thank you for your words of praise!</b> Your message has been posted on the \'<a href=\'/Thank-the-Authors-of-a-wikiHow-Page\'>kudos</a>\' page of each author that contributed to <b>$2</b>, found at the bottom of each article.
 <br/><br/>
-wikiHow authors can check their <a href=\'/Special:Mypages/Fanmail\'>kudos pages</a> and can view your messages of thanks there.  Your appreciation and feedback truly matters, and will help to keep our authors inspired and motivated to continue writing great articles.
+wikiHow authors can check their <a href=\'/Special:MyPages/fanmail\'>kudos pages</a> and can view your messages of thanks there.  Your appreciation and feedback truly matters, and will help to keep our authors inspired and motivated to continue writing great articles.
 <br/><br/>
 <a href=\'$1\'>Click here to return to $2</a>.',
 'thank-you-requesting-topic' => '\'\'\'Thank you for suggesting a topic.\'\'\'
@@ -8276,6 +8283,8 @@ To include your video in an article on the wiki, insert the following code into 
 'method_2' => 'Method $1 of $2: $3',
 'method_1' => 'Method $1 of $2',
 'method' => 'Method',
+'toc_title' => 'In this Article:',
+'summary_toc' => "Article Summary",
 'recentchanges-legend'  => '',
 'text_view' => 'View as Text',
 'image_view' => 'View as Images',

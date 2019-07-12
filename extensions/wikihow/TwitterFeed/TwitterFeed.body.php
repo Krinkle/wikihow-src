@@ -9,7 +9,7 @@ class MyTwitter extends SpecialPage {
 	private static function tweet($msg, $user) {
 		global $wgCanonicalServer;
 		// set up the API and post the message
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$account = $dbr->selectRow('twitterfeedusers', array('*'), array('tfu_user'=>$user->getID()));
 		$callback = $wgCanonicalServer . '/Special:TwitterAccounts/'. urlencode($user->getName());
 		$twitter = new Twitter(WH_TWITTER_FEED_CONSUMER_KEY, WH_TWITTER_FEED_CONSUMER_SECRET);
@@ -62,7 +62,7 @@ class MyTwitter extends SpecialPage {
 
 	// used in hooks
 	public static function userHasOption($user, $option) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$account = $dbr->selectRow('twitterfeedusers', array('*'), array('tfu_user'=>$user->getID()));
 		if ($account) {
 			$options = explode(",", $account->tfu_settings);
@@ -120,7 +120,7 @@ class MyTwitter extends SpecialPage {
 			$wgOut->addHTML("<b>You have successfully linked your Twitter account. </b><br/><br/>");
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$account = $dbr->selectRow('twitterfeedusers', array('*'), array('tfu_user'=>$wgUser->getID()));
 		if (!$account) {
 			$wgOut->addHTML("You have yet to link your twitter account, click <a href='/Special:MyTwitter?link=1'>here</a> to do so.");
@@ -147,7 +147,7 @@ class MyTwitter extends SpecialPage {
 			if (in_array($a, $options)) {
 				$c = " CHECKED ";
 			}
-			$wgOut->addHTML("<input type='checkbox' {$c} name='{$a}'> " . wfMsg('mytwitter_' . $a) . "<br/><br/>");
+			$wgOut->addHTML("<input type='checkbox' {$c} name='{$a}'> " . wfMessage('mytwitter_' . $a) . "<br/><br/>");
 		}
 		$wgOut->addHTML('<input type="submit" style="float: left; background-position: 0px 0pt;" onmouseover="button_swap(this);" onmouseout="button_unswap(this);" class="button button100 submit_button" onclick="needToConfirm = false" title="Save your changes [alt-s] [ctrl-s]" accesskey="s" value="Save" tabindex="15" name="wpSave" id="wpSave">');
 		$wgOut->addHTML("</form>");
@@ -165,7 +165,7 @@ class TwitterAccounts extends UnlistedSpecialPage {
 	// Used by MyTwitter class
 	public static function getUpdateMessage($t, $prefix = '', $nohowto = false) {
 		// the "How to" version of the message, can be overridden
-		$howto = wfMsg('howto', $t->getText());
+		$howto = wfMessage('howto', $t->getText());
 		if ($nohowto) {
 			$howto = $t->getText();
 		}
@@ -239,7 +239,7 @@ function showPass(id, pass) {
 }
 
 function showCats() {
-	var url = '/Special:Categoryhelper?type=categorypopup';
+	var url = '/Special:CategoryHelper?type=categorypopup';
 	var modalParams = {
 		width: 650,
 		height: 500,
@@ -290,13 +290,13 @@ EOSCRIPT
 		}
 
 		// show all of the active accounts
-		$dbr = wfGetDB(DB_MASTER);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->select(array('twitterfeedaccounts','twitterfeedcatgories'), array('*'), array('tfc_username=tws_username'));
 
 		$wgOut->addHTML("<table style='margin-left: auto; margin-right: auto;' width='70%'>
 				<tr><td>Username</td><td>Password</td><td>Category</td><td style='text-align:right;'>Delete</td></tr>");
 		$index = 0;
-		while ($row = $dbr->fetchObject($res)) {
+		foreach ($res as $row) {
 			$cat = Title::makeTitle(NS_CATEGORY, $row->tfc_category);
 			$wgOut->addHTML("<tr><td><a href='http://twitter.com/{$row->tws_username}' target='new'>{$row->tws_username}</a></td>");
 			$wgOut->addHTML("<td><span id='pass_$index'>*******

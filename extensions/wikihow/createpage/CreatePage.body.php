@@ -12,7 +12,7 @@
 class CreatePage extends SpecialPage {
 	function __construct() {
 		parent::__construct('CreatePage');
-		EasyTemplate::set_path( dirname(__FILE__) );
+		EasyTemplate::set_path( __DIR__ );
 	}
 
 	function cleanupProposedRedirects(&$text) {
@@ -57,7 +57,7 @@ class CreatePage extends SpecialPage {
 
 		$hits = array();
 		$t = Title::newFromText(GuidedEditorHelper::formatTitle($target));
-		$overwriteAllowed = Newarticleboost::isOverwriteAllowed($target);
+		$overwriteAllowed = NewArticleBoost::isOverwriteAllowed($target);
 		$l = new LSearch();
 		$hits  = $l->externalSearchResultTitles($target, 0, 10);
 		$count = 0;
@@ -66,14 +66,14 @@ class CreatePage extends SpecialPage {
 				$t1 = $hit;
 				if ($count == 5) break;
 				if ($t1 == null) continue;
-				if ($t1->getNamespace() != NS_MAIN) continue;
+				if (!$t1->inNamespace(NS_MAIN)) continue;
 
 				// check if the result is a redirect
 				$a = new Article($t1);
 				if ($a && $a->isRedirect()) continue;
 
 				$s .= "<div><input type='radio' id='at_".$t1->getArticleID()."' class='article_topic' name='article_topic' /> " .
-						"<label for='at_".$t1->getArticleID()."' class='cpr_green'>". wfMsg('howto', $t1->getText() ) . "</label>" .
+						"<label for='at_".$t1->getArticleID()."' class='cpr_green'>". wfMessage('howto', $t1->getText() ) . "</label>" .
 						"<div class='article_options'>".wfMessage('cp_title_new_option')->text().
 						"<div class='article_options_options' data-id='".urlencode($t1->getDBKey())."'><a href='".$t1->getEditURL()."' class='button secondary' target='new'>".wfMessage('cpr_add_to')->text()."</a> ".
 						"<a href='/Special:CreatePage'>".wfMessage('cpr_write_something')->text()."</a>".
@@ -83,7 +83,7 @@ class CreatePage extends SpecialPage {
 			if ($count == 0) return '';
 
 			$html = $s."<div><input type='radio' id='cpr_article_none' class='article_topic' name='article_topic' /> " .
-					"<label for='cpr_article_none' class='cpr_black'>". wfMessage('cp_related_none', wfMsg('howto',$target->getText()))->text() ."</label>" .
+					"<label for='cpr_article_none' class='cpr_black'>". wfMessage('cp_related_none', wfMessage('howto',$target->getText()))->text() ."</label>" .
 					"<div class='article_options'>" . wfMessage('cp_ready_write',$target->getText())->text() .
 					"<div class='article_options_options'><a class='button primary' href='".self::grabEditURL($target)."'>".wfMessage('cp_write_it')->text()."</a>".
 					"<div></div></div>";
@@ -92,9 +92,9 @@ class CreatePage extends SpecialPage {
 		return '';
 	}
 
-	function execute($par) {
+	public function execute($par) {
 		global $wgOut, $wgRequest, $wgUser, $wgLanguageCode, $wgScriptPath;
-		$fname = "wfCreatePage";
+		global $wgMimeType;
 		$target = $wgRequest->getVal( 'target' );
 		$topic = $wgRequest->getVal('topic');
 
@@ -102,8 +102,11 @@ class CreatePage extends SpecialPage {
 		if (isset($par)) $wgOut->redirect('/Special:CreatePage?target='.urlencode($par));
 
 		if ($wgRequest->getVal('ajax') == 'true') {
-			if ($topic != null) {
-				$wgOut->disable();
+			$wgMimeType = 'application/json';
+			$wgOut->setArticleBodyOnly(true);
+
+			if ($topic) {
+
 				$matches = SuggestionSearch::matchKeyTitles($topic, 30);
 
 				if (count($matches) > 0) {
@@ -119,9 +122,9 @@ class CreatePage extends SpecialPage {
 						if ($count % 2 == 0) $html .= "</tr><tr>";
 					}
 
-					$html .= "</tr></table>".wfMsg('cp_topic_tryagain');
+					$html .= "</tr></table>".wfMessage('cp_topic_tryagain');
 					$class = 'cp_result_good';
-					$hdr = wfMsg('cp_topic_matches_hdr',$topic);
+					$hdr = wfMessage('cp_topic_matches_hdr',$topic);
 				}
 				else {
 					$html = wfMessage('cp_no_topics')->text();
@@ -134,11 +137,10 @@ class CreatePage extends SpecialPage {
 				$result['header'] = $hdr;
 				$result['html'] = $html;
 
-				print_r(json_encode($result));
-				return;
-			}
-			if ($target != null) {
-				$wgOut->disable();
+				$wgOut->addHTML(json_encode($result));
+
+			} elseif ($target) {
+
 				$t = Title::newFromText($target);
 
 				//creating a redirect?
@@ -150,53 +152,64 @@ class CreatePage extends SpecialPage {
 					return;
 				}
 
-				if ($wgLanguageCode == 'en'  && (!$t || !$t->exists())) {
+				if ($wgLanguageCode == 'en' && (!$t || !$t->exists())) {
 					$t2 = Title::newFromText(GuidedEditorHelper::formatTitle($target));
 					if ($t2) $t = $t2;
 				}
 
-				//redir check
-				if ($t->isRedirect()) {
-					$r = Revision::newFromTitle($t);
-					$text =  $r->getText();
-					$redirect = Title::newFromRedirect( $text );
-					if ($redirect != null) $t = $redirect;
-					$redir = true;
-				}
-				else {
-					$redir = false;
-				}
+				if (!$t) {
 
-				if ($t->getArticleID() > 0 && !Newarticleboost::isOverwriteAllowed($t)) {
-					//exists
-					$result = array(
+					$result = [
 						'target' => $target,
 						'class' => 'cp_result_err',
-						'header' => wfMessage('cp_title_exists')->text(),
+						'header' => 'Bad title',
 						'button_text' => wfMessage('cp_existing_btn')->text(),
-						'html' => $this->getTitleResult($t, $target, $redir),
-						'edit_url' => $t->getEditURL(),
-					);
-				}
-				else {
-					//new?
-					$result = array(
-						'new' => 'true',
-						'target' => $target,
-						'list' => $this->getRelatedTopicsText($t),
-						'class' => 'cp_result_good',
-						'header' => wfMessage('cp_title_new')->text(),
-						'text' => wfMessage('cp_title_new_details',$t->getText())->text(),
-					);
+						'html' => 'Bad title: ' . $target,
+						'edit_url' => '',
+					];
+
+				} else {
+
+					// redirect check
+					if ($t->isRedirect()) {
+						$wikiPage = WikiPage::factory($t);
+						$t = $wikiPage->getRedirectTarget();
+						$redir = true;
+					} else {
+						$redir = false;
+					}
+
+					if ($t->getArticleID() > 0 && !NewArticleBoost::isOverwriteAllowed($t) && !CreateEmptyIntlArticle::isEligibleToTranslate($t, $wgLanguageCode, $wgUser)) {
+						// existing title -> error
+						$result = [
+							'target' => $target,
+							'class' => 'cp_result_err',
+							'header' => wfMessage('cp_title_exists')->text(),
+							'button_text' => wfMessage('cp_existing_btn')->text(),
+							'html' => $this->getTitleResult($t, $target, $redir),
+							'edit_url' => $t->getEditURL(),
+						];
+					} else {
+						// new title
+						$result = [
+							'new' => 'true',
+							'target' => $target,
+							'list' => $this->getRelatedTopicsText($t),
+							'class' => 'cp_result_good',
+							'header' => wfMessage('cp_title_new')->text(),
+							'text' => wfMessage('cp_title_new_details',$t->getText())->text(),
+						];
+					}
+
 				}
 
-				print_r(json_encode($result));
-				return;
+				$wgOut->addHTML(json_encode($result));
 			}
+			return;
 		}
 
 		$me = Title::newFromText("CreatePage", NS_SPECIAL);
-		$sk = $wgUser->getSkin();
+		$sk = $this->getSkin();
 		$this->setHeaders();
 		$wgOut->addModules('ext.wikihow.createpage');
 
@@ -220,8 +233,8 @@ class CreatePage extends SpecialPage {
 
 				// add redirect to list of proposed redirects
 				CreatePage::addProposedRedirect($source, $target);
-				$wgOut->addWikiText(wfMsg('createpage_redirect_confirmation', $source->getText(), $target->getText(), $target->getEditURL()));
-				$wgOut->addHTML(wfMsg('createpage_redirect_confirmation_bottom', $source->getText(), $target->getText(), $target->getEditURL()));
+				$wgOut->addWikiText(wfMessage('createpage_redirect_confirmation', $source->getText(), $target->getText(), $target->getEditURL()));
+				$wgOut->addHTML(wfMessage('createpage_redirect_confirmation_bottom', $source->getText(), $target->getText(), $target->getEditURL()));
 				return;
 			}
 		}
@@ -258,14 +271,14 @@ class CreatePage extends SpecialPage {
 	function grabEditURL($t) {
 		global $wgUser;
 		if (!class_exists('ArticleCreator') || !$wgUser->getOption('articlecreator')) {
-			if(Newarticleboost::isOverwriteAllowed($t)) {
+			if (NewArticleBoost::isOverwriteAllowed($t)) {
 				$url = $t->getEditURL() . "&review=1&overwrite=yes";
 			} else {
 				$url = $t->getEditURL() . "&review=1";
 			}
 		} else {
 			$url = '/Special:ArticleCreator?t=' . $t->getPartialUrl();
-			if (Newarticleboost::isOverwriteAllowed($t)) {
+			if (NewArticleBoost::isOverwriteAllowed($t)) {
 				$url .=  "&overwrite=yes";
 			}
 		}

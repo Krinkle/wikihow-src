@@ -1,7 +1,7 @@
 <?php
 
 abstract class QCRule {
-	
+
 	// flexibility if we want to track different namespaces
 	var $mValidNamespaces = array(NS_MAIN);
 	var $mArticle	= null;
@@ -10,32 +10,32 @@ abstract class QCRule {
 	var $mResult	= null; // action item to patrol, a row from the qc table
 	var $mTitle		= null;
 
-	function __construct($article) {
+	public function __construct($article) {
 		global $wgHooks;
 		$this->mArticle = $article;
 		$wgHooks['getToolStatus'][] = array('SpecialPagesHooks::defineAsTool');
 	}
 
-	function textRemoved($part, $oldtext, $newtext) {
+	protected function textRemoved($part, $oldtext, $newtext) {
 		if (preg_match("@{$part}@i", $oldtext) && !preg_match("@{$part}@", $newtext)) {
 			return true;
 		}
 		return false;
 	}
 
-	function textAdded($part, $oldtext, $newtext) {
+	protected function textAdded($part, $oldtext, $newtext) {
 		if (!preg_match("@{$part}@i", $oldtext) && preg_match("@{$part}@", $newtext)) {
 			return true;
 		}
 		return false;
 	}
 
-	function hasText($part, $text) {
+	protected function hasText($part, $text) {
 		return preg_match("@{$part}@i", $text);
 	}
 
-	function hasEntry($articleID) {
-		$dbr = wfGetDB(DB_SLAVE);
+	protected function hasEntry($articleID) {
+		$dbr = wfGetDB(DB_REPLICA);
 		$count = $dbr->selectField('qc',
 			'count(*)',
 			array('qc_page' => $articleID,
@@ -45,38 +45,48 @@ abstract class QCRule {
 		return $count > 0;
 	}
 
+	/* unused 3/2019
 	function textAddedOrRemoved($part, $oldtext, $newtext) {
-		return self::textAdded($part, $oldtext, $newtext) || self::textRemoved($part, $oldtext, $newtext);
+		return $this->textAdded($part, $oldtext, $newtext) || $this->textRemoved($part, $oldtext, $newtext);
 	}
+	*/
 
-	function textChanged($part, $oldtext, $newtext) {
+	protected function textChanged($part, $oldtext, $newtext) {
 		preg_match_all("@" . $part . "@iU", $oldtext, $matches1);
 		preg_match_all("@" . $part . "@iU", $newtext, $matches2);
 		return !($matches1 == $matches2);
 	}
 
-	function process() {
+	// Called in subclasses
+	abstract protected function flagAction();
+
+	// Called by QG
+	abstract public function getNextToPatrolHTML();
+
+	// Called in TipsPatrol
+	public function process() {
 		if ($this->flagAction()) {
 			return $this->logQCEntry();
 		}
 	}
 
-	function getEntryOptions() {
+	protected function getEntryOptions() {
 		return array();
 	}
 
-	function getKey() {
+	protected function getKey() {
 		return $this->mKey;
 	}
 
-	function getAction() {
+	protected function getAction() {
 		return $this->mAction;
 	}
 
-	abstract public function getYesVotesRequired();
-	abstract public function getNoVotesRequired();
+	abstract protected function getYesVotesRequired();
+	abstract protected function getNoVotesRequired();
 
-	static function deleteIfNotPatrolled($qc_id, $qc_user) {
+	// Used in TipsPatrol
+	public static function deleteIfNotPatrolled($qc_id, $qc_user) {
 		if (!$qc_id) {
 			return false;
 		}
@@ -88,7 +98,7 @@ abstract class QCRule {
 			__METHOD__);
 	}
 
-	function deleteBad($qc_page) {
+	protected function deleteBad($qc_page) {
 		// is there something we can delete ?
 		$dbw = wfGetDB(DB_MASTER);
 		$page_title = $dbw->selectField('page', 'page_title', array('page_id' => $qc_page), __METHOD__);
@@ -97,9 +107,9 @@ abstract class QCRule {
 		}
 	}
 
-	function getTitleFromQCID($qcid) {
-
-		$dbr = wfGetDB(DB_SLAVE);
+	// Called from QG
+	public static function getTitleFromQCID($qcid) {
+		$dbr = wfGetDB(DB_REPLICA);
 		$page_id = $dbr->selectField('qc', array('qc_page'), array('qc_id' => $qcid), __METHOD__);
 
 		// construct the HTML to reply
@@ -108,9 +118,8 @@ abstract class QCRule {
 		return $t;
 	}
 
-	function getRevFromQCID($qcid) {
-
-		$dbr = wfGetDB(DB_SLAVE);
+	protected static function getRevFromQCID($qcid) {
+		$dbr = wfGetDB(DB_REPLICA);
 		$rev_id = $dbr->selectField('qc', array('qc_rev_id'), array('qc_id' => $qcid), __METHOD__);
 
 		// construct the HTML to reply
@@ -120,7 +129,7 @@ abstract class QCRule {
 		return $r;
 	}
 
-	function markPreviousAsPatrolled() {
+	protected function markPreviousAsPatrolled() {
 		$dbw = wfGetDB(DB_MASTER);
 		//mark any existing entries as patrolled for this entry
 		$dbw->update("qc",
@@ -139,13 +148,13 @@ abstract class QCRule {
 			__METHOD__);
 	}
 
-	function logQCEntry() {
-		global $wgUser;
+	private function logQCEntry() {
+		$user = RequestContext::getMain()->getUser();
 		$opts = array(	"qc_key" => $this->getKey(),
 						"qc_action" => $this->getAction(),
 						"qc_timestamp" => wfTimestampNow(),
-						"qc_user" => $wgUser->getID(),
-						"qc_user_text" => $wgUser->getName(),
+						"qc_user" => $user->getID(),
+						"qc_user_text" => $user->getName(),
 						"qc_yes_votes_req" 	=> $this->getYesVotesRequired(),
 						"qc_no_votes_req" 	=> $this->getNoVotesRequired(),
 						"qc_page" => $this->mArticle->getID(),
@@ -158,13 +167,12 @@ abstract class QCRule {
 		$dbw->insert('qc', $opts, __METHOD__);
 
 		return $dbw->insertId();
-		#print_r($dbw); exit;
 	}
 
-	function getPreviouslyViewedExp() {
-		global $wgUser;
+	private static function getPreviouslyViewedExp() {
+		$user = RequestContext::getMain()->getUser();
 		$exp = 0;
-		if (strtolower($wgUser->getName()) == 'mqg') {
+		if (strtolower($user->getName()) == 'mqg') {
 			// expire every 30 min for MQG
 			$exp = 60 * 30;
 		}
@@ -176,13 +184,14 @@ abstract class QCRule {
 	 *
 	 ****/
 
-	function getCacheKey($userid) {
+	private static function getCacheKey($userid) {
 		return wfMemcKey('qcuserlog', $userid);
 	}
 
-	function markQCAsViewed($qcid) {
-		global $wgMemc, $wgUser;
-		$userid = $wgUser->isAnon() ? $wgUser->getName() : $wgUser->getID();
+	private static function markQCAsViewed($qcid) {
+		global $wgMemc;
+		$user = RequestContext::getMain()->getUser();
+		$userid = $user->isAnon() ? $user->getName() : $user->getID();
 		$key = self::getCacheKey($userid);
 		$log = $wgMemc->get($key);
 		if (!is_array($log)) {
@@ -192,9 +201,10 @@ abstract class QCRule {
 		$wgMemc->set($key, $log, self::getPreviouslyViewedExp());
 	}
 
-	function getPreviouslyViewed() {
-		global $wgMemc, $wgUser;
-		$userid = $wgUser->isAnon() ? $wgUser->getName() : $wgUser->getID();
+	private static function getPreviouslyViewed() {
+		global $wgMemc;
+		$user = RequestContext::getMain()->getUser();
+		$userid = $user->isAnon() ? $user->getName() : $user->getID();
 
 		$key = self::getCacheKey($userid);
 
@@ -214,8 +224,9 @@ abstract class QCRule {
 		return $str;
 	}
 
+	// Called by QG
 	public static function getNextToPatrol($type,$by_username) {
-		global $wgUser;
+		$user = RequestContext::getMain()->getUser();
 
 		if ($type == "") {
 			//this is the default in QG, before actual options have been selected
@@ -230,26 +241,27 @@ abstract class QCRule {
 		}
 
 		$sql = '';
-		$user = null;
+		$revUser = null;
 		if ($result == null) {
 			// grab the next one
 			$dbw = wfGetDB(DB_MASTER);
 			$expired = wfTimestamp(TS_MW, time() - 3600);
 
-			$sql = "SELECT * FROM qc LEFT JOIN qc_vote ON qc_id=qcv_qcid AND qcv_user = {$wgUser->getID()}  
+			$sql = "SELECT * FROM qc LEFT JOIN qc_vote ON qc_id=qcv_qcid AND qcv_user = {$user->getID()}
 					WHERE ( qc_checkout_time < '{$expired}' OR qc_checkout_time = '')
 					AND qc_patrolled = 0 AND qcv_qcid IS NULL
 					AND qc_page > 0 AND qc_key != 'changedintroimage'";
 
-			if ($wgUser->isAnon()) {
-				$sql .= " AND qc_user_text != {$dbw->addQuotes($wgUser->getName())} ";
+			if ($user->isAnon()) {
+				$sql .= " AND qc_user_text != {$dbw->addQuotes($user->getName())} ";
 			} else {
-				$sql .= " AND qc_user != {$wgUser->getID()} ";
+				$sql .= " AND qc_user != {$user->getID()} ";
 			}
 
 			if (!empty($type)) {
 				//fix up types string
 				$key = strtolower(preg_replace("@qcrule_@", "", $type));
+				$key = $dbw->strencode($key);
 				$key = preg_replace("@/@", "_", $key);
 				$key = preg_replace("@,@", "','", $key);
 
@@ -260,7 +272,7 @@ abstract class QCRule {
 				$sql .= " AND qc_key IN (" . $dbw->makeList(QG::$defaultQGRules) . ") ";
 			}
 
-			$previous = self::getPreviouslyViewed();
+			$previous = $dbw->strencode(self::getPreviouslyViewed());
 			if ($previous) {
 				$sql .= " AND qc_id NOT IN ({$previous})";
 			}
@@ -282,7 +294,7 @@ abstract class QCRule {
 				// mark this as checked out
 				$dbw->update('qc',
 					array('qc_checkout_time' => wfTimestampNow(),
-						'qc_checkout_user' => $wgUser->getID()),
+						'qc_checkout_user' => $user->getID()),
 					array('qc_id' => $result->qc_id),
 					__METHOD__);
 			}
@@ -290,9 +302,10 @@ abstract class QCRule {
 				return null;
 			}
 
+			// TODO: should use MW Database interface
 			$csql = 'SELECT COUNT(*) AS c FROM revision WHERE rev_page = '.$result->qc_page.' AND rev_id < '.$result->qc_rev_id.' AND rev_id > '.$result->qc_old_rev_id;
 			$res = $dbw->query($csql, __METHOD__);
-			$user = $dbw->fetchObject($res);
+			$revUser = $dbw->fetchObject($res);
 		}
 
 		$c = null;
@@ -300,12 +313,12 @@ abstract class QCRule {
 		$c = self::newRuleFromKey($key);
 		$c->mResult = $result;
 		$c->mTitle = Title::newFromID($c->mResult->qc_page);
-		$c->mUsers = $user ? $user->c : 0;
+		$c->mUsers = $revUser ? $revUser->c : 0;
 		$c->sql = $sql;
 		return $c;
 	}
 
-	public static function newRuleFromKey($key) {
+	private static function newRuleFromKey($key) {
 		$c = null;
 		if (preg_match("@changedtemplate_@", $key)) {
 			$template = preg_replace("@changedtemplate_@", "", $key);
@@ -324,15 +337,13 @@ abstract class QCRule {
 		return $c;
 	}
 
-	function getOrderBy($type) {
-		
+	private static function getOrderBy($type) {
 		$ob = "ORDER BY qc_yes_votes DESC, qc_no_votes DESC";
-		
+
 		if (preg_match('@qcrule_rcpatrol@',$type) > 0) {
 			//RC Patrol in there
 			//gotta do this by most recent
 			$ob .= ", qc_id DESC";
-			
 		} else {
 			//randomize the ordering
 			$rdm = mt_rand(0,1);
@@ -347,7 +358,7 @@ abstract class QCRule {
 		return $ob;
 	}
 
-	function releaseQC($qcid) {
+	private static function releaseQC($qcid) {
 		$dbw = wfGetDB(DB_MASTER);
 		$dbw->update('qc',
 			array('qc_checkout_time' => "",
@@ -357,7 +368,7 @@ abstract class QCRule {
 		return true;
 	}
 
-	function markQCPatrolled($qcid) {
+	private static function markQCPatrolled($qcid) {
 		$dbw = wfGetDB(DB_MASTER);
 		$dbw->update('qc',
 			array('qc_patrolled' => 1),
@@ -366,26 +377,26 @@ abstract class QCRule {
 		return true;
 	}
 
-
+	// Called by QG
 	public static function vote($qcid, $vote) {
-		global $wgUser;
 		$dbw = wfGetDB(DB_MASTER);
+		$user = RequestContext::getMain()->getUser();
 
 		// have they already voted on this?  if so, forget about it, release the current one back to the queue and get out of here
 		$count = $dbw->selectField('qc_vote',
 			array('count(*)'),
-			array('qcv_user' => $wgUser->getID(),
+			array('qcv_user' => $user->getID(),
 				'qcv_qcid' => $qcid),
 			__METHOD__);
 		if ($count > 0) {
 			self::releaseQC($qcid);
 			return;
 		}
-		
+
 		$key = $dbw->selectField('qc', 'qc_key', array('qc_id' => $qcid), __METHOD__);
-		
+
 		//admin votes count for 2 on tips
-		$vote_num = ($key ==  "newtip" && in_array('sysop',$wgUser->getGroups())) ? 2 : 1;
+		$vote_num = ($key ==  "newtip" && in_array('sysop',$user->getGroups())) ? 2 : 1;
 
 		$opts = array();
 		if ($vote == 1) {
@@ -398,7 +409,7 @@ abstract class QCRule {
 
 		$dbw->update('qc', $opts, array('qc_id' => $qcid), __METHOD__);
 		$dbw->insert('qc_vote',
-			array('qcv_user' => $wgUser->getID(),
+			array('qcv_user' => $user->getID(),
 				'qcv_vote' => $voteint, 'qcv_qcid' => $qcid, 'qc_timestamp' => wfTimestampNow()),
 			__METHOD__);
 
@@ -412,13 +423,19 @@ abstract class QCRule {
 			if (self::isResolved($row, 'up')) {
 				self::markQCPatrolled($qcid);
 				$c = self::newRuleFromKey($key);
-				$c->applyChange($qcid);
+				// TODO: we should report somewhere if $c is null
+				if ($c) {
+					$c->applyChange($qcid);
+				}
 			}
 		} else {
 			if (self::isResolved($row, 'down')) {
 				// what kind of rule are we ? figure it out so we can roll it back
 				$c = self::newRuleFromKey($key);
-				$c->rollbackChange($qcid);
+				// TODO: we should report somewhere if $c is null
+				if ($c) {
+					$c->rollbackChange($qcid);
+				}
 				self::markQCPatrolled($qcid);
 			}
 		}
@@ -429,44 +446,46 @@ abstract class QCRule {
 
 		$voteParam = $vote > 0 ? "yesvote" : "novote";
 		self::log($row, $voteParam);
-		
-		wfRunHooks("QCVoted", array($wgUser, $title, $vote));
+
+		Hooks::run("QCVoted", array($user, $title, $vote));
 	}
-	
-	public static function log($row, $voteParam) {
+
+	private static function log($row, $voteParam) {
 		$title = Title::newFromID($row->qc_page);
+		if (!$title || !$title->exists()) return;
+
 		# Generate a diff link
 		$bits[] = 'oldid=' . urlencode( $row->qc_rev_id );
 		$bits[] = 'diff=prev';
 		$bits = implode( '&', $bits );
 		$diff = "[[{$title->getText()}]]";
 
-		$msg = wfMsgHtml("qcrule_log_{$row->qc_key}_{$voteParam}", $diff);
-		
+		$msg = wfMessage("qcrule_log_{$row->qc_key}_{$voteParam}")->rawParams($diff)->escaped();
+
 		$log = new LogPage('qc', false);
 		$log->addEntry($voteParam, $title, $msg, array($vote, $row->qc_rev_id, $key));
-		
+
 	}
-	
-	public static function isResolved($row, $dir="up") {
-		global $wgRequest;		
+
+	private static function isResolved($row, $dir="up") {
+		$req = RequestContext::getMain()->getRequest();
 		$resolved = false;
-		
+
 		if ($dir == 'up') {
 			$resolved = $row->qc_yes_votes >= $row->qc_yes_votes_req;
 		} else {
 			$resolved = $row->qc_no_votes >= $row->qc_no_votes_req;
 		}
-		
+
 		if ($resolved) {
 			// public logs
 			$param = $dir == "up" ? 'approved' : 'rejected';
 			self::log($row, $param);
-			
+
 			// usage logs
 			UsageLogs::saveEvent(
 				array(
-					'event_type' => $wgRequest->getVal('event_type'),
+					'event_type' => $req->getVal('event_type'),
 					'event_action' => $param,
 					'article_id' => $row->qc_page,
 					'assoc_id' => $row->qc_id,
@@ -476,31 +495,36 @@ abstract class QCRule {
 				)
 			);
 		}
-		
+
 		return $resolved;
 	}
 
 
 	// user skips it, so add this to the stuff they have viewed
-	function skip($qcid) {
+	// Called by QG
+	public static function skip($qcid) {
 		self::markQCAsViewed($qcid);
 	}
 
 	// these are specific to the rule that is being used
+	// Both are called by QG
 	abstract public function getPrompt();
 	abstract public function rollbackChange($qcid);
 
 	// since this is specific to only 1 class, template changes, make it non-abstract and just return true
-	function applyChange($qcid) {
+	public function applyChange($qcid) {
 		return true;
 	}
 
+	/*
+	 * I _believe_ this is unused (but it's a really common function name! 3/2019
 	function getHeader($t) {
-		$html = "<div class='qc_title'>".wfMsg('qc_title_prefix').": <a href='{$t->getFullURL()}' target='new'>" . wfMsg('howto', $t->getText()) . "</a></div>";
+		$html = "<div class='qc_title'>".wfMessage('qc_title_prefix')->text().": <a href='{$t->getFullURL()}' target='new'>" . wfMessage('howto', $t->getText())->text() . "</a></div>";
 		return $html;
 	}
+	*/
 
-	function getChangedBy($action_str, $div_id = 'qc_changedby',$u = null) {
+	protected function getChangedBy($action_str, $div_id = 'qc_changedby',$u = null) {
 		if ($u == null) {
 			//normal use
 			$userText = $this->mResult->qc_user_text;
@@ -546,15 +570,15 @@ abstract class QCRuleTextChange extends QCRule {
 	var $mRevision	= null;
 	var $mLastRevid	= null;
 
-	function __construct($template, $revision, $article) {
+	public function __construct($template, $revision, $article) {
 		$this->mTemplate	= $template;
 		$this->mRevision	= $revision;
 		$this->mArticle		= $article;
 	}
 
-	function getLastRevID() {
+	private function getLastRevID() {
 		if (!$this->mLastRevid) {
-			$dbr = wfGetDB(DB_SLAVE);
+			$dbr = wfGetDB(DB_REPLICA);
 			$revid = $this->mRevision->getID();
 			$pageid = $this->mRevision->getPage();
 			$lastrev = $dbr->selectField('revision', 'max(rev_id)', array('rev_page' => $pageid, 'rev_id < ' . $revid), __METHOD__);
@@ -564,14 +588,14 @@ abstract class QCRuleTextChange extends QCRule {
 		return $this->mLastRevid;
 	}
 
-	function getLastRevisionText() {
+	protected function getLastRevisionText() {
 		$lastrev = $this->getLastRevID();
 		$r = Revision::newFromID($lastrev);
 		if (!$r) return null;
-		return $r->getText();
+		return ContentHandler::getContentText( $r->getContent() );
 	}
 
-	function getEntryOptions() {
+	protected function getEntryOptions() {
 		$opts = array("qc_rev_id" => $this->mRevision->getID());
 		$old_rev = $this->getLastRevID();
 		if ($old_rev) {
@@ -589,27 +613,28 @@ abstract class QCRuleTextChange extends QCRule {
 ***********************/
 class QCRuleIntroImage extends QCRuleTextChange {
 
-	function __construct($revision = null, $article = null) {
+	public function __construct($revision = null, $article = null) {
 		$this->mAction = "added";
 		$this->mKey			= "changedintroimage";
 		parent::__construct($template, $revision, $article);
 	}
 
-	function getPart() {
+	private function getPart() {
 		return "\[\[Image:.*[\|\]]";
 	}
 
-	function getYesVotesRequired() {
+	protected function getYesVotesRequired() {
 		global $wgQCIntroImageVotesRequired;
 		return $wgQCIntroImageVotesRequired["yes"];
 	}
 
-	function getNoVotesRequired() {
+	protected function getNoVotesRequired() {
 		global $wgQCIntroImageVotesRequired;
 		return $wgQCIntroImageVotesRequired["no"];
 	}
 
-	function flagAction() {
+	protected function flagAction() {
+		global $wgParser;
 
 		// check for a revision
 		if (!$this->mRevision) {
@@ -622,9 +647,10 @@ class QCRuleIntroImage extends QCRuleTextChange {
 			return false;
 		}
 
-		$part	  = $this->getPart();
-		$oldtext = Article::getSection($this->getLastRevisionText(), 0);
-		$newtext = Article::getSection($this->mRevision->getText(), 0);
+		$part    = $this->getPart();
+		$oldtext = $wgParser->getSection($this->getLastRevisionText(), 0);
+		$wikitext = ContentHandler::getContentText( $this->mRevision->getContent() );
+		$newtext = $wgParser->getSection($wikitext, 0);
 
 		//make sure it doesn't have a nointroimg template in it
 		if (preg_match('@{{nointroimg}}@im',$newtext)) return false;
@@ -644,11 +670,13 @@ class QCRuleIntroImage extends QCRuleTextChange {
 		return $ret;
 	}
 
-	function getPrompt() {
-		return wfMsg('qcprompt_introimage');
+	public function getPrompt() {
+		return wfMessage('qcprompt_introimage')->text();
 	}
 
-	function rollbackChange($qcid) {
+	public function rollbackChange($qcid) {
+		global $wgParser;
+
 		// remove the intro image from this article
 		$t = self::getTitleFromQCID($qcid);
 		$r = Revision::newFromTitle($t);
@@ -656,15 +684,16 @@ class QCRuleIntroImage extends QCRuleTextChange {
 			return false;
 		}
 
-		$text = $r->getText();
-		$intro = Article::getSection($text, 0);
+		$text = ContentHandler::getContentText( $r->getContent() );
+		$intro = $wgParser->getSection($text, 0);
 
 		//make sure the image is still in there
 		preg_match("@\[\[Image:[^\]]*\]\]@im", $intro, $matches);
 
 		if (sizeof($matches) > 0) {
 			$old_rev = self::getRevFromQCID($qcid);
-			$old_intro = Article::getSection($old_rev->getText(), 0);
+			$wikitext = ContentHandler::getContentText( $old_rev->getContent() );
+			$old_intro = $wgParser->getSection($wikitext, 0);
 
 			//make sure the it's not a different image
 			if (stripos($old_intro,$matches[0]) === false) {
@@ -673,16 +702,17 @@ class QCRuleIntroImage extends QCRuleTextChange {
 
 			$newintro = preg_replace("@\[\[Image:[^\]]*\]\]@", "", $intro);
 
-			$a = new Article($t);
-			$newtext = $a->replaceSection($intro, $newintro);
-			if ($a->doEdit($newtext, wfMsg('qc_editsummary_introimage'))) {
+			$wikiPage = WikiPage::factory($t);
+			$newtext = $wgParser->replaceSection($text, 0, $newintro);
+			$content = ContentHandler::makeContent( $newtext, $t );
+			if ( $wikiPage->doEditContent( $content, wfMessage('qc_editsummary_introimage')->text() ) ) {
 				return true;
 			}
 		}
 		return false;
 	}
 
-	function getPicture($text) {
+	private static function getPicture($text) {
 		preg_match("@\[\[Image:[^\]]*\]\]@im", $text, $matches);
 		$img = "";
 		if (sizeof($matches) > 0) {
@@ -696,9 +726,8 @@ class QCRuleIntroImage extends QCRuleTextChange {
 		return null;
 	}
 
-
-	function getNextToPatrolHTML() {
-		global $wgOut;
+	public function getNextToPatrolHTML() {
+		global $wgParser;
 
 		if (!$this->mResult) {
 			// nothing to patrol
@@ -720,19 +749,19 @@ class QCRuleIntroImage extends QCRuleTextChange {
 		}
 
 		// grab the intro image
-		$text = $r->getText();
-		$intro = Article::getSection($text, 0);
+		$text = ContentHandler::getContentText( $r->getContent() );
+		$intro = $wgParser->getSection($text, 0);
 
 		//ignore if we have a {{nointroimg}} template in there
 		$a = new Article($t);
-		$templates = $a->getUsedTemplates();
+		$templates = $a->getTitle()->getTemplateLinksFrom();
 		if (in_array('Template:Nointroimg',$templates)) {
 			$this->deleteBad($this->mResult->qc_page);
 			return "<!--{$this->mResult->qc_page}--><p></p><p>Intro images have been disabled for this article. Please <a href='#' onclick='window.location.reload()'>refresh</a> for the next article.</p>";
 		}
 
 		$html = "";
-		$changedby = self::getChangedBy("Image added by: ");
+		$changedby = $this->getChangedBy("Image added by: ");
 		$pic = self::getPicture($intro);
 		if ($pic) {
 			//make sure it's not too big
@@ -760,15 +789,16 @@ class QCRuleIntroImage extends QCRuleTextChange {
 						<img class='qc_bigpic_img' src='" . $pic->getURL() . "' width='".$pic->width."' height='".$pic->height."' />
 						</div>";
 		} else {
-			$html .= "<br />" . wfMsg('qc_nothing_found');
+			$html .= "<br />" . wfMessage('qc_nothing_found')->text();
 		}
 
 		$html = "<div id='quickeditlink'></div>";
 		$html .= "<div id='qc_box'>".$changedby.$html."</div>";
-		$popts = $wgOut->parserOptions();
+		$popts = RequestContext::getMain()->getOutput()->parserOptions();
 		$popts->setTidy(true);
 		$magic = WikihowArticleHTML::grabTheMagic($text);
-		$html .= WikihowArticleHTML::processArticleHTML($wgOut->parse($text, $t, $popts), array('ns' => $t->getNamespace(), 'magic-word' => $magic));
+		$parsed = RequestContext::getMain()->getOutput()->parse($text, $t, $popts);
+		$html .= WikihowArticleHTML::processArticleHTML($parsed, array('ns' => $t->getNamespace(), 'magic-word' => $magic));
 		$html .= "<input type='hidden' name='qc_id' value='{$this->mResult->qc_id}'/>";
 		$html .= "<div id='numqcusers'>{$this->mUsers}</div>";
 		return $html;
@@ -783,27 +813,27 @@ class QCRuleIntroImage extends QCRuleTextChange {
 ***********************/
 class QCRuleVideoChange extends QCRuleTextChange {
 
-	function __construct($revision = null, $article = null) {
+	public function __construct($revision = null, $article = null) {
 		$this->mKey		= "changedvideo";
 		$this->mValidNamespaces = array(NS_MAIN, NS_VIDEO);
 		parent::__construct(null, $revision, $article);
 	}
 
-	function getPart() {
+	private function getPart() {
 		return "\{\{Video:.*[\|\}]";
 	}
 
-	function getYesVotesRequired() {
+	protected function getYesVotesRequired() {
 		global $wgQCVideoChangeVotesRequired;
 		return $wgQCVideoChangeVotesRequired["yes"];
 	}
 
-	function getNoVotesRequired() {
+	protected function getNoVotesRequired() {
 		global $wgQCVideoChangeVotesRequired;
 		return $wgQCVideoChangeVotesRequired["no"];
 	}
 
-	function flagAction() {
+	protected function flagAction() {
 
 		// check for a revision
 		if (!$this->mRevision) {
@@ -819,7 +849,7 @@ class QCRuleVideoChange extends QCRuleTextChange {
 		// deal with the situation where the Video: page has been changed
 		// TODO: can we narrow it down to just the video changing? probably not. if
 		// a video namespace page has changed, we can assume the video has changed
-		if ($title->getNamespace() == NS_VIDEO) {
+		if ($title->inNamespace(NS_VIDEO)) {
 			if ($this->getLastRevisionText() == null) {
 				$this->mAction = "added";
 			}
@@ -843,9 +873,8 @@ class QCRuleVideoChange extends QCRuleTextChange {
 		// deal with the situation where the main namespace video has been changed
 		$part	  = $this->getPart();
 		$oldtext = $this->getLastRevisionText();
-		$newtext = $this->mRevision->getText();
+		$newtext = ContentHandler::getContentText( $this->mRevision->getContent() );
 
-#$test = $this->hasText($part, $newtext); echo var_dump($test); exit;
 		$ret = false;
 		if ($newtext == null && $this->hasText($part, $newtext)) {
 			$ret = true;
@@ -861,24 +890,25 @@ class QCRuleVideoChange extends QCRuleTextChange {
 		return $ret;
 	}
 
-	function getPrompt() {
-		return wfMsg('qcprompt_video');
+	public function getPrompt() {
+		return wfMessage('qcprompt_video')->text();
 	}
 
-	//returns array with title text and video wikitext
-	function getVideoSection($text) {
+	// returns array with title text and video wikitext
+	private function getVideoSection($text) {
+		global $wgParser;
 		$index = 0;
 		$vidsection = null;
-		while ($section = Article::getSection($text, $index)) {
-			if (preg_match("@^==\s*" . wfMsg('video') . "@", $section)) {
+		while ($section = $wgParser->getSection($text, $index)) {
+			if (preg_match("@^==\s*" . wfMessage('video')->text() . "@", $section)) {
 				$vidsection = $section;
-				$vidname = preg_replace("@^==\s".wfMsg('video')."\s==\s{{([^}]*)\}}@", "$1", $section);
+				$vidname = preg_replace("@^==\s".wfMessage('video')->text()."\s==\s{{([^}]*)\}}@", "$1", $section);
 				break;
 			}
 			$index++;
 		}
 
-		//format the video name
+		// format the video name
 		if (!empty($vidname)) {
 			$parts = explode('|',$vidname);
 			$vidname = $parts[0];
@@ -892,16 +922,15 @@ class QCRuleVideoChange extends QCRuleTextChange {
 		return $vidresult;
 	}
 
-	//get the title of the video
-	function getVideoTitle($text) {
+	// get the title of the video
+	private static function getVideoTitle($text) {
 		$videotitletext = '';
 
 		$t = Title::newFromText($text);
 		if ($t) {
 			$vidrev = Revision::newFromTitle($t);
-
 			if ($vidrev) {
-				$vidtext = $vidrev->getText();
+				$vidtext = ContentHandler::getContentText( $vidrev->getContent() );
 				$parts = explode('|', $vidtext);
 
 				if (!empty($parts[3])) {
@@ -912,7 +941,7 @@ class QCRuleVideoChange extends QCRuleTextChange {
 		return trim($videotitletext);
 	}
 
-	function rollbackChange($qcid) {
+	public function rollbackChange($qcid) {
 		// remove the video from this article
 		// remove the intro image from this article
 		$t = self::getTitleFromQCID($qcid);
@@ -921,7 +950,7 @@ class QCRuleVideoChange extends QCRuleTextChange {
 			return false;
 		}
 
-		$text = $r->getText();
+		$text = ContentHandler::getContentText( $r->getContent() );
 		$vidsection = $this->getVideoSection($text);
 		if (!$vidsection) {
 			return true;
@@ -932,16 +961,16 @@ class QCRuleVideoChange extends QCRuleTextChange {
 		# replace section doesn't work for some reason for the Video section
 		$newtext = str_replace($vidsection['vidsection'], "", $text);
 
-		if ($a->doEdit($newtext, wfMsg('qc_editsummary_video'))) {
+		$wikiPage = WikiPage::factory($t);
+		$content = ContentHandler::makeContent($newtext, $t);
+		if ( $wikiPage->doEditContent( $content, wfMessage('qc_editsummary_video')->text() )->isOK() ) {
 			return true;
 		}
 
 		return false;
 	}
 
-	function getNextToPatrolHTML() {
-		global $wgOut;
-
+	public function getNextToPatrolHTML() {
 		if (!$this->mResult) {
 			// nothing to patrol
 			return null;
@@ -962,26 +991,27 @@ class QCRuleVideoChange extends QCRuleTextChange {
 			return "Error creating revision";
 		}
 
-		$vidsection = $this->getVideoSection($r->getText());
+		$vidsection = $this->getVideoSection(ContentHandler::getContentText( $r->getContent() ));
 
 		$html = "";
-		$changedby = self::getChangedBy("Video added by: ");
+		$changedby = $this->getChangedBy("Video added by: ");
 
 		if (!empty($vidsection)) {
 			$html .= "<div id='qc_bigvid'><div class='section_text'>";
 			if (!empty($vidsection['vidtitle'])) $html .= "<h3 id='qc_vidtitle'>\"".$vidsection['vidtitle']."\"</h3>";
-			$html .= $wgOut->parse($vidsection['vidsection']) . "</div>";
+			$html .= RequestContext::getMain()->getOutput()->parse($vidsection['vidsection']) . "</div>";
 			$html .= "</div>";
 		} else {
-			$html .= "<br />" . wfMsg('qc_nothing_found');
+			$html .= "<br />" . wfMessage('qc_nothing_found')->text();
 		}
 
 		$html = "<div id='qc_box'>".$changedby.$html."</div>";
 		$html .= "<div id='quickeditlink'></div>";
-		$popts = $wgOut->parserOptions();
+		$popts = RequestContext::getMain()->getOutput()->parserOptions();
 		$popts->setTidy(true);
-		$magic = WikihowArticleHTML::grabTheMagic($r->getText());
-		$html .= WikihowArticleHTML::processArticleHTML($wgOut->parse($r->getText(), $t, $popts), array('no-ads'=>1, 'ns' => $t->getNamespace(), 'magic-word' => $magic));
+		$magic = WikihowArticleHTML::grabTheMagic(ContentHandler::getContentText( $r->getContent() ));
+		$parsed = RequestContext::getMain()->getOutput()->parse(ContentHandler::getContentText( $r->getContent() ), $t, $popts);
+		$html .= WikihowArticleHTML::processArticleHTML($parsed, array('no-ads'=>1, 'ns' => $t->getNamespace(), 'magic-word' => $magic));
 		$html .= "<input type='hidden' name='qc_id' value='{$this->mResult->qc_id}'/>";
 		$html .= "<div id='numqcusers'>{$this->mUsers}</div>";
 		return $html;
@@ -991,37 +1021,38 @@ class QCRuleVideoChange extends QCRuleTextChange {
 class QCRuleRollback extends QCRule {
 
 	var $mRevision	= null;
-	function __construct($revision = null, $article = null) {
+
+	public function __construct($revision = null, $article = null) {
 		$this->mArticle = $article;
 		$this->mRevision = $revision;
 		$this->mKey = "rollback";
 		$this->mAction = "rollback_edit";
 	}
 
-	function flagAction() {
-		if ($this->mArticle->getTitle()->getNamespace() == NS_MAIN &&
+	protected function flagAction() {
+		if ($this->mArticle->getTitle()->inNamespace(NS_MAIN) &&
 			preg_match("@Reverted edits@", $this->mRevision->mComment)) {
 			return true;
 		}
 		return false;
 	}
 
-	function getPrompt() {
-		return wfMsg('qcprompt_rollback');
+	public function getPrompt() {
+		return wfMessage('qcprompt_rollback')->text();
 	}
 
-	function getYesVotesRequired() {
+	protected function getYesVotesRequired() {
 		global $wgQCRollbackVotesRequired;
 		return $wgQCRollbackVotesRequired["yes"];
 	}
 
-	function getNoVotesRequired() {
+	protected function getNoVotesRequired() {
 		global $wgQCRollbackVotesRequired;
 		return $wgQCRollbackVotesRequired["no"];
 	}
 
-	function getEntryOptions() {
-		$dbr = wfGetDB(DB_SLAVE);
+	protected function getEntryOptions() {
+		$dbr = wfGetDB(DB_REPLICA);
 		$opts = array();
 		$min_rev = $dbr->selectField('revision', array('rev_id'),
 			array('rev_page' => $this->mArticle->getID(),
@@ -1034,9 +1065,7 @@ class QCRuleRollback extends QCRule {
 		return $opts;
 	}
 
-	function getNextToPatrolHTML() {
-		global $wgOut;
-
+	public function getNextToPatrolHTML() {
 		if (!$this->mResult) {
 			// nothing to patrol
 			return null;
@@ -1055,25 +1084,27 @@ class QCRuleRollback extends QCRule {
 		$d->loadRevisionData();
 		// interesting
 		$html = "";
-		$changedby = self::getChangedBy("Rollback performed by: ");
+		$changedby = $this->getChangedBy("Rollback performed by: ");
 
-		$wgOut->clearHTML();
+		$out = RequestContext::getMain()->getOutput();
+		$out->clearHTML();
 		$d->showDiffPage(true);
-		$html = "<div id='qc_box'>".$changedby.$html.$wgOut->getHTML()."</div>";
-		$wgOut->clearHTML();
+		$html = "<div id='qc_box'>".$changedby.$html.$out->getHTML()."</div>";
+		$out->clearHTML();
 		$html .= "<div id='quickeditlink'></div>";
-		$popts = $wgOut->parserOptions();
+		$popts = $out->parserOptions();
 		$popts->setTidy(true);
-		$magic = WikihowArticleHTML::grabTheMagic($r->getText());
-		$html .= WikihowArticleHTML::processArticleHTML($wgOut->parse($r->getText(), $t, $popts), array('no-ads'=>1, 'ns' => $t->getNamespace(), 'magic-word' => $magic));
+		$magic = WikihowArticleHTML::grabTheMagic(ContentHandler::getContentText( $r->getContent() ));
+		$parsed = $out->parse(ContentHandler::getContentText( $r->getContent() ), $t, $popts);
+		$html .= WikihowArticleHTML::processArticleHTML($parsed, array('no-ads'=>1, 'ns' => $t->getNamespace(), 'magic-word' => $magic));
 		$html .= "<input type='hidden' name='qc_id' value='{$this->mResult->qc_id}'/>";
 		$html .= "<div id='numqcusers'>{$this->mUsers}</div>";
 		return $html;
 	}
 
-	function rollbackChange($qcid) {
+	public function rollbackChange($qcid) {
 		// try to rollback the last edit if we can
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$result = $dbr->selectRow('qc', '*', array('qc_id' => $qcid), __METHOD__);
 		$t = self::getTitleFromQCID($qcid);
 		$a = new Article($t);
@@ -1081,7 +1112,7 @@ class QCRuleRollback extends QCRule {
 		// is this it them most recent revision? if so, we can roll it back
 		wfDebug("GOT " . print_r($a, true) . " {$last_rev->mId} vs {$result->qc_rev_id}\n");
 		if ($last_rev->mId == $result->qc_rev_id) {
-			$a->commitRollback($last_rev->mUserText, wfMsg('qc_editsummary_rollback', $last_rev->mUserText), false, $result);
+			$a->commitRollback($last_rev->mUserText, wfMessage('qc_editsummary_rollback', $last_rev->mUserText)->text(), false, $result);
 		}
 		return true;
 	}
@@ -1091,22 +1122,23 @@ class QCRCPatrol extends QCRule {
 
 	var $mRcids = null;
 
-	function __construct($article = null, $rcids = null) {
+	public function __construct($article = null, $rcids = null) {
 		$this->mArticle = $article;
 		$this->mRcids = $rcids;
 		$this->mKey	= "rcpatrol";
 	}
 
-	function flagAction() {
-		global $wgMemc, $wgUser;
-		$dbr = wfGetDB(DB_SLAVE);
-		$key = wfMemcKey("patrolcount", $wgUser->getID());
+	protected function flagAction() {
+		global $wgMemc;
+		$dbr = wfGetDB(DB_REPLICA);
+		$user = RequestContext::getMain()->getUser();
+		$key = wfMemcKey("patrolcount", $user->getID());
 		$count = (int)$wgMemc->get($key);
 		if (!$count) {
 			$count = $dbr->selectField('logging',
 				'count(*)',
 				array('log_type' => 'patrol',
-					'log_user' => $wgUser->getID()),
+					'log_user' => $user->getID()),
 				__METHOD__);
 			$wgMemc->set($key, $count, 3600);
 		}
@@ -1115,7 +1147,7 @@ class QCRCPatrol extends QCRule {
 		$old = wfTimestamp(TS_MW, time() - 10*60);
 		$revert = $dbr->selectField('recentchanges',
 			'count(*)',
-			array('rc_user' => $wgUser->getID(),
+			array('rc_user' => $user->getID(),
 				'(rc_comment like "Reverted edits%" OR rc_comment = "Quick edit while patrolling")',
 				'rc_cur_id' => $this->mArticle->getTitle()->getArticleID()),
 			__METHOD__);
@@ -1138,23 +1170,23 @@ class QCRCPatrol extends QCRule {
 		return $logqc;
 	}
 
-	function getPrompt() {
-		return wfMsg('qcprompt_rcpatrol');
+	public function getPrompt() {
+		return wfMessage('qcprompt_rcpatrol')->text();
 	}
 
-	function getYesVotesRequired() {
+	protected function getYesVotesRequired() {
 		global $wgQCRCPatrolVotesRequired;
 		return $wgQCRCPatrolVotesRequired["yes"];
 	}
 
-	function getNoVotesRequired() {
+	protected function getNoVotesRequired() {
 		global $wgQCRCPatrolVotesRequired;
 		return $wgQCRCPatrolVotesRequired["no"];
 	}
 
-	function getEntryOptions() {
+	protected function getEntryOptions() {
 		// get the old and new rev_id based on rcids
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$opts = array();
 		$min_rev = $dbr->selectField('recentchanges',
 			'rc_last_oldid',
@@ -1170,7 +1202,7 @@ class QCRCPatrol extends QCRule {
 		return $opts;
 	}
 
-	function rollbackChange($qcid) {
+	public function rollbackChange($qcid) {
 		$dbw = wfGetDB(DB_MASTER);
 		$row = $dbw->selectRow('qc', array('*'), array('qc_id' => $qcid), __METHOD__);
 		$t = Title::newFromID($row->qc_page);
@@ -1189,9 +1221,7 @@ class QCRCPatrol extends QCRule {
 		return true;
 	}
 
-	function getNextToPatrolHTML() {
-		global $wgOut;
-
+	public function getNextToPatrolHTML() {
 		if (!$this->mResult) {
 			// nothing to patrol
 			return null;
@@ -1215,17 +1245,19 @@ class QCRCPatrol extends QCRule {
 		$d->loadRevisionData();
 		// interesting
 		$html = "";
-		$changedby = self::getChangedBy("Edits patrolled by: ");
+		$changedby = $this->getChangedBy("Edits patrolled by: ");
 
-		$wgOut->clearHTML();
+		$out = RequestContext::getMain()->getOutput();
+		$out->clearHTML();
 		$d->showDiffPage(true);
-		$html = "<div id='qc_box'>".$changedby.$html.$wgOut->getHTML()."</div>";
-		$wgOut->clearHTML();
+		$html = "<div id='qc_box'>".$changedby.$html.$out->getHTML()."</div>";
+		$out->clearHTML();
 		$html .= "<div id='quickeditlink'></div>";
-		$popts = $wgOut->parserOptions();
+		$popts = $out->parserOptions();
 		$popts->setTidy(true);
-		$magic = WikihowArticleHTML::grabTheMagic($r->getText());
-		$html .= WikihowArticleHTML::processArticleHTML($wgOut->parse($r->getText(), $t, $popts), array('no-ads'=>1, 'ns' => $t->getNamespace(), 'magic-word' => $magic));
+		$magic = WikihowArticleHTML::grabTheMagic(ContentHandler::getContentText( $r->getContent() ));
+		$parsed = $out->parse(ContentHandler::getContentText( $r->getContent() ), $t, $popts);
+		$html .= WikihowArticleHTML::processArticleHTML($parsed, array('no-ads'=>1, 'ns' => $t->getNamespace(), 'magic-word' => $magic));
 		$html .= "<input type='hidden' name='qc_id' value='{$this->mResult->qc_id}'/>";
 		$html .= "<div id='numqcusers'>{$this->mUsers}</div>";
 		return $html;
@@ -1239,16 +1271,16 @@ class QCRCPatrol extends QCRule {
 ***********************/
 class QCRuleTemplateChange extends QCRuleTextChange {
 
-	function __construct($template, $revision = null, $article = null) {
+	public function __construct($template, $revision = null, $article = null) {
 		parent::__construct($template, $revision, $article);
 		$this->mKey	= "changedtemplate_" . strtolower($this->mTemplate);
 	}
 
-	function getPart() {
+	private function getPart() {
 		return "\{\{" . $this->mTemplate;
 	}
 
-	function flagAction() {
+	protected function flagAction() {
 
 		// check for a revision
 		if (!$this->mRevision) {
@@ -1278,19 +1310,17 @@ class QCRuleTemplateChange extends QCRuleTextChange {
 		return $ret;
 	}
 
-	function getYesVotesRequired() {
+	protected function getYesVotesRequired() {
 		global $wgTemplateChangedVotesRequired;
 		return $wgTemplateChangedVotesRequired[$this->mAction]["yes"];
 	}
 
-	function getNoVotesRequired() {
+	protected function getNoVotesRequired() {
 		global $wgTemplateChangedVotesRequired;
 		return $wgTemplateChangedVotesRequired[$this->mAction]["no"];
 	}
 
-	function getNextToPatrolHTML() {
-		global $wgOut;
-
+	public function getNextToPatrolHTML() {
 		if (!$this->mResult) {
 			// nothing to patrol
 			return null;
@@ -1310,26 +1340,27 @@ class QCRuleTemplateChange extends QCRuleTextChange {
 			return "Error creating revision";
 		}
 
-		$changedby = self::getChangedBy("Template " . $this->mResult->qc_action . " by: ");
+		$changedby = $this->getChangedBy("Template " . $this->mResult->qc_action . " by: ");
 
 		$html = "<div id='quickeditlink'></div>";
 		$html .= "<div id='qc_box'>".$changedby.$html."</div>";
-		$popts = $wgOut->parserOptions();
+		$popts = RequestContext::getMain()->getOutput()->parserOptions();
 		$popts->setTidy(true);
-		$magic = WikihowArticleHTML::grabTheMagic($r->getText());
-		$html .= WikihowArticleHTML::processArticleHTML($wgOut->parse($r->getText(), $t, $popts), array('no-ads'=>1, 'ns' => $t->getNamespace(), 'magic-word' => $magic));
+		$magic = WikihowArticleHTML::grabTheMagic(ContentHandler::getContentText( $r->getContent() ));
+		$parsed = RequestContext::getMain()->getOutput()->parse(ContentHandler::getContentText( $r->getContent() ), $t, $popts);
+		$html .= WikihowArticleHTML::processArticleHTML($parsed, array('no-ads'=>1, 'ns' => $t->getNamespace(), 'magic-word' => $magic));
 		$html .= "<input type='hidden' name='qc_id' value='{$this->mResult->qc_id}'/>";
 		$html .= "<div id='numqcusers'>{$this->mUsers}</div>";
 		return $html;
 	}
 
-	function getPrompt() {
-		return wfMsg('qcprompt_template', preg_replace("@changedtemplate_@", "", $this->getKey()));
+	public function getPrompt() {
+		return wfMessage('qcprompt_template', preg_replace("@changedtemplate_@", "", $this->getKey()))->text();
 	}
 
 	// in this case, we want to apply the template to the page because it's been voted "yes" on
-	function applyChange($qcid) {
-		$dbr = wfGetDB(DB_SLAVE);
+	public function applyChange($qcid) {
+		$dbr = wfGetDB(DB_REPLICA);
 
 		// load the revision text
 		$pageid = $dbr->selectField('qc', array('qc_page'), array('qc_id' => $qcid), __METHOD__);
@@ -1343,20 +1374,21 @@ class QCRuleTemplateChange extends QCRuleTextChange {
 			return false;
 		}
 
-		$text = $r->getText();
+		$text = ContentHandler::getContentText( $r->getContent() );
 		if (preg_match("@\{\{" . $this->mTemplate . "@", $text)) {
 			return true;
 		}
 
 		// add the template  since it doesn't already have it
-		$a = new Article($t);
 		$text = "{{{$this->mTemplate}}}" . $text;
-		return $a->doEdit($text, wfMsg('qc_editsummary_template_add', $this->mTemplate));
+		$wikiPage = WikiPage::factory($t);
+		$content = ContentHandler::makeContent($text, $t);
+		return $wikiPage->doEditContent( $content, wfMessage('qc_editsummary_template_add', $this->mTemplate)->text() );
 	}
 
-	function rollbackChange($qcid) {
+	public function rollbackChange($qcid) {
 		// roll back the chagne from the db
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		// load the revision text
 		$pageid = $dbr->selectField('qc', array('qc_page'), array('qc_id' => $qcid), __METHOD__);
@@ -1370,11 +1402,12 @@ class QCRuleTemplateChange extends QCRuleTextChange {
 			return false;
 		}
 
-		$text = $r->getText();
+		$text = ContentHandler::getContentText( $r->getContent() );
 		$text = preg_replace("@\{\{" . $this->mTemplate . "[^\}]*\}\}@U", "", $text);
 
-		$a = new Article($t);
-		return $a->doEdit($text, wfMsg('qc_editsummary_template', $this->mTemplate));
+		$wikiPage = WikiPage::factory($t);
+		$content = ContentHandler::makeContent($text, $t);
+		return $wikiPage->doEditContent( $content, wfMessage('qc_editsummary_template', $this->mTemplate)->text() );
 	}
 }
 
@@ -1388,14 +1421,14 @@ class QCRuleTip extends QCRule {
 
 	var $mTipId = null;
 
-	function __construct($article = null, $tipId = null) {
+	public function __construct($article = null, $tipId = null) {
 		$this->mArticle = $article;
 		$this->mTipId = $tipId;
 		$this->mKey	= "newtip";
 		$this->mAction = "added";
 	}
 
-	function flagAction() {
+	protected function flagAction() {
 		// check the title
 		$title = $this->mArticle->getTitle();
 		if (!$title || !in_array($title->getNamespace(), $this->mValidNamespaces)) {
@@ -1405,30 +1438,30 @@ class QCRuleTip extends QCRule {
 		return true;
 	}
 
-	function getPrompt() {
-		return wfMsg('qcprompt_newtip');
+	public function getPrompt() {
+		return wfMessage('qcprompt_newtip')->text();
 	}
 
-	function getYesVotesRequired() {
+	protected function getYesVotesRequired() {
 		global $wgQCNewTipVotesRequired;
 		return $wgQCNewTipVotesRequired["yes"];
 	}
 
-	function getNoVotesRequired() {
+	protected function getNoVotesRequired() {
 		global $wgQCNewTipVotesRequired;
 		return $wgQCNewTipVotesRequired["no"];
 	}
 
-	function getEntryOptions() {
+	protected function getEntryOptions() {
 		// get the tip ID
 		$opts = array();
 		$opts['qc_extra'] = $this->mTipId;
 		return $opts;
 	}
 
-	function rollbackChange($qcid) {
+	public function rollbackChange($qcid) {
 		//bad tip!
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$tipid = $dbr->selectField('qc', array('qc_extra'), array('qc_id' => $qcid), __METHOD__);
 
 		//use TipsPatrol's function
@@ -1436,7 +1469,7 @@ class QCRuleTip extends QCRule {
 		return true;
 	}
 
-	function applyChange($qcid) {
+	public function applyChange($qcid) {
 		//grab tip data from tip id
 		$dbw = wfGetDB(DB_MASTER);
 		$res = $dbw->select('qc', array('qc_extra','qc_user'), array('qc_id' => $qcid), __METHOD__);
@@ -1463,9 +1496,7 @@ class QCRuleTip extends QCRule {
 		// return $res;
 	}
 
-	function getNextToPatrolHTML() {
-		global $wgOut;
-
+	public function getNextToPatrolHTML() {
 		if (!$this->mResult) {
 			// nothing to patrol
 			return null;
@@ -1497,23 +1528,24 @@ class QCRuleTip extends QCRule {
 		}
 
 		//now first step (approved > added)
-		//$approvedby = self::getChangedBy("Tip added by: ","qc_approvedby",$tip_user);
+		//$approvedby = $this->getChangedBy("Tip added by: ","qc_approvedby",$tip_user);
 
-		$tip_html = '<h3>New Tip</h3><br />'.
-					'<div class="wh_block"><ul><li>'.strip_tags($the_tip).'</li></ul></div>';
+		$tip_html = '<h3>New Tip</h3><div class="wh_block">'.strip_tags($the_tip).'</div>';
 
 		$tip_html = "<div id='qc_box'>".$tip_html."</div>";
-		$wgOut->clearHTML();
+		$out = RequestContext::getMain()->getOutput();
+		$out->clearHTML();
 
 		if (Misc::isMobileMode()) {
 			return array('tip_html' => $tip_html, 'article_id' => $t->getArticleID(), 'tip' => $the_tip);
 		}
 		else {
 			$html = "<div id='quickeditlink'></div>";
-			$popts = $wgOut->parserOptions();
+			$popts = $out->parserOptions();
 			$popts->setTidy(true);
-			$magic = WikihowArticleHTML::grabTheMagic($r->getText());
-			$html .= WikihowArticleHTML::processArticleHTML($wgOut->parse($r->getText(), $t, $popts), array('no-ads'=>1, 'ns' => $t->getNamespace(), 'magic-word' => $magic));
+			$magic = WikihowArticleHTML::grabTheMagic(ContentHandler::getContentText( $r->getContent() ));
+			$parsed = $out->parse(ContentHandler::getContentText( $r->getContent() ), $t, $popts);
+			$html .= WikihowArticleHTML::processArticleHTML($parsed, array('no-ads'=>1, 'ns' => $t->getNamespace(), 'magic-word' => $magic));
 			$html .= "<input type='hidden' name='qc_id' value='{$this->mResult->qc_id}'/>";
 			$html .= "<div id='numqcusers'>{$this->mUsers}</div>";
 
@@ -1560,28 +1592,28 @@ class QG extends SpecialPage {
 		return $count;
 	}
 
-	function getQuickEditLink($title) {
+	private function getQuickEditLink($title) {
 		if ($title) {
 			$url = $title->getFullText();
 		}
 		$editURL = Title::makeTitle(NS_SPECIAL, 'QuickEdit')->getFullURL() . '?type=editform&target=' . urlencode($url);
 		$class = "class='button secondary buttonright'";
-		$link =  "<a title='" . wfMsg("Editold-quick") . "' accesskey='e' href='' $class onclick=\"return initPopupEdit('".$editURL."') ;\">" .
-			htmlspecialchars( wfMsg( 'Editold-quick' ) ) . "</a> ";
+		$link =  "<a title='" . wfMessage("Editold-quick")->text() . "' accesskey='e' href='' $class onclick=\"return initPopupEdit('".$editURL."') ;\">" .
+			htmlspecialchars( wfMessage( 'Editold-quick' )->text() ) . "</a> ";
 		return $link;
 	}
 
-	function getSubmenu() {
+	private function getSubmenu() {
 		$menu = "<div id='qg_submenu'><div id='qg_options'></div></div>";
 
 		return $menu;
 	}
 
-	function getButtons($item) {
+	private function getButtons($item) {
 
 		$buttons =	"<div id='qc_head' class='tool_header'>
 						<h1 id='question'></h1>
-						<a href='#' class='button secondary' id='qc_skip' " . $this->dataAttr($item, 'skip') . ">".wfMsg('qc_skip_article')."</a>
+						<a href='#' class='button secondary' id='qc_skip' " . $this->dataAttr($item, 'skip') . ">".wfMessage('qc_skip_article')->text()."</a>
 						<a href='#' class='button primary op-action' id='qc_yes' " . $this->dataAttr($item, 'vote_up') . ">Yes</a>
 						<a href='#' class='button secondary op-action' id='qc_no' " . $this->dataAttr($item, 'vote_down') . ">No</a>
 						<div class='clearall'></div>
@@ -1590,8 +1622,7 @@ class QG extends SpecialPage {
 		return $buttons;
 	}
 
-	function dataAttr($item, $action) {
-
+	private function dataAttr($item, $action) {
 		$type = $item->mResult->qc_key;
 		$itemId = $item->mResult->qc_id;
 		$articleId = $item->mTitle->mArticleID;
@@ -1601,7 +1632,7 @@ class QG extends SpecialPage {
 			"data-type='$type'";
 	}
 
-	function getNextInnards($qc_type,$by_username) {
+	private function getNextInnards($qc_type,$by_username) {
 		// grab the next check
 		$result = array();
 
@@ -1623,7 +1654,7 @@ class QG extends SpecialPage {
 			$tool = $qc_type == 'NewTip' ? 'tg' : 'qc';
 			$eoq = new EndOfQueue();
 			$result['done'] 		= 1;
-			$result['title'] 		= wfMsg('quality_control');
+			$result['title'] 		= wfMessage('quality_control')->text();
 			$result['qctabs']		= $this->getTabs($qc_type);
 			$result['choices' ]		= $this->getSubmenu();
 			$result['msg'] = $eoq->getMessage($tool);
@@ -1632,13 +1663,15 @@ class QG extends SpecialPage {
 	}
 
 	// generate the HTML for the rule selector checkboxes
-	function getOptionMenu($menu_name,$chosen,$username) {
-		global $wgQCRulesToCheck,$wgUser;
+	private function getOptionMenu($menu_name, $chosen, $username) {
+		global $wgQCRulesToCheck;
 
 		if ($menu_name == 'options') {
 			//options menu
 			$rules = $wgQCRulesToCheck;
-			if (in_array('RCPatrol',$rules) && !in_array('sysop',$wgUser->getGroups())) {
+			if (in_array('RCPatrol',$rules)
+				&& !in_array('sysop', RequestContext::getMain()->getUser()->getGroups())
+			) {
 				$rules = array_diff($rules,array('RCPatrol'));
 			}
 
@@ -1649,7 +1682,7 @@ class QG extends SpecialPage {
 				(preg_match("@{$rule}@i", $chosen) or empty($chosen)) ? $checked = true : $checked = false;
 				//hack for unchecking the first RCPatrol view
 				if (empty($chosen) and $rule == 'RCPatrol') $checked = false;
-				$html .= '<p>'. Xml::checkLabel(wfMsg('qcrule_' . strtolower($rule)),'qcrule_choice','qcrule_' . strtolower($rule),$checked) .'</p>';
+				$html .= '<p>'. Xml::checkLabel(wfMessage('qcrule_' . strtolower($rule))->text(),'qcrule_choice','qcrule_' . strtolower($rule),$checked) .'</p>';
 			}
 			$html .= "</div>";
 		}
@@ -1666,25 +1699,25 @@ class QG extends SpecialPage {
 		return $html;
 	}
 
-	//tabs for options and checkboxes
-	function getTabs($qc_type) {
+	// tabs for options and checkboxes
+	private function getTabs($qc_type) {
 
 		$html = "<div id='qg_tabs' class='tool_options_link'>
-					<a href='#' id='qgtab_byuser'>" . wfMsg('qc_byuser') . "</a>
-					<a href='#' id='qgtab_options'>" . wfMsg('qc_rulestocheck') . "</a>
+					<a href='#' id='qgtab_byuser'>" . wfMessage('qc_byuser')->text() . "</a>
+					<a href='#' id='qgtab_options'>" . wfMessage('qc_rulestocheck')->text() . "</a>
 				</div>";
 
 		return $html;
 	}
 
-	//formatted sidenav box for QG voting
-	function getVoteBlock($qc_id) {
+	// formatted sidenav box for QG voting
+	private function getVoteBlock($qc_id) {
 		if ($qc_id != -1) {
-			$dbr = wfGetDB(DB_SLAVE);
-			$res = $dbr->select('qc', array('qc_yes_votes_req','qc_no_votes_req','qc_key'), array('qc_id' => $qc_id), 'QG::getVoteBlock');
+			$dbr = wfGetDB(DB_REPLICA);
+			$res = $dbr->select('qc', array('qc_yes_votes_req','qc_no_votes_req','qc_key'), array('qc_id' => $qc_id), __METHOD__);
 			$row = $dbr->fetchObject($res);
 
-			$html = self::getYesNoVotes($qc_id, $row->qc_yes_votes_req, $row->qc_no_votes_req, $row->qc_key);
+			$html = $this->getYesNoVotes($qc_id, $row->qc_yes_votes_req, $row->qc_no_votes_req, $row->qc_key);
 		} else {
 			$html = "";
 		}
@@ -1692,19 +1725,19 @@ class QG extends SpecialPage {
 		return $html;
 	}
 
-	//get the yes/no boxes for voters
-	function getYesNoVotes($qc_id, $req_y, $req_n, $qc_key){
+	// get the yes/no boxes for voters
+	private function getYesNoVotes($qc_id, $req_y, $req_n, $qc_key){
 		$t = QCRule::getTitleFromQCID( $qc_id );
-		$link = "<a href='{$t->getFullURL()}' target='new'>" . wfMsg('howto', $t->getText()) . "</a>";
+		$link = "<a href='{$t->getFullURL()}' target='new'>" . wfMessage('howto', $t->getText())->text() . "</a>";
 
 		$yes = array();
 		$no = array();
 		$status = '';
 
-		$dbr = wfGetDB(DB_SLAVE);
-		$res = $dbr->select('qc_vote', array('qcv_user','qcv_vote'), array('qcv_qcid' => $qc_id), 'QG::getVoteBlock', array('ORDER BY' => 'qcv_vote DESC'));
+		$dbr = wfGetDB(DB_REPLICA);
+		$res = $dbr->select('qc_vote', array('qcv_user','qcv_vote'), array('qcv_qcid' => $qc_id), __METHOD__, array('ORDER BY' => 'qcv_vote DESC'));
 
-		while( $row = $dbr->fetchObject( $res ) ){
+		foreach ($res as $row) {
 			if ($row->qcv_vote == '1') {
 				array_push( $yes,$row->qcv_user );
 			} else {
@@ -1759,11 +1792,11 @@ class QG extends SpecialPage {
 
 		//grab upper text
 		if ( $status == 'approved' || $status == 'removed' ) {
-			$text = wfMsg('qcrule_'.$qc_key).' '.wfMsg( 'qcvote_'.$status );
-		} else if ( $status == 'tie' ) {
-			$text = wfMsg( 'qcvote_'.$status );
+			$text = wfMessage('qcrule_'.$qc_key)->text().' '.wfMessage( 'qcvote_'.$status )->text();
+		} elseif ( $status == 'tie' ) {
+			$text = wfMessage( 'qcvote_'.$status )->text();
 		} else {
-			$text = wfMsg( 'qcvote_'.$status );
+			$text = wfMessage( 'qcvote_'.$status )->text();
 		}
 
 		//format the top part
@@ -1775,7 +1808,7 @@ class QG extends SpecialPage {
 		return $html;
 	}
 
-	function getAvatar($user_id) {
+	private static function getAvatar($user_id) {
 		if ($user_id) {
 			$u = new User();
 			$u->setID($user_id);
@@ -1796,75 +1829,73 @@ class QG extends SpecialPage {
 		return $avatar;
 	}
 
-	function execute($par) {
-		global $wgUser, $wgOut, $wgRequest;
-
-		if ($wgUser->isBlocked()) {
-			$wgOut->blockedPage();
-			return;
-		}
+	public function execute($par) {
+		$req = $this->getRequest();
+		$out = $this->getOutput();
+		$user = $this->getUser();
 
 		$ctx = MobileContext::singleton();
 		$isMobile = $ctx->shouldDisplayMobileView();
 
-		if ($wgUser->getID() == 0 && !$isMobile) {
-			$wgOut->setRobotpolicy( 'noindex,nofollow' );
-			$wgOut->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
+		if (!$user || ($user->getID() == 0 && !$isMobile)) {
+			$out->setRobotPolicy( 'noindex,nofollow' );
+			$out->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
 			return;
 		}
 
+		if ($user->isBlocked()) {
+			throw new UserBlockedError( $user->getBlock() );
+		}
 
-		if ($wgRequest->getVal('fetchInnards')) {
-			$wgOut->setArticleBodyOnly(true);
+		if ($req->getVal('fetchInnards')) {
+			$out->setArticleBodyOnly(true);
 			header('Vary: Cookie' );
-			$result = self::getNextInnards($wgRequest->getVal('qc_type'),$wgRequest->getVal('by_username'));
-			print_r(json_encode($result));
+			$result = $this->getNextInnards($req->getVal('qc_type'),$req->getVal('by_username'));
+			print json_encode($result);
 			return;
 
-		} elseif ($wgRequest->getVal('getOptions')) {
-			$wgOut->setArticleBodyOnly(true);
-			$wgOut->addHTML(self::getOptionMenu($wgRequest->getVal('menuName'),$wgRequest->getVal('choices'),$wgRequest->getVal('username')));
+		} elseif ($req->getVal('getOptions')) {
+			$out->setArticleBodyOnly(true);
+			$out->addHTML($this->getOptionMenu($req->getVal('menuName'),$req->getVal('choices'),$req->getVal('username')));
 			return;
 
-		} elseif ($wgRequest->getVal('getVoteBlock')) {
-			$wgOut->setArticleBodyOnly(true);
-			$wgOut->addHTML(self::getVoteBlock($wgRequest->getVal('qc_id')));
+		} elseif ($req->getVal('getVoteBlock')) {
+			$out->setArticleBodyOnly(true);
+			$out->addHTML($this->getVoteBlock($req->getVal('qc_id')));
 			return;
 
-		} elseif ($wgRequest->wasPosted()) {
-			if(class_exists('Plants') && Plants::usesPlants("QGTip") && $wgRequest->getVal('qc_id') == -1) {
+		} elseif ($req->wasPosted()) {
+			if (class_exists('Plants') && Plants::usesPlants("QGTip") && $req->getVal('qc_id') == -1) {
 				$plant = new TipPlants();
-				if ($wgRequest->getVal("qc_skip") == 1) {
+				if ($req->getVal("qc_skip") == 1) {
 					$vote = -2;
-				} elseif ($wgRequest->getVal("qc_vote") == 1) {
+				} elseif ($req->getVal("qc_vote") == 1) {
 					$vote = 1;
 				} else {
 					$vote = 0;
 				}
 
-				$plant->savePlantAnswer($wgRequest->getVal('pqt_id'), $vote);
-			} elseif ($wgRequest->getVal('qc_skip', 0) == 1) {
-				QCRule::skip($wgRequest->getVal('qc_id'));
+				$plant->savePlantAnswer($req->getVal('pqt_id'), $vote);
+			} elseif ($req->getVal('qc_skip', 0) == 1) {
+				QCRule::skip($req->getVal('qc_id'));
 			} else {
-				QCRule::vote($wgRequest->getVal('qc_id'), $wgRequest->getVal('qc_vote'));
+				QCRule::vote($req->getVal('qc_id'), $req->getVal('qc_vote'));
 			}
-			$wgOut->disable();
-			$result = self::getNextInnards($wgRequest->getVal('qc_type'),$wgRequest->getVal('by_username'));
+			$out->setArticleBodyOnly(true);
+			$result = $this->getNextInnards($req->getVal('qc_type'),$req->getVal('by_username'));
 			header('Vary: Cookie' );
-			print_r(json_encode($result));
+			print json_encode($result);
 			return;
 		}
 
-		/**
-		 * This is the shell of the page, has the buttons, etc.
-		 */
-		$wgOut->setHTMLTitle('Quality Guardian');
-		$wgOut->addModules('ext.wikihow.UsageLogs');
-		$wgOut->addModules('ext.wikihow.quality_guardian');
-		$wgOut->addModules('ext.wikihow.diff_styles');
-		$wgOut->addHTML(QuickNoteEdit::displayQuickEdit() . QuickNoteEdit::displayQuickNote(true));
-		$wgOut->setHTMLTitle(wfMsg('quality_control'));
-		$wgOut->setPageTitle(wfMsg('quality_control'));
+		// This is the shell of the page, has the buttons, etc.
+		$out->setHTMLTitle('Quality Guardian');
+		$out->addModules('ext.wikihow.UsageLogs');
+		$out->addModules('ext.wikihow.quality_guardian');
+		$out->addModules('ext.wikihow.diff_styles');
+		$out->addHTML(QuickNoteEdit::displayQuickEdit() . QuickNoteEdit::displayQuickNote(true));
+		$out->setHTMLTitle(wfMessage('quality_control')->text());
+		$out->setPageTitle(wfMessage('quality_control')->text());
 
 		// add standings widget
 		$group= new QCStandingsGroup();
@@ -1878,24 +1909,23 @@ class QG extends SpecialPage {
 
 class NoVotesAgainst extends UnlistedSpecialPage {
 
-	function __construct() {
+	public function __construct() {
 		parent::__construct( 'NoVotesAgainst' );
 	}
 
-	function execute($par) {
-		global $wgOut;
-		$dbr = wfGetDB(DB_MASTER);
-		$wgOut->addHTML("<h2>Top Users with No Votes for Rollback Edits</h2>");
-		$res = $dbr->query("SELECT qc_user_text, count(*) as C FROM qc
+	public function execute($par) {
+		$out = $this->getOutput();
+		$dbw = wfGetDB(DB_MASTER);
+		$out->addHTML("<h2>Top Users with No Votes for Rollback Edits</h2>");
+		$res = $dbw->query("SELECT qc_user_text, count(*) as C FROM qc
 			LEFT JOIN qc_vote ON qc_id=qcv_qcid
 			WHERE qc_key='rollback' AND qcv_vote=0
 			GROUP BY qc_user_text ORDER BY C DESC LIMIT 50", __METHOD__);
-		$wgOut->addHTML("<ul>");
-		while ($row = $dbr->fetchObject($res)) {
-			$wgOut->addHTML("<li>{$row->qc_user_text} - {$row->C} No votes\n</li>");
+		$out->addHTML("<ul>");
+		foreach ($res as $row) {
+			$out->addHTML("<li>{$row->qc_user_text} - {$row->C} No votes\n</li>");
 		}
-		$wgOut->addHTML("</ul>");
+		$out->addHTML("</ul>");
 	}
 
 }
-

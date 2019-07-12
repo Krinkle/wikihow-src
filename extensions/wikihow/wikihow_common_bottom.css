@@ -45,13 +45,20 @@
 	/* @embed */
 	background-image: url(../../skins/owl/images/rss-64.png);
 }
-#gatHeartWikiHow {
+#gatFollowNewsletter {
+	border-radius: 6px;
+	background-color: #FFF;
+	background-size: 35px;
+	background-position: 40%;
+	background-image: url(/extensions/wikihow/userloginbox/images/ulb_email.png);
 	/* @embed */
-	background-image: url(../../skins/owl/images/weheartit.png);
+	background-image: url(/extensions/wikihow/userloginbox/images/ulb_email.svg);
 }
-#gatFollowPlus {
-	/* @embed */
-	background-image: url(../../skins/owl/images/google-plus-64.png);
+#follow_table_cta #gatFollowNewsletter {
+	background-size: 47px;
+	padding-bottom: 1px;
+	margin-top: -3px;
+	background-position: 50%;
 }
 #gatFollowPinterest {
 	/* @embed */

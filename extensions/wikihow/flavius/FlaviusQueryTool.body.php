@@ -7,9 +7,10 @@ class FlaviusQueryTool extends UnlistedSpecialPage {
 	private $flavius;
 
 	public function __construct() {
+		global $wgHooks;
 		parent::__construct("FlaviusQueryTool");
 		$this->flavius = new Flavius;
-		$GLOBALS['wgHooks']['ShowSideBar'][] = array('TitusQueryTool::removeSideBarCallback');
+		$wgHooks['ShowSideBar'][] = array('TitusQueryTool::removeSideBarCallback');
 	}
 
 	static function removeSideBarCallback(&$showSideBar) {
@@ -17,31 +18,39 @@ class FlaviusQueryTool extends UnlistedSpecialPage {
 		return true;
 	}
 
-	public function execute($par) {
-		global $wgRequest, $wgOut, $wgUser;
+	// method stops redirects when running on titus host
+	public function isSpecialPageAllowedOnTitus() {
+		return true;
+	}
 
-		$userGroups = $wgUser->getGroups();
-		if ($wgUser->isBlocked() ||  !in_array('staff', $userGroups)) {
-			$wgOut->setRobotpolicy('noindex,nofollow');
-			$wgOut->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
+	public function execute($par) {
+		$req = $this->getRequest();
+		$out = $this->getOutput();
+		$user = $this->getUser();
+
+		$userGroups = $user->getGroups();
+		if ($user->isBlocked() ||  !in_array('staff', $userGroups)) {
+			$out->setRobotPolicy('noindex,nofollow');
+			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
-		if ($wgRequest->wasPosted()) {
-			$query = $wgRequest->getVal('query');
+		if ($req->wasPosted()) {
+			$query = $req->getVal('query');
 			ini_set('memory_limit', '2048M');
 			//Take up to 8 minutes to download big queries
 			set_time_limit(480);
 			$this->getQuery();
-		}
-		else {
-			EasyTemplate::set_path(dirname(__FILE__).'/resources/templates/');
-
+			return;
+		} else {
+			EasyTemplate::set_path(__DIR__.'/resources/templates/');
+			$flaviusLastRunStatus = $this->getLastRunInfo();
 			$vars = array('fields'=>$this->getFields() );
-
+			$vars['flaviusLastRunTime'] = $flaviusLastRunStatus['flaviusLastRunTime'];
+			$vars['flaviusLastRunErrorDump'] = $flaviusLastRunStatus['flaviusLastRunErrorDump'];
 			$html = EasyTemplate::html('flaviusquerytool.tmpl.php', $vars);
-			$wgOut->addModules('ext.wikihow.flaviusquerytool');
-			$wgOut->setPageTitle('Dear Flavius Anicius Petronius Maximus. I come seeking.....');
-			$wgOut->addHTML($html);
+			$out->addModules('ext.wikihow.flaviusquerytool');
+			$out->setPageTitle('Dear Flavius Anicius Petronius Maximus. I come seeking.....');
+			$out->addHTML($html);
 		}
 
 		return $html;
@@ -51,7 +60,7 @@ class FlaviusQueryTool extends UnlistedSpecialPage {
 	 * Get data
 	 */
 	public function getData($sql, $days) {
-
+		RequestContext::getMain()->getOutput()->disable();
 		header("Content-Type: text/tsv");
 		header('Content-Disposition: attachment; filename="Flavius.xls"');
 
@@ -89,7 +98,7 @@ class FlaviusQueryTool extends UnlistedSpecialPage {
 			}
 			foreach (array_keys($this->fields) as $field) {
 				if ($field == 'fe_username') {
-					print("http://www.wikihow.com/User:" . $rowArr[$field] . "\t");
+					print("https://www.wikihow.com/User:" . $rowArr[$field] . "\t");
 				}
 				else {
 					print($rowArr[$field] . "\t");
@@ -182,13 +191,13 @@ class FlaviusQueryTool extends UnlistedSpecialPage {
 	/*
 	 * Call a query to get the Flavius row
 	 */
-	function getQuery() {
-		global $wgRequest;
+	private function getQuery() {
+		$req = $this->getRequest();
 
-		$days = $wgRequest->getVal('days');
-		$userList = $wgRequest->getVal('users');
-		$usersType = $wgRequest->getVal('usersType');
-		$sql = Misc::getUrlDecodedData($wgRequest->getVal('sql'), false);
+		$days = $req->getVal('days');
+		$userList = $req->getVal('users');
+		$usersType = $req->getVal('usersType');
+		$sql = Misc::getUrlDecodedData($req->getVal('sql'), false);
 		if ($sql == "") {
 			$sql = "select * from flavius_summary";
 		}
@@ -240,6 +249,42 @@ class FlaviusQueryTool extends UnlistedSpecialPage {
 			}
 			print "\n";
 		}
+	}
+
+	private function getLastRunInfo() {
+		// This JSON contains information about flavius' last run
+		$flaviusFinishedLogFile = '/data/titus_log/flavius_finished.json';
+
+		// Doing this for error-handling in flaviusquerytool.tmpl.php
+		$formattedTime = -1;
+		$errors = -1;
+
+		if ( file_exists( $flaviusFinishedLogFile ) ) {
+			$jsonContents = file_get_contents( '/data/titus_log/flavius_finished.json' );
+			$decoded = json_decode( $jsonContents, true );
+			if ( array_key_exists( 'err', $decoded ) ) {
+				$errors = $decoded['err'];
+			}
+			if ( array_key_exists( 'date', $decoded ) ) {
+				$unixTime = $decoded['date'];
+
+				// Making sure we have a numeric Unix timestamp before formatting it
+				if ( is_numeric( $unixTime ) && (int)$unixTime == $unixTime ){
+					$timezone = 'America/Los_Angeles';
+					$dt = new DateTime("now", new DateTimeZone($timezone));
+					$dt->setTimestamp($unixTime);
+					$formattedTime = $dt->format('g:ia \o\n l jS F Y');
+				} else {
+				// If the timestamp isn't numeric, just use whatever value is stored without formatting it
+					$formattedTime = $unixTime;
+				}
+			}
+		}
+
+		return [
+			'flaviusLastRunTime' => $formattedTime,
+			'flaviusLastRunErrorDump' => $errors
+		];
 	}
 
 }

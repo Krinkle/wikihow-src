@@ -24,7 +24,8 @@ CREATE TABLE `qa_patrol` (
 	KEY (`qap_timestamp`),
 	KEY (`qap_vote_total`),
 	KEY (`qap_articles_questions`),
-	UNIQUE KEY (`qap_aqid`)
+	UNIQUE KEY (`qap_aqid`),
+	KEY `qap_submitter_email` (`qap_submitter_email`(16))
 );
 CREATE TABLE `qap_vote` (
 	`qapv_qapid` int(10) NOT NULL DEFAULT 0,
@@ -60,11 +61,13 @@ class QAPatrol extends UnlistedSpecialPage {
 	const QAPATROL_ATTEMPTS = 5;
 	const QAPATROL_SIMILARITY_THRESHOLD = .6;
 
-	static $qap_use_article_grouping = true;
-	static $qap_from_article = false; //we treat article unpatrolled actions differently
+	var $qap_use_article_grouping = true;
+	var $qap_from_article = false; //we treat article unpatrolled actions differently
 
 	var $qap_expert_mode = false;
 	var $qap_top_answerer_mode = false;
+
+	var $qa_edited = false;
 
 	public function __construct() {
 		parent::__construct( 'QAPatrol');
@@ -75,16 +78,15 @@ class QAPatrol extends UnlistedSpecialPage {
 		$request = $this->getRequest();
 		$user = $this->getUser();
 
-		if ($user->isBlocked()) {
-			$out->blockedPage();
+		//logged in and desktop only
+		if (!$user || $user->isAnon() || Misc::isMobileMode() || !self::isAllowed($user)) {
+			$out->setRobotPolicy( 'noindex,nofollow' );
+			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
 
-		//logged in and desktop only
-		if($user->isAnon() || Misc::isMobileMode() || !self::isPowerVoter()) {
-			$out->setRobotpolicy( 'noindex,nofollow' );
-			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
-			return;
+		if ($user->isBlocked()) {
+			throw new UserBlockedError( $user->getBlock() );
 		}
 
 		$this->skipTool = new ToolSkip("QAPatrol");
@@ -116,11 +118,11 @@ class QAPatrol extends UnlistedSpecialPage {
 				return;
 			}
 
-			$qa['remaining'] = $this->getRemaining();
+			$qa['remaining'] = self::getRemaining('',$this->qap_expert_mode, $this->qap_top_answerer_mode);
 			$qa['votes_left'] = $this->getVotesLeft($qa['vote_yes'], $qa['vote_no']);
-			if (self::canAutoApprove()) $qa['user_data'] = self::getUserHtml($qa);
+			if ($this->canAutoApprove()) $qa['user_data'] = $this->getUserHtml($qa);
 
-			self::checkoutQA($qa['qap_id']);
+			$this->checkoutQA($qa['qap_id']);
 
 			print json_encode($qa);
 			return;
@@ -129,7 +131,7 @@ class QAPatrol extends UnlistedSpecialPage {
 			$out->setArticleBodyOnly(true);
 
 			//are we saving this from the article or from QAPatrol?
-			if (!empty($request->getVal('from_article'))) self::$qap_from_article = true;
+			if (!empty($request->getVal('from_article'))) $this->qap_from_article = true;
 
 			$qap_id = $request->getVal('id');
 			$question = $request->getVal('question');
@@ -137,7 +139,7 @@ class QAPatrol extends UnlistedSpecialPage {
 			$expertId = $request->getInt('expert', 0); //need this now for qapatrol on article pages
 			$removeSubmitter = $request->getInt('remove_submitter', 0) == 1; //need this now for qapatrol on article pages
 
-			$res = self::saveEdit($qap_id, $question, $answer, $expertId, $removeSubmitter);
+			$res = $this->saveEdit($qap_id, $question, $answer, $expertId, $removeSubmitter);
 
 			print json_encode($res);
 			return;
@@ -145,7 +147,7 @@ class QAPatrol extends UnlistedSpecialPage {
 		elseif ($action == 'skip') {
 			$out->setArticleBodyOnly(true);
 
-			self::skip($request->getVal('id'));
+			$this->skip($request->getVal('id'));
 			return;
 		}
 		elseif ($action == 'vote') {
@@ -153,7 +155,7 @@ class QAPatrol extends UnlistedSpecialPage {
 
 			$vote = $request->getVal('vote');
 			$qap_id = $request->getVal('id');
-			$res = self::vote($vote, $qap_id);
+			$res = $this->vote($vote, $qap_id);
 
 			print json_encode($res);
 			return;
@@ -162,26 +164,46 @@ class QAPatrol extends UnlistedSpecialPage {
 			$out->setArticleBodyOnly(true);
 
 			$qap_id = $request->getVal('id');
-			self::deleteQuestion($qap_id);
+			$this->deleteQuestion($qap_id);
 			return;
 		}
 		elseif ($action == 'stats') {
 			$out->setPageTitle(wfMessage('cd-qap-title')->text());
 
 			if (in_array('sysop',$user->getGroups())) {
-				$html = QAPatrolStats::getStats($this->qap_expert_mode, $this->qap_top_answerer_mode);
+				$out->addModules([
+					'ext.wikihow.qa_patrol_stats',
+					'ext.wikihow.qa_patrol_stats.style'
+				]);
+
+				$qap_stats = new QAPatrolStats(
+					$username = $request->getVal('user'),
+					$this->qap_expert_mode,
+					$this->qap_top_answerer_mode
+				);
+				$html = $qap_stats->getStatsHTML();
 				$out->addHTML($html);
 			}
+
 			return;
 		} elseif ($action == 'checkout') { //need this now for qapatrol on article pages
 			$out->setArticleBodyOnly(true);
 			$qap_id = $request->getVal('id');
-			self::tryCheckoutQA($qap_id);
+			$this->tryCheckoutQA($qap_id);
 			return;
 		} elseif ($action == 'uncheckout') { //need this now for qapatrol on article pages
 			$out->setArticleBodyOnly(true);
 			$qap_id = $request->getVal('id');
-			self::unCheckoutQA($qap_id);
+			$this->unCheckoutQA($qap_id);
+			return;
+		} elseif ($action == 'export') {
+			$from = $request->getVal('from');
+			$to = $request->getVal('to');
+			$user = $request->getVal('user');
+
+			if (!empty($from) && !empty($to)) {
+				$this->exportSummaryCSV($from, $to, $user);
+			}
 			return;
 		}
 
@@ -196,13 +218,13 @@ class QAPatrol extends UnlistedSpecialPage {
 			$remain_msg = 'qap_remaining';
 
 		$vars['tool_info'] = class_exists('ToolInfo') ? ToolInfo::getTheIcon($this->getContext()) : '';
-		$vars['isPowerVoter'] = self::isPowerVoter();
+		$vars['isPowerVoter'] = $this->isPowerVoter();
 		$vars['expert_mode'] = $this->qap_expert_mode;
 		$vars['top_answerer_mode'] = $this->qap_top_answerer_mode;
 		$vars['remaining_text'] = wfMessage($remain_msg)->text();
 
-		EasyTemplate::set_path( dirname(__FILE__).'/' );
-		$html = EasyTemplate::html('qa_patrol', $vars);
+		EasyTemplate::set_path( __DIR__.'/templates' );
+		$html = EasyTemplate::html('qa_patrol.tmpl.php', $vars);
 
 		$out->addHTML($html);
 	}
@@ -214,7 +236,7 @@ class QAPatrol extends UnlistedSpecialPage {
 	 */
 	private function getNextQA() {
 		$nextQA = [];
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$row = '';
 		$submitter_name = '';
 		$submitter_link = '';
@@ -227,7 +249,7 @@ class QAPatrol extends UnlistedSpecialPage {
 			QADB::TABLE_QA_PATROL
 		];
 
-		$expired = self::getExpiryTime();
+		$expired = $this->getExpiryTime();
 
 		$where = [
 			'qap_aqid IS NULL',
@@ -238,7 +260,10 @@ class QAPatrol extends UnlistedSpecialPage {
 
 		$options = [
 			'USE INDEX' => [QADB::TABLE_QA_PATROL => 'qap_aqid'],
-			'ORDER BY' => array('qap_vote_total desc', 'qs_submitted_timestamp desc'),
+			'ORDER BY' => [
+				"qap_submitter_email != '' desc",
+				'qs_submitted_timestamp desc'
+			],
 			'LIMIT' => 1
 		];
 
@@ -266,12 +291,17 @@ class QAPatrol extends UnlistedSpecialPage {
 			$where[] = "qap_id not in (" . implode(',', $skippedIds) . ")";
 			//ignore last page
 			if (!$this->qap_expert_mode && !$this->qap_top_answerer_mode) {
-				$last_page = $dbr->selectField('qa_patrol', 'qap_page_id', array('qap_id = '.end($skippedIds)), __METHOD__);
+				$last_page = $dbr->selectField(
+					QADB::TABLE_QA_PATROL,
+					'qap_page_id',
+					['qap_id = '.end($skippedIds)],
+					__METHOD__
+				);
 				if ($last_page) $where[] = 'qap_page_id != '.$last_page;
 			}
 		}
 
-		if (self::$qap_use_article_grouping && !$this->qap_expert_mode && !$this->qap_top_answerer_mode) {
+		if ($this->qap_use_article_grouping && !$this->qap_expert_mode && !$this->qap_top_answerer_mode) {
 			$where[] = 'qap_articles_questions < 3';
 		}
 
@@ -283,7 +313,7 @@ class QAPatrol extends UnlistedSpecialPage {
 
 		if (is_null($row->qap_page_id)) {
 			//none found
-			self::$qap_use_article_grouping = false;
+			$this->qap_use_article_grouping = false;
 			$nextQA = [
 				'title' => self::QAPATROL_BAD_ARTICLE,
 				'aid' => $row->qap_page_id
@@ -326,7 +356,7 @@ class QAPatrol extends UnlistedSpecialPage {
 				'aid' => $page->getTitle()->getArticleId(),
 				'question' => $row->qap_question,
 				'answer' => $row->qap_answer,
-				'answer_formatted' => self::formatAnswer($row->qap_answer),
+				'answer_formatted' => $this->formatAnswer($row->qap_answer),
 				'qap_id' => $row->qap_id,
 				'vote_yes' => $row->qap_vote_yes,
 				'vote_no' => $row->qap_vote_no,
@@ -360,8 +390,8 @@ class QAPatrol extends UnlistedSpecialPage {
 	}
 
 	//get the count of Q&As left on which to vote
-	public function getRemaining($dbr = '') {
-		$dbr = $dbr ?: wfGetDB(DB_SLAVE);
+	public static function getRemaining($dbr = '', $expert_mode = false, $top_answerer_mode = false) {
+		$dbr = $dbr ?: wfGetDB(DB_REPLICA);
 
 		$tables = [ QADB::TABLE_QA_PATROL ];
 
@@ -370,10 +400,10 @@ class QAPatrol extends UnlistedSpecialPage {
 			'qap_copycheck' => 1
 		];
 
-		if ($this->qap_expert_mode) {
+		if ($expert_mode) {
 			$where[] = 'qap_verifier_id > 0';
 		}
-		elseif ($this->qap_top_answerer_mode) {
+		elseif ($top_answerer_mode) {
 			$tables[] = TopAnswerers::TABLE_TOP_ANSWERERS;
 			$where[] = 'qap_submitter_user_id = ta_user_id';
 		}
@@ -398,7 +428,15 @@ class QAPatrol extends UnlistedSpecialPage {
 			'qap_vote_total = qap_vote_total+1'
 		);
 
-		$res = $dbw->update('qa_patrol', $qap_vote, array('qap_id' => $qap_id, 'qap_aqid IS NULL'), __METHOD__);
+		$res = $dbw->update(
+			QADB::TABLE_QA_PATROL,
+			$qap_vote,
+			[
+				'qap_id' => $qap_id,
+				'qap_aqid IS NULL'
+			],
+			__METHOD__
+		);
 		$voted = array('voted' => $res);
 
 		if ($res) {
@@ -412,7 +450,12 @@ class QAPatrol extends UnlistedSpecialPage {
 				'qapv_timestamp' => wfTimestampNow()
 			], __METHOD__);
 
-			$qa_res = $dbw->select('qa_patrol', array('qap_page_id', 'qap_question', 'qap_answer'), array('qap_id' => $qap_id), __METHOD__);
+			$qa_res = $dbw->select(
+				QADB::TABLE_QA_PATROL,
+				['qap_page_id', 'qap_question', 'qap_answer'],
+				['qap_id' => $qap_id],
+				__METHOD__
+			);
 			$row = $dbw->fetchObject($qa_res);
 
 			$title = Title::newFromId($row->qap_page_id);
@@ -421,8 +464,10 @@ class QAPatrol extends UnlistedSpecialPage {
 			$logPage = new LogPage('qa_patrol', false);
 			$logData = array($qap_id);
 			$logAction = $vote ? 'vote_approve' : 'vote_delete';
-			$logMsg = wfMessage('qap-logentry-vote', $title->getFullText(), $vote_str, $row->qap_question, $row->qap_answer)->text();
-			$logS = $logPage->addEntry($logAction, $title, $logMsg, $logData);
+			if ($title) {
+				$logMsg = wfMessage('qap-logentry-vote', $title->getFullText(), $vote_str, $row->qap_question, $row->qap_answer)->text();
+				$logS = $logPage->addEntry($logAction, $title, $logMsg, $logData);
+			}
 
 			//usage log
 			UsageLogs::saveEvent(
@@ -435,21 +480,27 @@ class QAPatrol extends UnlistedSpecialPage {
 			);
 
 			//mark if the person is a power voter
-			$pv = self::isPowerVoter();
+			$pv = $this->isPowerVoter();
 			if ($pv) $voted['power_voter'] = 1;
 
 			//check to see if it's reached the max votes
 			$max = $vote ? self::QAPATROL_MAX_YES : self::QAPATROL_MAX_NO;
-			$left = $dbw->selectField('qa_patrol', 'qap_vote_'.$vote_str, array('qap_id' => $qap_id), __METHOD__);
+			$left = $dbw->selectField(
+				QADB::TABLE_QA_PATROL,
+				'qap_vote_'.$vote_str,
+				['qap_id' => $qap_id],
+				__METHOD__
+			);
+
 			if ($pv || (int)$left >= $max) {
-				list($max_res, $result) = self::voteMaxxed($vote, $qap_id);
+				list($max_res, $result) = $this->voteMaxxed($vote, $qap_id);
 				if (!empty($max_res)) $voted[$max_res] = 1;
 			}
 
 			//lastly, let's make sure they don't see this again
-			self::skip($qap_id);
+			$this->skip($qap_id);
 
-			self::releaseQA($qap_id);
+			$this->releaseQA($qap_id);
 		}
 
 		return $voted;
@@ -458,7 +509,6 @@ class QAPatrol extends UnlistedSpecialPage {
 	//update q&a & reset votes
 	private function saveEdit($qap_id, $question, $answer, $expertId, $removeSubmitter) {
 		$edited = [];
-		$similarity_score = 0;
 		$dbw = wfGetDB(DB_MASTER);
 
 		//come on now, people...
@@ -482,12 +532,33 @@ class QAPatrol extends UnlistedSpecialPage {
 
 		if (!$removeSubmitter) {
 			//grab the old answer for comparison
-			$old_answer = $dbw->selectField('qa_patrol', 'qap_answer', array('qap_id' => $qap_id, 'qap_aqid IS NULL'), __METHOD__);
+			$res = $dbw->select(
+				QADB::TABLE_QA_PATROL,
+				[
+					'qap_answer',
+					'qap_submitter_user_id',
+					'qap_sqid'
+				],
+				[
+					'qap_id' => $qap_id,
+					'qap_aqid IS NULL'
+				],
+				__METHOD__
+			);
+			$row = $dbw->fetchObject($res);
 
-			$similarity_score = Misc::cosineSimilarity($old_answer, $answer);
+			$similarity_score = Misc::cosineSimilarity($row->qap_answer, $answer);
 			$edited['similarity_score'] = $similarity_score;
-			if ($similarity_score < self::QAPATROL_SIMILARITY_THRESHOLD) {
-				$removeSubmitter = true;
+			$removeSubmitter = $similarity_score < self::QAPATROL_SIMILARITY_THRESHOLD;
+
+			if (!empty($row->qap_submitter_user_id)) {
+				TopAnswerers::addNewSimilarityScore($row->qap_submitter_user_id, $row->qap_sqid, $similarity_score);
+
+				//we're losing the submitter so let's mark this as approved (Alissa request)
+				if ($removeSubmitter) {
+					$approved = 1;
+					TopAnswerers::addNewApprovalRating($row->qap_submitter_user_id,	$row->qap_sqid, $approved);
+				}
 			}
 		}
 
@@ -497,29 +568,46 @@ class QAPatrol extends UnlistedSpecialPage {
 			$update['qap_submitter_name'] = '';
 		}
 
-		$res = $dbw->update('qa_patrol', $update, array('qap_id' => $qap_id, 'qap_aqid IS NULL'), __METHOD__);
+		$res = $dbw->update(
+			QADB::TABLE_QA_PATROL,
+			$update,
+			[
+				'qap_id' => $qap_id,
+				'qap_aqid IS NULL'
+			],
+			__METHOD__
+		);
 
 		if ($res) {
-			$page_id = $dbw->selectField('qa_patrol', 'qap_page_id', array('qap_id' => $qap_id), __METHOD__);
+			$this->qa_edited = true;
+
+			$page_id = $dbw->selectField(
+				QADB::TABLE_QA_PATROL,
+				'qap_page_id',
+				['qap_id' => $qap_id],
+				__METHOD__
+			);
 			$title = Title::newFromId($page_id);
 
 			//log
 			$logPage = new LogPage('qa_patrol', false);
 			$logData = array($qap_id);
-			$logMsg = wfMessage('qap-logentry-edit', $title->getFullText(), $question, $answer)->text();
-			$logS = $logPage->addEntry("edit", $title, $logMsg, $logData);
+			if ($title) {
+				$logMsg = wfMessage('qap-logentry-edit', $title->getFullText(), $question, $answer)->text();
+				$logS = $logPage->addEntry("edit", $title, $logMsg, $logData);
+			}
 
-			if (self::canAutoApprove()) {
-				list($max_res, $result) = self::voteMaxxed(1, $qap_id, $similarity_score);
+			if ($this->canAutoApprove()) {
+				list($max_res, $result) = $this->voteMaxxed(1, $qap_id);
 				if (!empty($max_res)) $edited[$max_res] = 1;
 				if (!empty($result)) $edited['result'] = $result;
 			}
 			else {
 				//every non-special person just skips this
-				self::skip($qap_id);
+				$this->skip($qap_id);
 			}
 
-			self::releaseQA($qap_id);
+			$this->releaseQA($qap_id);
 		}
 
 		return $edited;
@@ -529,7 +617,7 @@ class QAPatrol extends UnlistedSpecialPage {
 		$votes_left = '';
 
 		//irrelevant data for power voters
-		if (self::isPowerVoter()) return '';
+		if ($this->isPowerVoter()) return '';
 
 		if ($yes > 0 && $yes < self::QAPATROL_MAX_YES) {
 			$yes_left = self::QAPATROL_MAX_YES - $yes;
@@ -544,11 +632,17 @@ class QAPatrol extends UnlistedSpecialPage {
 		return $votes_left;
 	}
 
-	private function voteMaxxed($vote, $qap_id, $similarity_score = 1) {
+	private function voteMaxxed($vote, $qap_id) {
 		$action = '';
 		$dbw = wfGetDB(DB_MASTER);
 
-		$qa_res = $dbw->select('qa_patrol', '*', array('qap_id' => $qap_id), __METHOD__, array('limit' => 1));
+		$qa_res = $dbw->select(
+			QADB::TABLE_QA_PATROL,
+			'*',
+			['qap_id' => $qap_id],
+			__METHOD__,
+			['limit' => 1]
+		);
 		$row = $dbw->fetchObject($qa_res);
 		$aid = $row->qap_page_id;
 
@@ -566,7 +660,7 @@ class QAPatrol extends UnlistedSpecialPage {
 				'aid' => $row->qap_page_id,
 				'sqid'=> $row->qap_sqid,
 				'question' => $row->qap_question,
-				'answer' => self::formatAnswer($row->qap_answer),
+				'answer' => $this->formatAnswer($row->qap_answer),
 				'submitter_user_id' => $row->qap_submitter_user_id,
 				'submitter_name' => $row->qap_submitter_name,
 				'vid' => $row->qap_verifier_id,
@@ -574,7 +668,7 @@ class QAPatrol extends UnlistedSpecialPage {
 			];
 
 			//does it need a copycheck? (if there's an expert attached & it's from the article, then yes)
-			$doCopyCheck = $formData['vid'] && self::$qap_from_article ? true : false;
+			$doCopyCheck = $formData['vid'] && $this->qap_from_article ? true : false;
 
 			$qadb = QADB::newInstance();
 			$res = $qadb->insertArticleQuestion($formData, $doCopyCheck);
@@ -590,7 +684,7 @@ class QAPatrol extends UnlistedSpecialPage {
 				$res->setAq($aq);
 			}
 
-			$dbw->update('qa_patrol', array('qap_aqid' => $aq_id), array('qap_id' => $qap_id), __METHOD__);
+			$dbw->update(QADB::TABLE_QA_PATROL, array('qap_aqid' => $aq_id), array('qap_id' => $qap_id), __METHOD__);
 
 			$msg = 'qap-logentry-approved';
 			$action = 'approved';
@@ -603,17 +697,23 @@ class QAPatrol extends UnlistedSpecialPage {
 			$action = 'deleted';
 		}
 
-		//hook to update stats for answerers
 		if (!empty($row->qap_submitter_user_id)) {
-			$approved = $action == 'approved' ? true : false;
-			wfRunHooks('UpdateAnswererStats', [$aid, $row->qap_submitter_user_id, $similarity_score, $approved]);
+			$approved = $action == 'approved' ? 1 : 0;
+			TopAnswerers::addNewApprovalRating($row->qap_submitter_user_id,	$row->qap_sqid, $approved);
+
+			if ($approved && !$this->qa_edited) {
+				$similarity_score = 1;
+				TopAnswerers::addNewSimilarityScore($row->qap_submitter_user_id, $row->qap_sqid, $similarity_score);
+			}
 		}
 
 		//log it
 		$logPage = new LogPage('qa_patrol', false);
 		$logData = array($qap_id);
-		$logMsg = wfMessage($msg, $title->getFullText(), $row->qap_question, $row->qap_answer)->text();
-		$logS = $logPage->addEntry($action, $title, $logMsg, $logData);
+		if ($title) {
+			$logMsg = wfMessage($msg, $title->getFullText(), $row->qap_question, $row->qap_answer)->text();
+			$logS = $logPage->addEntry($action, $title, $logMsg, $logData);
+		}
 
 		//usage log
 		UsageLogs::saveEvent(
@@ -634,10 +734,10 @@ class QAPatrol extends UnlistedSpecialPage {
 		if (empty($qap_id)) return false;
 
 		$dbw = wfGetDB(DB_MASTER);
-		$dbw->delete('qa_patrol', array('qap_id' => $qap_id), __METHOD__);
+		$dbw->delete(QADB::TABLE_QA_PATROL, ['qap_id' => $qap_id], __METHOD__);
 
 		if (is_null($sqid)) {
-			$sqid = $dbw->selectField('qa_patrol', 'qap_sqid', array('qap_id' => $qap_id), __METHOD__);
+			$sqid = $dbw->selectField(QADB::TABLE_QA_PATROL, 'qap_sqid', ['qap_id' => $qap_id], __METHOD__);
 		}
 
 		//unpropose from qa_submitted_questions
@@ -653,10 +753,15 @@ class QAPatrol extends UnlistedSpecialPage {
 
 		$this->skipTool->skipItem($qap_id);
 
-		$dbr = wfGetDB(DB_SLAVE);
-		$page_id = $dbr->selectField('qa_patrol', array('qap_page_id'), array('qap_id' => $qap_id), __METHOD__);
+		$dbr = wfGetDB(DB_REPLICA);
+		$page_id = $dbr->selectField(
+			QADB::TABLE_QA_PATROL,
+			'qap_page_id',
+			['qap_id' => $qap_id],
+			__METHOD__
+		);
 
-		self::releaseQA($qap_id);
+		$this->releaseQA($qap_id);
 
 		//usage log
 		UsageLogs::saveEvent(
@@ -675,9 +780,7 @@ class QAPatrol extends UnlistedSpecialPage {
 		if ($data['verifier_id'] && $this->qap_expert_mode) {
 			$vd = VerifyData::getVerifierInfoById($data['verifier_id']);
 			if (!empty($vd)) {
-				$verifierpage = Title::newFromText('ArticleReviewers', NS_SPECIAL);
-				$anchorName = ArticleReviewers::getAnchorName($vd->name);
-				$link = $verifierpage->getLocalUrl() . "?name=$anchorName#$anchorName";
+				$link = ArticleReviewers::getLinkToCoauthor($vd);
 				$html .= wfMessage('qap_user_sub_exp', $vd->name, $link)->text();
 			}
 		}
@@ -703,11 +806,16 @@ class QAPatrol extends UnlistedSpecialPage {
 	//could be considered a rational thought. Everyone in this room is now dumber for having
 	//listened to it. I award you no points, and may God have mercy on your soul.
 	private function deleteQuestion($qap_id) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->select(
-			'qa_patrol',
-			['qap_sqid', 'qap_page_id', 'qap_question'],
-			array('qap_id' => $qap_id),
+			QADB::TABLE_QA_PATROL,
+			[
+				'qap_sqid',
+				'qap_page_id',
+				'qap_question',
+				'qap_submitter_user_id'
+			],
+			['qap_id' => $qap_id],
 			__METHOD__
 		);
 
@@ -722,6 +830,12 @@ class QAPatrol extends UnlistedSpecialPage {
 		//second, remove it from Q&A Patrol
 		self::removeRow($qap_id, $row->qap_sqid);
 
+		//third, add that rating
+		if (!empty($row->qap_submitter_user_id)) {
+			$approved = 0;
+			TopAnswerers::addNewApprovalRating($row->qap_submitter_user_id, $row->qap_sqid, $approved);
+		}
+
 		//log
 		$title = Title::newFromId($row->qap_page_id);
 		if ($title) {
@@ -730,6 +844,20 @@ class QAPatrol extends UnlistedSpecialPage {
 			$logMsg = wfMessage('qap-logentry-delete-question', $title->getFullText(), $row->qap_question)->text();
 			$logS = $logPage->addEntry("deleted question", $title, $logMsg, $logData);
 		}
+	}
+
+	public static function isAllowed($user) {
+		$permittedGroups = [
+			'staff',
+			'answer_proofreader',
+			'expert_answer_proofreader',
+			'qa_editors'
+		];
+
+		return $user &&
+					!$user->isBlocked() &&
+					!$user->isAnon() &&
+					count(array_intersect($permittedGroups, $user->getGroups())) > 0;
 	}
 
 	//power voters can approve/reject w/ a single button click
@@ -744,11 +872,15 @@ class QAPatrol extends UnlistedSpecialPage {
 	}
 
 	private function canAutoApprove() {
-		$userGroups = $this->getUser()->getGroups();
-		if (in_array('staff', $userGroups) || in_array('answer_proofreader', $userGroups)) {
-			return true;
-		}
-		return false;
+		$permittedGroups = [
+			'staff',
+			'answer_proofreader',
+			'expert_answer_proofreader',
+			'qa_editors'
+		];
+
+		return $this->getUser() &&
+			count(array_intersect($permittedGroups, $this->getUser()->getGroups())) > 0;
 	}
 
 	//perms for using experts=true (Expert Mode)
@@ -765,13 +897,18 @@ class QAPatrol extends UnlistedSpecialPage {
 
 	private function tryCheckoutQA($qap_id) {
 		$dbw = wfGetDB(DB_MASTER);
-		$checkout = $dbw->selectField('qa_patrol', 'qap_checkout_time', ['qap_id' => $qap_id], __METHOD__);
-		$expired = self::getExpiryTime();
-		if($checkout === false || $checkout >= $expired) {
+		$checkout = $dbw->selectField(
+			QADB::TABLE_QA_PATROL,
+			'qap_checkout_time',
+			['qap_id' => $qap_id],
+			__METHOD__
+		);
+		$expired = $this->getExpiryTime();
+		if ($checkout === false || $checkout >= $expired) {
 			print json_encode(["success" => false]);
 			return;
 		} else {
-			self::checkoutQA($qap_id);
+			$this->checkoutQA($qap_id);
 			print json_encode(["success" => true]);
 			return;
 		}
@@ -779,19 +916,34 @@ class QAPatrol extends UnlistedSpecialPage {
 
 	private function checkoutQA($qap_id) {
 		$dbw = wfGetDB(DB_MASTER);
-		$res = $dbw->update('qa_patrol', array('qap_checkout_time' => wfTimestampNow()), array('qap_id' => $qap_id), __METHOD__);
+		$res = $dbw->update(
+			QADB::TABLE_QA_PATROL,
+			['qap_checkout_time' => wfTimestampNow()],
+			['qap_id' => $qap_id],
+			__METHOD__
+		);
 		return $res;
 	}
 
 	private function unCheckoutQA($qap_id) {
 		$dbw = wfGetDB(DB_MASTER);
-		$res = $dbw->update('qa_patrol', array('qap_checkout_time' => ""), array('qap_id' => $qap_id), __METHOD__);
+		$res = $dbw->update(
+			QADB::TABLE_QA_PATROL,
+			['qap_checkout_time' => ""],
+			['qap_id' => $qap_id],
+			__METHOD__
+		);
 		return $res;
 	}
 
 	private function releaseQA($qap_id) {
 		$dbw = wfGetDB(DB_MASTER);
-		$res = $dbw->update('qa_patrol', array('qap_checkout_time' => ''), array('qap_id' => $qap_id), __METHOD__);
+		$res = $dbw->update(
+			QADB::TABLE_QA_PATROL,
+			['qap_checkout_time' => ''],
+			['qap_id' => $qap_id],
+			__METHOD__
+		);
 		return $res;
 	}
 
@@ -802,18 +954,54 @@ class QAPatrol extends UnlistedSpecialPage {
 		$regex = '/\[\[.+?\]\]/';
 		if ( preg_match_all($regex,$answer,$m) ) {
 
-		foreach ($m[0] as $match) {
-			$link = $this->getOutput()->parse($match); //format link
-			$link = preg_replace('/<\/?p>/','',$link); //remove the <p> tags parsing added
-			$link = trim($link, " \t\n\r\0\x0B"); //remove the line breaks & white space parsing added
-			$wikilink = str_replace('[','\[',$match); //make it regex-friendly
-			$wikilink = str_replace(']','\]',$wikilink); // ^^^
-			$wikilink = str_replace('|','\|',$wikilink); // ^^^
-			$answer = preg_replace("/$wikilink/", $link, $answer);
-		}
-
+			foreach ($m[0] as $match) {
+				$link = $this->getOutput()->parse($match); //format link
+				$link = preg_replace('/<\/?p>/','',$link); //remove the <p> tags parsing added
+				$link = trim($link, " \t\n\r\0\x0B"); //remove the line breaks & white space parsing added
+				//$wikilink = str_replace('[','\[',$match); //make it regex-friendly
+				//$wikilink = str_replace(']','\]',$wikilink); // ^^^
+				//$wikilink = str_replace('|','\|',$wikilink); // ^^^
+				$answer = preg_replace('/' . preg_quote($match) . '/', $link, $answer);
+			}
 		}
 
 		return $answer;
+	}
+
+	private function exportSummaryCSV($from, $to, $user) {
+		global $wgCanonicalServer;
+
+		$filename = "patroller_stats_{$from}_{$to}.csv";
+
+		// NOTE: must use disable() to be able to set these headers
+		$this->getOutput()->disable();
+		header('Content-type: application/force-download');
+		header('Content-disposition: attachment; filename="'.$filename.'"');
+
+		$qap_stats = new QAPatrolStats(
+			$user,
+			$this->qap_expert_mode,
+			$this->qap_top_answerer_mode
+		);
+		$pat_stats = $qap_stats->recentPatrollerStatsForExport($from, $to);
+
+		$headers = [
+			'Patroller',
+			'Q&As approved'
+		];
+
+		$lines[] = implode(",", $headers);
+
+		foreach ($pat_stats as $pats) {
+
+			$this_line = [
+				$pats['patroller'],
+				$pats['approved_count']
+			];
+
+			$lines[] = implode(",", $this_line);
+		}
+
+		print(implode("\n", $lines));
 	}
 }

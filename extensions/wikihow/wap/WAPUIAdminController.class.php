@@ -1,11 +1,11 @@
-<?
+<?php
 abstract class WAPUIAdminController extends WAPUIController {
 
 	protected function handleRequest($par) {
 		global $wgOut, $wgUser, $wgRequest;
 
 		if ($this->config->isMaintenanceMode()) {
-			$wgOut->addHtml($this->config->getSystemName() . 
+			$wgOut->addHtml($this->config->getSystemName() .
 				' is down for maintenance. Please check back later.');
 			return;
 		}
@@ -45,6 +45,15 @@ abstract class WAPUIAdminController extends WAPUIController {
 					break;
 				case "validate_complete_articles":
 					$this->validateCompleteArticles();
+					break;
+				case "complete_articles":
+					$this->completeArticles();
+					break;
+				case "validate_complete_articles_from_csv":
+					$this->validateCompleteArticlesFromCSV();
+					break;
+				case "complete_articles_from_csv":
+					$this->completeArticlesFromCSV();
 					break;
 				case "validate_assign_user":
 					$this->validateAssignUser();
@@ -99,9 +108,6 @@ abstract class WAPUIAdminController extends WAPUIController {
 					break;
 				case "remove_excluded":
 					$this->removeExcludedArticles();
-					break;
-				case "complete_articles":
-					$this->completeArticles();
 					break;
 				case "add_user":
 					$this->addUser();
@@ -308,12 +314,12 @@ abstract class WAPUIAdminController extends WAPUIController {
 	function outputReleaseArticlesHtml() {
 		global $wgOut;
 		$vars = $this->getDefaultVars($this->dbType);
-		$vars['add'] = true; 
+		$vars['add'] = true;
 		$wgOut->setPageTitle('Release Articles');
 		$tmpl = new WAPTemplate($this->dbType);
 		$wgOut->addHtml($tmpl->getHtml('release_articles.tmpl.php', $vars));
 	}
-	
+
 	function outputCustomReportHtml() {
 		global $wgOut;
 		$vars = $this->getDefaultVars($this->dbType);
@@ -363,7 +369,7 @@ abstract class WAPUIAdminController extends WAPUIController {
 		global $wgRequest;
 		$userController = $this->config->getUIUserControllerClassName();
 		$controller = new $userController($this->config);
-		$controller->completedArticlesReport($wgRequest->getVal('langcode'), 
+		$controller->completedArticlesReport($wgRequest->getVal('langcode'),
 			$wgRequest->getVal('fromDate', null), $wgRequest->getVal('toDate', null));
 	}
 
@@ -397,8 +403,11 @@ abstract class WAPUIAdminController extends WAPUIController {
 		$vars['action'] = 'Complete';
 		$vars['buttonId'] = 'validate_complete_articles';
 
+		$css = '#sidebar { display: none } #article_shell { width: 100% }';
+		$wgOut->addHeadItem('wap_complete_articles_styles', HTML::inlineStyle($css));
 		$wgOut->setPageTitle('Complete Articles');
 		$tmpl = new WAPTemplate($this->dbType);
+		$vars['nav'] .= $tmpl->getHtml('csv_upload.tmpl.php', $vars);
 		$wgOut->addHtml($tmpl->getHtml('assign_user.tmpl.php', $vars));
 	}
 
@@ -523,13 +532,13 @@ abstract class WAPUIAdminController extends WAPUIController {
 	}
 
 	function outputCustomReport() {
-		global $wgRequest; 
+		global $wgRequest;
 		$urlList = $wgRequest->getVal('urls');
 		$langCode = $wgRequest->getVal('langcode');
-		$urls = $this->wapDB->processUrlListByLang($urlList, $langCode);	
+		$urls = $this->wapDB->processUrlListByLang($urlList, $langCode);
 		$cr = new WAPReport($this->dbType);
 		$rpt = $cr->getCustomReport($urls, $langCode);
-		Misc::outputFile("system_custom_rpt" . WAPReport::FILE_EXT, 
+		Misc::outputFile("system_custom_rpt" . WAPReport::FILE_EXT,
 			$rpt['data'], WAPReport::MIME_TYPE);
 	}
 
@@ -559,7 +568,7 @@ abstract class WAPUIAdminController extends WAPUIController {
 		$tmpl = new WAPTemplate($this->dbType);
 		$wgOut->addHtml($tmpl->getHtml('validate_articles.tmpl.php', $vars));
 	}
-	
+
 	function validateRemoveArticles() {
 		global $wgRequest, $IP;
 		$urls = $this->wapDB->processUrlList($wgRequest->getVal('urls'));
@@ -589,19 +598,174 @@ abstract class WAPUIAdminController extends WAPUIController {
 		}
 		$this->outputSuccessHtml('Url(s) successfully released');
 	}
-	
+
 	function validateAssignUser() {
 		global $wgRequest, $IP;
 		$urls = $this->wapDB->processUrlList($wgRequest->getVal('urls'));
 		$this->outputArticlesValidationHtml($urls, 'assign_user', 'Assign');
 	}
-	
+
 	function validateCompleteArticles() {
 		global $wgRequest, $IP;
 		$urls = $this->wapDB->processUrlList($wgRequest->getVal('urls'));
 		$this->outputArticlesValidationHtml($urls, 'complete_articles', 'Complete');
 	}
-	
+
+	function completeArticles() {
+		global $wgRequest, $IP;
+		$userClass = $this->config->getUserClassName();
+		$cu = $userClass::newFromId($wgRequest->getVal('user'), $this->dbType);
+		$aids = $wgRequest->getArray('aids');
+		foreach ($aids as $lang => $langIds) {
+			$this->wapDB->completeArticles($langIds, $lang, $cu);
+		}
+		$this->outputSuccessHtml("Articles successfully completed");
+	}
+
+	function validateCompleteArticlesFromCSV() {
+		global $wgOut;
+
+		// Validate request
+
+		if (!isset($_FILES['csv_upload_input'])) {
+			JsonApi::error("The file is missing.");
+			return;
+		}
+
+		$file = $_FILES['csv_upload_input'];
+
+		if ($file['type'] != 'text/csv') {
+			JsonApi::error("The file has the wrong format. It must be a CSV.");
+			return;
+		}
+		if ($file['size'] > 2097152) {
+			JsonApi::error("The file is too large. Max size is 2 megabytes.");
+			return;
+		}
+
+		// Parse file
+
+		ini_set('auto_detect_line_endings', true);
+		$handle = fopen($file['tmp_name'], 'r');
+		ini_set('auto_detect_line_endings', false);
+		if ($handle === FALSE) {
+			JsonApi::error("The file is not readable");
+			return;
+		}
+
+		$baseUrl = Misc::getLangBaseURL();
+		$line = fgets($handle); // Skip titles on the first row
+		$delimiter = strpos($line, "\t") === FALSE ? ',' : "\t";
+		$urls = '';
+		$aIDsToUnames = []; // [ ARTICLE_ID => USER_NAME ]
+		$errors = [];
+		$line = 1;
+		while (($row = fgetcsv($handle, 0, $delimiter)) !== FALSE) {
+			$line++;
+			$articleId = $row[0];
+			if (isset($aIDsToUnames[$articleId])) {
+				$errors[] = "(line $line) Duplicate article ID: $articleId";
+				continue;
+			}
+			$title = Title::newFromId($articleId);
+			if (!$title || !$title->exists()) {
+				$errors[] = "(line $line) Article doesn't exist: $articleId";
+				continue;
+			}
+			$uname = trim($row[1]);
+			$user = User::newFromName($uname);
+			if (!$user || !$user->getID()) {
+				$errors[] = "(line $line) User doesn't exist: $uname";
+				continue;
+			}
+			$aIDsToUnames[$articleId] = [ 'uid' => $user->getID(), 'uname' => $uname ];
+			$urls .= $baseUrl . $title->getLocalURL() . "\n";
+		}
+		fclose($handle);
+
+		if (!$urls) {
+			JsonApi::error("The file is empty");
+			return;
+		}
+
+		if ($errors) {
+			JsonApi::error(implode('<br>', $errors));
+			return;
+		}
+
+		// Flatten and sort the list of processed URLs
+
+		$urlsByLang = $this->wapDB->processUrlList($urls);
+		$items = [
+			WAPArticle::STATE_INVALID => [],
+			WAPArticle::STATE_EXCLUDED => [],
+			WAPArticle::STATE_NEW => [],
+			WAPArticle::STATE_UNASSIGNED => [],
+			WAPArticle::STATE_ASSIGNED => [],
+			WAPArticle::STATE_COMPLETE => [],
+		];
+		foreach ($urlsByLang['en'] as $status => $results) {
+			foreach ($results as $res) {
+				$article = $res['a'];
+				$url = $res['url'];
+				$csvUser = $aIDsToUnames[$res['aid']];
+				$items[$status][] = [
+					'aid' => (int) $res['aid'],
+					'anchor' => str_replace("$baseUrl/", '', $url),
+					'article' => $article,
+					'csvUId' => (int) $csvUser['uid'],
+					'csvUname' => $csvUser['uname'],
+					'dbUId' => (int) $article->user_id,
+					'dbUname' => $article->user_text,
+					'url' => $url,
+					'usersMatch' => ($article->user_id == $csvUser['uid']),
+				];
+			}
+		}
+		$customSort = function($a, $b) {
+			if ($a['usersMatch'] != $b['usersMatch']) {
+				return $a['usersMatch'] ? -1 : 1; // matches go first
+			}
+			if ($a['dbUname'] && $b['dbUname'] && $a['dbUname'] != $b['dbUname']) {
+				return strcmp($a['dbUname'], $b['dbUname']);
+			}
+			if ($a['csvUname'] && $b['csvUname'] && $a['csvUname'] != $b['csvUname']) {
+				return strcmp($a['csvUname'], $b['csvUname']);
+			}
+			return strcmp($a['url'], $b['url']);
+		};
+		foreach ($items as $status => &$itemList) {
+			usort($itemList, $customSort);
+		}
+
+		$wgOut->setArticleBodyOnly(true);
+		$vars = $this->getDefaultVars();
+		$vars['items'] = $items;
+		$vars['buttonTxt'] = 'Complete';
+		$vars['buttonId'] = 'complete_articles_from_csv';
+
+		$tmpl = new WAPTemplate($this->dbType);
+		$wgOut->addHtml($tmpl->getHtml('validate_articles_from_csv.tmpl.php', $vars));
+	}
+
+	function completeArticlesFromCSV() {
+		global $wgRequest;
+		$userClass = $this->config->getUserClassName();
+		$data = $wgRequest->getArray('data');
+
+		if (!$data) {
+			JsonApi::error("The data parameter is missing");
+			return;
+		}
+
+		foreach ($data as $uid => $aids) {
+			$user = $userClass::newFromId($uid, $this->dbType);
+			$this->wapDB->completeArticles($aids, 'en', $user);
+		}
+
+		$this->outputSuccessHtml("Articles successfully completed");
+	}
+
 	function tagArticles() {
 		global $wgRequest, $IP;
 		$aids = $wgRequest->getArray('aids');
@@ -641,13 +805,13 @@ abstract class WAPUIAdminController extends WAPUIController {
 		global $wgOut;
 		$vars = $this->getDefaultVars($this->dbType);
 		$vars['tags'] = $this->getAllTags();
-		$vars['add'] = true; 
+		$vars['add'] = true;
 
 		$wgOut->setPageTitle('Tag Articles');
 		$tmpl = new WAPTemplate($this->dbType);
 		$wgOut->addHtml($tmpl->getHtml('tag.tmpl.php', $vars));
 	}
-	
+
 	function outputRemoveArticlesHtml() {
 		global $wgOut;
 		$vars = $this->getDefaultVars($this->dbType);
@@ -655,12 +819,12 @@ abstract class WAPUIAdminController extends WAPUIController {
 		$tmpl = new WAPTemplate($this->dbType);
 		$wgOut->addHtml($tmpl->getHtml('remove_articles.tmpl.php', $vars));
 	}
-	
+
 	function outputRemoveTagArticlesHtml() {
 		global $wgOut;
 		$vars = $this->getDefaultVars($this->dbType);
 		$vars['tags'] = $this->getAllTags();
-		$vars['add'] = false; 
+		$vars['add'] = false;
 		$wgOut->setPageTitle('Remove Tags from Articles');
 		$tmpl = new WAPTemplate($this->dbType);
 		$wgOut->addHtml($tmpl->getHtml('tag.tmpl.php', $vars));
@@ -750,7 +914,7 @@ abstract class WAPUIAdminController extends WAPUIController {
 			$ca = $articleClass::newFromUrl($url, $lang, $this->dbType);
 			$vars['lang']  = $lang;
 			$vars['article'] = $ca;
-			$vars['user'] = is_null($ca) ? null : $ca->getUser(); 
+			$vars['user'] = is_null($ca) ? null : $ca->getUser();
 			$vars['tags'] = is_null($ca) ? null : $ca->getTags(WAPArticleTagDB::TAG_ALL);
 
 			$tmpl = new WAPTemplate($this->dbType);
@@ -769,21 +933,10 @@ abstract class WAPUIAdminController extends WAPUIController {
 		$this->outputSuccessHtml("User successfully assigned");
 	}
 
-	function completeArticles() {
-		global $wgRequest, $IP;
-		$userClass = $this->config->getUserClassName();
-		$cu = $userClass::newFromId($wgRequest->getVal('user'), $this->dbType);
-		$aids = $wgRequest->getArray('aids');
-		foreach ($aids as $lang => $langIds) {
-			$this->wapDB->completeArticles($langIds, $lang, $cu);
-		}
-		$this->outputSuccessHtml("Articles successfully completed");
-	}
-
 	function outputUntaggedUnassignedReport() {
 		$cr = new WAPReport($this->dbType);
 		$rpt = $cr->getUntaggedUnassignedArticles();
-		Misc::outputFile("system_unassigned_untagged_articles_{$rpt['ts']}" . WAPReport::FILE_EXT, 
+		Misc::outputFile("system_unassigned_untagged_articles_{$rpt['ts']}" . WAPReport::FILE_EXT,
 			$rpt['data'], WAPReport::MIME_TYPE);
 	}
 

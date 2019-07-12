@@ -5,7 +5,7 @@ require_once __DIR__ . '/../commandLine.inc';
 // turn off batching by default
 $batch = '-';
 
-$dbr = wfGetDB(DB_SLAVE);
+$dbr = wfGetDB(DB_REPLICA);
 
 // Get the list of titles
 $opts = array(
@@ -37,7 +37,7 @@ foreach ($res as $row) {
 
 // Figure out what the catinfo column is supposed to be
 foreach ($titles as $t) {
-	$val = Categoryhelper::getTitleCategoryMask($t);
+	$val = CategoryHelper::getTitleCategoryMask($t);
 	$count++;
 	$updates[] = "UPDATE page set page_catinfo={$val} where page_id={$t->getArticleID()};";
 }

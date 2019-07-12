@@ -83,11 +83,6 @@ class QAHelpfulnessEmailJob extends Job {
 			$content_type = "text/html; charset=UTF-8";
 			UserMailer::send($to, $from, $subject, $body, null, $content_type);
 
-			//send an email to alissa too!
-			$to = new MailAddress('alissa@wikihow.com');
-			$subject = '[Helpfulness answer email] '.$subject;
-			UserMailer::send($to, $from, $subject, $body, null, $content_type);
-
 			self::updateTable($user->getId());
 		}
 	}
@@ -141,7 +136,7 @@ class QAHelpfulnessEmailJob extends Job {
 		if (empty($span)) return false;
 
 		//grab the last emailed date
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$lastEmailed = $dbr->selectField(
 			self::THIS_TABLE,
 			'qah_last_emailed',

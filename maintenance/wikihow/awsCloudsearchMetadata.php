@@ -142,7 +142,7 @@ class AwsCloudsearchMetadata extends Maintenance {
 
 	// Load the selected titles from the database
 	private function loadTitles() {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$res = $dbr->select( ['page', 'index_info'],
 			['page_namespace', 'page_title', 'page_id'],
@@ -188,7 +188,7 @@ class AwsCloudsearchMetadata extends Maintenance {
 			if (!$rev) continue;
 
 			$full_url = 'http://' . wfCanonicalDomain() . '/' . $title->getPartialURL();
-			$wikitext = $rev->getText();
+			$wikitext = ContentHandler::getContentText( $rev->getContent() );
 			$full_text = Wikitext::flatten($wikitext);
 			$fields['url'] = $full_url;
 			$fields['full_text'] = $full_text;
@@ -205,7 +205,8 @@ class AwsCloudsearchMetadata extends Maintenance {
 			}
 			if (!$abstract) {
 				// pull out intro
-				$intro = Article::getSection($wikitext, 0);
+				global $wgParser;
+				$intro = $wgParser->getSection($wikitext, 0);
 
 				$abstract = $intro;
 			}

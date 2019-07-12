@@ -73,7 +73,19 @@ class FastlyAction {
 			'Host: ' . $host));
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		$ret = curl_exec($ch);
-		$result = (array)json_decode($ret);
-		return $result['status'];
+		if (!is_string($ret)) {
+			return false;
+		} else {
+			$result = (array)json_decode($ret);
+			if (!is_array($result)) {
+				return false;
+			} else {
+				if (!isset($result['status'])) {
+					return false;
+				} else {
+					return $result['status'];
+				}
+			}
+		}
 	}
 }

@@ -19,7 +19,7 @@ class AdminClearRatings extends UnlistedSpecialPage {
 		$out = $this->getOutput();
 
 		if (!$this->userAllowed()) {
-			$out->setRobotpolicy('noindex,nofollow');
+			$out->setRobotPolicy('noindex,nofollow');
 			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
@@ -83,7 +83,10 @@ class AdminClearRatings extends UnlistedSpecialPage {
 
 	function getGuts($action) {
 		return "		<form method='post' action='/Special:$action'>
-		<h4>Enter a list of full URLs such as <code>http://www.wikihow.com/Kill-a-Scorpion</code> or partial URLs like <code>Sample/Research-Outline</code> for pages whose ratings should be cleared.  One per line.</h4>
+		<div>Enter a list of full URLs such as <code>https://www.wikihow.com/Kill-a-<a href='https://www.gva.be/cnt/blpbr_01728395/scorpions-bissen-in-sportpaleis'>Scorpion</a></code> or partial URLs like <code>Sample/Research-Outline</code> for pages whose ratings should be cleared.  One per line.</div>
+		<div style='margin: 15px 0 0 0'>
+			NOTE: This tool clears both Page Helpfulness and new Stu2. If you want to clear old Stu and new Stu2 for a page, visit <a href='/Special:AdminBounceTests'>Special:AdminBounceTests</a>.
+		</div>
 		<br/>
 		<table><tr><td>Pages:</td><td><textarea id='pages-list' type='text' rows='10' cols='70'></textarea></td></tr>
 		<tr><td>Reason:</td><td><textarea id='reason' type='text' rows='1' cols='70'></textarea></td></tr></table>
@@ -138,7 +141,7 @@ class AdminClearRatings extends UnlistedSpecialPage {
 		$articleRatingTool = new RatingArticle();
 		$sampleRatingTool = new RatingSample();
 		$starRatingTool = new RatingStar();
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$samplePrefix = 'Sample/';
 
 		$user = $this->getUser();
@@ -153,7 +156,9 @@ class AdminClearRatings extends UnlistedSpecialPage {
 			$tool = null;
 			$notFound = false;
 
-			if (!preg_match('/:/', $p) && $title->exists()) {
+			if (!preg_match('/:/', $p) && !$title) {
+				$notFound = true;
+			} elseif (!preg_match('/:/', $p) && $title->exists()) {
 				// It's an article in NS_MAIN:
 				$artId = $title->getArticleID();
 				if ($artId > 0) {
@@ -172,6 +177,16 @@ class AdminClearRatings extends UnlistedSpecialPage {
 					$dataRow['type'] = 'sample';
 					$dataRow['pageId'] = $sampleId;
 					$tool = $sampleRatingTool;
+				} else {
+					$notFound = true;
+				}
+			} elseif (preg_match('@^[0-9]+$@', $p)) {
+				$title = Title::newFromID((int)$p);
+				if ($title && $title->exists()) {
+					$artId = $title->getArticleID();
+					$dataRow['title'] = $title;
+					$dataRow['pageId'] = $artId;
+					$tool = $articleRatingTool;
 				} else {
 					$notFound = true;
 				}
@@ -223,6 +238,9 @@ class AdminClearRatings extends UnlistedSpecialPage {
 						elseif ($dataRow['type'] == 'article') {
 							// Also delete star ratings w/ articles
 							$starRatingTool->clearRatings($dataRow['pageId'], $user, $comment);
+
+							// clear data about the summary section (videos and helpfulness)
+							self::resetSummaryData( $dataRow['pageId'] );
 						}
 						if (isset($ratResData['R'])) {
 							$status = '<span class="cleared">Cleared</span>';
@@ -244,5 +262,55 @@ class AdminClearRatings extends UnlistedSpecialPage {
 		$html .= '</table>';
 
 		return $html;
+	}
+
+	private static function recordClearEvent( $pageId, $action, $domain = null ) {
+		$dbw = wfGetDB( DB_MASTER );
+		$table = 'clear_event';
+		$date = gmdate( "Y-m-d H:i:s" );
+		$insertData = array(
+			'ce_page_id' => $pageId,
+			'ce_action' => $action,
+			'ce_date' => $date,
+		);
+		if ( $domain ) {
+			$insertData['ce_domain'] = $domain;
+		}
+		$options = array( 'IGNORE' );
+		$dbw->insert( $table, $insertData, __METHOD__, $options );
+	}
+
+	public static function resetSummaryData( $pageId ) {
+		global $wgLanguageCode;
+		$dbw = wfGetDB( DB_MASTER );
+
+		$table = 'event_log';
+		$var = '*';
+		$summaryVideoActions = array( 'svideoplay', 'svideoview' );
+		$cond = array(
+			'el_page_id' => $pageId,
+			'el_action' => $summaryVideoActions
+		);
+		$hasData = $dbw->selectRow( $table, $var, $cond, __METHOD__ );
+		if ( $hasData ) {
+			$domains = array( wfCanonicalDomain( $wgLanguageCode ), wfCanonicalDomain( $wgLanguageCode, true ) );
+			foreach ( $domains as $domain ) {
+				self::recordClearEvent( $pageId, 'summaryvideoevents', $domain );
+			}
+		}
+
+		$table = 'item_rating';
+
+		$helpfulnessActions = array( 'summaryvideohelp', 'summarytexthelp' );
+		foreach ( $helpfulnessActions as $type ) {
+			$cond = array(
+				'ir_page_id' => $pageId,
+				'ir_type' => $type
+			);
+			$hasData = $dbw->selectRow( $table, $var, $cond, __METHOD__ );
+			if ( $hasData ) {
+				self::recordClearEvent( $pageId, $type );
+			}
+		}
 	}
 }

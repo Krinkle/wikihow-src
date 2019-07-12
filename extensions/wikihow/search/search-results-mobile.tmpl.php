@@ -1,29 +1,23 @@
-<?
-if ($q == null):
-	return;
-endif;
-?>
-<script type="text/javascript">
-	$(window).load(function() {
-		if ($('.search').is(':visible') && !$('#search_oversearch').is(':visible')) {
-			$('.search').click();
-		}
-	});
-</script>
-<? if (count($results) == 0): ?>
-	<h2 class='sr_title'><?= wfMsgForContent('lsearch_no_results_for', $enc_q) ?></h2>
-<? endif; ?>
+<?php if (!$q): return; endif; ?>
+
 <? if ($suggestionLink): ?>
-	<div class="sr_suggest"><?= wfMsg('lsearch_suggestion', $suggestionLink) ?></div>
-<? endif; ?>
-<? if (count($results) == 0): ?>
-	<div class="sr_noresults"><?= wfMsg('lsearch_desktop_noresults', $enc_q) ?></div>
-	<div id='searchresults_footer'><br /></div>
-	<? return; ?>
+	<div class="sr_suggest"><?= wfMessage('lsearch_suggestion', $suggestionLink)->text() ?></div>
 <? endif; ?>
 
+<? if (!$results): ?>
+	<div class="search_no_results_container">
+		<?= wfMessage('lsearch_no_results_for', $enc_q)->inContentLanguage()->text() ?>
+	</div>
+<? endif; ?>
+
+<?= $ads; ?>
+
+<div id="search_adblock_top" class="search_adblock"></div>
+
+<?php if (!$results): return; endif; ?>
+
 <div id='searchresults_list' class='wh_block'>
-	<div id="search_adcontainer1"></div>
+
 	<?
 	$noImgCount = 0;
 	foreach($results as $i => $result):
@@ -31,6 +25,9 @@ endif;
 		if (empty($result['img_thumb_100'])) {
 			$result['img_thumb_100'] = $noImgCount ++ % 2 == 0 ?
 				$no_img_green : $no_img_blue;
+		}
+		if ($i == 5) {
+			echo '<div id="search_adblock_middle" class="search_adblock"></div>';
 		}
 		if (!(class_exists('AndroidHelper') && AndroidHelper::isAndroidRequest() && $result['is_category'])):
 	?>
@@ -40,7 +37,7 @@ endif;
 				$url = $BASE_URL . '/' . $url;
 			}
 		?>
-		<a href=<?= $url ?> >
+		<a class="result_link" href=<?= $url ?> >
 			<div class="result">
 				<? if (!$result['is_category']): ?>
 					<div class='result_thumb'>
@@ -55,9 +52,9 @@ endif;
 				<div class="result_data">
 				<? if ($result['has_supplement']): ?>
 					<? if (!$result['is_category']): ?>
-						<div class="result_link"><?= $result['title_match'] ?></div>
+						<div class="result_title"><?= $result['title_match'] ?></div>
 					<? else: ?>
-						<div class="result_link"><?= wfMsg('lsearch_article_category', $result['title_match']) ?></div>
+						<div class="result_title"><?= wfMessage('lsearch_article_category', $result['title_match']) ?></div>
 					<? endif; ?>
 					<div class="result_data_divider"></div>
 					<ul class="search_results_stats">
@@ -67,7 +64,7 @@ endif;
 						<li class="sr_updated"><span class="sp_circle sp_updated_icon"></span>
 							<?=wfTimeAgo(wfTimestamp(TS_UNIX, $result['timestamp']), true);?>
 						</li>
-						<? if ($result['verified']): ?>
+						<? if (class_exists('SocialProofStats') && $result['verified']): ?>
 							<li class="sp_verif">
 								<span class="sp_circle sp_verif_icon"></span>
 								<span class="sp_search_verified"><?= SocialProofStats::getIntroMessage($result['verified']) ?></span>
@@ -75,10 +72,10 @@ endif;
 						<? endif ?>
 					</ul>
 				<? else: ?>
-					<p class="result_link"><?= $result['title_match'] ?></p>
+					<div class="result_title"><?= $result['title_match'] ?></div>
 				<? endif; // has_supplement ?>
 				<? // Sherlock-form ?>
-				<?= EasyTemplate::html('sherlock-form', array("index" => $i + $first, "result" => $result)); ?>
+				<?= EasyTemplate::html('sherlock-form.tmpl.php', array("index" => $i + $first, "result" => $result)); ?>
 				</div>
 			</div>
 		</a>
@@ -86,11 +83,10 @@ endif;
 		endif;
 	endforeach;
 	?>
-	<div id="search_adcontainer3"></div>
-	<?=$ads;?>
+	<div id="search_adblock_bottom" class="search_adblock"></div>
 </div>
 
-<?
+<?php
 if (($total > $start + $max_results
 		&& $last == $start + $max_results)
 	|| $start >= $max_results):
@@ -99,8 +95,10 @@ if (($total > $start + $max_results
 
 	<div id='searchresults_footer'>
 		<?=$next_button.$prev_button?>
-		<div class="sr_foot_results"><?= wfMsg($resultsMsg, $first, $last, number_format($total)) ?></div>
-		<div class="sr_text"><?= wfMsg('lsearch_mediawiki', $specialPageURL . "?search=" . urlencode($q)) ?></div>
+		<div class="sr_foot_results"><?= wfMessage($resultsMsg, $first, $last, number_format($total)) ?></div>
+		<div class="sr_text"><?= wfMessage('lsearch_mediawiki', $specialPageURL . "?search=" . urlencode($q)) ?></div>
 	</div>
 
 <? endif; ?>
+
+<!-- search results source: <?= $results_source ?> -->

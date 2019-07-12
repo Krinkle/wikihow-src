@@ -1,48 +1,65 @@
 <?php
 
-if ( !defined( 'MEDIAWIKI' ) ) die();
+if (!defined('MEDIAWIKI')) {
+    die();
+}
 
-$wgExtensionCredits['specialpage'][] = array(
+$wgExtensionCredits['specialpage'][] = [
     'name' => 'Suggested Topics',
     'author' => 'Bebeth',
     'description' => 'Suggested topics: help authors find topics to write about on wikiHow',
-);
+];
 
-$wgSpecialPages['RequestTopic'] = 'RequestTopic';
 $wgSpecialPages['ListRequestedTopics'] = 'ListRequestedTopics';
 $wgSpecialPages['ManageSuggestedTopics'] = 'ManageSuggestedTopics';
-$wgSpecialPages['RenameSuggestion'] = 'RenameSuggestion';
-$wgSpecialPages['YourArticles'] = 'YourArticles';
 $wgSpecialPages['RecommendedArticles'] = 'RecommendedArticles';
+$wgSpecialPages['RenameSuggestion'] = 'RenameSuggestion';
+$wgSpecialPages['RequestTopic'] = 'RequestTopic';
 $wgSpecialPages['SuggestCategories'] = 'SuggestCategories';
+$wgSpecialPages['YourArticles'] = 'YourArticles';
 
+$dir = __DIR__ . '/';
 
-# Internationalisation file
-$dir = dirname(__FILE__) . '/';
-$wgExtensionMessagesFiles['RequestTopic'] = $dir . 'SuggestedTopics.i18n.php';
-$wgExtensionMessagesFiles['RequestTopicAlias'] = $dir . 'RequestTopic.alias.php';
-$wgExtensionMessagesFiles['ListRequestedTopics'] = $dir . 'SuggestedTopics.i18n.php';
+$wgExtensionMessagesFiles['ListRequestedTopics'] =
+	$wgExtensionMessagesFiles['ManageSuggestedTopics'] =
+	$wgExtensionMessagesFiles['RecommendedArticles'] =
+	$wgExtensionMessagesFiles['RequestTopic'] =
+	$wgExtensionMessagesFiles['YourArticles'] = $dir . 'SuggestedTopics.i18n.php';
+
 $wgExtensionMessagesFiles['ListRequestedTopicsAlias'] = $dir . 'ListRequestedTopics.alias.php';
-$wgExtensionMessagesFiles['ManageSuggestedTopics'] = $dir . 'SuggestedTopics.i18n.php';
-$wgExtensionMessagesFiles['RecommendedArticles'] = $dir . 'SuggestedTopics.i18n.php';
-$wgExtensionMessagesFiles['YourArticles'] = $dir . 'SuggestedTopics.i18n.php';
+$wgExtensionMessagesFiles['RequestTopicAlias'] = $dir . 'RequestTopic.alias.php';
 
-$wgAutoloadClasses['RequestTopic']              = $dir . 'RequestTopic.php';
-$wgAutoloadClasses['ManageSuggestedTopics']     = $dir . 'ManageSuggestedTopics.php';
-$wgAutoloadClasses['ListRequestedTopics']       = $dir . 'ListRequestedTopics.php';
-$wgAutoloadClasses['RenameSuggestion']          = $dir . 'RenameSuggestion.php';
-$wgAutoloadClasses['YourArticles']              = $dir . 'YourArticles.php';
-$wgAutoloadClasses['RecommendedArticles']       = $dir . 'RecommendedArticles.php';
-$wgAutoloadClasses['SuggestCategories']         = $dir . 'SuggestCategories.php';
-$wgAutoloadClasses['SuggestedTopicsHooks']      = $dir . 'SuggestedTopicsHooks.php';
+$wgAutoloadClasses['ListRequestedTopics']       = $dir . 'ListRequestedTopics.body.php';
+$wgAutoloadClasses['ManageSuggestedTopics']     = $dir . 'ManageSuggestedTopics.body.php';
+$wgAutoloadClasses['RecommendedArticles']       = $dir . 'RecommendedArticles.body.php';
+$wgAutoloadClasses['RenameSuggestion']          = $dir . 'RenameSuggestion.body.php';
+$wgAutoloadClasses['RequestTopic']              = $dir . 'RequestTopic.body.php';
+$wgAutoloadClasses['SuggestCategories']         = $dir . 'SuggestCategories.body.php';
+$wgAutoloadClasses['SuggestedTopicsHooks']      = $dir . 'SuggestedTopics.hooks.php';
+$wgAutoloadClasses['YourArticles']              = $dir . 'YourArticles.body.php';
 
-$wgHooks['NABArticleFinished'][] = array("SuggestedTopicsHooks::notifyRequesterOnNab");
+$wgHooks['NABArticleFinished'][] = [ 'SuggestedTopicsHooks::notifyRequesterOnNab' ];
 
 $wgResourceModules['ext.wikihow.SuggestedTopics'] = [
 	'localBasePath' => __DIR__,
 	'targets' => [ 'desktop' ],
 	'styles' => [ 'suggestedtopics.css' ],
 	'scripts' => [ 'suggestedtopics.js' ],
+	'messages' => [
+		'suggest_please_enter_title',
+		'suggest_please_select_cat',
+		'suggest_please_enter_email'
+	],
 	'dependencies' => [ 'ext.wikihow.common_top', 'jquery.ui.dialog' ],
 	'remoteExtPath' => 'wikihow',
-	'position' => 'top' ];
+	'position' => 'top'
+];
+
+$wgResourceModules['ext.wikihow.ManageSuggestedTopics'] = [
+	'localBasePath' => __DIR__,
+	'targets' => [ 'desktop' ],
+	'scripts' => [ 'managesuggestedtopics.js' ],
+	'dependencies' => [ 'ext.wikihow.SuggestedTopics' ],
+	'remoteExtPath' => 'wikihow',
+	'position' => 'top'
+];

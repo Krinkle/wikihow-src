@@ -24,7 +24,7 @@ abstract class AbsTranscoder implements Transcodable {
 	private $stepsMsg;
 	
 	function __construct() {
-		$this->stepsMsg = wfMsg( 'steps' );
+		$this->stepsMsg = wfMessage('steps');
 	}
 	
 	public static function d( $msg, $val = null ) {
@@ -43,9 +43,9 @@ abstract class AbsTranscoder implements Transcodable {
 		$dbr = WikiVisualTranscoder::getDB('read');
 		$rev = Revision::loadFromPageId($dbr, $id);
 		if ($rev) {
-			$text = $rev->getText();
+			$text = ContentHandler::getContentText( $rev->getContent() );
 			$title = $rev->getTitle();
-			$url = WikiVisualTranscoder::makeWikihowURL($title);
+			$url = $title->getFullURL();
 			return array($text, $url, $title);
 		} else {
 			return array('', '', null);
@@ -56,13 +56,13 @@ abstract class AbsTranscoder implements Transcodable {
 	 * Load wikitext from latest revision
 	 */
 	public function getLatestRevisionText( $pageId ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$rev = Revision::loadFromPageId($dbr, $pageId);
 		if ( !$rev ) {
 			return null;
 		}
 
-		return $rev->getText();
+		return ContentHandler::getContentText( $rev->getContent() );
 	}
 	
 	public function cutStepsSection( $articleText ) {
@@ -129,17 +129,34 @@ abstract class AbsTranscoder implements Transcodable {
 		$saved = false;
 		$title = Title::newFromID($id);
 		if ($title) {
-			$article = new Article($title);
-			$saved = $article->doEdit($wikitext, 'Saving new step-by-step photos');
+			$wikiPage = WikiPage::factory($title);
+			$content = ContentHandler::makeContent($wikitext, $title);
+			$saved = $wikiPage->doEditContent($content, 'Saving new step-by-step photos');
 		}
-		if (!$saved) {
+		if (!$saved->isOK()) {
 			return 'Unable to save wikitext for article ID: ' . $id;
 		} else {
 			return '';
 		}
 	}
 
+	private function checkImageMinWidth( $image, $videoList ) {
+		$width = $image['width'];
+		$response = '';
+		$minWidth = WikiVisualTranscoder::ERROR_MIN_WIDTH;
+
+		if ( !empty( $videoList ) ) {
+			$minWidth = WikiVisualTranscoder::ERROR_MIN_WIDTH_VIDEO_COMPANION;
+		}
+
+		if ( $width < $minWidth ) {
+			$response = "size:{$image['width']}px:{$image['name']}\n";
+		}
+		return $response;
+	}
+
 	public function processHybridMedia( $pageId, $creator, $videoList, $photoList, $leaveOldMedia = false, $titleChange = false ) {
+		global $wgIsDevServer;
 		$err = '';
 		$warning = '';
 		$replaced = 0;
@@ -258,28 +275,17 @@ abstract class AbsTranscoder implements Transcodable {
 						}
 					}
 					
-					// Log pixel width issues
-					if (!$hadSizeProblems
-					&& !empty($image['width'])
-					&& $image['width'] < WikiVisualTranscoder::WARNING_MIN_WIDTH)
-					{
-						$warning .= "size:{$image['width']}px:{$image['name']}\n";
-						$hadSizeProblems = true;
-					}
-
-                    // Log pixel width issues
-                    if (!$hadSizeProblems
-                    && !empty($image['width'])) {
-                        if ($image['width'] < WikiVisualTranscoder::WARNING_MIN_WIDTH) {
-                            $warning .= "size:{$image['width']}px:{$image['name']}\n";
+                    // check for min and max image size
+                    if ( !$hadSizeProblems && !empty( $image['width'] ) ) {
+						$err .= $this->checkImageMinWidth( $image, $videoList );
+						if ( $err ) {
                             $hadSizeProblems = true;
-                        } else {
-                            $maxImgDimen = $image['width'] > $image['height'] ? $image['width'] : $image['height'];
-                            if ($maxImgDimen > WikiVisualTranscoder::ERROR_MAX_IMG_DIMEN) {
-                                $err .= "size:{$image['width']}px > max size ". WikiVisualTranscoder::ERROR_MAX_IMG_DIMEN ."px:{$image['name']}\n";
-                                $hadSizeProblems = true;
-                            }
-                        }
+						}
+						$maxImgDimen = $image['width'] > $image['height'] ? $image['width'] : $image['height'];
+						if ($maxImgDimen > WikiVisualTranscoder::ERROR_MAX_IMG_DIMEN) {
+							$err .= "size:{$image['width']}px > max size ". WikiVisualTranscoder::ERROR_MAX_IMG_DIMEN ."px:{$image['name']}\n";
+							$hadSizeProblems = true;
+						}
                     }
 				}
 			
@@ -315,7 +321,8 @@ abstract class AbsTranscoder implements Transcodable {
 			$text = $this->removeTemplates($text, $templates);
 		}
 
-		if ( !$err && $videoList && count( $videoList ) ) {
+		// not working on dev right now
+		if ( !$wgIsDevServer && !$err && $videoList && count( $videoList ) ) {
 			self::d("will convert mp4 to gifs");
 			// add the gifs now.. the videos have been downloaded already
 			$gifsError = $this->createGifsFromVideos( $pageId );
@@ -342,7 +349,8 @@ abstract class AbsTranscoder implements Transcodable {
 		if ( !$err ) {
 			$numPhotos = $photoList ? count($photoList) : 0;
 			$numVideos = $photoList ? count($videoList) : 0;
-			$url = WikiVisualTranscoder::urlFromTitleText( Title::nameOf( $pageId ) );
+			$title = Title::newFromID( $pageId );
+			$url = $title->getFullURL();
 			self::i("processed wikitext: $creator $pageId $url ".
 				"photos=" . $numPhotos . ", ".
 				"videos=" . $numVideos . " $err");
@@ -406,13 +414,29 @@ abstract class AbsTranscoder implements Transcodable {
 			// now we can remove the old image/video tag
 			$m[3] = self::removeMediaReferenceFromText( $m[3] );
 
-			if (preg_match('@[\n]+=@m', $m[3])) {
-				$steps[$i] = trim($m[1]) . trim(preg_replace('@([\n]+=)@m', $mediaToken . '$1', $m[3])) . "\n";
-			} else if (preg_match('@[\n]+__parts__|[\n]+__methods__|[\n]+__summarized__@mi', $m[3])) {
-				$steps[$i] = trim($m[1]) . trim(preg_replace('@([\n]+__parts|[\n]+__methods__|[\n]+__summarized__)@mi', $mediaToken . '$1', $m[3])) . "\n";
-			} else {
-				$steps[$i] = trim($m[1]) . trim($m[3]) . $mediaToken . "\n";
+			// any strings in this list of wordExceptions will have their token placed before this string
+			$wordExceptions = array();
+			$wordExceptions[] = wfMessage('summary_section_notice')->text();
+
+			$exceptionFound = false;
+			foreach( $wordExceptions as $word ) {
+				if (preg_match('@[\n]+' . $word . '@mi', $m[3])) {
+					$steps[$i] = trim($m[1]) . trim(preg_replace('@([\n]+'.$word.')@mi', $mediaToken . '$1', $m[3])) . "\n";
+					$exceptionFound = true;
+					break;
+				}
 			}
+
+			if ( $exceptionFound == false ) {
+				if (preg_match('@[\n]+=@m', $m[3])) {
+					$steps[$i] = trim($m[1]) . trim(preg_replace('@([\n]+=)@m', $mediaToken . '$1', $m[3])) . "\n";
+				} else if (preg_match('@[\n]+__parts__|[\n]+__methods__|[\n]+__summarized__@mi', $m[3])) {
+					$steps[$i] = trim($m[1]) . trim(preg_replace('@([\n]+__parts|[\n]+__methods__|[\n]+__summarized__)@mi', $mediaToken . '$1', $m[3])) . "\n";
+				} else {
+					$steps[$i] = trim($m[1]) . trim($m[3]) . $mediaToken . "\n";
+				}
+			}
+
 			$mediaList[$stepIdx]['token'] = $mediaToken;
 			self::d("mediaList[$stepIdx]['token'] : ". $mediaList[$stepIdx]['token']);
 			self::d("steps[$i] : ". $steps[$i]);
@@ -587,15 +611,30 @@ abstract class AbsTranscoder implements Transcodable {
 
 		$summarySectionText = Wikitext::getSummarizedSection( $text );
 		if ( !$summarySectionText ) {
-			return $result;
+			$heading  =  Wikitext::getFirstSummarizedSectionHeading();
+			if ( !$heading ) {
+				self::i("article has no summary section and no summarized headings found for this lang. will not add summary section");
+				return $result;
+			}
+			$heading = "== " . $heading . " ==";
+			// add the heading to be used later for finde/replacing the video
+			$summarySectionText = $heading;
+
+			// add the summary section to the text
+			$text .= PHP_EOL . PHP_EOL . $heading;
 		}
 		$lines = explode( PHP_EOL, $summarySectionText );
 		$sectionHeader = $lines[0];
+
+		// if any lines have whvid then we need to remove it
 		$lastLine = $lines[count($lines) - 1];
-		if ( strstr( $lastLine, '{{whvid' ) ) {
-			unset( $lines[count( $lines ) - 1] );
+		foreach ( $lines as $lineNum => $line ) {
+			if ( strstr( $line, '{{whvid' ) ) {
+				unset( $lines[ $lineNum ] );
+			}
 		}
 		if ( strpos( $text, $summarySectionText ) === false ) {
+			self:i("summary section not found!");
 			return $result;
 		}
 
@@ -617,7 +656,9 @@ abstract class AbsTranscoder implements Transcodable {
 			$videoTemplate = "{{whvid|" . $video['mediawikiName'] . "|" . $summaryIntroImage .  "|" . $summaryOutroImage . "}}\n";
 		}
 
-		$newText = implode( "\n", $lines ) . "\n" . $videoTemplate;
+		// remove the section header, placing the whvid template in the beginning of the lines
+		unset($lines[0]);
+		$newText = $sectionHeader . "\n" . $videoTemplate . implode( "\n", $lines );
 		$result = str_replace( $summarySectionText, $newText, $text );
 
 		return $result;
@@ -797,10 +838,12 @@ abstract class AbsTranscoder implements Transcodable {
 			}
 
 			if ( $video['step'] == 0 ) {
-				foreach ($images as $image) {
-					$fnames = explode('.', $image['name']);
-					if ( substr( $fnames[0], -6 === '-outro' ) ) {
-						$placed[$fnames[0]] = $video['name'];
+				if ( $images ) {
+					foreach ($images as $image) {
+						$fnames = explode('.', $image['name']);
+						if ( substr( $fnames[0], -6 === '-outro' ) ) {
+							$placed[$fnames[0]] = $video['name'];
+						}
 					}
 				}
 			}
@@ -842,7 +885,7 @@ abstract class AbsTranscoder implements Transcodable {
 			}
 
 			if ($videosAdded) {
-				wfRunHooks('WikiVisualS3VideosAdded', array(
+				Hooks::run('WikiVisualS3VideosAdded', array(
 					$pageId,
 					$creator,
 					$videosAdded
@@ -860,7 +903,7 @@ abstract class AbsTranscoder implements Transcodable {
 				$err = ImageTranscoder::addAllMediaWikiImages($pageId, $images);
 
 				if ($images && count($images) > 0) {
-					wfRunHooks('WikiVisualS3ImagesAdded', array(
+					Hooks::run('WikiVisualS3ImagesAdded', array(
 						$pageId,
 						$creator,
 						$images

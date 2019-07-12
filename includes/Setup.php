@@ -301,9 +301,9 @@ if ( $wgResourceLoaderMaxQueryLength === false ) {
  * @private
  */
 $wgCanonicalNamespaceNames = array(
-	NS_WIDGET			=> 'Widget',
-	NS_DOCUMENT			=> 'Doc',
-	NS_QUIZ				=> 'Quiz',
+	NS_WIDGET           => 'Widget',
+	NS_DOCUMENT         => 'Doc',
+	NS_QUIZ             => 'Quiz',
 	NS_MEDIA            => 'Media',
 	NS_SPECIAL          => 'Special',
 	NS_TALK             => 'Talk',
@@ -321,6 +321,8 @@ $wgCanonicalNamespaceNames = array(
 	NS_HELP_TALK        => 'Help_talk',
 	NS_CATEGORY         => 'Category',
 	NS_CATEGORY_TALK    => 'Category_talk',
+	NS_SUMMARY          => 'Summary',
+	NS_SUMMARY_TALK     => 'Summary_talk',
 );
 
 /// @todo UGLY UGLY

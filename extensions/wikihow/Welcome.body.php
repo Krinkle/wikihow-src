@@ -2,20 +2,19 @@
 
 class Welcome extends UnlistedSpecialPage {
 
-	function __construct() {
+	public function __construct() {
 		parent::__construct('Welcome');
 	}
 
-	function sendWelcome() {
-		global $wgUser;
-		return self::sendWelcomeUser($wgUser);
-	}
-
-	function sendWelcomeUser($user) {
+	public static function sendWelcomeUser($user) {
 		global $wgCanonicalServer;
 
 		if ($user->getID() == 0) {
 			wfDebug("Welcome email:User must be logged in.\n");
+			return true;
+		}
+		if ($user->getOption('gdpr_signup') == 1 ) {
+			wfDebug("do not send marketing email for gdpr users");
 			return true;
 		}
 
@@ -29,11 +28,11 @@ class Welcome extends UnlistedSpecialPage {
 			return true;
 		}
 
-		$subject = wfMsg('welcome-email-subject');
+		$subject = wfMessage('welcome-email-subject')->text();
 
 		$from_name = "";
 		$validEmail = "";
-		$from_name = wfMsg('welcome-email-fromname');
+		$from_name = wfMessage('welcome-email-fromname')->text();
 
 		$to_name = $user->getName();
 		$to_real_name = $user->getRealName();
@@ -50,10 +49,10 @@ class Welcome extends UnlistedSpecialPage {
 		$link = UnsubscribeLink::newFromId($user->getId());
 
 		//server,username,talkpage,username,optout link
-		$body = wfMsg('welcome-email-body',
+		$body = wfMessage('welcome-email-body',
 			$wgCanonicalServer, $username,
 			$wgCanonicalServer .'/'. preg_replace('/ /','-',$user->getTalkPage()),
-			$user->getName(), $link->getLink() );
+			$user->getName(), $link->getLink() )->text();
 
 		$from = new MailAddress($from_name);
 		$to = new MailAddress($to_name);
@@ -66,13 +65,12 @@ class Welcome extends UnlistedSpecialPage {
 
 	}
 
-	function execute($par) {
-		global $wgUser, $wgRequest, $wgOut, $wgCanonicalServer;
-		$fname = 'Welcome';
+	public function execute($par) {
+		global $wgCanonicalServer;
 
-		$wgOut->setArticleBodyOnly(true);
+		$this->getOutput()->setArticleBodyOnly(true);
 
-		$username = htmlspecialchars( strip_tags( $wgRequest->getVal('u', null) ) );
+		$username = htmlspecialchars( strip_tags( $this->getRequest()->getVal('u', null) ) );
 
 		if ($username != '') {
 			$u = new User();
@@ -89,8 +87,7 @@ class Welcome extends UnlistedSpecialPage {
 		$body = wfMessage('welcome-email-body',
 			$wgCanonicalServer, $username,
 			$wgCanonicalServer .'/'. preg_replace('/ /','-',$u->getTalkPage()),
-			$username, null)
-				->text();
+			$username, null)->text();
 
 		print $body;
 	}

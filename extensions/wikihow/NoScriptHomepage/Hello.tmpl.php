@@ -1,5 +1,5 @@
 <?=$css?>
-<div id="nojs_header" class="<?= $headerClass ?>"></div>
+<div id="nojs_header"></div>
 <div class='top_section'>
 <h3><?=$topMessage?></h3>
 </div>
@@ -9,9 +9,9 @@
 			<div id="nojs_input_container">
 				<input id="nojssb_input" maxlength="2048" name="search" autocapitalize="off" autocomplete="off" autocorrect="off"  type="search" value="" aria-label="Search" aria-haspopup="false" role="combobox" aria-autocomplete="both" dir="ltr" spellcheck="false" ph="<?=$howTo ?>" placeholder="<?=$howTo ?>">
 			</div>
-			<button  aria-label="wikiHow Search" id="nojssb_btn" type="submit">
+			<button  aria-label="wikiHow Search" id="nojssb_btn" type="submit"> 
 				<div class="s_text"><?=$searchText?></div>
-				<div class="s_icon"></div>
+				<div class="s_icon"></div> 
 			</button>
 		</div>
 	</form>
@@ -37,9 +37,9 @@
 				<div id="nojs_b_input_container">
 					<input id="nojssb_b_input" maxlength="2048" name="search" autocapitalize="off" autocomplete="off" autocorrect="off"  type="search" value="" aria-label="Search" aria-haspopup="false" role="combobox" aria-autocomplete="both" dir="ltr" spellcheck="false" ph="<?=$howTo ?>" placeholder="<?=$howTo ?>">
 				</div>
-				<button  aria-label="wikiHow Search" id="nojssb_b_btn" type="submit">
+				<button  aria-label="wikiHow Search" id="nojssb_b_btn" type="submit"> 
 					<div class="s_text"><?=$searchText?></div>
-					<div class="s_icon"></div>
+					<div class="s_icon"></div> 
 				</button>
 			</div>
 		</form>

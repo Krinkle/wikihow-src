@@ -14,9 +14,9 @@ class WikihowUserPage extends Article {
 	public static function onArticleFromTitle($title, &$page) {
 		$ctx = MobileContext::singleton();
 		if ($title &&
-			(NS_USER == $title->getNamespace() ||
-			(NS_USER_KUDOS == $title->getNamespace() && $ctx->shouldDisplayMobileView()) ||
-			(NS_USER_TALK == $title->getNamespace() && $ctx->shouldDisplayMobileView()))) {
+			($title->inNamespace(NS_USER) ||
+			($title->inNamespace(NS_USER_KUDOS) && $ctx->shouldDisplayMobileView()) ||
+			($title->inNamespace(NS_USER_TALK) && $ctx->shouldDisplayMobileView()))) {
 				$page = new WikihowUserPage($title);
 		}
 
@@ -45,9 +45,9 @@ class WikihowUserPage extends Article {
 			return Article::view();
 		}
 
-		if ($this->user->isAnon() && $this->mTitle->getNamespace() != NS_USER_TALK) {
+		if ($this->user->isAnon() && !$this->mTitle->inNamespace(NS_USER_TALK)) {
 			header('HTTP/1.1 404 Not Found');
-			$out->setRobotpolicy( 'noindex,nofollow' );
+			$out->setRobotPolicy( 'noindex,nofollow' );
 			$out->showErrorPage( 'nosuchuser-error', 'Noarticletext_user' );
 			return;
 		}
@@ -58,11 +58,9 @@ class WikihowUserPage extends Article {
 			$this->isPageOwner = $user->getName() == $this->user->getName();
 		}
 		if ( $this->user->isBlocked() && $this->isPageOwner ) {
-			$out->blockedPage();
-			return;
+			throw new UserBlockedError( $this->user->getBlock() );
 		}
 
-		$out->setRobotpolicy( 'index,follow' );
 		//hack in the <title> because it disappears for some reason [sc]
 		$out->setHTMLTitle( wfMessage( 'pagetitle', $lang->getNsText($title->getNamespace()) . ': ' . $this->user->getName() )->text() );
 		$skin = $this->getContext()->getSkin();
@@ -77,8 +75,6 @@ class WikihowUserPage extends Article {
 	}
 
 	private function getDesktopView() {
-		global $wgUser;
-
 		$out = $this->getContext()->getOutput();
 		$title = $this->getContext()->getTitle();
 
@@ -97,10 +93,9 @@ class WikihowUserPage extends Article {
 		$badgeData = $profileStats->getBadges();
 		$out->addHTML(ProfileBox::getDisplayBadge($badgeData));
 
-		if ($wgUser->isLoggedIn()) {
+		if ($this->getContext()->getUser()->isLoggedIn()) {
 			$skin->addWidget($this->getRCUserWidget()); // fix for WelcomeWagon
 		}
-
 
 		if ($checkStats || $checkStartedEdited) {
 			$stats = ProfileBox::fetchStats("User:" . $this->user->getName());
@@ -113,11 +108,13 @@ class WikihowUserPage extends Article {
 			if ($checkStartedEdited) {
 				$max = 5;
 				$createdData = $profileStats->fetchCreatedData($max);
+				$this->flagDeindexedArticles($createdData);
 				$out->addHTML($this->createdHTML($createdData, $stats['created'], $max));
 
 				//thumbed up edits
 				$max = 5;
 				$thumbsData = $profileStats->fetchThumbsData($max);
+				$this->flagDeindexedArticles($thumbsData);
 				$out->addHTML($this->thumbedHTML($thumbsData, $stats['thumbs_received'], $max));
 			}
 
@@ -157,7 +154,7 @@ class WikihowUserPage extends Article {
 		$out->addModules('mobile.wikihow.userscript');
 
 		//head
-		if ($this->mTitle->getNamespace() == NS_USER || $this->mTitle->getNamespace() == NS_USER_TALK) {
+		if ($this->mTitle->inNamespace(NS_USER) || $this->mTitle->inNamespace(NS_USER_TALK)) {
 			$avatar = ($lang->getCode() == 'en') ? Avatar::getAvatarURL($this->user->getName()) : "";
 			$tabs = ($this->user->isAnon()) ? '' : $this->getUserHeadTabs($this->user->getName());
 			$header = '<div id="user_head">
@@ -172,7 +169,7 @@ class WikihowUserPage extends Article {
 			$out->setPageTitle(wfMessage('user-kudos')->plain().$this->user->getName());
 		}
 
-		if ($this->mTitle->getNamespace() == NS_USER) {
+		if ($this->mTitle->inNamespace(NS_USER)) {
 			//USER
 			$this->getMobileUserPage();
 		}
@@ -208,15 +205,15 @@ class WikihowUserPage extends Article {
 		$user = $this->getContext()->getUser();
 
 		//get the guts
-		$content = $this->getContent();
-		$html = $out->parse($content);
+		$wikitext = ContentHandler::getContentText( $this->getPage()->getContent() );
+		$html = $out->parse($wikitext);
 		$html = WikihowArticleHTML::processHTML($html);
 		$html = Avatar::insertAvatarIntoDiscussion($html);
 
 		//add target link
 		$html .= '<div id="at_the_bottom"></div>';
 
-		if ($this->mTitle->getNamespace() == NS_USER_KUDOS) {
+		if ($this->mTitle->inNamespace(NS_USER_KUDOS)) {
 			$html = '<div class="user_kudos">'.$html.'</div>';
 		}
 		else {
@@ -240,7 +237,7 @@ class WikihowUserPage extends Article {
 
 	private function statsHTML($stats, $is_mobile = false) {
 		$loader = new Mustache_Loader_CascadingLoader([
-			new Mustache_Loader_FilesystemLoader(dirname(__FILE__).'/templates')
+			new Mustache_Loader_FilesystemLoader(__DIR__.'/templates')
 		]);
 		$options = array('loader' => $loader);
 		$m = new Mustache_Engine($options);
@@ -305,7 +302,7 @@ class WikihowUserPage extends Article {
 
 		$data = RCWidget::pullData($this->user->getID());
 
-		$tmpl = new EasyTemplate( dirname(__FILE__) . '/templates/' );
+		$tmpl = new EasyTemplate( __DIR__ . '/templates/' );
 		$tmpl->set_vars(array(
 			'elements' => $data
 		));
@@ -319,7 +316,7 @@ class WikihowUserPage extends Article {
 		$off_class = 'uht_off';
 
 		$attributes = array(
-			'class' => ($this->mTitle->getNamespace() == NS_USER) ? '' : $off_class,
+			'class' => ($this->mTitle->inNamespace(NS_USER)) ? '' : $off_class,
 			'id' => 'uht_profile',
 
 		);
@@ -327,7 +324,7 @@ class WikihowUserPage extends Article {
 		$profile_link = Linker::link(Title::makeTitle(NS_USER, $username), $profile_link_inner, $attributes, '', array('known'));
 
 		$attributes = array(
-			'class' => ($this->mTitle->getNamespace() == NS_USER_TALK) ? '' : $off_class,
+			'class' => ($this->mTitle->inNamespace(NS_USER_TALK)) ? '' : $off_class,
 			'id' => 'uht_talk',
 
 		);
@@ -344,7 +341,7 @@ class WikihowUserPage extends Article {
 
 	private function createdHTML($data, $create_count, $max) {
 		$loader = new Mustache_Loader_CascadingLoader([
-			new Mustache_Loader_FilesystemLoader(dirname(__FILE__).'/templates')
+			new Mustache_Loader_FilesystemLoader(__DIR__.'/templates')
 		]);
 		$options = array('loader' => $loader);
 		$m = new Mustache_Engine($options);
@@ -383,7 +380,7 @@ class WikihowUserPage extends Article {
 
 	private function thumbedHTML($data, $thumb_count, $max) {
 		$loader = new Mustache_Loader_CascadingLoader([
-			new Mustache_Loader_FilesystemLoader(dirname(__FILE__).'/templates')
+			new Mustache_Loader_FilesystemLoader(__DIR__.'/templates')
 		]);
 		$options = array('loader' => $loader);
 		$m = new Mustache_Engine($options);
@@ -417,7 +414,7 @@ class WikihowUserPage extends Article {
 
 	private function answeredHTML($data, $answered_count, $max) {
 		$loader = new Mustache_Loader_CascadingLoader([
-			new Mustache_Loader_FilesystemLoader(dirname(__FILE__).'/templates')
+			new Mustache_Loader_FilesystemLoader(__DIR__.'/templates')
 		]);
 		$options = array('loader' => $loader);
 		$m = new Mustache_Engine($options);
@@ -459,5 +456,17 @@ class WikihowUserPage extends Article {
 		return $vars;
 	}
 
+	/**
+	 * We don't want anons to see links to deindexed articles.
+	 */
+	private function flagDeindexedArticles(&$data) {
+		if (!$data || $this->getContext()->getUser()->isLoggedIn())
+			return;
+
+		foreach ($data as &$article) {
+			$title = Title::newFromID($article['page_id']);
+			$article['hide_link'] = !RobotPolicy::isTitleIndexable($title);
+		}
+	}
 
 }

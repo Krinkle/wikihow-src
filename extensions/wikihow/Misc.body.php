@@ -6,6 +6,8 @@
 //
 class Misc {
 
+	public static $referencesCount = null;
+
 	/*
 	 * adminPostTalkMessage
 	 * - returns true/false
@@ -27,16 +29,17 @@ class Misc {
 
 		if ($talkPage->getArticleId() > 0) {
 			$r = Revision::newFromTitle($talkPage);
-			$existing_talk = $r->getText() . "\n\n";
+			$existing_talk = ContentHandler::getContentText( $r->getContent() ) . "\n\n";
 		}
 		$text = $existing_talk . $formattedComment ."\n\n";
 
 		$flags = EDIT_FORCE_BOT | EDIT_SUPPRESS_RC;
 
-		$article = new Article($talkPage);
-		$result = $article->doEdit($text, "", $flags);
+		$wikiPage = WikiPage::factory($talkPage);
+		$content = ContentHandler::makeContent($text, $talkPage);
+		$result = $wikiPage->doEditContent($content, "", $flags);
 
-		return $result;
+		return $result->isOK();
 	}
 
 	public static function getDTDifferenceString($date, $isUnixTimestamp = false) {
@@ -114,11 +117,12 @@ class Misc {
 	 * Send a file to the user that forces them to download it.
 	 */
 	public static function outputFile($filename, &$output, $mimeType  = 'text/tsv') {
-		global $wgOut, $wgRequest;
-		$wgOut->setArticleBodyOnly(true);
-		$wgRequest->response()->header('Content-type: ' . $mimeType);
-		$wgRequest->response()->header('Content-Disposition: attachment; filename="' . addslashes($filename) . '"');
-		$wgOut->addHtml($output);
+		$req = RequestContext::getMain()->getRequest();
+		$out = RequestContext::getMain()->getOutput();
+		$out->disable();
+		$req->response()->header('Content-Type: ' . $mimeType);
+		$req->response()->header('Content-Disposition: attachment; filename="' . addslashes($filename) . '"');
+		print $output;
 	}
 
 	// Makes a url given a dbkey or page title string
@@ -162,7 +166,7 @@ class Misc {
 	/**
 	 * Get a base URL for a given language code
 	 */
-	public static function getLangBaseURL($lang, $mobile = false) {
+	public static function getLangBaseURL($lang = '', $mobile = false) {
 		return 'https://' . wfCanonicalDomain($lang, $mobile);
 	}
 
@@ -172,6 +176,21 @@ class Misc {
 	 */
 	public static function getLangDomain($lang, $mobile = false) {
 		wfDeprecated( __METHOD__, '1.23' );
+		return wfCanonicalDomain($lang, $mobile);
+	}
+
+	/**
+	 * Get the canonical domain, including alts
+	 */
+	public static function getCanonicalDomain($lang = '', $mobile = false): string {
+		global $domainName;
+
+		$altDomains = AlternateDomain::getAlternateDomains();
+		foreach ($altDomains as $domain) {
+			if (strstr($domainName, $domain)) {
+				return ($mobile ? 'm.' : 'www.') . $domain;
+			}
+		}
 		return wfCanonicalDomain($lang, $mobile);
 	}
 
@@ -194,6 +213,16 @@ class Misc {
 	}
 
 	/**
+	 * Infer the language code from a full URL. Works for mobile and desktop.
+	 */
+	public static function getLangFromURL(string $url): string {
+		$url = trim($url);
+		$isMobile = preg_match('@^https?://([a-zA-Z]{2}\.)?m\.@', $url) === 1;
+		list($lang, $partial) = self::getLangFromFullURL($url, $isMobile);
+		return $lang;
+	}
+
+	/**
 	 * Get pages from language ids
 	 * @param langIds List of language ids as an array-hash array('lang'=> ,'id'=>)
 	 *
@@ -203,18 +232,14 @@ class Misc {
 		foreach($langIds as $li) {
 			$ll[$li['lang']][] = $li['id'];
 		}
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
-		$startSQL = "";
-		if (empty($cols)) {
-			$startSQL = "select * from ";
-		} else {
-			$startSQL = "select " . implode(',', $cols) . " from ";
-		}
 		$pages = array();
 		foreach ($ll as $l => $ids) {
-			$sql = $startSQL . Misc::getLangDB($l) . ".page where page_id in (" . implode(',',$ids) . ")";
-			$res = $dbr->query($sql, __METHOD__);
+			$tables = self::getLangDB($l) . '.page';
+			$fields = $cols ? $cols : '*';
+			$where = [ 'page_id' => $ids ];
+			$res = $dbr->select($tables, $fields, $where);
 			foreach ($res as $row) {
 				$row = get_object_vars($row);
 				$pages[$l][$row['page_id'] ] = array_merge($row, array('lang'=>$l));
@@ -240,30 +265,31 @@ class Misc {
 	public static function getPagesFromURLs($urls, $cols=array(), $includeRedirects=false) {
 		global $wgActiveLanguages;
 		$urlsByLang = array();
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		foreach ($urls as $url) {
 			list($lang, $partial) = self::getLangFromFullURL($url);
 			if ($lang && $partial) {
-				$urlsByLang[$lang][] = $dbr->addQuotes($partial);
+				$urlsByLang[$lang][] = $partial;
 			}
 		}
-		$startSQL = "";
-		if (empty($cols)) {
-			$startSQL = "select * from ";
-		} else {
+		if (!empty($cols) && !in_array('page_title', $cols)) {
 			// page_title is required
-			if (!in_array('page_title', $cols)) $cols[] = 'page_title';
-			$startSQL = "select " . implode(',', $cols) . " from ";
+			$cols[] = 'page_title';
 		}
 		$results = array();
-
 		foreach ($urlsByLang as $lang => $titles) {
-			$db = self::getLangDB($lang);
+			$tables = self::getLangDB($lang) . '.page';
+			$fields = $cols ? $cols : '*';
+			$where = [
+				'page_title' => $titles,
+				'page_namespace' => NS_MAIN
+			];
+			if (!$includeRedirects) {
+				$where['page_is_redirect'] = 0;
+			}
 			$baseURL = self::getLangBaseURL($lang);
-			$redirectsSQL = !$includeRedirects ? ' AND page_is_redirect=0' : '';
-			$sql = $startSQL . $db . ".page WHERE page_title in (" . implode(',',$titles) . ") AND page_namespace=" . NS_MAIN . $redirectsSQL;
-			$res = $dbr->query($sql, __METHOD__);
+			$res = $dbr->select($tables, $fields, $where);
 			foreach ($res as $row) {
 				$row = get_object_vars($row);
 				$row['lang'] = $lang;
@@ -615,7 +641,7 @@ class Misc {
 	 * @param boolean $flipCss Transform the CSS for right-to-left languages
 	 *
 	 * @example <code>
-	 * $embedStr = Misc::getEmbedFile('css', dirname(__FILE__) . "/startingcss.css");
+	 * $embedStr = Misc::getEmbedFile('css', __DIR__ . "/startingcss.css");
 	 * $outputPage->addHTML('<style>' . $embedStr . '</style>');
 	 * </code>
 	 */
@@ -638,8 +664,11 @@ class Misc {
 	// version of the function only when it's not possible to use
 	// the normal isMobileMode() method above.
 	public static function isMobileModeLite() {
-		global $wgServer, $wgNoMobileRedirectTest, $wgIsAnswersDomain;
+		global $wgServer, $wgNoMobileRedirectTest, $wgIsAnswersDomain, $wgIsDevServer;
 		if ( $wgServer && preg_match('@\bm\.@', $wgServer) > 0 ) {
+			return true;
+		}
+		if ( $wgIsDevServer && $wgServer && preg_match('@\bm\b@', $wgServer) > 0 ) {
 			return true;
 		}
 		if ( $wgIsAnswersDomain ) {
@@ -652,6 +681,16 @@ class Misc {
 			}
 		}
 		return false;
+	}
+
+	// This header is used by our Fastly VCL to allow mobile redirection
+	// when the stars align (ie, they have a mobile User-Agent, they don't
+	// have special cookies, and they are on a desktop domain).
+	public static function setHeaderMobileFriendly() {
+		if ( !self::isMobileMode() ) {
+			$ctx = RequestContext::getMain();
+			$ctx->getRequest()->response()->header('x-mobile-friendly: 1');
+		}
 	}
 
 	public static function isUserInGroups($user, $groups) {
@@ -693,13 +732,10 @@ class Misc {
 
 	}
 
-	/**
-	 * Map extra GA trackers to tracker names.
-	 *
-	 * Does not include the main tracker.
-	 */
-	public static function getExtraGoogleAnalyticsCodes() {
+	public static function getGoogleAnalyticsConfig(): array {
 		global $wgLanguageCode;
+
+		// Map extra GA trackers to tracker names (does not include the main tracker)
 
 		$codes = [];
 
@@ -713,39 +749,63 @@ class Misc {
 			$codes['UA-2375655-18'] = 'it';
 		} elseif ($wgLanguageCode == 'cs') {
 			$codes['UA-2375655-19'] = 'cs';
+		} elseif ($wgLanguageCode == 'tr') {
+			$codes['UA-2375655-29'] = 'tr';
 		} elseif (class_exists('QADomain') && QADomain::isQADomain()) {
 			$codes[QADomain::getGACode()] = 'qa';
 		}
 
-		wfRunHooks( 'MiscGetExtraGoogleAnalyticsCodes', array( &$codes ) );
+		Hooks::run('MiscGetExtraGoogleAnalyticsCodes', array(&$codes));
 
-		return $codes;
+		// Adjusted bounce rate (https://moz.com/blog/adjusted-bounce-rate)
+
+		$adjustedBounce = null;
+
+		if (self::isAdjustedBounceRateEnabled()) {
+			$adjustedBounce = [
+				'accounts' => [ 'UA-2375655-20' ],
+				'eventCategory' => '10_seconds',
+				'eventAction' => 'read',
+				'timeout' => 10
+			];
+		}
+
+		return [
+			'extraPropertyIds' => $codes,
+			'adjustedBounceRate' => $adjustedBounce
+		];
 	}
 
 	/**
 	 * @param array   $data      To be serialized and rendered in the response body
 	 * @param int     $code      HTTP status code
 	 * @param string  $callback  An optional function name for JSONP
+	 *
+	 * NOTE: This method does not observe caching parameters set in OutputPage. If
+	 *       you need these responses to be cached, consider using OutputPage directly.
 	 */
-	public static function jsonResponse(array $data, int $code=200, string $callback='') {
-		global $wgOut, $wgRequest;
-
+	public static function jsonResponse($data, int $code=200, string $callback='') {
 		$contentType = empty($callback) ? 'application/json' : 'application/javascript';
 
-		$wgRequest->response()->header("Content-type: $contentType");
-		$wgOut->disable();
+		$req = RequestContext::getMain()->getRequest();
+		$req->response()->header("Content-Type: $contentType");
+
+		$out = RequestContext::getMain()->getOutput();
+		// NOTE: cannot use setArticleBodyOnly(true) here because it sets content-type
+		// to be text/html every time.
+		$out->disable();
 
 		if ($code != 200) {
 			$message = HttpStatus::getMessage($code);
 			if ($message) {
-				$wgRequest->response()->header("HTTP/1.1 $code $message");
+				$req->response()->header("HTTP/1.1 $code $message");
 			}
 		}
 
 		if (empty($callback)) {
-			echo json_encode($data);
+			print json_encode($data);
 		} else {
-			echo htmlspecialchars($callback) . '(' . json_encode($data) . ')';
+			print htmlspecialchars($callback) . '(' . json_encode($data) . ')';
 		}
 
 	}
@@ -801,8 +861,7 @@ class Misc {
 
 	// Remove all non-alphanumeric characters
 	public static function getSectionName($name) {
-		global $wgLanguageCode;
-		$pattern = $wgLanguageCode == 'en'
+		$pattern = RequestContext::getMain()->getLanguage()->getCode() == 'en'
 			? "/[^A-Za-z0-9]/u"
 			: "/[^\p{L}\p{N}\p{M}]/u";
 		return preg_replace($pattern, '', mb_strtolower($name));
@@ -856,7 +915,7 @@ class Misc {
 	 * Make a lower case, punctuation-free form of the article title
 	 */
 	public static function redirectGetFolded($text) {
-		$text = strtolower($text);
+		$text = mb_strtolower($text);
 		$patterns = array('@[[:punct:]]@', '@\s+@');
 		$replace  = array('', ' ');
 		$text = preg_replace($patterns, $replace, $text);
@@ -869,12 +928,12 @@ class Misc {
 	 * returns the redirect target title otherwise
 	 */
 	public static function getCaseRedirect( $title ) {
-		global $wgRequest;
+		$req = RequestContext::getMain()->getRequest();
 		$redir = null;
-		if ($title && $title->getNamespace() == NS_MAIN
-			&& $wgRequest && $wgRequest->getVal('redirect') !== 'no'
+		if ($title && $title->inNamespace(NS_MAIN)
+			&& $req && $req->getVal('redirect') !== 'no'
 		) {
-			$dbr = wfGetDB(DB_SLAVE);
+			$dbr = wfGetDB(DB_REPLICA);
 			$text = Misc::redirectGetFolded( $title->getText() );
 			$redirPageID = $dbr->selectField('redirect_page', 'rp_page_id', array('rp_folded' => $text), __METHOD__);
 			$redirTitle = Title::newFromID($redirPageID);
@@ -933,6 +992,60 @@ class Misc {
 	public static function isIntl(): bool {
 		global $wgLanguageCode;
 		return $wgLanguageCode != 'en';
+	}
+
+	/**
+	 * Send a 404 response and exit()
+	 */
+	public static function exitWith404($msg = "Page not found") {
+		RequestContext::getMain()->getRequest()->response()->header("HTTP/1.1 404 Not Found");
+		print $msg;
+		exit;
+	}
+
+	public static function isAltDomain(): bool {
+		return class_exists('AlternateDomain') && AlternateDomain::onAlternateDomain();
+	}
+
+	public static function isAdjustedBounceRateEnabled(): bool {
+		global $domainName;
+		return strpos($domainName, 'wikihow.pet') !== false;
+	}
+
+	public static function getReferencesCount(): int {
+		if (!is_null(self::$referencesCount)) return self::$referencesCount;
+
+		$context = RequestContext::getMain();
+		$lang_code = $context->getLanguage()->getCode();
+
+		$title = $context->getTitle();
+		if (!$title) return 0;
+
+		$page_id = $title->getArticleId();
+		if (!$page_id) return 0;
+
+		$count = wfGetDB(DB_REPLICA)->selectField(
+			WH_DATABASE_NAME_EN . '.titus_copy',
+			'ti_num_sources_cites',
+			[
+				'ti_language_code' => $lang_code,
+				'ti_page_id' => $page_id
+			],
+			__METHOD__
+		);
+
+		return $count;
+	}
+
+	public static function getReferencesID(): string {
+		$id = '#' . self::getSectionName( wfMessage('sources')->text() );
+		if ( phpQuery::$defaultDocumentID ) {
+			$references = '#' . self::getSectionName( wfMessage('references')->text() );
+			if ( pq( $references )->length > 0 ) {
+				$id = $references;
+			}
+		}
+		return $id;
 	}
 
 }

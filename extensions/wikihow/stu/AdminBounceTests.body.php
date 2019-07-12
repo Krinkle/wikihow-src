@@ -22,7 +22,7 @@ class AdminBounceTests extends UnlistedSpecialPage {
 		foreach ($pageList as $url) {
 			$url = trim($url);
 			if (!empty($url)) {
-				$title = WikiPhoto::getArticleTitle($url);
+				$title = WikiPhoto::getArticleTitleNoCheck($url);
 				$urls[] = array('url' => $url, 'title' => $title);
 			}
 		}
@@ -422,7 +422,7 @@ EOHTML;
 		if ($user->isBlocked()
 			|| !in_array('staff', $userGroups)
 		) {
-			$out->setRobotpolicy('noindex,nofollow');
+			$out->setRobotPolicy('noindex,nofollow');
 			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
@@ -434,7 +434,7 @@ EOHTML;
 			ignore_user_abort(true);
 
 			$out->setArticleBodyOnly(true);
-			$dbr = wfGetDB(DB_SLAVE);
+			$dbr = wfGetDB(DB_REPLICA);
 
 			$action = $req->getVal('action', '');
 			self::$discardThreshold = $req->getInt('discard-threshold', 0);
@@ -459,6 +459,14 @@ EOHTML;
 					$domain = substr($action, -2);
 					$html = self::resetStats($urls, $domain);
 				}
+
+				// keep track of stu resets in the rating_history table
+				foreach ($urls as $url) {
+					if ($url['title'] && $url['title']->getArticleID() > 0) {
+						RatingsTool::keepHistory( $url['title']->getArticleID(), 'stu' );
+					}
+				}
+
 				self::resetVarnishes($urls);
 
 				self::mailUserResetDone($user, $urls);
@@ -513,11 +521,14 @@ $tmpl = <<<EOHTML
 	</div>
 </div>
 <div style="font-size: 13px; margin: 20px 0 7px 0;">
-	Enter a list of URL(s) such as <code style="font-weight: bold;">http://www.wikihow.com/Lose-Weight-Fast</code> to which this tool will apply.  One per line.
+	Enter a list of URL(s) such as <code style="font-weight: bold;">https://www.wikihow.com/Lose-Weight-Fast</code> to which this tool will apply.  One per line.
 </div>
 <textarea id="pages-list" name="pages-list" type="text" rows="10" cols="70"></textarea><br/>
 <button id="pages-fetch" disabled="disabled" style="padding: 5px;">fetch stats</button>
 <button id="pages-reset" disabled="disabled" style="padding: 5px;">reset all</button>
+<div style="font-size: 14px; margin: 20px 0 0 0">
+NOTE: This page only clears Stu data (new Stu2 and old Stu). If you want to clear both Page Helpfulness and new Stu2, visit <a href="/Special:AdminClearRatings">Special:AdminClearRatings</a>.
+</div>
 <br/>
 <br/>
 <div id="pages-result">

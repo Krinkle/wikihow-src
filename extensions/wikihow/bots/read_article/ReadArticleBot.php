@@ -12,7 +12,7 @@ class ReadArticleBot extends UnlistedSpecialPage {
 		"Sorry, couldn't find anything for you. Want to ask something else?",
 		"I know a lot of things, but apparently I don't know that.  Can you try rephrasing it?",
 		"Sorry, nothing came up! Can you try again?",
-		"Hmmm… Can you please try rephrasing that?",
+		"Hmmm, can you please try rephrasing that?",
 		"I know a lot of things, but I don’t know that. Want to try asking me something else?",
 		"Gosh, I know a lot of things but you’ve stumped me! Want to ask me something else?",
 	];
@@ -127,7 +127,7 @@ class ReadArticleBot extends UnlistedSpecialPage {
 	// The event type label to use when logging events in UsageLogs
 	var $eventType = self::USAGE_LOGS_EVENT_TYPE_UNSPECIFIED;
 
-	function __construct(ReadArticleModel $a = null, $eventType = null) {
+	function __construct(ReadArticleModelV2 $a = null, $eventType = null) {
 		$this->a = $a;
 
 		if (!is_null($eventType)) {
@@ -136,7 +136,7 @@ class ReadArticleBot extends UnlistedSpecialPage {
 	}
 
 	/**
-	 * @return ReadArticleModel|null
+	 * @return ReadArticleModelV2|null
 	 */
 	public function getArticleData() {
 		return $this->a;
@@ -154,9 +154,12 @@ class ReadArticleBot extends UnlistedSpecialPage {
 	 * @return ReadArticleBot
 	 */
 	public static function newFromArticleState($articleState = null, $eventType = null) {
-		if (!is_null($articleState)) {
+		if (!empty($articleState)) {
 			$articleState = unserialize($articleState);
+		} else {
+			$articleState = null;
 		}
+
 		return new ReadArticleBot($articleState, $eventType);
 	}
 
@@ -207,7 +210,7 @@ class ReadArticleBot extends UnlistedSpecialPage {
 		$a = $this->a;
 		if (is_null($a)) {
 			$responseText = $this->onNoArticleSelected();
-		} else if ($a->isLastStepInMethod()) {
+		} elseif ($a->isLastStepInMethod()) {
 			$responseText = $this->onIntentEnd();
 		} else {
 			$responseText = $this->onIntentFallback();
@@ -220,7 +223,9 @@ class ReadArticleBot extends UnlistedSpecialPage {
 	 * @return String
 	 */
 	public function onIntentEnd() {
-		return wfMessage('wh_end')->text();
+		global $wgIsProduction;
+
+		return $wgIsProduction ? wfMessage('wh_end_test')->text() : wfMessage('wh_end')->text();
 	}
 
 	/**
@@ -228,7 +233,7 @@ class ReadArticleBot extends UnlistedSpecialPage {
 	 * @return String
 	 */
 	protected function getSearchResultsResponse($titles) {
-		$this->a = $a = ReadArticleModel::newInstance(array_shift($titles), self::TOTAL_METHODS);
+		$this->a = $a = ReadArticleModelV2::newInstance(array_shift($titles), self::TOTAL_METHODS);
 		wfDebugLog(self::LOG_GROUP, var_export($a, true), true);
 
 		if ($a->hasSummary()) {
@@ -241,9 +246,9 @@ class ReadArticleBot extends UnlistedSpecialPage {
 	}
 
 	/**
-	 * Get the nitial response for articles with summaries
+	 * Get the initial response for articles with summaries
 	 *
-	 * @param ReadArticleModel $a
+	 * @param ReadArticleModelV2 $a
 	 */
 	protected function getSummaryResponse() {
 		$a = $this->a;
@@ -252,7 +257,7 @@ class ReadArticleBot extends UnlistedSpecialPage {
 	}
 
 	/**
-	 * @param ReadArticleModel $a
+	 * @param ReadArticleModelV2 $a
 	 * @return Response
 	 */
 	protected function getReadArticleResponse() {
@@ -269,25 +274,25 @@ class ReadArticleBot extends UnlistedSpecialPage {
 				wfMessage('reading_article_step_count', $a->getStepCount()) . "\n\n";
 		}
 
-		if ($a->getStepNumber() <= 2 && !$a->isLastStepInMethod()) {
-			UsageLogs::saveEvent(
-				[
-					'event_type' => $this->eventType,
-					'event_action' => 'step_' . $a->getStepNumber(),
-					'article_id' => $a->getArticleId()
-				]
-			);
-		}
+//		if ($a->getStepNumber() <= 2 && !$a->isLastStepInMethod()) {
+//			UsageLogs::saveEvent(
+//				[
+//					'event_type' => $this->eventType,
+//					'event_action' => 'step_' . $a->getStepNumber(),
+//					'article_id' => $a->getArticleId()
+//				]
+//			);
+//		}
 
 		if ($a->isLastStepInMethod()) {
 			$responseText .= wfMessage('reading_article_last_step')->text();
-			UsageLogs::saveEvent(
-				[
-					'event_type' => $this->eventType,
-					'event_action' => 'last_step',
-					'article_id' => $a->getArticleId()
-				]
-			);
+//			UsageLogs::saveEvent(
+//				[
+//					'event_type' => $this->eventType,
+//					'event_action' => 'last_step',
+//					'article_id' => $a->getArticleId()
+//				]
+//			);
 		} else {
 			$responseText .= wfMessage('reading_article_step_num', $a->getStepNumber())->text();
 		}
@@ -333,7 +338,7 @@ class ReadArticleBot extends UnlistedSpecialPage {
 	}
 
 	/**
-	 * @param ReadArticleModel $a
+	 * @param ReadArticleModelV2 $a
 	 * @return String
 	 */
 	public function onIntentNext() {
@@ -355,14 +360,14 @@ class ReadArticleBot extends UnlistedSpecialPage {
 	}
 
 	/**
-	 * @param ReadArticleModel $a
+	 * @param ReadArticleModelV2 $a
 	 * @return String
 	 */
 	public function onIntentPrevious() {
 		$a = $this->a;
 		if (is_null($a)) {
 			$responseText = $this->onNoArticleSelected();
-		} else if ($a->isFirstStepInMethod()) {
+		} elseif ($a->isFirstStepInMethod()) {
 			$responseText = wfMessage('reading_article_no_previous_step')->text();
 		} else {
 			$a->decrementStepPosition();
@@ -373,14 +378,14 @@ class ReadArticleBot extends UnlistedSpecialPage {
 	}
 
 	/**
-	 * @param ReadArticleModel $a
+	 * @param ReadArticleModelV2 $a
 	 * @return String
 	 */
 	public function onIntentGoToStep($stepNum = 0) {
 		$a = $this->a;
 		if (is_null($a)) {
 			$responseText = $this->onNoArticleSelected();
-		} else if ($a->getStepCount() < $stepNum || $stepNum < 1) {
+		} elseif ($a->getStepCount() < $stepNum || $stepNum < 1) {
 			$responseText = wfMessage('reading_article_invalid_step')->text();
 
 		} else {
@@ -392,7 +397,7 @@ class ReadArticleBot extends UnlistedSpecialPage {
 	}
 
 	/**
-	 * @param ReadArticleModel $a
+	 * @param ReadArticleModelV2 $a
 	 * @return String
 	 */
 	public function onIntentStartOver() {
@@ -438,7 +443,7 @@ class ReadArticleBot extends UnlistedSpecialPage {
 	}
 
 	/**
-	 * @param ReadArticleModel $a
+	 * @param ReadArticleModelV2 $a
 	 * @return String
 	 */
 	public function onIntentRepeat() {

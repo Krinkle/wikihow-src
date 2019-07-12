@@ -73,14 +73,14 @@ class Controller {
 			$result = self::generateHeaderWidgetData($context);
 		}
 
-		print_r(json_encode($result));
+		print(json_encode($result));
 	}
 
 	public static function handleGetRequest(&$context) {
 		global $wgSquidMaxage;
 		$req = $context->getRequest();
 		$out = $context->getOutput();
-		
+
 		$out->setSquidMaxage($wgSquidMaxage);
 		$out->setArticleBodyOnly(true);
 		$action = $req->getVal('action', '');
@@ -88,8 +88,8 @@ class Controller {
 		if ($action == 'get_header_widget_data') {
 			$result = self::generateHeaderWidgetData($context);
 		}
-		
-		print_r(json_encode($result));
+
+		print(json_encode($result));
 	}
 
 	protected static function generateCTA(&$context) {
@@ -276,7 +276,7 @@ abstract class SubmissionHandler {
 	}
 
 	protected static function prepareEventData($aid, $type, $platform, $label) {
-		global $wgUser;
+		$user = RequestContext::getMain()->getUser();
 
 		$data = array(
 			'mhe_aid' => $aid,
@@ -285,12 +285,12 @@ abstract class SubmissionHandler {
 			'mhe_label' => $label
 		);
 
-		$data['mhe_user'] = $wgUser->getId();
+		$data['mhe_user'] = $user->getId();
 
-		if ($wgUser->isAnon()) {
+		if ($user->isAnon()) {
 			$data['mhe_user_repr'] = WikihowUser::getVisitorId();
 		} else {
-			$data['mhe_user_repr'] = $wgUser->getName();
+			$data['mhe_user_repr'] = $user->getName();
 		}
 
 		$data['mhe_timestamp'] = wfTimestampNow();
@@ -329,7 +329,7 @@ abstract class SubmissionHandler {
 	}
 
 	protected static function hasVotedMethodRecently(&$eventData, $method) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$yesterday = wfTimestamp(
 			TS_MW,
@@ -469,8 +469,6 @@ class MethodThumbsSubmissionHandler extends SubmissionHandler {
 
 class DetailsFormSubmissionHandler extends SubmissionHandler {
 	public static function submitRequest(&$req, $aid, $platform, $label) {
-		global $wgUser;
-
 		$eventId = $req->getVal('eventId', false);
 
 		if ($eventId === false) {
@@ -501,10 +499,10 @@ class DetailsFormSubmissionHandler extends SubmissionHandler {
 				$lastname,
 				$details,
 				$email,
-				$wgUser->getId(),
+				RequestContext::getMain()->getUser()->getId(),
 				WikihowUser::getVisitorId()
 			);
-			if( $sur->isQualified()) {
+			if ( $sur->isQualified()) {
 				$sur->correctFields();
 				$sur->save();
 			}

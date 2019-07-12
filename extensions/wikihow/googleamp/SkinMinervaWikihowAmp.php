@@ -1,4 +1,4 @@
-<?
+<?php
 /*
  * Extension of the SkinMinerva skin for wikiHow customization. Used for mobile and tablet devices
  */
@@ -21,9 +21,7 @@ class SkinMinervaWikihowAmp extends SkinMinervaWikihow {
 
 	private function prepareAmpTemplate() {
 		global $wgAppleTouchIcon, $wgMFNoindexPages;
-		global $wgWellFormedXml;
-		$wgWellFormedXml = true;
-		wfProfileIn( __METHOD__ );
+
 		$out = $this->getOutput();
 		// add head items
 		if ( $wgAppleTouchIcon !== false ) {
@@ -90,7 +88,7 @@ class SkinMinervaWikihowAmp extends SkinMinervaWikihow {
 
 		// set amp to true for use in rendering later
 		$tpl->set( 'amp', true);
-		$out->setProperty( 'disableSearchAndFooter', true );
+		//$out->setProperty( 'disableSearchAndFooter', true );
 
 		$tpl->set( 'headelement', $out->headElement( $this ) );
 		$tpl->set( 'unstyledContent', $out->getProperty( 'unstyledContent' ) );
@@ -109,7 +107,6 @@ class SkinMinervaWikihowAmp extends SkinMinervaWikihow {
 			$tpl->set( 'bodytext', $html );
 			$this->prepareMobileFooterLinks( $tpl );
 		}
-		wfProfileOut( __METHOD__ );
 		return $tpl;
 	}
 
@@ -173,6 +170,9 @@ class SkinMinervaWikihowAmp extends SkinMinervaWikihow {
 		if ($description) {
 			$out->addMeta('description', $description);
 		}
+
+		// Hreflang links
+		$this->addHreflangs();
 
 		// HTML title
 		if (class_exists('AndroidHelper') && AndroidHelper::isAndroidRequest()) {

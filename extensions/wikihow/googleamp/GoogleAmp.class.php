@@ -29,22 +29,29 @@ class GoogleAmp {
 	public static function addAmpStyle( $style, $out ) {
 		// remove any important tags which are not valid in amp
 		$style = str_replace( "!important", "", $style );
-		if(class_exists('ArticleQuizzes')) {
+		if (class_exists('ArticleQuizzes')) {
 			global $wgTitle;
 			$articleQuizzes = new ArticleQuizzes($wgTitle->getArticleID());
-			if(count($articleQuizzes::$quizzes) > 0) {
-				$style .= Misc::getEmbedFile('css', dirname(__FILE__) . '/../quiz/quiz.css');
+			if (count($articleQuizzes::$quizzes) > 0) {
+				$style .= Misc::getEmbedFile('css', __DIR__ . '/../quiz/quiz.css');
 			}
 		}
 		//remove data urls from the style_top since they are very large
 		$style = preg_replace("@background-image:url\(\"*data[^\)]*\);@", "", $style );
-		$style .= Misc::getEmbedFile('css', dirname(__FILE__) . '/ampstyle.css');
-		$style .= Misc::getEmbedFile('css', dirname(__FILE__) . '/../socialproof/mobilesocialproof.css');
+		$style .= Misc::getEmbedFile('css', __DIR__ . '/ampstyle.css');
+		$style .= Misc::getEmbedFile('css', __DIR__ . '/../socialproof/mobilesocialproof.css');
+
+		if (class_exists('SocialFooter')) {
+			$style .= Misc::getEmbedFile('css', __DIR__ . '/../SocialFooter/assets/social_footer.css');
+		}
 
 		// If this is an android app request, add the android styles
 		if (class_exists('AndroidHelper') && AndroidHelper::isAndroidRequest()) {
-			$style .= str_replace("!important", "", Misc::getEmbedFile('css', dirname(__FILE__) . '/../android_helper/android_helper.css'));
+			$style .= str_replace("!important", "", Misc::getEmbedFile('css', __DIR__ . '/../android_helper/android_helper.css'));
 		}
+
+		// Strip CSS comments (containing ResourceLoader debug info)
+		$style = preg_replace( '!/\*[^*]*\*+([^/][^*]*\*+)*/!' , '' , $style );
 
 		$style = HTML::inlineStyle($style);
 		$style = str_replace( "<style>", "<style amp-custom>", $style);
@@ -56,14 +63,14 @@ class GoogleAmp {
 	 * @param string video the video element made by WHVid
 	 * @return string http for amp video and possibly a wrapper for controls
 	 */
-	public static function getAmpVideo( $video )  {
+	public static function getAmpVideo( $video, $summaryIntroHeadingText )  {
 		$result = '';
 
 		$isSummaryVideo = $video->attr( 'data-summary' ) == true;
 		$width = 460;
 		$height = 260;
 		if ( $isSummaryVideo ) {
-			$result = GoogleAmp::getAmpSummaryVideo( $video, $width, $height );
+			$result = GoogleAmp::getAmpSummaryVideo( $video, $width, $height, $summaryIntroHeadingText );
 		} else {
 			$result = GoogleAmp::getAmpArticleVideo( $video, $width, $height );
 		}
@@ -78,7 +85,7 @@ class GoogleAmp {
 	public static function getAmpArticleVideo( $video, $width, $height )  {
 		$src = $video->attr( 'data-src' );
 		$poster = $video->attr( 'data-poster' );
-		$src  = 'https://d5kh2btv85w9n.cloudfront.net'.$src;
+		$src = WH_CDN_VIDEO_ROOT . $src;
 		// this is the dev url but we only need it if the video was also run on fred
 		//$src  = 'https://d2mnwthlgvr25v.cloudfront.net'.$src;
 		$attr = [
@@ -99,56 +106,72 @@ class GoogleAmp {
 	 * @param pq object video
 	 * @return string http amp-video element
 	 */
-	private static function getAmpSummaryVideo( $video, $width, $height )  {
-		$src = $video->attr( 'data-src' );
-		$poster = $video->attr( 'data-poster' );
-		$id = $video->attr( 'id' );
-		$overlayId = $id . '-overlay';
-		$src  = 'https://d5kh2btv85w9n.cloudfront.net'.$src;
-		// this is the dev url but we only need it if the video was also run on fred
-		//$src  = 'https://d2mnwthlgvr25v.cloudfront.net'.$src;
-		$attr = [
-			'id' => $id,
-			'src' => $src,
-			'width' => $width,
-			'height' => $height,
-			'layout' => 'responsive',
-			'class' => 'm-video',
-			'poster' => $poster,
-			'controls',
-		];
+	private static function getAmpSummaryVideo( $video, $width, $height, $sectionName )  {
+		global $wgTitle, $wgCanonicalServer;
 
-		$ampVideo = Html::element( "amp-video", $attr );
+		if ( Misc::isAltDomain() ) {
+			// Use original inline video
+			$src = $video->attr( 'data-src' );
+			$poster = $video->attr( 'data-poster' );
+			$id = $video->attr( 'id' );
+			$overlayId = $id . '-overlay';
+			$src = WH_CDN_VIDEO_ROOT . $src;
+			// this is the dev url but we only need it if the video was also run on fred
+			//$src  = 'https://d2mnwthlgvr25v.cloudfront.net'.$src;
+			$attr = [
+				'id' => $id,
+				'src' => $src,
+				'width' => $width,
+				'height' => $height,
+				'layout' => 'responsive',
+				'class' => 'm-video',
+				'poster' => $poster,
+				'controls',
+			];
+			$ampVideo = Html::element( "amp-video", $attr );
+			$overlayContents = WHVid::getSummaryIntroOverlayHtml( $sectionName, $wgTitle );
+			$posterAttributes = array(
+				'class' => 'video-poster-image',
+				'layout' => 'fill',
+				'src' => $poster,
+			);
+			$poster = Html::element( 'amp-img', $posterAttributes );
+			$overlayContents = $overlayContents . $poster;
+			$overlay = Html::rawElement(
+				'div',
+				[
+					'id' => $overlayId,
+					'role' => 'button',
+					'on' => "tap:$overlayId.hide, $id.play",
+					'tabindex' => 0
+				],
+				$overlayContents
+			);
+			$videoPlayer = Html::rawElement( 'div', [ 'class' => 'summary-video' ], $ampVideo . $overlay );
+			return $videoPlayer;
+		}
 
-		$playButtonInner = Html::element( 'div', ['class' => 'm-video-play-count-triangle' ] );
-
-		$playButtonAttributes = array(
-			'class' => 'm-video-play',
+		// Trevor - use link to VideoBrowser
+		$href = "{$wgCanonicalServer}/Video/" . str_replace( ' ', '-', $wgTitle->getText() );
+		return Html::rawElement( 'div',
+			[ 'class' => 'summary-video' ],
+			Html::rawElement( 'a',
+				[
+					'class' => 'click-to-play-overlay',
+					'role' => 'button',
+					'href' => $href,
+					'tabindex' => 0
+				],
+				WHVid::getSummaryIntroOverlayHtml( $sectionName, $wgTitle ) .
+					Html::element( 'amp-img',
+						[
+							'class' => 'video-poster-image',
+							'layout' => 'fill',
+							'src' => $video->attr( 'data-poster' ),
+						]
+					)
+			)
 		);
-		$playButton = Html::rawElement( "div", $playButtonAttributes, $playButtonInner );
-		$posterAttributes = array(
-			'class' => 'video-poster-image',
-			'layout' => 'fill',
-			'src' => $poster,
-		);
-
-		$poster = Html::element( 'amp-img', $posterAttributes );
-
-		$overlay = Html::rawElement(
-			'div',
-			[
-				'id' => $overlayId,
-				'class' => 'click-to-play-overlay',
-				'role' => 'button',
-				'on' => "tap:$overlayId.hide, $id.play",
-				'tabindex' => 0
-			],
-			$playButton . $poster
-		);
-
-		$videoPlayer = Html::rawElement( 'div', [ 'class' => 'summary-video' ], $ampVideo . $overlay );
-
-		return $videoPlayer;
 	}
 
 	// creates the amp-img that will be placed in the main article
@@ -193,19 +216,20 @@ class GoogleAmp {
 	}
 
 	public static function makeAmpImg( $image, $width, $height, $pageId = null ) {
-
 		$thumb = $image->getThumbnail( $width, $height );
+		return self::makeAmpImgElement($thumb->getUrl(), $thumb->getWidth(), $thumb->getHeight());
+	}
 
-		$ampImg = Html::element("amp-img",
-			array(
+	public static function makeAmpImgElement( $image_path, $width, $height ) {
+		return Html::element(
+			"amp-img",
+			[
 				'layout'=>'responsive',
-				"src" => wfGetPad( $thumb->getUrl() ),
-				"width" => $thumb->getWidth(),
-				"height" => $thumb->getHeight()
-			)
+				"src" => wfGetPad( $image_path ),
+				"width" => $width,
+				"height" => $height
+			]
 		);
-
-		return $ampImg;
 	}
 
 	public static function addRelatedWikihows( $related_boxes ) {
@@ -214,7 +238,7 @@ class GoogleAmp {
 		$currentBox = null;
 		$relatedwikihows->prepend('<div class="related_boxes"></div>');
 		$currentBox = pq("#relatedwikihows .related_boxes:last");
-		foreach($related_boxes as $box) {
+		foreach ($related_boxes as $box) {
 			$ampImg = self::makeRelatedAmpImg( $box->imgFile );
 			$url = $box->url;
 			$currentBox->append("<a href='$url' class='related_box_amp'>".$ampImg."<p><span>How to </span>$box->name</p></a>");
@@ -222,15 +246,7 @@ class GoogleAmp {
 		$currentBox->append( '<div class="clearall"></div>' );
 	}
 
-	public static function addSchema( $out ) {
-		$schema = SchemaMarkup::getAmpSchema( $out );
-		if ($schema) {
-			$out->addHeadItem( 'ampschema', $schema );
-		}
-	}
-
 	public static function addHeadItems( $out ) {
-		self::addSchema( $out );
 		$out->addHeadItem( 'ampboilerplate',
 			'<style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-moz-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-ms-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-o-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style><noscript><style amp-boilerplate>body{-webkit-animation:none;-moz-animation:none;-ms-animation:none;animation:none}</style></noscript>' );
 		$out->addHeadItem( 'ampscript', '<script async src="https://cdn.ampproject.org/v0.js"></script>' );
@@ -241,12 +257,14 @@ class GoogleAmp {
 			'<script async custom-element="amp-sidebar" src="https://cdn.ampproject.org/v0/amp-sidebar-0.1.js"></script>' );
 		$out->addHeadItem( 'ampform',
 			'<script async custom-element="amp-form" src="https://cdn.ampproject.org/v0/amp-form-0.1.js"></script>' );
+		$out->addHeadItem( 'ampconsent', '<script async custom-element="amp-consent" src="https://cdn.ampproject.org/v0/amp-consent-0.1.js"></script>' );
+		$out->addHeadItem( 'ampgeo', '<script async custom-element="amp-geo" src="https://cdn.ampproject.org/v0/amp-geo-0.1.js"></script>' );
 
 		// check for wikivideo
 		foreach ( $out->getTemplateIds() as $template ) {
 			if ( is_array( $template ) ) {
 				foreach ( $template as $key => $val ) {
-					if ( $key == "Whvid" ) {
+					if ( strcasecmp( $key, "whvid" ) == 0 ) {
 						$out->addHeadItem( 'ampvideo',
 							'<script async custom-element="amp-video" src="https://cdn.ampproject.org/v0/amp-video-0.1.js"></script>' );
 					}
@@ -261,6 +279,8 @@ class GoogleAmp {
 		}
 		$outputPage->addHeadItem( 'amp-youtube',
 			'<script async custom-element="amp-youtube" src="https://cdn.ampproject.org/v0/amp-youtube-0.1.js"></script>' );
+		$outputPage->addHeadItem( 'amp-accordion',
+			'<script async custom-element="amp-accordion" src="https://cdn.ampproject.org/v0/amp-accordion-0.1.js"></script>' );
 	}
 
 	private static function isValidLink(DOMElement $link): bool {
@@ -316,7 +336,7 @@ class GoogleAmp {
 	 * Fix broken <a> tags
 	 */
 	private static function fixBrokenLinks() {
-		foreach(pq('a') as $link) {
+		foreach (pq('a') as $link) {
 			if (!self::isValidLink($link, true)) {
 				pq($link)->replaceWith($link->textContent);
 			}
@@ -338,13 +358,53 @@ class GoogleAmp {
 		pq( 'div:first' )->after( $ampElement );
 	}
 
+	private static function addConsentElement() {
+		$config = [
+			'ISOCountryGroups' => [
+				'eu' => ["al", "ad", "am", "at", "by", "be", "ba", "bg", "ch", "cy", "cz", "de", "dk", "ee", "es", "fo", "fi", "fr", "gb", "ge", "gi", "gr", "hu", "hr", "ie", "is", "it", "lt", "lu", "lv", "mc", "mk", "mt", "no", "nl", "po", "pt", "ro", "ru", "se", "si", "sk", "sm", "tr", "ua", "uk", "va"]
+			]
+		];
+
+
+		global $wgRequest;
+		// for testings
+		$eu = $wgRequest->getVal( "EU" ) == 1;
+		if ( $eu ) {
+			$config = [
+				'ISOCountryGroups' => [
+					'eu' => ["us", "jp", "al", "ad", "am", "at", "by", "be", "ba", "bg", "ch", "cy", "cz", "de", "dk", "ee", "es", "fo", "fi", "fr", "gb", "ge", "gi", "gr", "hu", "hr", "ie", "is", "it", "lt", "lu", "lv", "mc", "mk", "mt", "no", "nl", "po", "pt", "ro", "ru", "se", "si", "sk", "sm", "tr", "ua", "uk", "va"]
+				]
+			];
+		}
+		$jsonObject = json_encode( $config, JSON_PRETTY_PRINT );
+		$scriptElement = Html::element( 'script', [ 'type' => 'application/json' ], $jsonObject );
+		$ampElement = Html::rawElement( 'amp-geo', ['layout'=>'nodisplay'], $scriptElement );
+		pq( 'div:first' )->after( $ampElement );
+
+		$messageInner = wfMessage("gdpr_message")->text();
+		if ( strpos( $messageInner, '[[' ) !== FALSE ) {
+			$messageInner = wfMessage("gdpr_message")->parse();
+		}
+		$vars = array(
+			'gdpr_message' => $messageInner,
+			'gdpr_accept' => wfMessage("gdpr_accept")->text()
+		);
+		$loader = new Mustache_Loader_CascadingLoader([
+			new Mustache_Loader_FilesystemLoader( __DIR__ )
+		]);
+		$options = array( 'loader' => $loader );
+		$m = new Mustache_Engine( $options );
+		$html = $m->render( 'amp_consent.mustache', $vars );
+		pq( 'div:first' )->after( $html );
+	}
+
 	private static function addGoogleAnalytics( $id, $num ) {
 		$config = [
-			"vars"=> [ "account"=> $id ],
-			"triggers" => [
-				"defaultPageview" => [
-					"on" => "visible",
-					"request" => "pageview",
+			'vars'=> [ 'account' => $id ],
+			'triggers' => [
+				'defaultPageview' => [
+					'on' => 'visible',
+					'request' => 'pageview',
 				]
 			]
 		];
@@ -379,8 +439,42 @@ class GoogleAmp {
 		self::addAnalyticsElement( [ 'id' => 'fastly-amp-ping' ], $config );
 	}
 
+	/**
+	 * Adjusted bounce rate (https://moz.com/blog/adjusted-bounce-rate)
+	 */
+	private static function addAdjustedBounceRatePing(string $account, array $abrCnf) {
+		$attribs = [
+			'type' => 'googleanalytics',
+			'id' => 'abr-amp-ping'
+		];
+		$config = [
+			"vars" => [ "account" => $account ],
+			"triggers" => [
+				"pageTimer" => [
+					"on" => "timer",
+					"timerSpec" => [
+						"immediate" => false,
+						"interval" => $abrCnf['timeout'] * 2, // prevents triggering twice
+						"maxTimerLength" => $abrCnf['timeout'],
+					],
+					"request" => "event",
+					"vars" => [
+						"eventCategory" => $abrCnf['eventCategory'],
+						"eventAction" => $abrCnf['eventAction']
+					]
+				]
+			]
+		];
+
+		self::addAnalyticsElement($attribs, $config);
+	}
+
 	public static function addAmpHtmlLink( $out, $languageCode ) {
-		if ( self::isAmpMode( $out ) ) {
+		// check a tag list to turn off amp
+		if ( ArticleTagList::hasTag( 'amp_disabled_pages', $out->getTitle()->getArticleID() ) ) {
+			return;
+		}
+		if ( self::isAmpMode( $out ) || !WikihowSkinHelper::shouldShowMetaInfo($out) ) {
 			return;
 		}
 		$serverUrl =  Misc::getLangBaseURL( $languageCode, true );
@@ -391,7 +485,11 @@ class GoogleAmp {
 	}
 
 	public static function insertAMPAds() {
-		global $wgLanguageCode;
+		global $wgLanguageCode, $wgTitle;
+		$pageId = 0;
+		if ( $wgTitle ) {
+			$pageId = $wgTitle->getArticleID();
+		}
 		$intlSite = $wgLanguageCode != 'en';
 
 		$intro = 1;
@@ -399,38 +497,93 @@ class GoogleAmp {
 		$fifthStep = 3;
 		$method = 4;
 		$related = 5;
+		$testStep = 6;
+		$tips = 7;
+		$warnings = 8;
+		$bottomOfPage = 9;
 
-		// put and add after first step if there is more than 1 step in first method
-		if ( pq( ".steps_list_2:first > li" )->length > 1 ) {
-			$adhtml = wikihowAds::rewriteAdCloseTags( self::getAd( $firstStep, $intlSite ) );
-			pq(".steps_list_2:first > li:first")->append( $adhtml );
+		$hasIntroAd = true;
+
+		if ( $hasIntroAd == true ) {
+			$adhtml = wikihowAds::rewriteAdCloseTags( self::getAd( $intro, $pageId, $intlSite ) );
+			pq( "#intro" )->append( $adhtml );
+
+			// put an ad after second step if there is more than 1 step in first method
+			if ( pq( ".steps_list_2:first > li" )->length > 1 ) {
+				$adhtml = wikihowAds::rewriteAdCloseTags( self::getAd( $firstStep, $pageId, $intlSite ) );
+				pq(".steps_list_2:first > li:eq(1)")->append( $adhtml );
+			}
+		} else {
+			// put an ad after first step if there is more than 1 step in first method
+			if ( pq( ".steps_list_2:first > li" )->length > 1 ) {
+				$adhtml = wikihowAds::rewriteAdCloseTags( self::getAd( $firstStep, $pageId, $intlSite ) );
+				pq(".steps_list_2:first > li:eq(0)")->append( $adhtml );
+			}
 		}
 
-		// put and add after fifth step if there is more than 5 steps in first method
+
+		// put an ad after fifth step if there is more than 5 steps in first method
 		if ( pq( ".steps_list_2:first > li" )->length > 5 ) {
-			$adhtml = wikihowAds::rewriteAdCloseTags( self::getAd( $fifthStep, $intlSite ) );
+			$adhtml = wikihowAds::rewriteAdCloseTags( self::getAd( $fifthStep, $pageId, $intlSite ) );
 			pq(".steps_list_2:first > li:eq(4)")->append( $adhtml );
 		}
 
 		// ad in last step of each method
-		$adhtml = wikihowAds::rewriteAdCloseTags( self::getAd( $method, $intlSite ) );
-		pq(".steps:not('.sample') .steps_list_2 > li:last-child")->append($adhtml);
+		$methodNumber = 1;
+		foreach ( pq(".steps:not('.sample') .steps_list_2 > li:last-child") as $lastStep ) {
+			$adhtml = wikihowAds::rewriteAdCloseTags( self::getAd( $method, $pageId, $intlSite, $methodNumber ) );
+			pq( $lastStep )->append( $adhtml );
+			$methodNumber++;
+		}
 
 		$relatedsname = RelatedWikihows::getSectionName();
 		if ( pq("#{$relatedsname}")->length ) {
-			$adhtml = wikihowAds::rewriteAdCloseTags( GoogleAmp::getAd( $related, $intlSite ) );
+			$adhtml = wikihowAds::rewriteAdCloseTags( GoogleAmp::getAd( $related, $pageId, $intlSite ) );
 			pq("#{$relatedsname}")->append($adhtml);
+		} elseif ( pq("#relatedwikihows")->length ) {
+			$adhtml = wikihowAds::rewriteAdCloseTags( GoogleAmp::getAd( $related, $pageId, $intlSite ) );
+			pq("#relatedwikihows")->append($adhtml);
+		}
+
+		// tips
+		$tipsTarget = '#' . strtolower( wfMessage( 'tips' )->text() );
+		if ( pq( $tipsTarget )->length ) {
+			$adHtml = wikihowAds::rewriteAdCloseTags( GoogleAmp::getAd( $tips, $pageId, $intlSite ) );
+			if ( $adHtml ) {
+				pq( $tipsTarget )->append( $adHtml );
+			}
+		}
+
+		// warnings
+		$warningsTarget = '#' . strtolower( wfMessage( 'warnings' )->text() );
+		if ( pq( $warningsTarget )->length ) {
+			$adHtml = wikihowAds::rewriteAdCloseTags( GoogleAmp::getAd( $warnings, $pageId, $intlSite ) );
+			if ( $adHtml ) {
+				pq( $warningsTarget )->append( $adHtml );
+			}
+		}
+
+		// page bottom
+		$adHtml = wikihowAds::rewriteAdCloseTags( GoogleAmp::getAd( $bottomOfPage, $pageId, $intlSite ) );
+		if ( $adHtml && pq( '#article_rating_mobile' )->length > 0 ) {
+			$bottomAdContainer = Html::element( 'div', ['id' => 'pagebottom'] );
+			pq( '#article_rating_mobile' )->after( $bottomAdContainer );
+			pq( '#pagebottom' )->append( $adHtml );
 		}
 	}
 
-    private static function getAdSlotData() {
+    private static function getAdSlotData( $pageId ) {
         $slotData = array(
             'en' => array(
-                1 => 3129791776,
+                1 => 6567556784,
                 2 => 8593674977,
                 3 => 1175996171,
                 4 => 4606524976,
                 5 => 7559991377,
+                6 => 6593572945,
+                7 => 4795821799,
+                8 => 1978086769,
+                9 => 7093847927,
             ),
             'intl' => array(
                 1 => 9341199379,
@@ -438,16 +591,172 @@ class GoogleAmp {
                 3 => 2652729373,
                 4 => 1817932573,
                 5 => 3294665778,
+                7 => 1995224010,
+                8 => 8549379291,
+                9 => 8433829222,
             ),
         );
 
         // now let hooks alter it
-		wfRunHooks( 'GoogleAmpAfterGetSlotData', array( &$slotData ) );
+		Hooks::run( 'GoogleAmpAfterGetSlotData', array( &$slotData ) );
 
         return $slotData;
     }
 
-	public static function getAd( $num, $intl ) {
+	//given the language code, ad number and page id, determine ad type
+	private static function getAdType( $num, $pageId, $intl ) {
+		// setup by language, then by ad number (0 is default) then by ad type (adsense or gpt)
+		$testSetup = [
+			'en' => [
+				0 => ['adsense' => 1, 'gpt' => 99],
+				1 => ['adsense' => 100],
+			],
+			'intl' => [
+				0 => ['adsense' => 100],
+				1 => ['adsense' => 100],
+			]
+		];
+
+		$lang = 'en';
+		if ( $intl ) {
+			$lang = 'intl';
+		}
+
+		// default types for this lang
+		$types = $testSetup[$lang][0];
+		if ( isset( $testSetup[$lang][$num] ) ) {
+			$types = $testSetup[$lang][$num];
+		}
+
+		$group = $pageId % 100;
+
+		$total = 0;
+		foreach ( $types as $adType => $split ) {
+			$total += $split;
+			if ( $group < $total ) {
+				return $adType;
+			}
+		}
+		return "";
+	}
+
+	public static function getAd( $num, $pageId, $intl, $methodNumber = 0 ) {
+		$adType = self::getAdType( $num, $pageId, $intl );
+
+		if ( $adType == "adsense" ) {
+			return self::getAdsenseAd( $num, $intl );
+		}
+
+		if ( $adType == 'gpt' ) {
+			return self::getGPTAd( $num, $intl, $methodNumber );
+		}
+	}
+
+	public static function getGPTAd( $num, $intl, $methodNumber = 0 ) {
+		global $wgLanguageCode, $wgTitle;
+		$pageId = 0;
+		if ( $wgTitle ) {
+			$pageId = $wgTitle->getArticleID();
+		}
+		$intlSite = $wgLanguageCode != 'en';
+		$whAdClass = "wh_ad";
+		$whAdLabelBottom = "";
+		$dataLoadingStrategy = null;
+		$slot = '/10095428/AMP_Test_1';
+
+		if ( $intlSite ) {
+			$slot = '/10095428/AMP_Test_2';
+		}
+		// no DFP ads for the intro
+		if ( $num == 1 ) {
+			// leaving this here in case we add DFP to intro
+			//$slot = '/10095428/june19_amp_intro';
+			return '';
+		}
+
+		if ( $num == 2 ) {
+			$slot = '/10095428/june19_amp_step';
+		}
+		if ( $num == 3 ) {
+			$slot = '/10095428/june19_amp_step_2';
+		}
+		// method
+		if ( $num == 4 ) {
+			// figure out which method
+			$slot = '/10095428/june19_amp_method_1';
+			if ( $methodNumber > 0 ) {
+				$slot = '/10095428/june19_amp_method_'.$methodNumber;
+			}
+		}
+		if ( $num == 5 ) {
+			$slot = '/10095428/matt_test_RwH_1';
+		}
+
+		if ( $num == 7 ) {
+			$slot = '/10095428/AMP_DFP_Ad_for_Tips';
+		}
+		if ( $num == 8 ) {
+			$slot = '/10095428/AMP_DFP_Ad_for_Warnings';
+		}
+		if ( $num == 9 ) {
+			$slot = '/10095428/AMP_DFP_Ad_for_Bottom_of_Page';
+		}
+
+		$whAdLabelBottom = Html::element( 'div', [ 'class' => 'ad_label_bottom' ], "Advertisement" );
+		$whAdClass .= " wh_ad_steps";
+
+		// width auto with will let the ad be centered
+		// have to use multi size to request the 300x250 ad we want
+		// setting multi size validation to false so the ad shows up on tablets
+		$setSize = array(
+			'width' => 300,
+			'height' => 250,
+			'type' => 'doubleclick',
+			'data-slot' => $slot,
+		);
+
+		if ( $num == 7 || $num == 8 || $num == 9 ) {
+			$setSize['rtc-config'] = '{"vendors": {"aps":{"PUB_ID": "3271","PARAMS":{"amp":"1"}}}}';
+		}
+
+		// this is a layout we never got working but
+		// it has some interesting media queries worth remembering
+		$noSize = array(
+			'width' => 728,
+			'height' => 250,
+			'type' => 'doubleclick',
+			'data-slot' => $slot,
+			'data-multi-size' => '300x250,728x90',
+			'sizes' => "(max-width: 600px) 300px, 100vw",
+			'heights' => "(min-width:600px) 100px, 100%",
+			'data-multi-size-validation'=>'false',
+		);
+
+
+		// the fluid ad would be great as it is described in documentation but it does not work..
+		$fluid = array(
+			'layout' => 'fluid',
+			'height' => 'fluid',
+			'type' => 'doubleclick',
+			'data-slot' => '/10095428/AMP_Test_Fluid',
+		);
+
+		$adAttributes = $setSize;
+
+		if ( $dataLoadingStrategy ) {
+			$adAttributes['data-loading-strategy'] = $dataLoadingStrategy;
+		}
+
+		$ad = Html::element( "amp-ad", $adAttributes );
+
+		$content = $ad . $whAdLabelBottom;
+
+		$whAd = Html::rawElement( "div", [ 'class' => $whAdClass ], $content );
+
+		return $whAd;
+	}
+
+	public static function getAdsenseAd( $num, $intl ) {
 		global $wgTitle;
 		$pageId = 0;
 		if ( $wgTitle ) {
@@ -459,19 +768,24 @@ class GoogleAmp {
 		$width = 'auto';
 		$layout = 'fixed-height';
 		$whAdClass = "wh_ad";
-        $slotType = 'en';
+		$slotType = 'en';
         if ( $intl ) {
             $slotType = 'intl';
         }
-        $slotData = self::getAdSlotData();
+        $slotData = self::getAdSlotData( $pageId );
         $slot = $slotData[$slotType][$num];
 
 
 		// the class is called ad_label_mobile in our main code so leaving it the same for now
 		$whAdLabelBottom = "";
 
-		$adsenseChannel = null;
-		$dataLoadingStrategy = null;
+		$adsenseChannel = array();
+		if ( !ArticleTagList::hasTag( 'amp_disabled_pages', $pageId ) ) {
+			$adsenseChannel[] = 4198383040;
+		}
+
+		$dataLoadingStrategy = 'prefer-viewability-over-views';
+
 		// intro ad
 		if ( $num == 1 ) {
 			$height = 120;
@@ -482,13 +796,6 @@ class GoogleAmp {
 		if ( $num == 2 ) {
 			$height = 120;
 			$whAdClass .= " wh_ad_step";
-			if ( $pageId % 100 < 50 ) {
-				//$dataLoadingStrategy = 'prefer-viewability-over-views';
-				//$dataLoadingStrategy = '3';
-				$adsenseChannel = '6747976769';
-			} else {
-				$adsenseChannel = '7642611252';
-			}
 		}
 
 		// after fifth step ad
@@ -497,7 +804,7 @@ class GoogleAmp {
 			$whAdClass .= " wh_ad_step";
 		}
 
-		// end of steps ad
+		// method ad
 		if ( $num == 4 ) {
 			$height = 280;
 			$whAdClass .= " wh_ad_steps";
@@ -508,6 +815,12 @@ class GoogleAmp {
 		if ( $num == 5 ) {
 			$height = 280;
 			$whAdClass .= " wh_ad_related";
+		}
+
+		// test inside other steps ad
+		if ( $num == 6 ) {
+			$height = 120;
+			$whAdClass .= " wh_ad_step";
 		}
 
 		if ( !$slot) {
@@ -523,8 +836,8 @@ class GoogleAmp {
 			'data-ad-slot' => $slot,
 		);
 
-		if ( $adsenseChannel ) {
-			$adAttributes['data-ad-channel'] = $adsenseChannel;
+		if ( !empty( $adsenseChannel ) ) {
+			$adAttributes['data-ad-channel'] = implode( ",", $adsenseChannel );
 		}
 		if ( $dataLoadingStrategy ) {
 			$adAttributes['data-loading-strategy'] = $dataLoadingStrategy;
@@ -534,16 +847,19 @@ class GoogleAmp {
 
 		$content = $ad . $whAdLabelBottom;
 
-		// same as commented line but with no id
 		$whAd = Html::rawElement( "div", [ 'class' => $whAdClass ], $content );
 
 		return $whAd;
 	}
 
 	public static function fixSampleImages() {
-		foreach( pq( '.sd_thumb img' ) as $img ) {
+		foreach ( pq( '.sd_thumb img' ) as $img ) {
+			// Trevor, 6/18/18 - Now that sample images are deferred they need to be treated the
+			// same way article images are, specifically that the src is stored in data-src to be
+			// loaded when scrolled into view
+			$img = pq( $img );
+			$img->attr( 'src', $img->attr( 'data-src' ) );
 			$ampImg = self::getAmpImg( $img, 'responsive' );
-			//pq( $img )->replaceWith( $ampImg );
 			$imgWrap = Html::rawElement( 'div',  ['class' => 'sd_img_wrap'], $ampImg );
 			pq( $img )->replaceWith( $imgWrap );
 		}
@@ -564,8 +880,8 @@ class GoogleAmp {
 				$license = 'cc-by-sa-nc-3.0-self';
 			} else {
 				//look up license in the longer way
-				$article = new Article($image);
-				$wikitext = $article->getContent();
+				$wikiPage = WikiPage::factory($image);
+				$wikitext = ContentHandler::getContentText( $wikiPage->getContent() );
 				if (preg_match('@{{(cc-by[^}]+)}}@', $wikitext, $m)) {
 					$license = $m[1];
 					// From http://creativecommons.org/licenses/
@@ -605,40 +921,16 @@ class GoogleAmp {
 		return $data;
 	}
 
-	// get sources and citations section for use in amp pages
-	public static function getArticleCredits( $title, $sourcesSection, $imageCreators ) {
-		pq( $sourcesSection )->addClass( 'aidata' )->find('p')->remove();
-		$data = $sourcesSection;
-		$data .= self::getImageCredits( $imageCreators );
-		$data .= self::getAuthors( $title );
-		$text = Html::element( 'a', ['class' => 'section_text', 'href' => '#aiinfo', 'id' => 'articleinfo'], wfMessage('sources_and_attribution')->text() );
-		$articleInfoHtml = Html::rawElement( 'div', ['id' => 'aiinfo', 'class' => 'section articleinfo'], $text );
-		return $articleInfoHtml . $data;
-	}
-
 	private static function formatQABadges() {
 
 		$badges = pq('.qa_expert, .qa_person_circle');
 
-		foreach( $badges as $badge ) {
+		foreach ( $badges as $badge ) {
 			preg_match("@background-image:\s?url\((.*)\)@", pq($badge)->attr('style'), $m);
 			if (!empty($m[1])) {
 				$ampImg = self::getAmpArticleImg($m[1], 80, 80);
 				pq($badge)->html($ampImg);
 				pq($badge)->removeAttr('style');
-			}
-		}
-	}
-
-	private static function getUpdated() {
-		//do we have multiple # ids on a page? Why? (using logic from js)
-		foreach (pq('#sp_modified') as $section) {
-			$datestamp = pq($section)->attr('data-datestamp');
-
-			if ($datestamp) {
-				$updated = new DateTime($datestamp);
-				$updated = '<span class="sp_text_data">'.$updated->format('F j, Y').'</span>';
-				pq('#sp_modified')->append($updated);
 			}
 		}
 	}
@@ -649,7 +941,7 @@ class GoogleAmp {
 			return;
 		}
 		// make sure the src is a youtube video
-		$src = pq( $videoSelector )->find( '.embedvideo:first' )->attr( 'src' );
+		$src = pq( $videoSelector )->find( '.embedvideo:first' )->attr( 'data-src' );
 		if ( strstr( $src, "www.youtube.com" ) === false ) {
 			return;
 		}
@@ -658,6 +950,9 @@ class GoogleAmp {
 		// remove any trailing ?
 		$videoId = explode( '?', $videoId );
 		$videoId = array_shift( $videoId );
+		if (!$videoId) {
+			return;
+		}
 		$attributes = array(
 			'width' => 16,
 			'height' => 9,
@@ -666,7 +961,7 @@ class GoogleAmp {
 		);
 		$element = Html::element( 'amp-youtube', $attributes );
 		$first = true;
-		foreach( pq( $videoSelector )->children() as $child ) {
+		foreach ( pq( $videoSelector )->children() as $child ) {
 			if ( $first ) {
 				pq($child)->replaceWith( $element );
 				$first = false;
@@ -677,9 +972,12 @@ class GoogleAmp {
 	}
 
 	public static function modifyDom() {
+
 		self::formatQABadges();
 		self::modifyVideoSection();
 		pq( 'script' )->remove();
+		pq( 'mo' )->remove();
+		pq( 'annotation' )->remove();
 		pq( 'video' )->remove();
 		pq( '.img-whvid' )->remove();
 		pq( '.vid-whvid' )->remove();
@@ -687,7 +985,7 @@ class GoogleAmp {
 		pq( '.ar_box_vote' )->removeAttr( 'pageid' );
 		pq( '#info_link' )->removeAttr( 'aid');
 		pq( '.mh-method-thumbs-template' )->remove();
-		pq( 'input:not(".qz_radio")' )->remove();
+		pq( 'input:not(".qz_radio, .amp_input")' )->remove();
 
 		pq( '.image' )->attr( 'href', '#' );
 
@@ -720,8 +1018,6 @@ class GoogleAmp {
 		}
 		pq( '#qa_show_more_answered' )->remove();
 
-		pq( '.ar_avatar' )->remove();
-
 		// for some reason some articles use this font-size 0 inline style..removing it for now
 
 		// this does not work without javascript atm
@@ -730,14 +1026,11 @@ class GoogleAmp {
 		pq( '#social_proof_mobile .sp_box' )->addClass('sp_fullbox');
 
 		//get "Updated:" date (we usually do this via js)
-		self::getUpdated();
+		//self::getUpdated();
 
 		//star ratings
 		pq( '#sp_helpful_box' )->remove();
 		pq( '#sp_helpful_new' )->remove();
-
-		// remove the (i) icon
-		pq( '.sp_expert_icon_info' )->remove();
 
 		// remove the "difficult" warning
 		pq( '#sp_difficult_box' )->remove();
@@ -745,12 +1038,12 @@ class GoogleAmp {
 		// remove any font tags and unwrap them (unwrap does not exist in php query so use this)
 		// wrap in while loop in case there is a font tag within a font tag
 		while ( pq( 'font' )->length > 0 ) {
-			foreach( pq( 'font' ) as $elem ) {
+			foreach ( pq( 'font' ) as $elem ) {
 				pq( $elem )->replaceWith( pq( $elem )->html() );
 			}
 		}
 
-		foreach( pq( '.mwe-math-mathml-inline' ) as $elem ) {
+		foreach ( pq( '.mwe-math-mathml-inline' ) as $elem ) {
 			$text = pq( $elem )->attr( 'data-original-text' );
 			$text = htmlspecialchars( $text );
 			pq($elem)->after( $text );
@@ -788,17 +1081,52 @@ class GoogleAmp {
 			self::addGoogleAnalytics( WH_GA_ID_ANDROID_APP, $i++ );
 		} else {
 			self::addGoogleAnalytics( WH_GA_ID, $i++ );
-			self::addGoogleAnalytics( WH_GA_ID_AMP, $i++ );
+			self::addConsentElement();
 		}
 
-		foreach ( Misc::getExtraGoogleAnalyticsCodes() as $gaId => $name ) {
+		$gaCnf = Misc::getGoogleAnalyticsConfig();
+		foreach ( $gaCnf['extraPropertyIds'] as $gaId => $name ) {
 			self::addGoogleAnalytics( $gaId, $i++ );
+
+			$abrCnf = $gaCnf['adjustedBounceRate'];
+			if ( $abrCnf && in_array( $gaId, $abrCnf['accounts'] ) ) {
+				self::addAdjustedBounceRatePing( $gaId, $gaCnf['adjustedBounceRate'] );
+			}
 		}
+
+		self::changeGDPRInfoLabel();
 		self::addFastlyPing();
+		self::addNewAnchortags();
 
 		// do this last to make sure we don't add any inline styles or js, and that the doc is as
 		// small as possible when we iterate over everything
 		pq( '*' )->removeAttr( 'style' )->removeAttr('onload')->removeAttr('clear');
+	}
+
+	static function addNewAnchortags() {
+		if ( class_exists('MobileTabs') && pq(".summarysection .summary-video")->length > 0 ) {
+			//add a new anchor tag so it will jump to the right place
+			$anchor = MobileTabs::getSummarySectionAnchorName();
+			pq('.summarysection')->attr("id",'')->parent()->attr("id", $anchor);
+		}
+	}
+
+	static function changeGDPRInfoLabel() {
+		foreach ( pq(' .embedvideo_gdpr_label ') as $info ) {
+			// make sure the parent of the label is one of the allowed amp accordion types
+			if ( !pq( $info )->parent()->is( 'h1, h2, h3, h4, h5, h6, header' ) ) {
+				break;
+			}
+			$message = wfMessage( 'embedvideo-gdpr' )->text();
+			$message = Html::element( 'p', ['class' => 'embedvideo_gdpr_p'], $message );
+			$p = Html::rawElement( 'span', ['class' => 'embedvideo_gdpr_text'], $message );
+			pq( $info )->parent()->addClass( "embedvideo_gdpr_headline" );
+			pq( $info )->parent()->wrap( "<amp-accordion>" );
+			pq( $info )->parent()->wrap( "<section>" );
+			pq( $info )->parent()->after( $p );
+		}
+		pq( '.embedvideo_gdpr_message' )->remove();
+		pq( '.embedvideo_gdpr_label' )->remove();
 	}
 
 	// a hook to the math extension to add the original text inside the math tag
@@ -817,7 +1145,7 @@ class GoogleAmp {
 	public static function onTitleSquidURLsPurgeVariants( $title, &$urls ) {
 		global $wgLanguageCode;
 
-		if ( $title && $title->exists() && $title->getNamespace() == NS_MAIN ) {
+		if ( $title && $title->exists() && $title->inNamespace(NS_MAIN) ) {
 			$ampUrl = $title->getInternalURL();
 			$partialUrl = preg_replace("@^(https?:)?//[^/]+/@", "/", $ampUrl );
 			$mobile = true;
@@ -828,33 +1156,26 @@ class GoogleAmp {
 		return true;
 	}
 
-	public static function onMobileProcessDomAfterSetSourcesSection( $out, $sourcesSection, $imageCreators ) {
-		if ( !self::isAmpMode( $out ) ) {
-			return;
-		}
-
-		// get the article credits and place them after the social proof section
-		$title = $out->getTitle();
-		$html = GoogleAmp::getArticleCredits( $title, $sourcesSection, $imageCreators );
-		pq( ".articleinfo" )->remove();
-		pq( "#social_proof_mobile" )->after( $html );
-
-		// fix any reference links to point to this new section
-		pq( '.reference > a' )->attr( 'href', '#social_proof_mobile' );
-	}
-
 	public static function getAmpSidebar( $items ) {
 		// add link to regular mobile version of site
 		global $wgTitle;
-		$titlePath = $wgTitle->getInternalURL();
+		$titlePath = $wgTitle->getFullURL();
 		$mobileCanonical = $titlePath;
-		$regular = Html::rawElement( 'li', [ 'class' => 'icon-full' ], Html::element( 'a', [ 'href' => $mobileCanonical ], "Full version of site" ) );
-		$items .= $regular;
+
+		// extra seperator for gdpr only
+		$otherSectionName = wfMessage( 'mobile-frontend-view-other' )->text();
+		$items .= Html::element( 'li', ['class' => 'side_header gdpr_only_display'], $otherSectionName );
+
+		// bottom menu search
+		$fullSiteText = wfMessage( 'mobile-frontend-view-full-site-wh' )->escaped();
+		$fullSiteLink = SkinMinervaWikihow::getMobileMenuFullSiteLink( $fullSiteText, $mobileCanonical );
+		$fullSiteLink = Html::rawElement( 'li', [], $fullSiteLink );
+		$items .= $fullSiteLink;
 
 		// add the sidebar search
-		$sidebarSearch = self::getSearchBar( "sidebar_search" );
-		$item = Html::rawElement( 'li', [], $sidebarSearch );
-		$items = $item . $items;
+		// $sidebarSearch = self::getSearchBar( "sidebar_search" );
+		// $item = Html::rawElement( 'li', [], $sidebarSearch );
+		// $items = $item . $items;
 
 		$sidebarContents = Html::rawElement('ul', [], $items );
 		$sidebarAttr = [ 'id' => 'top-sidebar', 'layout'=>'nodisplay' ];
@@ -882,7 +1203,7 @@ class GoogleAmp {
 			"id" => $submitId,
 			"class" => 'search_button'
 		];
-		$labels = Html::rawElement( "input", $inputAttr );
+		$button = Html::rawElement( "input", $inputAttr );
 
 		$inputAttr = [
 			"type" => "text",
@@ -892,14 +1213,14 @@ class GoogleAmp {
 			"placeholder" => $placeholderText,
 			"aria-label" => wfMessage('aria_search')->showIfExists()
 		];
-		$labels .= Html::rawElement( "input", $inputAttr );
-		$formContents = Html::rawElement( "div", array(), $labels );
-		$formContents = $labels;
+		$input = Html::rawElement( "input", $inputAttr );
+
+		$formContents = $input.$button;
 
 		$formAttr  = [
 			"method" => "get",
 			"target" => "_top",
-			"action" => "https://m.wikihow.com/wikiHowTo",
+			"action" => "/wikiHowTo",
 		];
 		$form = Html::rawElement( "form", $formAttr, $formContents );
 
@@ -907,7 +1228,6 @@ class GoogleAmp {
 	}
 
 	public static function renderFooter( $data ) {
-		global $wgLanguageCode;
 		$creature = MinervaTemplateWikihow::getFooterCreatureArray()[rand(0,count(MinervaTemplateWikihow::getFooterCreatureArray())-1)];
 		$textPath = Html::rawElement( "textPath", [ "xlink:href" => "#textPath", "startoffset" => "22%" ], wfMessage('surprise-me-footer')->plain() );
 		$creatureTextCurved = Html::rawElement( "text", [ "class" => "creature_text" ], $textPath );
@@ -917,7 +1237,12 @@ class GoogleAmp {
 		$creatureLink = Html::rawElement( "a", [ "href" => "/Special:Randomizer" ], $creature );
 		$footerRandom = Html::rawElement( "div", [ "id" => "amp_footer_random_button", "role" => "button" ], $creatureLink);
 		$footerSearch = self::getSearchBar( "footer_search", wfMessage('footer-search-placeholder')->text() );
-		$contents = $footerRandom . $footerSearch;
+
+		$contentsMain = $footerSearch;
+		if (class_exists('SocialFooter')) $contentsMain .= SocialFooter::getSocialFooter();
+		$footerMain = Html::rawElement( "div", [ "id" => "footer_main" ], $contentsMain);
+
+		$contents = $footerRandom . $footerMain;
 		$footerHtml = Html::rawElement( "div", [ "id" => "footer", "role" => "navigation" ], $contents);
 		echo $footerHtml;
 	}
@@ -949,7 +1274,7 @@ class GoogleAmp {
 		// see if this title is set to a fixed revision
 		$revision = null;
 		$urls = explode( "\n", ConfigStorage::dbGetConfig( "mobilefixedrevision" ) );
-		foreach( $urls as $url ) {
+		foreach ( $urls as $url ) {
 			$paramString = parse_url( $url, PHP_URL_QUERY );
 			$params = array();
 			parse_str( $paramString, $params );

@@ -8,19 +8,6 @@ class AdminMassEdit extends UnlistedSpecialPage {
 		parent::__construct("AdminMassEdit");
 	}
 
-	private static function parseURLlist($pageList) {
-		$pageList = preg_split('@[\r\n]+@', $pageList);
-		$urls = array();
-		foreach ($pageList as $url) {
-			$url = trim($url);
-			if (!empty($url)) {
-				$title = WikiPhoto::getArticleTitleNoCheck(urldecode($url));
-				$urls[] = array('url' => $url, 'title' => $title);
-			}
-		}
-		return $urls;
-	}	
-	
 	private function getDefaultSummary() {
 		return wfMessage("mass-edit-summary");
 	}
@@ -52,32 +39,17 @@ class AdminMassEdit extends UnlistedSpecialPage {
 
 	private function getTitles($input) {
 		if ($input == "") {
-			return array();
+			return [];
 		}
 
 		$input = preg_split('@[\r\n]+@', $input);
 
-		$titles = array();
-		$bad = array();
+		$titles = [];
+		$bad = [];
 		foreach ($input as $line) {
 			$line = trim($line);
-			if (is_numeric($line)) {
-				$title = Title::newFromID($line);
-				if (!$title) {
-					$bad[] = "no title for id: $line.  will not process";
-					continue;
-				}
-				$titles[$title->getText()] = $line;
-			} elseif (strpos($line, "http") !== false) {
-				$partialUrl = preg_replace('@^(http://[^/]+/|/)@', '', $line);
-				$title = Title::newFromText($partialUrl);
-				if (!$title) {
-					$title = Title::newFromText( urldecode($partialUrl ) );
-					if ( !$title ) {
-						$bad[] = "no title for: $line.  will not process";
-						continue;
-					}
-				}
+			$title = Misc::getTitleFromText($line);
+			if ($title) {
 				$titles[$title->getText()] = $title->getArticleID();
 			} else {
 				$title = Title::newFromText($line);
@@ -90,7 +62,7 @@ class AdminMassEdit extends UnlistedSpecialPage {
 		}
 
 		$result = new stdClass();
-		$result->bad = $bad; 
+		$result->bad = $bad;
 		$result->titles = array_unique($titles);
 		return $result;
 	}
@@ -107,7 +79,7 @@ class AdminMassEdit extends UnlistedSpecialPage {
 	public function removeTemplateIfExists($toAdd, $summary, $titles) {
 		global $wgLanguageCode;
 		$user = $this->getBotUser();
-		$results = array();
+		$results = [];
 
 		foreach($titles as $titleText=>$pageId) {
 			if ($pageId < 1) {
@@ -120,7 +92,7 @@ class AdminMassEdit extends UnlistedSpecialPage {
 				$results[] = "will not edit $title because it is a redirect";
 				continue;
 			}
-			if ($title->getNamespace() != NS_MAIN) {
+			if (!$title->inNamespace(NS_MAIN)) {
 				$results[] = "will not edit $title because it is not in main namespace";
 				continue;
 			}
@@ -131,7 +103,7 @@ class AdminMassEdit extends UnlistedSpecialPage {
 				continue;
 			}
 
-			$text = $revision->getText();
+			$text = ContentHandler::getContentText( $revision->getContent() );
 			// check if the template already exists
 			if (strpos($text, "{{stub") === FALSE) {
 				$results[] = "will not edit $title because it does not have the template we are removing";
@@ -157,7 +129,7 @@ class AdminMassEdit extends UnlistedSpecialPage {
 	public function addToBeginning($toAdd, $summary, $titles) {
 		global $wgLanguageCode;
 		$user = $this->getBotUser();
-		$results = array();
+		$results = [];
 
 		foreach($titles as $titleText=>$pageId) {
 			if ($pageId < 1) {
@@ -170,7 +142,7 @@ class AdminMassEdit extends UnlistedSpecialPage {
 				$results[] = "will not edit $title because it is a redirect";
 				continue;
 			}
-			if ($title->getNamespace() != NS_MAIN) {
+			if (!$title->inNamespace(NS_MAIN)) {
 				$results[] = "will not edit $title because it is not in main namespace";
 				continue;
 			}
@@ -181,7 +153,7 @@ class AdminMassEdit extends UnlistedSpecialPage {
 				continue;
 			}
 
-			$text = $revision->getText();
+			$text = ContentHandler::getContentText( $revision->getContent() );
 			// check if the template already exists
 			if (strpos($toAdd, "{{stub") !== false && strpos($text, "{{stub") !== false) {
 				$results[] = "will not edit $title because it already has the template we are adding";
@@ -194,7 +166,7 @@ class AdminMassEdit extends UnlistedSpecialPage {
 			$result = $page->doEditContent( $content, $summary, 0, false, $user);
 
 			if ($result->value['revision'] !== null) {
-				$rev = $result->value['revision']; 
+				$rev = $result->value['revision'];
 				$results[] = "Text added to " . Misc::getLangBaseURL($wgLanguageCode) . "/index.php?curid=$pageId " . Misc::getLangBaseURL($wgLanguageCode) . "/$title.  New revision is: ".$rev->getId();
 			} else {
 				$results[] = "No text added.  No revision made on $title";
@@ -222,10 +194,15 @@ class AdminMassEdit extends UnlistedSpecialPage {
 	 * Execute special page.  Only available to wikihow staff.
 	 */
 	public function execute($par) {
-		global $wgLanguageCode;
+		global $wgLanguageCode, $wgIsDevServer;
 
 		$user = $this->getUser();
-		if (!($user->getName() == "Argutier" || $user->getName() == "ElizabethD") && !($wgLanguageCode != "en" && ( $user->getName() == "Bridget8" || $user->getName() == "AdrianaBaird" ) ) ) {
+		$uname = $user->getName();
+		$allLangs = [ 'Chris H', 'ElizabethD' ];
+		$intlOnly = [ 'Bridget8', 'AdrianaBaird' ];
+
+		$allowed = in_array($uname, $allLangs) || ( Misc::isIntl() && in_array($uname, $intlOnly) ) || ($wgIsDevServer && $user->hasGroup('staff'));
+		if (!$allowed) {
 			$this->displayRestrictionError();
 			return;
 		}
@@ -281,7 +258,7 @@ class AdminMassEdit extends UnlistedSpecialPage {
 			return;
 		}
 
-		$out->setHTMLTitle(wfMsg('pagetitle', 'Admin - Mass Article Editor'));
+		$out->setHTMLTitle(wfMessage('pagetitle', 'Admin - Mass Article Editor'));
 		$listConfigs = ConfigStorage::dbListConfigKeys();
 
 		$tmpl = self::getGuts($listConfigs,$style);
@@ -343,7 +320,7 @@ class AdminMassEdit extends UnlistedSpecialPage {
 				'json');
 			return false;
 		});
-		
+
 		(function($) {
 			$(document).ready(function() {
 				$('#update')
@@ -371,7 +348,7 @@ class AdminMassEdit extends UnlistedSpecialPage {
 			});
 		})(jQuery);
 		</script>
-<?
+<?php
 		$html = ob_get_contents();
 		ob_end_clean();
 		return $html;

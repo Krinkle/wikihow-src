@@ -27,27 +27,27 @@ class RatingSample extends RatingsTool {
 	function logClear($itemId, $max, $min, $count, $reason){
 		$title = $this->makeTitle($itemId);
 
-		if($title) {
+		if ($title) {
 			$params = array($itemId, $min, $max);
 			$log = new LogPage( $this->logType, true );
-			$log->addEntry( $this->logType, $title, wfMsg('clearratings_logsummary', $reason, $title->getFullText(), $count), $params );
+			$log->addEntry( $this->logType, $title, wfMessage('clearratings_logsummary', $reason, $title->getFullText(), $count)->text(), $params );
 		}
 	}
 
 	function getLoggingInfo($title) {
 		global $wgLang, $wgOut;
 
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 
 		//  get log
 		$res = $dbr->select ('logging',
 			array('log_timestamp', 'log_user', 'log_comment', 'log_params'),
-			array ('log_type' => $this->logType, "log_title"=>$title->getDBKey() ),
+			array( 'log_type' => $this->logType, "log_title"=>$title->getDBKey() ),
 			__METHOD__
 		);
 
 		$results = array();
-		foreach($res as $row) {
+		foreach ($res as $row) {
 			$item = array();
 			$item['date'] = $wgLang->date($row->log_timestamp);
 			$u = User::newFromId($row->log_user);
@@ -56,7 +56,7 @@ class RatingSample extends RatingsTool {
 			$item['userPage'] = $u->getUserPage();
 			$item['params'] = explode("\n", $row->log_params);
 			$item['comment'] = preg_replace('/<?p>/', '', $wgOut->parse($row->log_comment) );
-			$item['show'] = (strpos($row->log_comment, wfMsg('clearratings_restore')) === false);
+			$item['show'] = (strpos($row->log_comment, wfMessage('clearratings_restore')->text()) === false);
 
 			$results[] = $item;
 		}
@@ -68,7 +68,7 @@ class RatingSample extends RatingsTool {
 		$title = $this->makeTitle($itemId);
 		$params = array($itemId, $low, $hi);
 		$log = new LogPage( $this->logType, true );
-		$log->addEntry( $this->logType, $title, wfMsg('clearratings_logrestore', $reason, $title->getFullText(), $count), $params );
+		$log->addEntry( $this->logType, $title, wfMessage('clearratings_logrestore', $reason, $title->getFullText(), $count)->text(), $params );
 	}
 
 	function makeTitle($itemId) {
@@ -83,20 +83,20 @@ class RatingSample extends RatingsTool {
 		$dbKey = $title->getDBKey();
 		$name = substr($dbKey, strlen($this->titlePrefix));
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->selectField('dv_sampledocs', 'dvs_doc', array('dvs_doc' => $name));
 
-		if($res === false)
+		if ($res === false)
 			return 0;
 		else
 			return $name;
 	}
 
 	function getRatingResponse($itemId, $rating, $source, $ratingId) {
-        if($rating == 0)
+        if ($rating == 0)
             return $this->getRatingReasonForm($itemId);
         else
-            return wfMsg('ratesample_rated');
+            return wfMessage('ratesample_rated')->text();
 	}
 
 	function getRatingReasonForm($itemId) {
@@ -132,9 +132,10 @@ class RatingSample extends RatingsTool {
 
 	public function getRatingReasonResponse($rating) {
 		if (intval($rating) > 0) {
-			return wfMsg('ratesample_reason_submitted_yes');
+			return wfMessage('ratesample_reason_submitted_yes')->text();
+		} else {
+			return wfMessage('ratesample_reason_submitted')->text();
 		}
-        return wfMsg('ratesample_reason_submitted');
 	}
 }
 
@@ -163,6 +164,6 @@ class RatingSample extends RatingsTool {
 	`rsl_count` tinyint(4) NOT NULL default '0'
     ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 	ALTER TABLE ratesample_low CHANGE rsl_count rsl_count int not null default '0';
-    
+
  */
 

@@ -1,4 +1,4 @@
-<?
+<?php
 
 /**
  * DashboardWidget should be subclassed by all widgets in the widgets/ dir
@@ -45,7 +45,7 @@ abstract class DashboardWidget {
 	 * Returns HTML internals of the widget box.
 	 */
 	public function getHTML($initialData) {
-		$tmpl = new EasyTemplate( dirname(__FILE__) );
+		$tmpl = new EasyTemplate( __DIR__ );
 		$tmpl->set_vars(array(
 			'data' => $initialData,
 			'completedToday' => $this->getCompletion(),
@@ -63,7 +63,7 @@ abstract class DashboardWidget {
 			'widgetMWName' => $this->getMWName(),
 			'extraInternalHTML' => $this->getExtraInternalHTML(),
 		));
-		
+
 		$html = $tmpl->execute('widgets/dashboardWidget.tmpl.php');
 		return $html;
 	}
@@ -72,7 +72,7 @@ abstract class DashboardWidget {
 	 * Returns HTML internals of the mobile widget box.
 	 */
 	public function getMobileHTML($initialData) {
-		$tmpl = new EasyTemplate( dirname(__FILE__) );
+		$tmpl = new EasyTemplate( __DIR__ );
 		$tmpl->set_vars(array(
 			'data' => $initialData,
 			'widgetName' => $this->getName(),
@@ -80,8 +80,9 @@ abstract class DashboardWidget {
 			'countDescription' => $this->getCountDescription(),
 			'widgetLink' => $this->getWidgetLink(),
 			'extraInternalHTML' => $this->getExtraInternalHTML(),
+			'showCount' => $this->showMobileCount()
 		));
-		
+
 		$html = $tmpl->execute('widgets/dashboardWidgetMobile.tmpl.php');
 		return $html;
 	}
@@ -97,7 +98,7 @@ abstract class DashboardWidget {
 		}
 		else {
 			$container = '<div class="comdash-widget-box comdash-widget-' . $this->getName() . ' ' . $this->getWidgetStatus() . ' '. $this->getWeatherClass($initialData['ct']) . '"><div class="status" id="status-' . $this->getName() . '"></div>' . $this->getHTML($initialData) . '</div>';
-			
+
 		}
 		return $container;
 	}
@@ -112,7 +113,7 @@ abstract class DashboardWidget {
 	 */
 	public function getTitle($forMobile = false) {
 		$mobile_suffix = $forMobile ? '-mobile' : '';
-		return wfMsg('cd-' . $this->getMWName() . '-title'.$mobile_suffix);
+		return wfMessage('cd-' . $this->getMWName() . '-title'.$mobile_suffix);
 	}
 
 	protected abstract function getLeaderboardTitle();
@@ -261,7 +262,7 @@ abstract class DashboardWidget {
 	public function getMoreLink() {
 		return "<a href='#' class='comdash-more' id='comdash-more-" . $this->widgetName . "'></a>";
 	}
-	
+
 	/**
 	 *
 	 * returns the first part of the <a href> tag for the full box widget link for mobile
@@ -286,10 +287,10 @@ abstract class DashboardWidget {
 		if ($count <= $thresholds['low']) {
 			return "sunny";
 		}
-		else if ($count <= $thresholds['med']) {
+		elseif ($count <= $thresholds['med']) {
 			return "cloudy";
 		}
-		else if ($count <= $thresholds['high']) {
+		elseif ($count <= $thresholds['high']) {
 			return "rainy";
 		}
 		else {
@@ -298,10 +299,16 @@ abstract class DashboardWidget {
 	}
 
 	/*
-	 * Must be implemented by sublcass. Needs to return the start link that appears
+	 * Must be implemented by subclass. Needs to return the start link that appears
 	 * in the header of the widget.
 	 */
 	protected abstract function getStartLink($showArrow, $widgetStatus);
+
+	/**
+	 * Normally, true (for dynamic queue widgets)
+	 * But false for mobile widgets that are just static links
+	 */
+	protected abstract function showMobileCount();
 
 	/**
 	 * Returns the HTML for just the top part of the widget
@@ -309,7 +316,7 @@ abstract class DashboardWidget {
 	public function getHeaderHTML() {
 		return '<div class="comdash-widget-header">' . $this->getTitle() . $this->getStartLink(true, $this->getWidgetStatus()) . '</div>';
 	}
-	
+
 	/**
 	 * Returns the HTML for just the top part of the widget
 	 */
@@ -323,18 +330,18 @@ abstract class DashboardWidget {
 	 */
 	public function getCountDescription() {
 		if ($this->getBaseline() == 0)
-			return wfMsg('cd-' . $this->getMWName() . '-countdescription');
+			return wfMessage('cd-' . $this->getMWName() . '-countdescription');
 		else
-			return wfMsg('cd-' . $this->getMWName() . '-countdescription-adjusted');
+			return wfMessage('cd-' . $this->getMWName() . '-countdescription-adjusted');
 	}
 
 	/**
 	 * Returns a string to be displayed next to the users
-	 * leaderboard count for this widget. 
+	 * leaderboard count for this widget.
 	 */
 
 	public function  getUserCountDescription() {
-		return wfMsg('cd-' . $this->getMWName() . '-usercount');
+		return wfMessage('cd-' . $this->getMWName() . '-usercount')->text();
 	}
 
 	/**
@@ -449,7 +456,7 @@ abstract class DashboardWidget {
 		}
 		if ($type == 'df') {
 			return Avatar::getDefaultProfile();
-		} else if ($type == 'fb' || $type == 'gp') {
+		} elseif ($type == 'fb' || $type == 'gp') {
 			return $param;
 		} else {
 			$filename = explode("?", $param);
@@ -480,7 +487,7 @@ abstract class DashboardWidget {
 
 	public function getWidgetStatus() {
 		global $wgUser;
-		
+
 		if ($wgUser->getID() > 0) {
 			if ($this->isAllowed(true, $wgUser->getID()))
 				return DashboardWidget::WIDGET_ENABLED;
@@ -490,7 +497,7 @@ abstract class DashboardWidget {
 		else {
 			if ($this->isAllowed(false))
 				return DashboardWidget::WIDGET_ENABLED;
-			else if ($this->isAllowed(true))
+			elseif ($this->isAllowed(true))
 				return DashboardWidget::WIDGET_LOGIN;
 			else
 				return DashboardWidget::WIDGET_DISABLED;

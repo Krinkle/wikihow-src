@@ -12,32 +12,36 @@ class BuildWikihowModal extends UnlistedSpecialPage {
 		$request = $ctx->getRequest();
 		$out = $ctx->getOutput();
 
-		EasyTemplate::set_path(dirname(__FILE__));
+		EasyTemplate::set_path(__DIR__);
 
-		if ($request->getVal('modal') == 'firstedit') {
+		$modal_type = $request->getVal('modal');
+		if ($modal_type == 'firstedit') {
 			$modal = self::getFirstEditModal();
 		}
-		elseif ($request->getVal('modal') == 'expertise') {
+		elseif ($modal_type == 'expertise') {
 			$modal = self::getExpertiseModal();
 		}
-		elseif ($request->getVal('modal') == 'expertise2') {
+		elseif ($modal_type == 'expertise2') {
 			$modal = self::getExpertiseModal2($request->getVal('cat'));
 		}
-		elseif ($request->getVal('modal') == 'helpfulness') {
+		elseif ($modal_type == 'helpfulness') {
 			$out->setSquidMaxage($wgSquidMaxage); //make sure this caches
 			$modal = self::getHelpfulnessModal();
 		}
-		elseif ($request->getVal('modal') == 'helpfulness2') {
+		elseif ($modal_type == 'helpfulness2') {
 			$modal = self::getHelpfulnessModal2($request->getVal('aid'));
 		}
-		elseif ($request->getVal('modal') == 'printview') {
+		elseif ($modal_type == 'printview') {
 			$modal = self::getPrintViewModal();
 		}
-		elseif ($request->getVal('modal') == 'login') {
+		elseif ($modal_type == 'login') {
 			$modal = PagePolicy::getLoginModal($request->getVal('returnto'));
 		}
-		elseif ($request->getVal('modal') == 'flagasdetails') {
+		elseif ($modal_type == 'flagasdetails') {
 			$modal = self::getFlagAsDetailsModal();
+		}
+		elseif ($modal_type == 'discusstab') {
+			$modal = self::getDiscussTabModal($request->getVal('aid'), $request->getVal('already_rated'));
 		}
 
 		$out->setArticleBodyOnly(true);
@@ -56,16 +60,16 @@ class BuildWikihowModal extends UnlistedSpecialPage {
 
 		$vars['next_tool_link'] = $nt[$rand][0];
 		$vars['next_tool_text'] = $nt[$rand][1];
-		return EasyTemplate::html('firstEdit', $vars);
+		return EasyTemplate::html('firstEdit.tmpl.php', $vars);
 	}
 
 	private static function getExpertiseModal() {
-		return EasyTemplate::html('expertise');
+		return EasyTemplate::html('expertise.tmpl.php');
 	}
 
 	private static function getExpertiseModal2($cat) {
 		//Not showing suggested articles any more
-		// $dbr = wfGetDB(DB_SLAVE);
+		// $dbr = wfGetDB(DB_REPLICA);
 
 		// $sql = "SELECT cl_sortkey, page_id, page_title, page_namespace, page_is_featured
 			// FROM (page, categorylinks )
@@ -94,11 +98,11 @@ class BuildWikihowModal extends UnlistedSpecialPage {
 		// $vars['arts'] = $boxes;
 
 		$vars['cat'] = str_replace('-',' ',$cat);
-		return EasyTemplate::html('expertise_2',$vars);
+		return EasyTemplate::html('expertise_2.tmpl.php',$vars);
 	}
 
 	private static function getHelpfulnessModal() {
-		return EasyTemplate::html('helpfulness_followup');
+		return EasyTemplate::html('helpfulness_followup.tmpl.php');
 	}
 
 	private static function getHelpfulnessModal2($pageid) {
@@ -125,11 +129,31 @@ class BuildWikihowModal extends UnlistedSpecialPage {
 	}
 
 	private static function getPrintViewModal() {
-		return EasyTemplate::html('printview');
+		return EasyTemplate::html('printview.tmpl.php');
 	}
 
 	private static function getFlagAsDetailsModal() {
-		return EasyTemplate::html('flag_as_details');
+		return EasyTemplate::html('flag_as_details.tmpl.php');
+	}
+
+	private static function getDiscussTabModal($aid, $already_rated) {
+		if ($already_rated)
+			$content = wfMessage('ratearticle_notrated_details_headline')->text();
+		else
+			$content = RatingArticle::getDesktopModalForm( $aid );
+
+		$vars = [
+			'header' => wfMessage('discuss_tab_hdr')->text(),
+			'content' => $content,
+			'modal_close' => wfMessage('modal_close')->text()
+		];
+
+		$loader = new Mustache_Loader_CascadingLoader( [
+			new Mustache_Loader_FilesystemLoader( __DIR__ . '/discuss_tab' )
+		] );
+		$m = new Mustache_Engine(['loader' => $loader]);
+		$html = $m->render('discuss_tab.mustache', $vars);
+		return $html;
 	}
 
 }

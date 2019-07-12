@@ -1,7 +1,7 @@
 <?php
 global $IP;
 require_once("$IP/extensions/wikihow/titus/GoogleSpreadsheet.class.php");
-define('WH_KEYWORD_MASTER_GOOGLE_DOC','0Aoa6vV7YDqEhdDZXQ3RCaXJYWUdxN3RYelQzYVBfNnc/od6'); 
+define('WH_KEYWORD_MASTER_GOOGLE_DOC','0Aoa6vV7YDqEhdDZXQ3RCaXJYWUdxN3RYelQzYVBfNnc/od6');
 /**
  * Functions for inputting data from different sources into the Dedup system
  */
@@ -10,7 +10,7 @@ class DedupQueryInput {
 	 * Load from the keyword master Google spreadsheet
 	 */
 	public static function addSpreadsheet() {
-		$gs = new GoogleSpreadsheet();	
+		$gs = new GoogleSpreadsheet();
 		$startColumn = 1;
 		$endColumn = 1;
 		$startRow = 2;
@@ -24,7 +24,7 @@ class DedupQueryInput {
 	 */
 	public static function addTopKeywords($min, $max) {
 		$sql = "select title from dedup.keywords where position >= " . intVal($min) .  " and position <= " . intVal($max);
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->query($sql, __METHOD__);
 		$keywords = array();
 		foreach ( $res as $row ) {

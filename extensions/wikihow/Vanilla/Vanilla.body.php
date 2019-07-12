@@ -4,47 +4,78 @@ require_once __DIR__ . "/sso/jsconnect.php";
 
 class Vanilla extends UnlistedSpecialPage {
 
-    function __construct() {
-        parent::__construct( 'Vanilla' );
-    }
+	public function __construct() {
+		parent::__construct( 'Vanilla' );
+	}
 
-    static function sync($user) {
-    	global $wgVanillaDB;
-    	 $user->load();
-    	 $db = DatabaseBase::factory('mysql');
-    	 $db->open($wgVanillaDB['host'], $wgVanillaDB['user'], $wgVanillaDB['password'], $wgVanillaDB['dbname']);
+	// Used in hook in Vanilla.php too
+	public static function sync($user) {
+		global $wgVanillaDB;
+		$user->load();
+		$db = DatabaseBase::factory('mysql');
+		$db->open($wgVanillaDB['host'], $wgVanillaDB['user'], $wgVanillaDB['password'], $wgVanillaDB['dbname']);
 
-    	 $vanillaID = $db->selectField('GDN_UserAuthentication', array('UserID'), array('ForeignUserKey'=> $user->getID()));
+		$vanillaID = $db->selectField('GDN_UserAuthentication',
+			'UserID',
+			array('ForeignUserKey'=> $user->getID()),
+			__METHOD__);
 
-    	 if (!$vanillaID) return false;
+		if (!$vanillaID) {
+			return false;
+		}
 
-    	 $updates = array( 'Banned' => (int)$user->isBlocked(), 'Verified' => (int)$user->isEmailConfirmed() );
-    	 $opts = array( 'UserID' => $vanillaID );
-    	 $db->update( 'GDN_User', $updates, $opts, __METHOD__ );
-    }
+		// HACK - Trevor, 7/3/2018: Map MediaWiki gender values to Vanilla gender values
+		$genderMap = array( 'unknown' => 'u', 'male' => 'm', 'female' => 'f' );
+		$gender = $user->getOption( 'gender' );
+		if ( strval( $gender ) === '' ) {
+			$gender = 'unknown';
+		}
+		$gender = $genderMap[$gender];
 
-    function getRole() {
-    	$groups = $this->getUser()->getGroups();
+		// HACK - Trevor, 7/3/2018: Use MediaWiki-specified email address, or fallback to
+		// the {user_id}@forums.wikihow.com format used elsewhere to satisfy Vanilla's requirement
+		// for users to have email addresses
+		$email = $user->getEmail();
+		if ( !$email || !$user->isEmailConfirmed() ) {
+			$email = $user->getId() . '@forums.wikihow.com';
+		}
 
-    	// Always go in order from most permissions to least permissions
+		$updates = array(
+			'Banned' => (int)$user->isBlocked(),
+			'Verified' => (int)$user->isEmailConfirmed(),
+			// HACK - Trevor, 7/3/2018: Sync email and gender from MediaWiki
+			'Email' => (string)$email,
+			'Gender' => (string)$gender
+		);
+		$opts = array( 'UserID' => $vanillaID );
+		$db->update( 'GDN_User', $updates, $opts, __METHOD__ );
+	}
 
-    	if ( in_array( 'staff', $groups ) || $this->getUser()->getName() == 'Lojjik' ) {
-    		return 'administrator';
-    	}
+	private function getRole() {
+		$groups = $this->getUser()->getGroups();
 
-    	if ( in_array( 'sysop', $groups ) ) {
-    		return 'moderator';
-    	}
+		// Always go in order from most permissions to least permissions
 
-    	return 'member';
+		if ( in_array( 'staff', $groups ) || $this->getUser()->getName() == 'Lojjik' ) {
+			return 'administrator';
+		}
 
-    }
+		if ( in_array( 'sysop', $groups ) ) {
+			return 'moderator';
+		}
 
-	function execute($par) {
+		return 'member';
+
+	}
+
+	public function execute($par) {
 		if ( $this->getRequest()->getVal('action') === 'sso' ) {
-			self::sync($this->getUser());
+			// NOTE: we CANNOT use setArticleBodyOnly() here because it forces the
+			// content-type response header to be text/html. This makes the x-domain
+			// request fail.
 			$this->getOutput()->disable();
-			header('Content-Type: application/javascript');
+			$this->getRequest()->response()->header('Content-Type: application/javascript');
+			self::sync($this->getUser());
 
 			$user = array();
 
@@ -64,18 +95,17 @@ class Vanilla extends UnlistedSpecialPage {
 				// in certain contexts
 				$avatarUrl = Avatar::getAvatarURL( $this->getUser()->getName() );
 				if (!preg_match( '@^https?:@', $avatarUrl) ) {
-				  $user['photourl'] = 'http://pad1.whstatic.com' . $avatarUrl;
+					// force full https url
+					$user['photourl'] = 'https://www.wikihow.com' . $avatarUrl;
 				} else {
-				  $user['photourl'] = $avatarUrl;
+					$user['photourl'] = $avatarUrl;
 				}
 
 				$user['roles'] = $this->getRole();
 			}
 
 			$secure = true;
-
-			echo WriteJsConnect($user, $this->getRequest()->getValues(), WH_VANILLA_CLIENT_ID, WH_VANILLA_SECRET, $secure);
+			print WriteJsConnect($user, $this->getRequest()->getValues(), WH_VANILLA_CLIENT_ID, WH_VANILLA_SECRET, $secure);
 		}
 	}
 }
-

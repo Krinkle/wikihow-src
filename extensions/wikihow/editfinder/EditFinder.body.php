@@ -33,7 +33,7 @@ class EditFinder extends UnlistedSpecialPage {
 	 * Set html template path for EditFinder actions
 	 */
 	public static function setTemplatePath() {
-		EasyTemplate::set_path( dirname(__FILE__).'/' );
+		EasyTemplate::set_path( __DIR__.'/' );
 	}
 
 	public static function getUnfinishedCount(&$dbr, $type) {
@@ -107,7 +107,6 @@ class EditFinder extends UnlistedSpecialPage {
 	}
 
 	private function getNextByInterest() {
-		wfProfileIn(__METHOD__);
 
 		$dbw = wfGetDB(DB_MASTER);
 
@@ -141,7 +140,6 @@ class EditFinder extends UnlistedSpecialPage {
 				}
 			}
 		}
-		wfProfileOut(__METHOD__);
 		return $pageid;
 	}
 
@@ -156,7 +154,11 @@ class EditFinder extends UnlistedSpecialPage {
 			$t = is_int($skip_article) ?
 				Title::newFromID($skip_article) : Title::newFromText($skip_article);
 
-			$id = $t->getArticleID();
+			if (!$t || !$t->exists()) {
+				$id = null;
+			} else {
+				$id = $t->getArticleID();
+			}
 
 			//mark the db for this user
 			if (!empty($id)) {
@@ -265,40 +267,36 @@ class EditFinder extends UnlistedSpecialPage {
 	}
 
 	private function confirmationModal($type, $id) {
-		wfProfileIn(__METHOD__);
 
 		$t = Title::newFromID($id);
-		$titletag = "[[".$t->getText()."|".wfMsg('howto', $t->getText())."]]";
+		$titletag = "[[".$t->getText()."|".wfMessage('howto', $t->getText())."]]";
 		$content = 	"
 			<div class='editfinder_modal'>
-			<p>Thanks for your edits to <a href='".$t->getLocalURL()."'>".wfMsg('howto', $t->getText())."</a>.</p>
+			<p>Thanks for your edits to <a href='".$t->getLocalURL()."'>".wfMessage('howto', $t->getText())."</a>.</p>
 			<p>Would it be appropriate to remove the <span class='template_type'>".strtoupper($type)."</span> from this article?</p>
 			<div style='clear:both'></div>
 			<span style='float:right'>
-			<input class='button secondary submit_button' id='ef_modal_no' type='button' value='".wfMsg('editfinder_confirmation_no')."' />
-			<input class='button primary submit_button' id='ef_modal_yes' type='button' value='".wfMsg('editfinder_confirmation_yes')."' />
+			<input class='button secondary submit_button' id='ef_modal_no' type='button' value='".wfMessage('editfinder_confirmation_no')."' />
+			<input class='button primary submit_button' id='ef_modal_yes' type='button' value='".wfMessage('editfinder_confirmation_yes')."' />
 			</span>
 			</div>";
 		$this->getOutput()->addHTML($content);
-		wfProfileOut(__METHOD__);
 	}
 
 	private function cancelConfirmationModal($id) {
-		wfProfileIn(__METHOD__);
 
 		$t = Title::newFromID($id);
-		$titletag = "[[".$t->getText()."|".wfMsg('howto', $t->getText())."]]";
+		$titletag = "[[".$t->getText()."|".wfMessage('howto', $t->getText())."]]";
 		$content = 	"
 			<div class='editfinder_modal'>
-			<p>Are you sure you want to stop editing <a href='".$t->getLocalURL()."'>".wfMsg('howto', $t->getText())."</a>?</p>
+			<p>Are you sure you want to stop editing <a href='".$t->getLocalURL()."'>".wfMessage('howto', $t->getText())."</a>?</p>
 			<div style='clear:both'></div>
 			<p id='efcc_choices'>
-			<a href='#' id='efcc_yes'>".wfMsg('editfinder_cancel_yes')."</a>
-			<input class='button blue_button_100 submit_button' onmouseover='button_swap(this);' onmouseout='button_unswap(this);' type='button' value='".wfMsg('editfinder_confirmation_no')."' id='efcc_no'>
+			<a href='#' id='efcc_yes'>".wfMessage('editfinder_cancel_yes')."</a>
+			<input class='button blue_button_100 submit_button' onmouseover='button_swap(this);' onmouseout='button_unswap(this);' type='button' value='".wfMessage('editfinder_confirmation_no')."' id='efcc_no'>
 			</p>
 			</div>";
 		$this->getOutput()->addHTML($content);
-		wfProfileOut(__METHOD__);
 	}
 
 	/**
@@ -307,10 +305,10 @@ class EditFinder extends UnlistedSpecialPage {
 	 * returns boolean
 	 **/
 	private function articleInUse($aid) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$r = Revision::loadFromPageId( $dbr, $aid );
 
-		if (strpos($r->getText(),'{{inuse') === false) {
+		if (strpos(ContentHandler::getContentText( $r->getContent() ),'{{inuse') === false) {
 			$result = false;
 		} else {
 			$result = true;
@@ -323,7 +321,7 @@ class EditFinder extends UnlistedSpecialPage {
 		$interests = array_merge($interests, CategoryInterests::getSubCategoryInterests($interests));
 		$interests = array_values(array_unique($interests));
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$fn = function(&$value) {
 			$value = str_replace(' ','-',$value);
@@ -350,7 +348,7 @@ class EditFinder extends UnlistedSpecialPage {
 		$catsql = '';
 		$bitcat = 0;
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$row = $dbr->selectRow(
 			'suggest_cats',
@@ -433,6 +431,7 @@ class EditFinder extends UnlistedSpecialPage {
 	public function execute($par) {
 		global $wgParser, $efType;
 
+
 		$req = $this->getRequest();
 		$out = $this->getOutput();
 		$user = $this->getUser();
@@ -442,8 +441,7 @@ class EditFinder extends UnlistedSpecialPage {
 		self::setTemplatePath();
 
 		if ($user->isBlocked()) {
-			$out->blockedPage();
-			return;
+			throw new UserBlockedError( $user->getBlock() );
 		}
 
 		$this->topicMode = strtolower($target) == 'topic' || strtolower($req->getVal('edittype')) == 'topic';
@@ -478,10 +476,10 @@ class EditFinder extends UnlistedSpecialPage {
 			$popts = $out->parserOptions();
 			$popts->setTidy(true);
 			$popts->enableLimitReport();
-			$parserOutput = $wgParser->parse( $r->getText(), $t, $popts, true, true, $a->getRevIdFetched() );
+			$parserOutput = $wgParser->parse( ContentHandler::getContentText( $r->getContent() ), $t, $popts, true, true, $a->getRevIdFetched() );
 			$popts->setTidy(false);
 			$popts->enableLimitReport( false );
-			$magic = WikihowArticleHTML::grabTheMagic($r->getText());
+			$magic = WikihowArticleHTML::grabTheMagic(ContentHandler::getContentText( $r->getContent() ));
 			$html = WikihowArticleHTML::processArticleHTML($parserOutput->getText(), array('no-ads' => true, 'ns' => NS_MAIN, 'magic-word' => $magic));
 			$out->addHTML($html);
 			return;
@@ -501,7 +499,6 @@ class EditFinder extends UnlistedSpecialPage {
 			$efType = strtolower($req->getVal('type'));
 
 			$t = Title::newFromID($req->getInt('aid'));
-			$a = new Article($t);
 
 			//log it
 			$params = array($efType);
@@ -513,24 +510,23 @@ class EditFinder extends UnlistedSpecialPage {
 			$sum = $req->getVal('wpSummary');
 
 			//save the edit
-			$a->doEdit($text,$sum,EDIT_UPDATE);
-			wfRunHooks("EditFinderArticleSaveComplete", array($a, $text, $sum, $user, $efType));
+			$wikiPage = WikiPage::factory($t);
+			$content = ContentHandler::makeContent($text, $t);
+			$wikiPage->doEditContent($content, $sum, EDIT_UPDATE);
+			Hooks::run("EditFinderArticleSaveComplete", array($wikiPage, $text, $sum, $user, $efType));
 			return;
 
 		} elseif ($req->getVal( 'confirmation' )) {
 			$out->setArticleBodyOnly(true);
 			print $this->confirmationModal($req->getVal('type'),$req->getInt('aid')) ;
-			wfProfileOut(__METHOD__);
 			return;
 
 		} elseif ($req->getVal( 'cancel-confirmation' )) {
 			$out->setArticleBodyOnly(true);
 			print $this->cancelConfirmationModal($req->getInt('aid')) ;
-			wfProfileOut(__METHOD__);
 			return;
 
 		} else { //default view (same as most of the views)
-			$sk = $user->getSkin();
 			$out->setArticleBodyOnly(false);
 
 			//custom topic from querystring
@@ -553,19 +549,19 @@ class EditFinder extends UnlistedSpecialPage {
 			$out->addModuleStyles('ext.wikihow.greenhouse.styles');
 
 			//add main article info
-			$vars = array('pagetitle' => wfMsg('app-name').': '.wfMsg($efType),'question' => wfMsg('editfinder-question'),
-				'yep' => wfMsg('editfinder_yes'),'nope' => wfMsg('editfinder_no'),'helparticle' => wfMsg('help_'.$efType));
+			$vars = array('pagetitle' => wfMessage('app-name').': '.wfMessage($efType),'question' => wfMessage('editfinder-question'),
+				'yep' => wfMessage('editfinder_yes'),'nope' => wfMessage('editfinder_no'),'helparticle' => wfMessage('help_'.$efType));
 			$vars['lc_categories'] = $this->topicMode ? 'interests' : 'categories';
-			$vars['editfinder_edit_title'] = wfMsg('editfinder_edit_title');
-			$vars['editfinder_skip_title'] = wfMsg('editfinder_skip_title');
+			$vars['editfinder_edit_title'] = wfMessage('editfinder_edit_title');
+			$vars['editfinder_skip_title'] = wfMessage('editfinder_skip_title');
 			$vars['ef_num_cats'] = $this->topicMode ? $this->getUserInterestCount() : 0;
 			$vars['edittype'] = strtolower($efType);
 
-			$html = EasyTemplate::html('editfinder_main',$vars);
+			$html = EasyTemplate::html('editfinder_main.tmpl.php',$vars);
 			$out->addHTML($html);
 
-			$out->setHTMLTitle(wfMsg('app-name').': '.wfMsg($efType).' - wikiHow');
-			$out->setPageTitle(wfMsg('app-name').': '.wfMsg($efType));
+			$out->setHTMLTitle(wfMessage('app-name').': '.wfMessage($efType).' - wikiHow');
+			$out->setPageTitle(wfMessage('app-name').': '.wfMessage($efType));
 		}
 
 		$stats = new EditFinderStandingsIndividual($efType);

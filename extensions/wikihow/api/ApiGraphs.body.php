@@ -1,4 +1,4 @@
-<?
+<?php
 
 class ApiGraphs extends ApiBase {
 	function __construct($main, $action) {
@@ -22,6 +22,9 @@ class ApiGraphs extends ApiBase {
 
 	// 30day_views is summarized monthly
 	private function get30DayViews($params) {
+		// 20181022 Jordan - Temporarily disabling this call as it is very slow (10+ seconds) and run 3 times every
+		// time a staff user visits a page
+		return;
 		$viewsField = $params['titus_field'];
 		$queryResult = $this->runRedshiftQuery(
 			'titus_historical_intl',
@@ -128,7 +131,7 @@ class ApiGraphs extends ApiBase {
 	function execute() {
 		$userGroups = $this->getUser()->getGroups();
 		if ($this->getUser()->isBlocked() || !in_array('staff', $userGroups)) {
-			$this->getOutput()->setRobotpolicy('noindex,nofollow');
+			$this->getOutput()->setRobotPolicy('noindex,nofollow');
 			$this->dieUsageMsg('badaccess-groups');
 			return;
 		}

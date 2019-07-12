@@ -86,7 +86,7 @@ class GuidedEditor extends EditPage {
 
 		if ($req->getVal("wpSave")
 			&& $req->getVal("overwrite") == "yes"
-			&& Newarticleboost::isOverwriteAllowed($this->mTitle)
+			&& NewArticleBoost::isOverwriteAllowed($this->mTitle)
 		) {
 			// it's a rewrite. let us start anew
 			$page = WikiPage::factory($this->mTitle);
@@ -160,7 +160,7 @@ class GuidedEditor extends EditPage {
 		$out->addModules( ['ext.wikihow.editor_script', 'ext.wikihow.guided_editor']);
 		$out->addModules( ['ext.wikihow.popbox', 'ext.wikihow.createpage'] );
 
-		wfRunHooks( 'EditPage::showEditForm:initial', [ &$this, $out ] ) ;
+		Hooks::run( 'EditPage::showEditForm:initial', [ &$this, $out ] ) ;
 
 		// are we called with just action=edit and no title?
 		$create_article = false;
@@ -174,7 +174,7 @@ class GuidedEditor extends EditPage {
 			$out->addHTML( wfMessage('newarticletext')->text() );
 		}
 
-		$nab_overwrite = ( $req->getVal('overwrite') == 'yes' && Newarticleboost::isOverwriteAllowed($this->mTitle) );
+		$nab_overwrite = ( $req->getVal('overwrite') == 'yes' && NewArticleBoost::isOverwriteAllowed($this->mTitle) );
 		if ($nab_overwrite) {
 			$out->addHTML("<div class='minor_section' style='background-color:#f7f7bc;'>" . wfMessage("nab_overwrite")->text() . "</div>");
 		}
@@ -211,7 +211,7 @@ class GuidedEditor extends EditPage {
 
 			$this->textbox2 = $this->textbox1;
 			$conflictWikiHow = WikihowArticleEditor::newFromText($this->textbox1);
-			$this->textbox1 = $this->mArticle->getContent( true, true );
+			$this->textbox1 = ContentHandler::getContentText( $this->mArticle->getPage()->getContent() );
 			$this->edittime = $this->mArticle->getTimestamp();
 		} else {
 			$quotedTitle = '"' . wfMessage('howto', $this->mTitle->getPrefixedText()) . '"';
@@ -237,7 +237,10 @@ class GuidedEditor extends EditPage {
 			}
 			$out->setPageTitle( $pageHeading );
 			if ( $this->oldid ) {
-				$this->mArticle->setOldSubtitle($this->oldid);
+				$rev = $this->mArticle->getRevisionFetched();
+				if ($rev) {
+					$this->mArticle->setOldSubtitle($this->oldid);
+				}
 			}
 		}
 
@@ -263,7 +266,7 @@ class GuidedEditor extends EditPage {
 		if ($nab_overwrite) {
 			$query_string .= '&overwrite=yes';
 		}
-		$action = $this->mTitle->escapeLocalURL( $query_string );
+		$action = htmlspecialchars( $this->mTitle->getLocalURL( $query_string ) );
 		if ($create_article) {
 			$mainpage = str_replace(' ', '-', wfMessage('mainpage'));
 			$action = str_replace("&title=$mainpage", '', $action);
@@ -333,7 +336,7 @@ class GuidedEditor extends EditPage {
 
 		// Build categorizer option form
 		$cat_string = $whow->getCategoryString();
-		$category_options_form = Categoryhelper::getCategoryOptionsForm($cat_string, $whow->mCategories);
+		$category_options_form = CategoryHelper::getCategoryOptionsForm($cat_string, $whow->mCategories);
 
 		// Display 'Switch to Advanced Editing' link
 		$advanced = '';
@@ -423,12 +426,26 @@ class GuidedEditor extends EditPage {
 		$sources_checked = '';
 		$section = $whow->getSection(wfMessage("sources"));
 		$section = str_replace('<div class="references-small"><references/></div>', '', $section);
-		$section = str_replace('{{reflist}}', '', $section);
 		if ($section) {
 			$sources_vis = "show";
 			$sources_checked = " checked='checked' ";
 			$sources_section = $section;
 		}
+
+		// references section (maybe hidden)
+		$references_vis = "hide";
+		$references_section = "*  ";
+		$references_checked = '';
+
+		$references = wfMessage("references");
+		$section = $whow->getSection( $references );
+		$section = str_replace('<div class="references-small"><references/></div>', '', $section);
+		if ($section) {
+			$references_vis = "show";
+			$references_checked = " checked='checked' ";
+			$references_section = $section;
+		}
+		//decho('not found', $section); exit;
 
 		$lang_links = htmlspecialchars($whow->getLangLinks());
 
@@ -489,6 +506,7 @@ class GuidedEditor extends EditPage {
 			'warnings_section' => $warnings_section,
 			'thingsyoullneed_section' => $thingsyoullneed_section,
 			'sources_section' => $sources_section,
+			'references_section' => $references_section,
 
 			'relatedHTML' => $relatedHTML,
 			'all_buttons' => $all_buttons,
@@ -498,6 +516,7 @@ class GuidedEditor extends EditPage {
 			'things_vis' => $things_vis,
 			'related_vis' => $related_vis,
 			'sources_vis' => $sources_vis,
+			'references_vis' => $references_vis,
 			'vidpreview_vis' => $vidpreview_vis,
 			'video_disabled' => $video_disabled,
 			'vidpreview' => $vidpreview,
@@ -513,7 +532,7 @@ class GuidedEditor extends EditPage {
 			'show_watch_html' => $user->isLoggedIn(),
 			'show_video_button' => $show_video_button,
 
-			'edit_token' => ($user->isLoggedIn() ? $user->editToken() : EDIT_TOKEN_SUFFIX),
+			'edit_token' => ($user->isLoggedIn() ? $user->getEditToken() : EDIT_TOKEN_SUFFIX),
 			'edit_token_track' => md5($user->getName() . $this->mTitle->getArticleID() . time()),
 			'copyright_warning' => $copyright_warning,
 
@@ -533,6 +552,7 @@ class GuidedEditor extends EditPage {
 			'thingsyoullneed_msg' => wfMessage('thingsyoullneed'),
 			'relatedarticlestext_msg' => wfMessage('relatedarticlestext'),
 			'sources_msg' => wfMessage('sources'),
+			'references_msg' => wfMessage('references'),
 			'relatedwikihows_msg' => wfMessage('relatedwikihows'),
 			'subject_msg' => wfMessage('subject'),
 
@@ -558,7 +578,9 @@ class GuidedEditor extends EditPage {
 			'items_msg' => wfMessage('items'),
 			'relatedlist_msg' => wfMessage('relatedlist'),
 			'relatedwikihows_url_msg' => wfMessage('related-wikihows-url'),
+			// TODO update this when we fix the destination link page (writers guide)
 			'sources_url_msg' => wfMessage('sources-links-url'),
+			'references_url_msg' => wfMessage('sources-links-url'),
 			'epw_move_up_msg' => wfMessage('epw_move_up'),
 			'epw_move_down_msg' => wfMessage('epw_move_down'),
 			'epw_remove_msg' => wfMessage('epw_remove'),
@@ -585,6 +607,7 @@ class GuidedEditor extends EditPage {
 			'thingsyoullneed_checked' => $thingsyoullneed_checked,
 			'relatedwikihows_checked' => $relatedwikihows_checked,
 			'sources_checked' => $sources_checked,
+			'references_checked' => $references_checked,
 			'ingredients_checked' => $ingredients_checked,
 			'minor_edit_checked' => ($this->minoredit ? " checked='checked'" : ''),
 			'watchthis_checked' => ($this->watchthis ? " checked='checked'" : ''),
@@ -655,7 +678,7 @@ class GuidedEditor extends EditPage {
 		];
 		$buttons['diff'] = XML::element('input', $attrs, '');
 
-		wfRunHooks( 'EditPageBeforeEditButtons', [ &$this, &$buttons, &$tabindex ] );
+		Hooks::run( 'EditPageBeforeEditButtons', [ &$this, &$buttons, &$tabindex ] );
 
 		return $buttons;
 	}

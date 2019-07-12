@@ -1,4 +1,4 @@
-<?
+<?php
 namespace MethodHelpfulness;
 use MethodHelpfulness\ArticleMethod;
 use EasyTemplate;
@@ -25,7 +25,7 @@ abstract class CTA {
 			$this->getValidPlatforms(),
 			true
 		);
-		
+
 		if (!$validPlatform || !$this->isActiveContext($t)) {
 			return false;
 		}

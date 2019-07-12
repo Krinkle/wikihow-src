@@ -1,36 +1,36 @@
 <?php
 if ( ! defined( 'MEDIAWIKI' ) )
 	die();
-	
+
 /**#@+
  * The wikiHow category page with tiled layout and infinite scrolling.
- * 
+ *
  * @package MediaWiki
  * @subpackage Extensions
  *
- * @link http://www.wikihow.com/WikiHow:Categoryhelper-Extension Documentation
+ * @link http://www.wikihow.com/WikiHow:WikihowCategoryPage-Extension Documentation
  *
  *
  * @author Reuben Smith <reuben@wikihow.com>
  * @license http://www.gnu.org/copyleft/gpl.html GNU General Public License 2.0 or later
  */
 
-$wgAutoloadClasses['WikihowCategoryPage'] = dirname( __FILE__ ) . '/WikihowCategoryPage.body.php';
-$wgAutoloadClasses['DesktopWikihowCategoryPage'] = dirname( __FILE__ ) . '/DesktopWikihowCategoryPage.body.php';
-$wgAutoloadClasses['MobileWikihowCategoryPage'] = dirname( __FILE__ ) . '/mobile_category_page/MobileWikihowCategoryPage.body.php';
-$wgAutoloadClasses['CategoryData'] = dirname( __FILE__ ) . '/CategoryData.class.php';
-$wgAutoloadClasses['CategoryCarousel'] = dirname( __FILE__ ) . '/category_carousel/CategoryCarousel.class.php';
+$wgAutoloadClasses['WikihowCategoryPage'] = __DIR__ . '/WikihowCategoryPage.body.php';
+$wgAutoloadClasses['DesktopWikihowCategoryPage'] = __DIR__ . '/DesktopWikihowCategoryPage.body.php';
+$wgAutoloadClasses['MobileWikihowCategoryPage'] = __DIR__ . '/mobile_category_page/MobileWikihowCategoryPage.body.php';
+$wgAutoloadClasses['CategoryData'] = __DIR__ . '/CategoryData.class.php';
+$wgAutoloadClasses['CategoryCarousel'] = __DIR__ . '/category_carousel/CategoryCarousel.class.php';
+$wgAutoloadClasses['TopCategoryData'] = __DIR__ . '/TopCategoryData.class.php';
 
 $wgHooks['ArticleFromTitle'][] = array('WikihowCategoryPage::onArticleFromTitle');
 
 $wgResourceModules['ext.wikihow.desktop_category_page'] = array(
-	'styles' => array('categories-owl.css'),
 	'scripts' => array('categories-owl.js'),
 	'localBasePath' => __DIR__,
 	'remoteExtPath' => 'wikihow/categories',
 	'position' => 'top',
 	'targets' => array('desktop'),
-	'dependencies' => array('ext.wikihow.common_top'),
+	'dependencies' => array('ext.wikihow.common_top', 'wikihow.common.slick'),
 );
 
 $wgResourceModules['mobile.wikihow.mobile_category_page'] = array(
@@ -41,6 +41,10 @@ $wgResourceModules['mobile.wikihow.mobile_category_page'] = array(
 	'position' => 'top',
 	'targets' => array('mobile', 'desktop'),
 	'dependencies' => array('mobile.wikihow.category_carousel','ext.wikihow.common_top'),
+	'messages' => [
+		'cat_show_more',
+		'cat_show_less'
+	]
 );
 
 $wgResourceModules['mobile.wikihow.category_carousel'] = array(

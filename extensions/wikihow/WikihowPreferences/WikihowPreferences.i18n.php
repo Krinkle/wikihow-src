@@ -1,4 +1,4 @@
-<?
+<?php
 $messages = array();
 $messages['en'] =
 	array(
@@ -21,6 +21,7 @@ $messages['en'] =
 		'prefs-articlecreator' => "Use the Article Creation Tool for writing new articles",
 		'prefs-emailsettingsind' => "Individual Email Settings",
 		'prefs-showarticleinfo' => 'Show article information box in right column',
+		'prefs-showcharitysection' => 'Show non-profit partnership on articles',
 		'prefs-showhelpfulnessdata' => 'Show page helpfulness data in right column',
 		'prefs-promotenotify' => 'Notify my Talk Page when my article is promoted',
 		'prefs-disableqaemail' => 'Email me occasional updates about my Community Q&A activity'

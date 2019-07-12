@@ -50,12 +50,12 @@ class AddRelatedLinks extends UnlistedSpecialPage {
         "Very Long Articles",
 	);
 
-	function __construct() {
+	public function __construct() {
 		parent::__construct( 'AddRelatedLinks' );
 	}
 
-	function addLinkToRandomArticleInSameCategory($t, $summary = "Adding links", $linktext = null) {
-		global $wgOut;
+	private function addLinkToRandomArticleInSameCategory($t, $summary = "Adding links", $linktext = null) {
+		$out = $this->getOutput();
 		$cats = array_keys($t->getParentCategories());
 		$found = false;
 		while (sizeof($cats) > 0) {
@@ -67,18 +67,18 @@ class AddRelatedLinks extends UnlistedSpecialPage {
 				continue;
 			}
 			#echo "using cat {$cat->getText()} for {$t->getFullText()}\n";
-			$dbr = wfGetDB(DB_SLAVE);
+			$dbr = wfGetDB(DB_REPLICA);
 			$id  = $dbr->selectField(array('categorylinks', 'page'),
 					array('cl_from'),
 					array('cl_to'=>$cat->getDBKey(), 'page_id = cl_from', 'page_namespace'=>NS_MAIN, 'page_is_redirect'=>0),
 					__METHOD__,
 					array("ORDER BY"=>"rand()", "LIMIT"=>1));
 			if (!$id) {
-				$wgOut->addHTML("<li>Couldn't get a category/enough results for <b>{$t->getText()}</b></li>\n");
+				$out->addHTML("<li>Couldn't get a category/enough results for <b>{$t->getText()}</b></li>\n");
 				continue;
 			}
 			$src = Title::newFromID($id);
-			#$wgOut->addHTML("<li>Linked from <b>{$src->getText()}</b> to <b>{$t->getText()}</b> by picking a random article from the same category</li>\n");
+			#$out->addHTML("<li>Linked from <b>{$src->getText()}</b> to <b>{$t->getText()}</b> by picking a random article from the same category</li>\n");
 			#kecho("Linked from {$src->getText()} to {$t->getText()} by picking a random article from the same category</li>\n");
 			MarkRelated::addRelated($src, $t, $summary, true, $linktext);
 			$found = true;
@@ -89,15 +89,18 @@ class AddRelatedLinks extends UnlistedSpecialPage {
 		return null;
 	}
 
-	function execute($par) {
-		global $wgRequest, $wgUser, $wgOut;
+	public function execute($par) {
+		global $wgUser;
 
-		wfProfileIn(__METHOD__);
-		if (!in_array('staff', $wgUser->getGroups())) {
-			$wgOut->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
+		$out = $this->getOutput();
+		$req = $this->getRequest();
+		$user = $this->getUser();
+
+		if (!in_array('staff', $user->getGroups())) {
+			$out->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
 			return;
 		}
-		$wgOut->addHTML(<<<END
+		$out->addHTML(<<<END
 			<form action='/Special:AddRelatedLinks' method='post' enctype="multipart/form-data" >
 			Pages to add links to (Urls) : <textarea name='xml'></textarea>
 			<input type='submit'>
@@ -105,64 +108,62 @@ class AddRelatedLinks extends UnlistedSpecialPage {
 END
 		);
 
-		if (!$wgRequest->wasPosted()) {
-			wfProfileOut(__METHOD__);
+		if (!$req->wasPosted()) {
 			return;
 		}
 
 		set_time_limit(3000);
 
-		$dbr = wfGetDB(DB_SLAVE);
-		$urls = array_unique(explode("\n", $wgRequest->getVal('xml')));
+		$dbr = wfGetDB(DB_REPLICA);
+		$urls = array_unique(explode("\n", $req->getVal('xml')));
 
-		$olduser = $wgUser;
+		$user = null;
 		$wgUser = User::newFromName("Wendy Weaver");
 
-		$wgOut->addHTML("Started at " . date("r") . "<ul>");
+		$out->addHTML("Started at " . date("r") . "<ul>");
 		foreach ($urls as $url) {
 			$url = trim($url);
 			if ($url == "") continue;
-			$url = preg_replace("@http://www.wikihow.com/@im", "", $url);
+			$url = preg_replace("@https?://www.wikihow.com/@im", "", $url);
 			$t = Title::newFromURL($url);
 			if (!$t) {
-				$wgOut->addHTML("<li>Can't make title out of {$url}</li>\n");
+				$out->addHTML("<li>Can't make title out of {$url}</li>\n");
 				continue;
 			}
-			$r = Revision::newFromTitle($t);
-			if (!$r) {
-				$wgOut->addHTML("<li>Can't make revision out of {$url}</li>\n");
+			$rev = Revision::newFromTitle($t);
+			if (!$rev) {
+				$out->addHTML("<li>Can't make revision out of {$url}</li>\n");
 				continue;
 			}
-			$text = $r->getText();
+			$text = ContentHandler::getContentText( $rev->getContent() );
 			$search = new LSearch();
 			$results = $search->externalSearchResultTitles($t->getText(), 0, 30, 7);
 			$good = array();
-			foreach ($results as $r) {
-				if ($r->getText() == $t->getText())
+			foreach ($results as $res) {
+				if ($res->getText() == $t->getText())
 					continue;
-				if ($r->getNamespace() != NS_MAIN)
+				if (!$res->inNamespace(NS_MAIN))
 					continue;
 				if (preg_match("@\[\[{$t->getText()}@", $text))
 					continue;
-				$good[] = $r;
+				$good[] = $res;
 				if (sizeof($good) >= 4) break;
 			}
 
 			if (sizeof($good) == 0)  {
-				$src = self::addLinkToRandomArticleInSameCategory($t);
+				$src = $this->addLinkToRandomArticleInSameCategory($t);
 				if ($src) {
-					$wgOut->addHTML("<li>Linked from <b><a href='{$src->getFullURL()}?action=history' target='new'>{$src->getText()}</a></b> to <b><a href='{$t->getFullURL()}' target='new'>{$t->getText()}</a></b> (random)</li>\n");
+					$out->addHTML("<li>Linked from <b><a href='{$src->getFullURL()}?action=history' target='new'>{$src->getText()}</a></b> to <b><a href='{$t->getFullURL()}' target='new'>{$t->getText()}</a></b> (random)</li>\n");
 				} else {
-					$wgOut->addHTML("<li>Could not find appropriate links for <b><a href='{$t->getFullURL()}' target='new'>{$t->getText()}</a></b></li>\n");
+					$out->addHTML("<li>Could not find appropriate links for <b><a href='{$t->getFullURL()}' target='new'>{$t->getText()}</a></b></li>\n");
 				}
 			} else {
 				$x = rand(0, min(4, sizeof($good) - 1));
 				$src = $good[$x];
-				$wgOut->addHTML("<li>Linked from <b><a href='{$src->getFullURL()}?action=history' target='new'>{$src->getText()}</a></b> to <b><a href='{$t->getFullURL()}' target='new'>{$t->getText()}</a></b> (search)</li>\n");
+				$out->addHTML("<li>Linked from <b><a href='{$src->getFullURL()}?action=history' target='new'>{$src->getText()}</a></b> to <b><a href='{$t->getFullURL()}' target='new'>{$t->getText()}</a></b> (search)</li>\n");
 				MarkRelated::addRelated($src, $t, "Weaving the web of links", true);
 			}
 		}
-		$wgOut->addHTML("</ul>Finished at " . date("r") );
-		wfProfileOut(__METHOD__);
+		$out->addHTML("</ul>Finished at " . date("r") );
 	}
 }

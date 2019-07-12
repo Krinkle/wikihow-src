@@ -197,7 +197,7 @@ $namespaceGenderAliases = array(
 	NS_USER_TALK => array(
 		'male' => 'نقاش_المستخدم',
 		'female' => 'نقاش_المستخدمة'
-	), 
+	),
 );
 
 $magicWords = array(
@@ -883,7 +883,7 @@ $2',
 'ns-specialprotected' => 'الصفحات الخاصة لا يمكن تعديلها.',
 'titleprotected' => "{{GENDER:$1|حمى|حمت}} [[User:$1|$1]] هذا العنوان من الإنشاء.
 السبب المعطى هو ''$2''.",
-'filereadonlyerror' => 'تعذر تعديل الملف "$1" لأن مستودع الملف "$2" في وضع القراءة فقط. 
+'filereadonlyerror' => 'تعذر تعديل الملف "$1" لأن مستودع الملف "$2" في وضع القراءة فقط.
 
 المدير الذي قام بغلقه قدم التفسير التالي: "$3".',
 'invalidtitle-knownnamespace' => 'عنوان غير صالح في النطاق «$2» مع نص «$3»',
@@ -974,7 +974,7 @@ $2',
 'nocookieslogin' => 'يستخدم {{SITENAME}} الكوكيز لتسجيل الدخول.
 الكوكيز معطلة لديك.
 من فضلك فعلها ثم حاول مرة أخرى.',
-'nocookiesfornew' => 'لم يتم إنشاء حساب المستخدم، لأننا لم نستطع تأكيد مصدره. 
+'nocookiesfornew' => 'لم يتم إنشاء حساب المستخدم، لأننا لم نستطع تأكيد مصدره.
 تأكد من أن ملفات تعريف الارتباط (الكوكيز) مفعلة عندك، ثم أعد تحميل الصفحة وحاول مرة أخرى.',
 'noname' => 'لم تحدد اسم مستخدم صحيح.',
 'loginsuccesstitle' => 'تم الدخول بشكل صحيح',
@@ -1235,9 +1235,9 @@ $2
 لم يتم حفظها بعد!'''",
 'userjspreview' => "'''تذكر أنك فقط تجرب/تعاين جافاسكربت.'''
 '''لم يتم الحفظ بعد!'''",
-'sitecsspreview' => "''' تذكر أنك فقط في وضع المعاينة لهذا CSS ''' 
+'sitecsspreview' => "''' تذكر أنك فقط في وضع المعاينة لهذا CSS '''
 ''' ولم يتم حفظ الصفحة بعد! '''",
-'sitejspreview' => "''' تذكر أنك فقط في وضع المعاينة لكود JavaScript هذا''' 
+'sitejspreview' => "''' تذكر أنك فقط في وضع المعاينة لكود JavaScript هذا'''
 ''' ولم يتم حفظه بعد! '''",
 'userinvalidcssjstitle' => "'''تحذير:''' لا توجد واجهة  \"\$1\".
 تذكر أن ملفات ال.css و ال.js تستخدم حروف صغيرة في العنوان ، كمثال {{ns:user}}:Foo/vector.css و ليس {{ns:user}}:Foo/Vector.css.",
@@ -4573,3 +4573,13 @@ $5
 # Unknown messages
 'uploadinvalidxml' => 'تعذر تحليل XML في الملف المرفوع.',
 );
+
+$imageFilesWH = array(
+	'button-bold'     => '1x1_transparent.gif',
+	'button-italic'   => '1x1_transparent.gif',
+	'button-link'     => '1x1_transparent.gif',
+	'button-headline' => '1x1_transparent.gif',
+	'button-nowiki'   => '1x1_transparent.gif',
+);
+$imageFiles = array_merge($imageFiles, $imageFilesWH);
+

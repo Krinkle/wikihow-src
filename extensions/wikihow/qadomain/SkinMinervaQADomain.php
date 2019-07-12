@@ -1,4 +1,4 @@
-<?
+<?php
 /*
  * Extension of the SkinMinerva skin for wikiHowAnswers customization.
  */
@@ -13,17 +13,13 @@ class SkinMinervaQADomain extends SkinMinerva {
 	public function getHtmlElementAttributes() {
 		$attr = parent::getHtmlElementAttributes();
 		$out = $this->getOutput();
-		if(GoogleAmp::isAmpMode($out)) {
+		if (GoogleAmp::isAmpMode($out)) {
 			$attr['amp'] = '';
 		}
 		return $attr;
 	}
 
 	private function prepareAmpTemplate() {
-		global $wgAppleTouchIcon;
-		global $wgWellFormedXml;
-		$wgWellFormedXml = true;
-		wfProfileIn( __METHOD__ );
 		$out = $this->getOutput();
 		// add head items
 		$out->addHeadItem( 'viewport',
@@ -58,7 +54,7 @@ class SkinMinervaQADomain extends SkinMinerva {
 		$html = ExtMobileFrontend::DOMParse( $out );
 
 		// search through the head items and remove any disallowed style in there
-		foreach( $out->getHeadItemsArray() as $key=>$headItem ) {
+		foreach ( $out->getHeadItemsArray() as $key=>$headItem ) {
 			if ( !in_array( $key, [ 'topcss', 'ampboilerplate' ] ) && strstr( $headItem, "<style" ) !== false ) {
 				// clear out this unwanted item
 				$out->addHeadItem( $key, "");
@@ -87,6 +83,9 @@ class SkinMinervaQADomain extends SkinMinerva {
 
 		$out = $this->getOutput();
 		global $wgEnableAPI, $wgAdvertisedFeedTypes;
+		// MWUP 3/2019 NOTE: $wgEnableAPI is going to be removed. We can edit the <head> links
+		// using the hook OutputPageAfterGetHeadLinksArray instead. We can do this:
+		//unset($tags['rsd']);
 		$wgEnableAPI = false; //removing stuff from the <head> that we don't want on this domain
 		$wgAdvertisedFeedTypes = [];
 
@@ -101,7 +100,7 @@ class SkinMinervaQADomain extends SkinMinerva {
 			);
 
 		$out->addMeta('google-site-verification', QADomain::getGoogleSiteverification());
-		if( !GoogleAmp::isAmpMode( $out ) ) {
+		if ( !GoogleAmp::isAmpMode( $out ) ) {
 			$tmpl = parent::prepareQuickTemplate();
 		} else {
 			$tmpl = $this->prepareAmpTemplate();

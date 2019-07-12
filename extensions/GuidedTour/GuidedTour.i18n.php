@@ -79,6 +79,10 @@ $messages['en'] = array(
 	'guidedtour-tour-dashboard-answerrequests-description' => "Help others by starting a new article on a topic that another user has requested. When you complete the article, the requestor will receive an email letting them know the article has been written.",
 	'guidedtour-tour-dashboard-end-title' => "That’s it. Now it’s your turn to try!",
 	'guidedtour-tour-dashboard-end-description' => 'Click on “Start” on any of these options to give it a go. Every edit helps!',
+	'guidedtour-tour-dashboard-answerquestions-title' => "Answer questions from people like you!",
+	'guidedtour-tour-dashboard-answerquestions-description' => "Many people submit questions related to what they read on wikiHow. Maybe you have the answers! Help someone by tackling their questions on topics you know well.",
+	'guidedtour-tour-dashboard-editbytopic-title' => "Try out Topic Greenhouse.",
+	'guidedtour-tour-dashboard-editbytopic-description' => "Help young articles grow! Choose topics you know about, and the Topic Greenhouse will find matching articles in need of expansion. When you find one you can improve, you can write and publish your contributions right from this tool.",
 
 	// test
 	'guidedtour-tour-test-testing' => 'Testing',

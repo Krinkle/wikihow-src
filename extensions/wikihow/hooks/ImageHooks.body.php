@@ -4,13 +4,23 @@ class ImageHooks {
 
 	// AG - method signature changed due to how to check if file exists in lastest MW
 	public static function onImageConvertNoScale($image, $params) {
+		global $wgIsImageScaler;
+
+		if ( $wgIsImageScaler || Misc::percentileRollout( strtotime( 'June 4, 2018 12pm' ), 3 * 24 * 60 * 60 ) ) {
+			// Trevor, 5/15/18 - use conversion when requesting images at their physical sizes so they
+			// are treated as thumbnails, ensuring watermarking, compression and transcoding are performed
+			if ( $params['physicalWidth'] == $params['clientWidth'] && $params['physicalHeight'] == $params['clientHeight'] ) {
+				return false;
+			}
+		}
+
 		// edge case...if the image will not actually get watermarked because it's too small, just return true
 		if (WatermarkSupport::validImageSize($params['physicalWidth'], $params['physicalHeight']) == false) {
 			return true;
 		}
 
 		// return false here..we want to create the watermarked file!
-		// AG - TODO trying to figure out why we check if the file exists here..doesn't 
+		// AG - TODO trying to figure out why we check if the file exists here..doesn't
 		// seem necessary or should be inverted
 		if ( @$params[WatermarkSupport::ADD_WATERMARK] || $image->getRepo()->fileExists($params['dstPath']) ) {
 			return false;
@@ -20,7 +30,7 @@ class ImageHooks {
 	}
 
 	public static function onImageConvertComplete($params) {
-		global $wgJpegOptimCommand, $wgOptiPngCommand, $wgCwebpBinary, $wgIsImageScaler;
+		global $wgJpegTran, $wgOptiPngCommand, $wgCwebpBinary;
 
 		$dstPath = $params['dstPath'];
 
@@ -28,7 +38,7 @@ class ImageHooks {
 		if (@$params[WatermarkSupport::ADD_WATERMARK]) {
 			if ( $params['pageId'] ) {
 				WatermarkSupport::addTitleBasedWatermark( $dstPath, $dstPath, $params['physicalWidth'], $params['physicalHeight'], $params['pageId'] );
-			} else if ( $params['version'] >= 3 ) {
+			} elseif ( $params['version'] >= 3 ) {
 				WatermarkSupport::addWatermarkV3($dstPath, $dstPath, $params['physicalWidth'], $params['physicalHeight']);
 			} else {
 				WatermarkSupport::addWatermark($dstPath, $dstPath, $params['physicalWidth'], $params['physicalHeight']);
@@ -52,20 +62,21 @@ class ImageHooks {
 		}
 
 		// Then try to optimize the output image for size while keeping
-		// display properties the same by using optipng and jpegoptim
-		if ($wgIsImageScaler && @$params['mimeType'] == 'image/jpeg' && $wgJpegOptimCommand) {
-			$cmd = wfEscapeShellArg($wgJpegOptimCommand) . " --strip-all " .
-				wfEscapeShellArg($dstPath) . " >> /tmp/imgopt.log 2>&1";
+		// display properties the same by using optipng and jpegtran
+		if (@$params['mimeType'] == 'image/jpeg' && file_exists($wgJpegTran) && $wgJpegTran) {
+			$cmd = wfEscapeShellArg( $wgJpegTran ) . ' -copy none -outfile ' .
+				wfEscapeShellArg( $dstPath ) . ' ' . wfEscapeShellArg( $dstPath ) .
+				' >> /tmp/imgopt.log 2>&1';
 			wfDebugLog('imageconvert', __METHOD__ . " [jpegoptim] $cmd");
 			$before = file_exists($dstPath) ? filesize($dstPath) : 'f';
-			wfDebug( __METHOD__.": running jpegoptim: $cmd\n");
+			wfDebug( __METHOD__.": running jpegtran: $cmd\n");
 			$err = wfShellExec( $cmd, $retval );
 			$after = file_exists($dstPath) ? filesize($dstPath) : 'f';
 			$currentDate = `date`;
 			// debugging output
 			wfErrorLog(trim($currentDate) . " $cmd b:$before " .
 				"a:$after ret:$retval\n", '/tmp/imgopt.log');
-		} elseif ($wgIsImageScaler && @$params['mimeType'] == 'image/png' && $wgOptiPngCommand) {
+		} elseif (@$params['mimeType'] == 'image/png' && file_exists($wgOptiPngCommand) && $wgOptiPngCommand) {
 			$cmd = wfEscapeShellArg($wgOptiPngCommand) . " " .
 				wfEscapeShellArg($dstPath) . " >> /tmp/imgopt.log 2>&1";
 			wfDebugLog('imageconvert', __METHOD__ . " [optipng] $cmd");
@@ -83,9 +94,9 @@ class ImageHooks {
 	}
 
 	public static function onFileTransform($image, &$params) {
-		if ( $image->getUser("text") 
-			&& WatermarkSupport::isWikihowCreator($image->getUser('text')) 
-			&& (!isset($params[WatermarkSupport::NO_WATERMARK]) 
+		if ( $image->getUser("text")
+			&& WatermarkSupport::isWikihowCreator($image->getUser('text'))
+			&& (!isset($params[WatermarkSupport::NO_WATERMARK])
 				|| $params[WatermarkSupport::NO_WATERMARK] != true))
 		{
 			$params[WatermarkSupport::ADD_WATERMARK] = true;
@@ -146,8 +157,8 @@ class ImageHooks {
 			$params[WatermarkSupport::NO_WATERMARK] = true;
 		}
 
-		if ( $image->getUser('text') 
-			&& WatermarkSupport::isWikihowCreator($image->getUser('text')) 
+		if ( $image->getUser('text')
+			&& WatermarkSupport::isWikihowCreator($image->getUser('text'))
 			&& isset($params[WatermarkSupport::NO_WATERMARK])
 			&& $params[WatermarkSupport::NO_WATERMARK] == true)
 		{
@@ -214,21 +225,6 @@ class ImageHooks {
 		return true;
 	}
 
-	public static function onImageConvert($params) {
-		$physicalWidth = $params['physicalWidth'];
-		$physicalHeight = $params['physicalHeight'];
-		$addWatermark = isset($params[WatermarkSupport::ADD_WATERMARK]) ? $params[WatermarkSupport::ADD_WATERMARK] : '';
-		$srcWidth = $params['srcWidth'];
-		$srcHeight = $params['srcHeight'];
-
-		if ( $physicalWidth == $srcWidth && $physicalHeight == $srcHeight && $addWatermark ) {
-			WatermarkSupport::addWatermark($params['srcPath'], $params['dstPath'], $physicalWidth, $physicalHeight);
-			return false;
-		}
-
-		return true;
-	}
-
 	public static function onConstructImageConvertCommand($params, &$quality) {
 		if ($params['quality']) {
 			$isWebp = preg_match('@\.webp$@', $params['dstUrl']) > 0;
@@ -289,15 +285,15 @@ class ImageHooks {
 				$result['width'] = ( int )array_shift( $parts );
 				$result['height'] = ( int )array_shift( $parts );
 				$result['crop'] = 1;
-			} else if ( $param == "nowatermark" ) {
+			} elseif ( $param == "nowatermark" ) {
 				$result[WatermarkSupport::NO_WATERMARK] = true;
-			} else if ( substr( $param, 0, 1 ) == 'v' ) {
+			} elseif ( substr( $param, 0, 1 ) == 'v' ) {
 				$result['version'] = substr( $param, 1 );
-			} else if ( substr( $param, 0, 1 ) == 'q' ) {
+			} elseif ( substr( $param, 0, 1 ) == 'q' ) {
 				$result['quality'] = ( int )substr( $param, 1 );
-			} else if ( substr( $param, 0, 3 ) == 'aid' ) {
+			} elseif ( substr( $param, 0, 3 ) == 'aid' ) {
 				$result['pageId'] = $param;
-			} else if ( substr( $param, -2, 2 ) == 'px' ) {
+			} elseif ( substr( $param, -2, 2 ) == 'px' ) {
 				$width = ( int )substr( $param, 0, strlen( $param ) - 2 );
 				if ( $result['crop'] == 1 && $result['width'] > 10 ) {
 					$result['reqwidth'] = $width;

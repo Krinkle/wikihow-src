@@ -10,7 +10,7 @@ $wgExtensionCredits['specialpage'][] = array(
 );
 
 $wgSpecialPages['ArticleWidgets'] = 'ArticleWidgets';
-$wgAutoloadClasses['ArticleWidgets'] = dirname( __FILE__ ) . '/ArticleWidgets.body.php';
+$wgAutoloadClasses['ArticleWidgets'] = __DIR__ . '/ArticleWidgets.body.php';
 
 $wgArticleWidgets = array(
 	'BINTODEC' => '195',
@@ -26,8 +26,8 @@ $wgArticleWidgets = array(
 	'KFC' => '195',
 	'PERCENT' => '303',
 	'SPHEREVOL' => '195');
-	 
-$wgHooks["BeforeParserFetchFileAndTitle2"][] = array("wfGrabWidget"); 
+
+$wgHooks["BeforeParserFetchFileAndTitle2"][] = array("wfGrabWidget");
 
 function wfGrabWidget(&$parser, &$nt, &$ret, $ns) {
 	global $wgCanonicalNamespaceNames;

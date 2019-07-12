@@ -14,7 +14,7 @@ class AndroidHelper {
 	public static function onTitleSquidURLsPurgeVariants($title, &$urls) {
 		global $wgLanguageCode;
 
-		if ($title && $title->exists() && $title->getNamespace() == NS_MAIN) {
+		if ($title && $title->exists() && $title->inNamespace(NS_MAIN)) {
 			$androidUrl = $title->getInternalURL();
 			$partialUrl = preg_replace("@^(https?:)?//[^/]+/@", "/", $androidUrl);
 			$domain = Misc::getLangDomain($wgLanguageCode, true);
@@ -34,9 +34,11 @@ class AndroidHelper {
 		global $wgLanguageCode;
 
 		$request = RequestContext::getMain();
+		$out = $request->getOutput();
 		$t = $request->getTitle();
-		if ($t && $t->exists() && wfMessage('android_app_indexing', 'off')->text() == 'on') {
-			$request->getOutput()->addHeadItem('android_app_indexing',
+		if ($t && $t->exists() && wfMessage('android_app_indexing', 'off')->text() == 'on'
+				&& WikihowSkinHelper::shouldShowMetaInfo($out)) {
+			$out->addHeadItem('android_app_indexing',
 				'<link rel="alternate" href="android-app://com.wikihow.wikihowapp/http/' .
 				Misc::getLangDomain($wgLanguageCode) . '/' . $t->getPartialURL() . '"/>');
 		}
@@ -49,4 +51,4 @@ class AndroidHelper {
 		}
 		return true;
 	}
-} 
+}

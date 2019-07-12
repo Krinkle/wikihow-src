@@ -16,14 +16,13 @@ class FixFlaggedAnswers extends UnlistedSpecialPage {
 		$request = $this->getRequest();
 		$user = $this->getUser();
 
-		if ($user->isBlocked()) {
-			$out->blockedPage();
-			return;
+		if ($user && $user->isBlocked()) {
+			throw new UserBlockedError( $user->getBlock() );
 		}
 
 		//logged in and desktop only
-		if($user->isAnon() || Misc::isMobileMode() || !$this->approvedUser($user)) {
-			$out->setRobotpolicy( 'noindex,nofollow' );
+		if (!$user || $user->isAnon() || Misc::isMobileMode() || !self::approvedUser($user)) {
+			$out->setRobotPolicy( 'noindex,nofollow' );
 			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
@@ -58,25 +57,13 @@ class FixFlaggedAnswers extends UnlistedSpecialPage {
 		$out->addHTML($this->toolHTML());
 	}
 
-	private function approvedUser(User $user) {
-		if (
-			$this->getLanguage()->getCode() == 'en' &&
-			!$user->isBlocked() &&
-			(
-				$user->hasGroup('admin') ||
-				$user->hasGroup('staff') ||
-				$user->hasGroup('qa_editors')
-			)
-		) {
-			return true;
-		}
-
-		return false;
+	public static function approvedUser(User $user) {
+		return QAWidget::isEditor($user);
 	}
 
 	private function toolHTML() {
 		$loader = new Mustache_Loader_CascadingLoader([
-			new Mustache_Loader_FilesystemLoader(dirname(__FILE__).'/templates'),
+			new Mustache_Loader_FilesystemLoader(__DIR__.'/templates'),
 		]);
 		$options = array('loader' => $loader);
 		$m = new Mustache_Engine($options);
@@ -121,7 +108,7 @@ class FixFlaggedAnswers extends UnlistedSpecialPage {
 			$where[] = "qfa_id NOT IN (" . implode(',', $skippedIds) . ")";
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->select(
 			FlaggedAnswers::TABLE,
 			'*',
@@ -160,7 +147,7 @@ class FixFlaggedAnswers extends UnlistedSpecialPage {
 					$article_html = WikihowArticleHTML::processArticleHTML($parserOutput, array('no-ads' => true, 'ns' => NS_MAIN));
 					//add Q&A widget at the top
 					$widget = new QAWidget($page->getTitle());
-					$next['article_html'] = $widget->getWidgetHTML() .
+					$next['article_html'] = utf8_encode($widget->getWidgetHTML()) .
 																	'<h2>'.wfMessage('qap_article_hdr')->text().'</h2>' .
 																	$article_html;
 				}
@@ -173,7 +160,7 @@ class FixFlaggedAnswers extends UnlistedSpecialPage {
 			}
 			$next['submitter_name'] = $submitter ?: wfMessage('ffa_anon')->text();
 
-			$next['remaining'] = FlaggedAnswers::remaining($skippedIds);
+			$next['remaining'] = FlaggedAnswers::remaining();
 		}
 
 		$msgKeys = [

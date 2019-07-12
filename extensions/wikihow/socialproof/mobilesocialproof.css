@@ -5,8 +5,6 @@
 	border: 1px solid #bfbfbf;
 	border-radius: 4px;
 	color: #686868;
-	font-size: 12px;
-	font-weight: bold;
 	position:relative;
 }
 #sp_h2 {
@@ -26,9 +24,6 @@
 	font-size: 12px;
 	font-weight: bold;
 	text-align: center;
-	position:relative;
-}
-#social_proof_wrapper {
 	position:relative;
 }
 .arrow_box {
@@ -51,10 +46,6 @@
 	margin-top: -81px;
 }
 
-#sp_expert h4 {
-	font-size: 14px;
-}
-
 #social_proof_mobile h3 {
 	margin: 5px 5px;
 	text-align:left;
@@ -68,10 +59,8 @@
 	border-left: 1px solid #e7e7e5;
 	position: relative;
 	box-sizing: border-box;
-	font-size: 14px;
 }
 .sp_top_box {
-	float: left;
 	min-height: 70px;
 	width: 100%;
 	margin: 0;
@@ -84,9 +73,13 @@
 	display: none;
 }
 
-#sp_helpful_box {
-	border: none;
-	padding: 19px 15px 15px 15px;
+#sp_expert_desc {
+	padding: 10px 8px;
+	border-bottom: 1px solid #e7e7e5;
+}
+
+#sp_expert_desc + .sp_fullbox {
+	border-top: none;
 }
 
 #sp_star_section_upper {
@@ -97,14 +90,7 @@
 	width: 100%;
 	border-top: 1px solid #e7e7e5;
 	border-left: none;
-	font-weight: normal;
 	font-size: 16px;
-}
-
-#sp_difficult_box {
-	border: none;
-	padding: 15px;
-	font-weight: normal;
 }
 
 #social_proof {
@@ -136,14 +122,8 @@
 	margin-right: 3px;
 	float: left;
 }
-.sp_method_text {
-	padding-top: 33px;
-	line-height: 12px;
-	font-weight: normal;
-}
 .sp_text {
 	padding-top: 8px;
-	font-weight: normal;
 	line-height: 1em;
 }
 .sp_text:first-child {
@@ -158,29 +138,14 @@
 	left: 15px;
 	width:50px;
 	height:50px;
-	background:#CDCDCD;
+	background-color: #ADC996;
 	border-radius: 50%;
-	background-image: url(/skins/owl/images/sp_icon_bg.png);
-	background-size:cover;
-	background-image: -webkit-linear-gradient(transparent, transparent), none;
-	background-image: linear-gradient(transparent, transparent), none;
 	border: 3px solid #6F8460;
 }
-#sp_chef .sp_top_icon_bg {
-	background-color: #ADC996;
+.sp_top_icon_bg > div {
+	background-repeat: no-repeat;
 }
 
-.sp_expert_icon_info {
-	background-image: url(/skins/owl/images/sp_icon_info.png);
-	/* @embed */
-	background-image: url(/skins/owl/images/sp_icon_info.svg);
-	right: 15px;
-	top: 15px;
-	width: 16px;
-	height: 16px;
-	position:absolute;
-	background-size: cover;
-}
 .sp_expert_icon {
 	background-size: contain;
 	background-repeat: no-repeat;
@@ -191,12 +156,10 @@
 
 .sp_expert_text {
 	line-height: 52px;
-	font-weight: normal;
 	text-align: left;
 	margin-left: 66px;
 }
 .sp_expert_text > div {
-	font-size: 14px;
 	line-height: normal;
 	display:inline-block;
 	vertical-align:middle;
@@ -204,44 +167,39 @@
 	color: #545454;
 }
 
-#sp_inner .sp_community_text p {
-	font-size: 16px;
-}
-
 .sp_tech_icon {
+	width: 20px;
+	height: 31px;
+	margin: 8px auto 0;
 	background-size: cover;
-	width: 44px;
-	height: 37px;
-	margin: 3px auto 0px auto;
 	background-image: url(/skins/owl/images/sp_tech_icon.png);
 	/* @embed */
-	background-image: url(/skins/owl/images/sp_tech_icon.optimized.svg);
+	background-image: url(/skins/owl/images/sp_tech_icon_optimized.svg);
 }
 .sp_chef_icon {
+	width: 34px;
+	height: 27px;
+	margin: 12px auto 0;
 	background-size: cover;
-	width:34px;
-	height:27px;
 	background-image: url(/skins/owl/images/sp_chef_icon_color.png);
 	/* @embed */
 	background-image: url(/skins/owl/images/sp_chef_icon_color.svg);
-	margin: 12px auto 0 auto;
 }
 .sp_videov_icon {
+	width: 30px;
+	height: 30px;
+	margin: 8px auto 0;
 	background-size: cover;
-	width:48px;
-	height:48px;
-	border-radius: 50%;
-	background-image: url(/skins/owl/images/sp_videov_icon.png);
+	background-image: url(/skins/owl/images/sp_video_icon.png);
 	/* @embed */
-	background-image: url(/skins/owl/images/sp_videov_icon.svg);
+	background-image: url(/skins/owl/images/sp_video_icon.svg);
 }
 .sp_staff_icon {
-	width:50px;
-	height:50px;
+	width: 50px;
+	height: 50px;
 	border-radius: 50%;
 	background-color: #93b874;
 	background-size: 81%;
-	background-repeat: no-repeat;
 	background-position: 45% 50%;
 	/* @embed */
 	background-image: url(/skins/WikiHow/wH-initials_152x152.png);
@@ -250,9 +208,6 @@
 #sp_expert_name, #sp_expert_team {
 	font-size: 16px;
 	font-weight: bold;
-	color: #545454;
-}
-#sp_expert_name a {
 	color: #545454;
 }
 
@@ -268,23 +223,6 @@
 	background-image: -webkit-linear-gradient(transparent, transparent), none;
 	background-image: linear-gradient(transparent, transparent), none;
 }
-.sp_oval_icon_bg {
-	position:absolute;
-	top:18px;
-	left: 0;
-	right: 0;
-	margin: 0 auto;
-	color: #ABABAB;;
-	font-size:22px;
-	font-weight:normal;
-}
-.sp_difficult_popup_container {
-	bottom:190px;
-	left:-20px;
-	position:absolute;
-	z-index:100000007;
-	display:none;
-}
 .sp_difficult_icon {
 	position:absolute;
 	left: 0;
@@ -296,16 +234,6 @@
 	/* @embed */
 	background-image: url(/skins/owl/images/sp_difficult.optimized.svg);
 }
-
-.sp_top_popup_container {
-	top: -50px;
-	right: 18px;
-	left: 30px;
-	position: absolute;
-	z-index: 100000007;
-	display: none;
-	width: 280px;
-}
 .sp_popup_container {
 	bottom:190px;
 	left:-20px;
@@ -313,21 +241,13 @@
 	z-index:100000007;
 	display:none;
 }
-.sp_helpful_popup_container {
-	bottom:190px;
-	left:-20px;
-	position:absolute;
-	z-index:100000007;
-	display:none;
-}
 .hint_box {
-	font-size: 14px;
 	min-width:150px;
 	max-width:180px;
 	position: relative;
 	background: #FFFFFF;
 	border: 3px solid;
-	border-color: rgba(0, 0, 0, .13);
+	border-color: #d5d5d5;
 	border-radius: 4px;
 	font-weight:normal;
 	padding:9px;
@@ -338,24 +258,6 @@
 .stable .content .hint_box p {
 	line-height: 1.3em;
 	margin-bottom: 0;
-}
-#social_proof_mobile .expert_hint_box p {
-	line-height:normal;
-	margin: 0;
-	text-align: left;
-}
-.expert_hint_box img {
-	float:left;
-	width: 45px;
-	border-radius: 50%;
-	margin-right: 8px;
-	margin-bottom: 8px;
-}
-.expert_hint_box {
-	min-height:45px;
-	max-width:280px;
-	padding:8px;
-	margin-bottom:10px;
 }
 .chef_hint_box, .tech_hint_box, .videov_hint_box {
 	min-height:28px;
@@ -490,6 +392,73 @@
 	bottom: -4px;
 }
 
+#sp_icon_hover {
+	z-index: 6;
+	position: absolute;
+	top: 133px;
+	left: 0;
+	background: #FFFFFF;
+	border: 2px solid #7FA065;
+	border-radius: 6px;
+	padding:20px;
+	-moz-background-clip: padding;     /* Firefox 3.6 */
+	-webkit-background-clip: padding;  /* Safari 4? Chrome 6? */
+	background-clip: padding-box;
+	margin: 0 10px;
+	max-width: 30em;
+	font-size: 12.99px;
+}
+#sp_icon_hover:after, #sp_icon_hover:before {
+	top: -29px;
+	left: 44px;
+	border: 14px solid transparent;
+	content: " ";
+	height: 0;
+	width: 0;
+	position: absolute;
+	pointer-events: none;
+}
+#sp_icon_hover:after {
+	border-bottom-color: #FFF;
+	margin-top: 3px;
+}
+#sp_icon_hover:before {
+	border-bottom-color: #7FA065;
+}
+
+#sp_icon_close {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	width: 14px;
+	height: 14px;
+	color: #7FA065;
+	border: 1px solid #7FA065;
+	border-radius: 50%;
+	text-align: center;
+	line-height: 14px;
+	font-weight: bold;
+	text-decoration: none;
+	font-size: 9px;
+	cursor: pointer;
+}
+
+#sp_icon_body a {
+	font-weight: bold;
+}
+
+.sp_learn_more_link {
+	font-weight: bold;
+	display: block;
+	padding-top: .8em;
+}
+#sp_icon_body .sp_expert_icon {
+	width: 20px;
+	height: 20px;
+	display: inline-block;
+	margin-bottom: -4px;
+}
+
 
 @media only screen and (min-width: 500px) and (max-aspect-ratio: 13/9),
 only screen and (max-height: 421px) and (min-aspect-ratio: 13/9) {
@@ -502,12 +471,8 @@ only screen and (max-height: 421px) and (min-aspect-ratio: 13/9) {
 		font-size: 20px;
 	}
 
-	.sp_box, #articleinfo, #sp_expert h4, #sp_inner .sp_community_text p {
+	.sp_box, #articleinfo, #sp_expert h4 {
 		font-size: 20px;
-	}
-
-	#sp_inner .sp_community_text p {
-		line-height: 23px;
 	}
 
 	.sp_icon_bg {
@@ -518,4 +483,7 @@ only screen and (max-height: 421px) and (min-aspect-ratio: 13/9) {
 		margin: 38px 0 5px 103px;
 	}
 
+	#sp_expert_desc {
+		font-size: 1.3em;
+	}
 }

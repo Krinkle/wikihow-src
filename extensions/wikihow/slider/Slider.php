@@ -1,4 +1,4 @@
-<?
+<?php
 
 if (!defined('MEDIAWIKI')) die();
 
@@ -8,15 +8,17 @@ $wgExtensionCredits['special'][] = array(
 	'description' => 'The box that slides in to prompt the user for more stuff.',
 );
 
-$wgSpecialPages['Slider'] = 'Slider';
-$wgAutoloadClasses['Slider'] = dirname( __FILE__ ) . '/Slider.body.php';
-$wgExtensionMessagesFiles['Slider'] = dirname(__FILE__) . '/Slider.i18n.php';
+$wgAutoloadClasses['Slider'] = __DIR__ . '/Slider.class.php';
+$wgExtensionMessagesFiles['Slider'] = __DIR__ . '/Slider.i18n.php';
 
-/*
-logging options:
-- start-button
-- no-link
-- x-button
-- start-link
-- appear
-*/
+$wgResourceModules['ext.wikihow.slider'] =
+	$wgResourceModulesDesktopBoiler + [
+		'styles' => [ 'slider/slider.css' ],
+		'scripts' => [ 'slider/slider.js' ],
+		'messages' => [
+			'slider_cta_video',
+			'slider_url_text_video',
+			'slider_cta_category',
+			'slider_url_text_category',
+		]
+	];

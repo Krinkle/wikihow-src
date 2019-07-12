@@ -32,7 +32,7 @@ class GetArticles {
 
 	public function getCategoryWithArticles() {
 		$cat = $this->getUnresolvedCategory();
-		
+
 		if ( !$cat ) {
 			$cat = $this->getRandomCat();
 		}
@@ -40,16 +40,16 @@ class GetArticles {
 		$categoryKey = $cat->getDBKey();
 		$articles = $this->articlesForCategory( $categoryKey );
 		$this->skipper->skipItem( $categoryKey );
-		
+
 		return [
 			'cat' => $cat,
 			'articles' => $articles
 		];
 	}
-	
+
 	private static function getRandomCat() {
 		$ignore = array_flip( self::getCatsToIgnore() );
-		$cats = Categoryhelper::getAllCategories();
+		$cats = CategoryHelper::getAllCategories();
 		$cat = null;
 		while ( !$cat ) {
 			$i = array_rand( $cats );
@@ -63,7 +63,7 @@ class GetArticles {
 	}
 
 	private function articlesForCategory( $categoryKey ) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$table = [ self::TABLE, 'page' ];
 		$vars = '*';
 		$cond = ['cat_slug' => $categoryKey, 'resolved = 0', 'page.page_id = category_article_votes.page_id'];
@@ -84,7 +84,7 @@ class GetArticles {
 	}
 
 	private function getExtraArticlesInCategory( $articles, $categoryKey ) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$numNeeded = self::ARTICLES_PER_REQUEST - count($articles);
 		$conditions = [
 			'categorylinks.cl_to' => $categoryKey,
@@ -119,8 +119,8 @@ class GetArticles {
 	}
 
 	protected function getUnresolvedCategory() {
-		$dbr = wfGetDB( DB_SLAVE );
-		$table = [ 'category_article_votes', 'page' ];
+		$dbr = wfGetDB( DB_REPLICA );
+		$table = [ self::TABLE, 'page' ];
 
 		$cond = ['resolved = 0', 'page.page_id = category_article_votes.page_id'];
 		$ignore = array();
@@ -134,4 +134,23 @@ class GetArticles {
 		return $cat;
 	}
 
+	public function getRemainingCount() {
+		$dbr = wfGetDB( DB_REPLICA );
+		$tables = [ self::TABLE, 'page' ];
+
+		$cond = [
+			'page.page_id = '.self::TABLE.'.page_id',
+			'resolved' => 0
+		];
+
+		$ignore = [];
+		foreach ( $this->skipCats as $cat ) {
+			$ignore[] = $dbr->addQuotes( $cat );
+		}
+		$ignore = implode( ",", $ignore );
+		if (!empty($ignore)) $cond[] = "cat_slug NOT IN ($ignore)";
+
+		$count = $dbr->selectField( $tables, 'count(*)', $cond, __METHOD__ );
+		return $count;
+	}
 }

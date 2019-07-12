@@ -1,13 +1,17 @@
 <?php
 
-
 class DedupTool extends UnlistedSpecialPage {
 
-	const TABLE_NAME = 'deduptool';
+	const TABLE_NAME = 'dedup.deduptool';
 	const CHECKOUT_EXPIRY = 3600; //1 hour - 60*60
 
 	public function __construct() {
 		parent::__construct( 'DedupTool' );
+	}
+
+	// method stops redirects when running on titus host
+	public function isSpecialPageAllowedOnTitus() {
+		return true;
 	}
 
 	public function execute( $subPage ) {
@@ -27,7 +31,7 @@ class DedupTool extends UnlistedSpecialPage {
 		}
 
 		$groups = $user->getGroups();
-		if( !in_array('staff', $groups) && !in_array('staff_widget', $groups)) {
+		if ( !in_array('staff', $groups) && !in_array('staff_widget', $groups)) {
 			$output->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
@@ -40,7 +44,7 @@ class DedupTool extends UnlistedSpecialPage {
 			print json_encode( $data );
 
 			return;
-		} else if ( $request->wasPosted() && XSSFilter::isValidRequest() ) {
+		} elseif ( $request->wasPosted() && XSSFilter::isValidRequest() ) {
 			$output->setArticleBodyOnly( true );
 			$this->saveVote();
 			$data = $this->getNext();
@@ -56,7 +60,7 @@ class DedupTool extends UnlistedSpecialPage {
 	}
 
 	private function getToolHTML() {
-		$loader = new Mustache_Loader_CascadingLoader( [new Mustache_Loader_FilesystemLoader( dirname( __FILE__ ) )] );
+		$loader = new Mustache_Loader_CascadingLoader( [new Mustache_Loader_FilesystemLoader( __DIR__ )] );
 		$options = array( 'loader' => $loader );
 		$m = new Mustache_Engine( $options );
 		$html = $m->render( 'deduptool' );
@@ -68,7 +72,7 @@ class DedupTool extends UnlistedSpecialPage {
      * get the next article to vote on
 	 */
 	private function getNext() {
-		$dbr = wfGetDb( DB_SLAVE );
+		$dbr = wfGetDb( DB_REPLICA );
 
 		$options = [
 			"SQL_CALC_FOUND_ROWS",
@@ -90,7 +94,7 @@ class DedupTool extends UnlistedSpecialPage {
 		);
 
 		$row = $dbr->fetchObject($res);
-		if(!$row) {
+		if (!$row) {
 			//nothing left
 			$vars['error'] = true;
 			$vars['count'] = 0;
@@ -103,9 +107,9 @@ class DedupTool extends UnlistedSpecialPage {
 		$titlesTo = [];
 		$ids = json_decode($row->ddt_to);
 		$idsTo = [];
-		foreach($ids as $id) {
+		foreach ($ids as $id) {
 			$title = Title::newFromId($id);
-			if($title) {
+			if ($title) {
 				$titlesTo[] = wfMessage("howto", $title->getText())->text();
 				$idsTo[] = $id;
 			}
@@ -161,7 +165,7 @@ class DedupTool extends UnlistedSpecialPage {
 	}
 
 	public static function getRemainingCount() {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$expirytimestamp = wfTimestamp( TS_MW, time() - self::CHECKOUT_EXPIRY );
 		$where = [
 			"ddt_final" => 0,
@@ -190,7 +194,7 @@ class DedupTool extends UnlistedSpecialPage {
 
 /*****
  *
-CREATE TABLE `deduptool` (
+CREATE TABLE `dedup.deduptool` (
 `ddt_id` int(10) NOT NULL AUTO_INCREMENT,
 `ddt_query` blob NOT NULL,
 `ddt_to` blob NOT NULL,

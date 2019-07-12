@@ -4,24 +4,31 @@
  * The jobs posted here are run by /data/classify_titles/runjobs.py
  * The results can be collected from this page
  */
- 
+
 class ClassifyTitles extends UnlistedSpecialPage {
 
 	private $errors = [];
 	const JOBNAME = "Classify Titles";
 
-	function __construct() {
-		$this->action = $GLOBALS[ 'wgTitle' ]->getPartialUrl();
+	public function __construct() {
+		global $wgHooks;
+		$this->action = RequestContext::getMain()->getTitle()->getPartialUrl();
 		parent::__construct( $this->action );
-		$GLOBALS[ 'wgHooks' ][ 'ShowSideBar' ][] = [ 'Turker::removeSideBarCallback' ];
+		$wgHooks[ 'ShowSideBar' ][] = [ 'Turker::removeSideBarCallback' ];
 	}
 
-	static function removeSideBarCallback( &$showSideBar ) {
+	public static function removeSideBarCallback( &$showSideBar ) {
 		$showSideBar = false;
 		return true;
 	}
-//Function to get results
-	function processBatchRequest( $postedValues ) {
+
+	// method stops redirects when running on titus host
+	public function isSpecialPageAllowedOnTitus() {
+		return true;
+	}
+
+	// Function to get results
+	private function processBatchRequest( $postedValues ) {
 		$allData = False;
 		$lastBatch = False;
 		$batchId = 0;
@@ -31,8 +38,8 @@ class ClassifyTitles extends UnlistedSpecialPage {
 			$allData = True;
 		}
 		elseif ( isset( $postedValues[ 'lastbatch' ] ) ) {
-			// find the last batch id 
-			$dbr = wfGetDB( DB_SLAVE );
+			// find the last batch id
+			$dbr = wfGetDB( DB_REPLICA );
 			$row = $dbr->selectRow( 'classify_titles.ctjobs', [ 'ct_id' ], [ 'ct_status=2' ], __METHOD__, [ 'ORDER BY' => 'ct_id DESC' ] );
 			if ( $row ) {
 				$batchId = $row->ct_id;
@@ -42,12 +49,12 @@ class ClassifyTitles extends UnlistedSpecialPage {
 		}
 
 		$this->getResults( $batchId, $allData );
-		return;
 	}
-//Used to fectch results from the db
+
+	// Used to fectch results from the db
 	private function getResults( $batchId, $allData ) {
 
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		if ( !$allData ) {
 			$conds= [ "ct_batchid" => $batchId ];
 		}else{
@@ -71,7 +78,7 @@ class ClassifyTitles extends UnlistedSpecialPage {
 		$fileHandle = fopen( 'php://output' ,'w' );
 		fputcsv( $fileHandle, $header, ',', '"' );
 		if ( $res ) {
-			foreach( $res as $row ) {
+			foreach ( $res as $row ) {
 				$restData = explode( ',', str_replace( [ '(', ')' ], '', $row->ct_rest ) );
 				if ( $restData ) {
 					$data = array_merge( [ $row->ct_text, $row->ct_result, $row->ct_confidence ], $restData );
@@ -81,11 +88,11 @@ class ClassifyTitles extends UnlistedSpecialPage {
 				fputcsv( $fileHandle, $data, ',', '"' );
 			}
 		}
-		return;
 	}
-// Displays existing job status at page load
+
+	// Displays existing job status at page load
 	private function getJobStatus() {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$dbw = wfGetDB( DB_MASTER );
 		$html = '';
 		$conds = [ "ct_newjobs" => 1 ] ;
@@ -116,11 +123,12 @@ class ClassifyTitles extends UnlistedSpecialPage {
 		}
 		return $html;
 	}
-//Post the job to the jobdb table
- function processUpload( $uploadfile, $userName ) {
+
+	// Post the job to the jobdb table
+	private function processUpload( $uploadfile, $userName ) {
 
 		// Check file for format and save it to the local dir
-		if( !file_exists( $uploadfile ) || !is_readable( $uploadfile ) ) {
+		if ( !file_exists( $uploadfile ) || !is_readable( $uploadfile ) ) {
 			$this->$errors[] = 'Could not find file. File not uploaded.';
 			return 'Bad File' ;
 		}
@@ -167,7 +175,7 @@ class ClassifyTitles extends UnlistedSpecialPage {
 							'ct_jobmessage'=>$jobMessage,
 							'ct_user'=>$userName]
 							, __METHOD__
-							, [] 
+							, []
 						);
 		}
 		return 'Upload job added';
@@ -176,7 +184,7 @@ class ClassifyTitles extends UnlistedSpecialPage {
 	/**
 	 * Execute special page.  Only available to wikihow staff.
 	 */
-	function execute( $par ) {
+	public function execute( $par ) {
 
 		$req = $this->getRequest();
 		$out = $this->getOutput();
@@ -186,7 +194,7 @@ class ClassifyTitles extends UnlistedSpecialPage {
 		// Check permissions
 		$userGroups = $user->getGroups();
 		if ( ( $userName != 'Rjsbhatia' ) && ( $user->isBlocked() || !( in_array( 'staff', $userGroups ) ) ) ) {
-			$out->setRobotpolicy( 'noindex,nofollow' );
+			$out->setRobotPolicy( 'noindex,nofollow' );
 			$out->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
 			return;
 		}
@@ -210,7 +218,7 @@ class ClassifyTitles extends UnlistedSpecialPage {
 						'jobStatus' => $this->getJobStatus()
 						];
 
-		$options = [ 'loader' => new Mustache_Loader_FilesystemLoader( dirname( __FILE__ ) ) , ];
+		$options = [ 'loader' => new Mustache_Loader_FilesystemLoader( __DIR__ ) , ];
 		$m = new Mustache_Engine( $options );
 		$tmpl = $m->render( 'classifytitles.mustache', $must_vars );
 
@@ -220,7 +228,7 @@ class ClassifyTitles extends UnlistedSpecialPage {
 			$errors = '<div class="errors">ERRORS:<br />'.implode('<br />', self::$errors).'</div>';
 			$tmpl = $errors.  $tmpl;
 		}
-        
+
 		$out->addHTML( $tmpl );
 	}
 }

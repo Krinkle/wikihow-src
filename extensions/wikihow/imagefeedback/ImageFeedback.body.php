@@ -25,24 +25,26 @@ class ImageFeedback extends UnlistedSpecialPage {
 	const WIKIPHOTO_USER_NAME = 'wikiphoto';
 	public static $allowAnonFeedback = null;
 
-	function __construct() {
+	public function __construct() {
 		parent::__construct('ImageFeedback');
 	}
 
-	function execute($par) {
-		global $wgRequest, $wgOut, $wgUser, $wgServer;
+	public function execute($par) {
 		global $wgIsTitusServer, $wgIsDevServer, $wgIsToolsServer;
 
-		if ($wgRequest->wasPosted()) {
-			$action = $wgRequest->getVal('a');
-			if (in_array('staff', $wgUser->getGroups()) && $action == 'reset_urls') {
+		$req = $this->getRequest();
+		$user = $this->getUser();
+
+		if ($req->wasPosted()) {
+			$action = $req->getVal('a');
+			if (in_array('staff', $user->getGroups()) && $action == 'reset_urls') {
 				$this->resetUrls();
 			} else {
 				$this->handleImageFeedback();
 			}
 		} else {
 			if (($wgIsTitusServer || $wgIsDevServer || $wgIsToolsServer) &&
-				in_array( 'staff', $wgUser->getGroups() )
+				in_array( 'staff', $user->getGroups() )
 			) {
 				$this->showAdminForm();
 			}
@@ -50,10 +52,9 @@ class ImageFeedback extends UnlistedSpecialPage {
 	}
 
 	private function showAdminForm() {
-		global $wgOut;
-		EasyTemplate::set_path(dirname(__FILE__));
+		EasyTemplate::set_path(__DIR__);
 		$vars['ts'] = wfTimestampNow();
-		$wgOut->addHtml(EasyTemplate::html('imagefeedback_admin'));
+		$this->getOutput()->addHtml(EasyTemplate::html('imagefeedback_admin.tmpl.php'));
 	}
 
 	// The original function missed URLs from pages that had been deleted.
@@ -61,9 +62,8 @@ class ImageFeedback extends UnlistedSpecialPage {
 	// If so, it searches the image_feedback table by URL rather than articleID.
 	// The function also addresses the edge cases when an article ID or URL has changed.
 	private function resetUrls() {
-		global $wgRequest, $wgOut;
 		$deletedNames = array();
-		$urls = preg_split("@\n@", trim($wgRequest->getVal('if_urls')));
+		$urls = preg_split("@\n@", trim($this->getRequest()->getVal('if_urls')));
 		$count = 0;
 		$dbw = wfGetDB(DB_MASTER);
 
@@ -74,7 +74,7 @@ class ImageFeedback extends UnlistedSpecialPage {
 					$aids[] = $t->getArticleId();
 					$aidsBackup[] = $dbw->addQuotes($t->getPrefixedURL());
 					$count++;
-				} else if ($t && $t->isDeletedQuick()) { //if the page was deleted
+				} elseif ($t && $t->isDeletedQuick()) { //if the page was deleted
 					$deletedNames[] = $dbw->addQuotes($t->getPrefixedURL());
 					$count++;
 				} else {
@@ -110,52 +110,52 @@ class ImageFeedback extends UnlistedSpecialPage {
 		if (sizeof($invalid)) {
 			$invalid = "These input urls are never existed:<br><br>" . implode("<br>", $invalid);
 		}
-		$wgOut->setArticleBodyOnly(true);
-		$wgOut->addHtml("$affectedRows reset.$invalid");
+		$this->getOutput()->setArticleBodyOnly(true);
+		$this->getOutput()->addHtml("$affectedRows reset.$invalid");
 	}
 
 	private function handleImageFeedback() {
-		global $wgRequest, $wgOut, $wgUser;
+		$req = $this->getRequest();
+		$out = $this->getOutput();
+		$user = $this->getUser();
 
-		$wgOut->setArticleBodyOnly(true);
-		$dbw = wfGetDB(DB_MASTER);
-
-		$reason = $wgRequest->getVal('reason');
-		// Remove / chars from reason since this will be our delimeter in the ii_reason field
-		$reason = $dbw->strencode(trim(str_replace("/", "", $reason)));
-		// Add user who reported
-		$reason = $wgUser->getName() . " says: $reason";
-
-		$voteTypePrefix = $wgRequest->getVal('voteType') == 'good' ? 'ii_good' : 'ii_bad';
-
-		$aid = $dbw->addQuotes($wgRequest->getVal('aid'));
-		$imgUrl = substr(trim($wgRequest->getVal('imgUrl')), 1);
-		$isWikiPhotoImg = 0;
+		$out->setArticleBodyOnly(true);
+		$imgUrl = substr(trim($req->getVal('imgUrl')), 1);
 
 		// Check if image is a wikiphoto image
-		$t = Title::newFromUrl($imgUrl);
-		if ($t && $t->exists()) {
-			$r = Revision::newFromTitle($t);
-			$userText = $r->getUserText();
-			if (strtolower($r->getUserText()) == self::WIKIPHOTO_USER_NAME) {
-				$isWikiPhotoImg = 1;
-			}
-
-			$url = substr($t->getLocalUrl(), 1);
-			$voteField = $voteTypePrefix . "_votes";
-			$reasonField = $voteTypePrefix . "_reasons";
-			$sql = "INSERT INTO image_feedback
-				(ii_img_page_id, ii_wikiphoto_img, ii_page_id, ii_img_url, $voteField, $reasonField) VALUES
-				({$t->getArticleId()}, $isWikiPhotoImg, $aid, '$url', 1, '$reason')
-				ON DUPLICATE KEY UPDATE
-				$voteField = $voteField + 1, $reasonField = CONCAT($reasonField, '/$reason')";
-			$dbw->query($sql, __METHOD__);
+		$title = Title::newFromUrl($imgUrl);
+		if (!$title || !$title->exists()) {
+			return;
 		}
+
+		$revision = Revision::newFromTitle($title);
+		$uname = strtolower($revision->getUserText());
+		$prefix = $req->getVal('voteType') == 'good' ? 'ii_good' : 'ii_bad';
+
+		$dbw = wfGetDB(DB_MASTER);
+		$isWikiPhotoImg = ($uname == self::WIKIPHOTO_USER_NAME) ? 1 : 0;
+		$voteField = $prefix . '_votes';
+		$reasonField = $prefix . '_reasons';
+		// Remove / chars from reason since this will be our delimeter in the ii_reason field
+		$reason = $req->getVal('reason');
+		$reason = $user->getName() . ' says: ' . trim(str_replace('/', '', $reason));
+		$reason = $dbw->strencode($reason);
+		$row = [
+			'ii_img_page_id' => $title->getArticleId(),
+			'ii_wikiphoto_img' => $isWikiPhotoImg,
+			'ii_page_id' => $req->getInt('aid'),
+			'ii_img_url' => substr($title->getLocalUrl(), 1),
+			$voteField => 1,
+			$reasonField => $reason
+		];
+		$set = [
+			"$voteField = $voteField + 1, $reasonField = CONCAT($reasonField, '/$reason')"
+
+		];
+		$dbw->upsert('image_feedback', $row, [], $set);
 	}
 
 	public static function getImageFeedbackLink() {
-		global $wgUser;
-
 		if (self::isValidPage()) {
 			$rptLink = "<a class='rpt_img' href='#'><span class='rpt_img_ico'></span>Helpful?</a>";
 		} else {
@@ -165,7 +165,9 @@ class ImageFeedback extends UnlistedSpecialPage {
 	}
 
 	public static function isValidPage() {
-		global $wgUser, $wgTitle, $wgRequest;
+		$req = RequestContext::getMain()->getRequest();
+		$title = RequestContext::getMain()->getTitle();
+		$user = RequestContext::getMain()->getUser();
 
 		if (is_null(self::$allowAnonFeedback)) {
 			// Allow anon feedback on ~5% of articles
@@ -177,20 +179,21 @@ class ImageFeedback extends UnlistedSpecialPage {
 		$ctx = MobileContext::singleton();
 		$isMobileMode = $ctx->shouldDisplayMobileView();
 
-		return $wgUser &&
-			(!$wgUser->isAnon() || $allowAnonFeedback) &&
+		return $user &&
+			(!$user->isAnon() || $allowAnonFeedback) &&
 			!$isMobileMode &&
-			$wgTitle &&
-			$wgTitle->exists() &&
-			$wgTitle->getNamespace() == NS_MAIN &&
-			$wgRequest &&
-			$wgRequest->getVal('create-new-article') == '' &&
+			$title &&
+			$title->exists() &&
+			$title->inNamespace(NS_MAIN) &&
+			$req &&
+			$req->getVal('create-new-article') == '' &&
 			!self::isMainPage();
 	}
 
 	public static function isMainPage() {
-		global $wgTitle;
-		return $wgTitle && $wgTitle->getNamespace() == NS_MAIN &&
-			$wgTitle->getText() == wfMessage('mainpage')->text();
+		$title = RequestContext::getMain()->getTitle();
+		return $title
+			&& $title->inNamespace(NS_MAIN)
+			&& $title->getText() == wfMessage('mainpage')->text();
 	}
 }

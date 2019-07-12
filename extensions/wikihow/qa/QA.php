@@ -10,6 +10,8 @@ $wgSpecialPages['QAAdmin'] = 'QAAdmin';
 $wgAutoloadClasses['QAAdmin'] = __DIR__ . '/admin/QAAdmin.body.php';
 $wgExtensionMessagesFiles['QAAdmin'] = __DIR__ . '/admin/QAAdmin.i18n.php';
 
+$wgExtensionMessagesFiles['QAAliases'] = __DIR__ . '/QA.alias.php';
+
 $wgExtensionCredits['QA'][] = array(
 	'name' => 'Q&A',
 	'author' => 'Jordan Small',
@@ -19,27 +21,27 @@ $wgExtensionCredits['QA'][] = array(
 $wgSpecialPages['QA'] = 'QA';
 $wgAutoloadClasses['QA'] = __DIR__ . '/widget/QA.body.php';
 
-$wgAutoloadClasses['QAWidget'] = dirname( __FILE__ ) . '/widget/QAWidget.php';
+$wgAutoloadClasses['QAWidget'] = __DIR__ . '/widget/QAWidget.php';
 $wgMessagesDirs['QAWidget'] = [
 	$IP . '/extensions/wikihow/ext-utils/thumbs_up_down/i18n/',
 	__DIR__ . '/widget/i18n/',
 ];
 
-$wgAutoloadClasses['QAWidgetCache'] = dirname( __FILE__ ) . '/widget/QAWidgetCache.php';
-$wgAutoloadClasses['QADB'] = dirname( __FILE__ ) . '/model/QADB.php';
+$wgAutoloadClasses['QAWidgetCache'] = __DIR__ . '/widget/QAWidgetCache.php';
+$wgAutoloadClasses['QADB'] = __DIR__ . '/model/QADB.php';
 $wgExtensionMessagesFiles['QADB'] = __DIR__ . '/model/QADB.i18n.php';
-$wgAutoloadClasses['QADBResult'] = dirname( __FILE__ ) . '/model/QADBResult.php';
-$wgAutoloadClasses['ArticleQuestion'] = dirname( __FILE__ ) . '/model/ArticleQuestion.php';
-$wgAutoloadClasses['SubmittedQuestion'] = dirname( __FILE__ ) . '/model/SubmittedQuestion.php';
-$wgAutoloadClasses['CuratedQuestion'] = dirname( __FILE__ ) . '/model/CuratedQuestion.php';
-$wgAutoloadClasses['CuratedAnswer'] = dirname( __FILE__ ) . '/model/CuratedAnswer.php';
-$wgAutoloadClasses['QAImportDoc'] = dirname( __FILE__ ) . '/model/QAImportDoc.php';
-$wgAutoloadClasses['QADataFile'] = dirname( __FILE__ ) . '/QADataFile.php';
-$wgAutoloadClasses['QAUtil'] = dirname( __FILE__ ) . '/QAUtil.php';
+$wgAutoloadClasses['QADBResult'] = __DIR__ . '/model/QADBResult.php';
+$wgAutoloadClasses['ArticleQuestion'] = __DIR__ . '/model/ArticleQuestion.php';
+$wgAutoloadClasses['SubmittedQuestion'] = __DIR__ . '/model/SubmittedQuestion.php';
+$wgAutoloadClasses['CuratedQuestion'] = __DIR__ . '/model/CuratedQuestion.php';
+$wgAutoloadClasses['CuratedAnswer'] = __DIR__ . '/model/CuratedAnswer.php';
+$wgAutoloadClasses['QAImportDoc'] = __DIR__ . '/model/QAImportDoc.php';
+$wgAutoloadClasses['QADataFile'] = __DIR__ . '/QADataFile.php';
+$wgAutoloadClasses['QAUtil'] = __DIR__ . '/QAUtil.php';
 
-$wgAutoloadClasses['QACopyCheckJob'] = dirname(__FILE__) . '/jobs/QACopyCheckJob.php';
-$wgAutoloadClasses['QAAnswerEmailJob'] = dirname(__FILE__) . '/jobs/QAAnswerEmailJob.php';
-$wgAutoloadClasses['QAHelpfulnessEmailJob'] = dirname(__FILE__) . '/jobs/QAHelpfulnessEmailJob.php';
+$wgAutoloadClasses['QACopyCheckJob'] = __DIR__ . '/jobs/QACopyCheckJob.php';
+$wgAutoloadClasses['QAAnswerEmailJob'] = __DIR__ . '/jobs/QAAnswerEmailJob.php';
+$wgAutoloadClasses['QAHelpfulnessEmailJob'] = __DIR__ . '/jobs/QAHelpfulnessEmailJob.php';
 $wgMessagesDirs['QAHelpfulnessEmailJob'] = [ __DIR__ . '/jobs/i18n/' ];
 
 $wgHooks['BeforePageDisplay'][] = 'QAWidget::onBeforePageDisplay';
@@ -104,7 +106,8 @@ $wgResourceModules['mobile.wikihow.qa_widget'] = array(
 		'ta_answers_label',
 		'ta_label',
 		'ta_subcats_intro',
-		'ta_subcats_outro'
+		'ta_subcats_outro',
+		'qa_question_label'
 	],
 	'targets' => [
 		'mobile',
@@ -117,6 +120,8 @@ $wgResourceModules['mobile.wikihow.qa_widget'] = array(
 		'wikihow.common.string_validator',
 		'mobile.wikihow.common.thumbs_up_down',
 		'wikihow.common.pub_sub',
+		'ext.wikihow.socialauth',
+        'ext.wikihow.sociallogin.buttons'
 	],
 );
 
@@ -181,7 +186,8 @@ $wgResourceModules['ext.wikihow.qa_widget'] = array(
 		'ta_subcats_intro',
 		'ta_subcats_outro',
 		'qa_afo_incorrect',
-		'qa_afo_other'
+		'qa_afo_other',
+		'qa_question_label'
 	],
 	'targets' => array('mobile', 'desktop'),
 	'dependencies' => [
@@ -191,6 +197,8 @@ $wgResourceModules['ext.wikihow.qa_widget'] = array(
 		'wikihow.common.string_validator',
 		'wikihow.common.thumbs_up_down',
 		'wikihow.common.pub_sub',
+		'ext.wikihow.socialauth',
+        'ext.wikihow.sociallogin.buttons'
 	],
 );
 

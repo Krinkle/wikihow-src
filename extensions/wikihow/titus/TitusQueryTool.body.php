@@ -8,7 +8,9 @@ class TitusQueryTool extends UnlistedSpecialPage {
 
 	var $languageInfo  = array();
 
-	function __construct() {
+	public function __construct() {
+		global $wgHooks, $IP;
+
 		parent::__construct('TitusQueryTool');
 
 		// Give php a higher memory limit for Titus
@@ -16,79 +18,90 @@ class TitusQueryTool extends UnlistedSpecialPage {
 
 		$this->language="";
 		$this->languageInfo = Misc::getActiveLanguageNames();
-		$GLOBALS['wgHooks']['ShowSideBar'][] = array('TitusQueryTool::removeSideBarCallback');
+
+		$wgHooks['ShowSideBar'][] = array('TitusQueryTool::removeSideBarCallback');
+
+		require_once("$IP/extensions/wikihow/titus/Titus.class.php");
 	}
 
-	static function removeSideBarCallback(&$showSideBar) {
+	public static function removeSideBarCallback(&$showSideBar) {
 		$showSideBar = false;
 		return true;
 	}
 
-	function initialize() {
-		global $wgRequest, $wgOut, $IP, $wgLoadBalancer;
+	private function initialize() {
+		$out = $this->getOutput();
 
 		set_time_limit(600);
 
 		if ($this->isPageRestricted()) {
-			$wgOut->setRobotpolicy('noindex,nofollow');
-			$wgOut->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
+			$out->setRobotPolicy('noindex,nofollow');
+			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return false;
 		}
 
-		require_once("$IP/extensions/wikihow/titus/Titus.class.php");
 		$this->titus = new TitusDB(false);
 
-		$wgOut->addModules('ext.wikihow.titusquerytool');
+		$out->addModules('ext.wikihow.titusquerytool');
 		return true;
 	}
 
-	function isPageRestricted() {
-		global $wgUser, $wgIsToolsServer, $wgIsTitusServer, $wgIsDevServer;
+	// NOTE: something to keep in mind, if we ever open restrictions on
+	// Titus, even a little bit: it would be VERY easy to do anything to
+	// our databases for someone with access to Titus. The way it is
+	// written, SQL is passed over the wire and executed without checking
+	// it. This would be hard to re-do, since the SQL builder is in JS.
+	// So this means we just have to be very, VERY selective about who
+	// gets access.
+	private function isPageRestricted() {
+		global $wgIsToolsServer, $wgIsTitusServer, $wgIsDevServer;
 
-		$userGroups = $wgUser->getGroups();
-
+		$userGroups = $this->getUser()->getGroups();
 		return !($wgIsToolsServer || $wgIsTitusServer || $wgIsDevServer)
-			|| $wgUser->isBlocked()
+			|| $this->getUser()->isBlocked()
 			|| !in_array('staff', $userGroups);
 	}
 
-	function execute($par) {
-		global $wgOut, $wgRequest;
+	// method is necessary to stop redirects on titus host
+	public function isSpecialPageAllowedOnTitus() {
+		return true;
+	}
 
+	public function execute($par) {
 		if (!$this->initialize()) {
 			return;
 		}
 
-		if ($wgRequest->wasPosted()) {
-			$action = $wgRequest->getVal('action');
+		$out = $this->getOutput();
+		if ($this->getRequest()->wasPosted()) {
+			$out->disable();
+			$action = $this->getRequest()->getVal('action');
 			if ($action == 'query') {
 				$this->loadExcluded();
 				$this->handleQuery();
-			}
-			else {
+			} else {
 				$this->handleVault($action);
 			}
-			$wgOut->disable();
 		} else {
-			$wgOut->setPageTitle('Dear Titus...');
-			$wgOut->addHtml($this->getToolHtml());
+			$out->setPageTitle('Dear Titus...');
+			$out->addHtml($this->getToolHtml());
 		}
 	}
 
 
-	function getHeaderRow(&$res, $delimiter = "\t") {
-		$dbr = wfGetDB(DB_SLAVE);
+	private function getHeaderRow($res, $delimiter = "\t") {
+		$dbr = wfGetDB(DB_REPLICA);
 		$n = $dbr->numFields($res);
 		$fields = array('titus_query_url', 'titus_status', 'redirect_target');
-		for( $i = 0; $i < $n; $i++ ) {
-			$fields[] = $dbr->fieldName($res,$i);
+		for ( $i = 0; $i < $n; $i++ ) {
+			$fields[] = $dbr->fieldName($res, $i);
 		}
 		return implode($delimiter, $fields) . "\n";
 	}
 
-	function getTitusFields() {
+	private function getTitusFields() {
 		$data = array();
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$titus = $this->titus;
 		$res = $titus->performTitusQuery("SELECT COLUMN_NAME, ORDINAL_POSITION, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '" . $titus->getDBName() . "' AND TABLE_NAME = '" . $titus::TITUS_INTL_TABLE_NAME . "'", 'read', __METHOD__);
 		foreach ($res as $r) {
@@ -137,18 +150,17 @@ class TitusQueryTool extends UnlistedSpecialPage {
 		return json_encode($data);
 	}
 
-	function handleQuery() {
-		global $wgRequest;
+	private function handleQuery() {
 		global $wgWikiHowLanguages;
 
+		$req = $this->getRequest();
 		$ids = array();
-		$urlQuery = $wgRequest->getVal('page-filter') == 'urls';
-		$pageFilter = $wgRequest->getVal('page-filter');
-		if($pageFilter == 'urls') {
-			$ids = self::getIdsFromUrls(urldecode(trim($wgRequest->getVal('urls'))));
-		}
-		else {
-			if(in_array($pageFilter,$wgWikiHowLanguages) || $pageFilter=="en" || $pageFilter == "noen") {
+		$urlQuery = $req->getVal('page-filter') == 'urls';
+		$pageFilter = $req->getVal('page-filter');
+		if ($pageFilter == 'urls') {
+			$ids = self::getIdsFromUrls(urldecode(trim($req->getVal('urls'))));
+		} else {
+			if (in_array($pageFilter,$wgWikiHowLanguages) || $pageFilter=="en" || $pageFilter == "noen") {
 				$this->language = $pageFilter;
 			}
 		}
@@ -156,30 +168,30 @@ class TitusQueryTool extends UnlistedSpecialPage {
 		$titus = $this->titus;
 		$res = $titus->performTitusQuery($sql, 'read', __METHOD__);
 		$headerRow = $this->getHeaderRow($res);
-		$outputValid = $wgRequest->getVal('ti_exclude');
+		$outputValid = $req->getVal('ti_exclude');
 		$timestamp = date('Y_m_d');
-		$filename = sprintf("titus_query_%s.xls", $timestamp);
+		$filename = sprintf("titus_query_%s.tsv", $timestamp);
 		$this->startOutput($filename, $headerRow);
 
-		if($urlQuery) {
+		if ($urlQuery) {
 			// build $rows variable from titus results
 			$rows = array();
-			foreach($res as $row) {
+			foreach ($res as $row) {
 				$r = get_object_vars($row);
-				if(isset($r['ti_page_id']) && isset($r['ti_language_code'])) {
+				if (isset($r['ti_page_id']) && isset($r['ti_language_code'])) {
 					$rows[$r['ti_language_code'] . $r['ti_page_id']]=$r;
 				}
 			}
 
 			// relate input back to titus results
-			foreach($ids as $id) {
+			foreach ($ids as $id) {
 				$row = array();
 				$rowKey = $id['language'] . $id['page_id'];
-				if(isset($rows[$rowKey])) {
+				if (isset($rows[$rowKey])) {
 					$row = $rows[$rowKey];
 				}
 				$status = 'invalid';
-				if(!empty($id['language'])) {
+				if (!empty($id['language'])) {
 					if ($id['language']=="en" && $this->isExcludedPageId($id['page_id'])) {
 						$status = 'excluded';
 					} else {
@@ -216,14 +228,15 @@ class TitusQueryTool extends UnlistedSpecialPage {
 		}
 	}
 
-	function buildSQL(&$ids) {
-		global $wgRequest;
-
-		$dbr = wfGetDB(DB_SLAVE);
-		$sql = urldecode( $wgRequest->getVal( 'sql' ) );
-		if(stripos($sql, "FROM titus") > 0) {
+	private function buildSQL($ids) {
+		$dbr = wfGetDB(DB_REPLICA);
+		// WARNING: sending SQL over the wire is not something Reuben loves. </3
+		// We need to be super careful that injections, csrfs, hijacking etc can't
+		// happen with this special page.
+		$sql = urldecode( $this->getRequest()->getVal( 'sql' ) );
+		if (stripos($sql, "FROM titus") > 0) {
 			// Always get the language_code
-			if(stripos($sql, "ti_language_code") == FALSE) {
+			if (stripos($sql, "ti_language_code") == FALSE) {
 				$sql = str_replace("FROM titus", ', ti_language_code as "ti_language_code" FROM titus',$sql);
 			}
 			$sql = str_replace("FROM titus","FROM " . TitusDB::TITUS_TABLE_NAME , $sql);
@@ -232,13 +245,12 @@ class TitusQueryTool extends UnlistedSpecialPage {
 					$sql = preg_replace('@SELECT @', 'SELECT ti_page_id as "ti_page_id",', $sql);
 			}
 
-		}
-		else {
+		} else {
 			$sql = "SELECT * FROM " . TitusDB::TITUS_TABLE_NAME;
 		}
 		$pageCondition = "";
-		if($this->language != "") {
-			if($this->language == "noen") {
+		if ($this->language != "") {
+			if ($this->language == "noen") {
 				$pageCondition = "ti_language_code <> 'en'";
 			}
 			else {
@@ -246,19 +258,18 @@ class TitusQueryTool extends UnlistedSpecialPage {
 			}
 		}
 		$langConditions = array();
-		if(is_array($ids) && sizeof($ids) > 0) {
-			$sz=sizeof($ids);
-			foreach($ids as $id) {
-				if(!empty($id['page_id'])) {
-					if(!isset($langConditions[$id['language']]) ) {
+		if (is_array($ids) && sizeof($ids) > 0) {
+			foreach ($ids as $id) {
+				if (!empty($id['page_id'])) {
+					if (!isset($langConditions[$id['language']]) ) {
 						$langConditions[$id['language']] = array();
 					}
 					$langConditions[$id['language']][] = $id['page_id'];
 				}
 				#$pageCondition .= "(ti_page_id ='" . $id['page_id'] . "' AND ti_language_code='" . $id['language'] ."')";
 			}
-			foreach($langConditions as $lang => $langIds) {
-				if($pageCondition != "") {
+			foreach ($langConditions as $lang => $langIds) {
+				if ($pageCondition != "") {
 					$pageCondition .= " OR ";
 				}
 
@@ -267,24 +278,22 @@ class TitusQueryTool extends UnlistedSpecialPage {
 
 		}
 		if (stripos($sql, "WHERE ") ) {
-			if($pageCondition) {
+			if ($pageCondition) {
 				$pageCondition = " AND (" . $pageCondition . ")";
 			}
 			$sql = preg_replace("@WHERE (.+)$@", "WHERE (\\1) $pageCondition", $sql);
-		} elseif($pageCondition!="") {
+		} elseif ($pageCondition!="") {
 			$sql .= " WHERE $pageCondition $orderBy";
-		}
-		else {
+		} else {
 			$sql .= " $orderBy";
 		}
-
 
 		return $sql;
 	}
 
-	function outputRow(&$data, $input, $status) {
+	private function outputRow(&$data, $input, $status) {
 		// output a URLs instead of the title text
-		if($data['ti_page_title']) {
+		if ($data['ti_page_title']) {
 			$data['ti_page_title'] = Misc::getLangBaseUrl($data['ti_language_code']) . '/' . rawurlencode($data['ti_page_title']);
 		}
 		if (isset($input['redirect_target']) && $input['redirect_target']) {
@@ -295,14 +304,14 @@ class TitusQueryTool extends UnlistedSpecialPage {
 		return "{$input['url']}\t$status\t$redirect_target\t" . implode("\t", array_values($data)) . "\n";
 	}
 
-	function loadExcluded() {
+	private function loadExcluded() {
 		if (is_null($this->excluded)) {
 			$this->excluded = explode("\n", ConfigStorage::dbGetConfig('wikiphoto-article-exclude-list'));
 		}
 		return $ids;
 	}
 
-	function isExcludedPageId($pageId) {
+	private function isExcludedPageId($pageId) {
 		// We don't want to exclude NULL or 0 pageIds, because they could be redirects
 		return $pageId && in_array($pageId, $this->excluded);
 	}
@@ -311,7 +320,7 @@ class TitusQueryTool extends UnlistedSpecialPage {
 	public static function getIdsFromUrls($lines) {
 		$ids = array();
 		$lines = explode("\n", trim($lines));
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		foreach ($lines as $line) {
 			$ids[] = self::parseInputLine($dbr, $line);
 		}
@@ -405,7 +414,7 @@ class TitusQueryTool extends UnlistedSpecialPage {
 				if ( $caseRedirect ) {
 					$out['redirect_target'] = $caseRedirect->getDBkey();
 				}
-			} else if ( $row->page_is_redirect ) {
+			} elseif ( $row->page_is_redirect ) {
 				$pageId = 0;
 				$out['redirect_target'] = self::getRedirectFromID( $row->page_id );
 			} else {
@@ -430,60 +439,93 @@ class TitusQueryTool extends UnlistedSpecialPage {
 		return '';
 	}
 
-	function startOutput($filename, $headerRow, $mimeType  = 'text/tsv') {
-		global $wgOut, $wgRequest;
-		#$wgOut->setArticleBodyOnly(true);
-		#$wgRequest->response()->header('Content-type: ' . $mimeType);
-		#$wgRequest->response()->header('Content-Disposition: attachment; filename="' . addslashes($filename) . '"');
+	private function startOutput($filename, $headerRow, $mimeType  = 'text/tsv') {
 		header("Content-Type: $mimeType");
 		header('Content-Disposition: attachment; filename="' . addslashes($filename) . '"');
 		print $headerRow;
 	}
 
-	function addOutput(&$output) {
+	private function addOutput($output) {
 		print $output;
 	}
 
-	function getCurrentUserName() {
-		global $wgUser;
-
-		return $wgUser->getName();
+	private function getCurrentUserName() {
+		return $this->getUser()->getName();
 	}
 
-	function getToolVars() {
+	private function getToolVars() {
 		$curUser = $this->getCurrentUserName();
 		$curUserQueries = $this->getCurrentUserQueries();
 		$allQueries = $this->getAllUserQueries();
+		$titusLastRunStatus = $this->getLastRunInfo();
+
 		if (array_key_exists($curUser, $allQueries)) {
 			unset($allQueries[$curUser]);
 		}
-
 		return array(
 			'dbfields' => $this->getTitusFields(),
 			'languages' => $this->languageInfo,
 			'curUser' => $curUser,
 			'curUserQueries' => $curUserQueries,
-			'allQueries' => $allQueries
+			'allQueries' => $allQueries,
+			'titusErrorDump' => $titusLastRunStatus['titusLastRunErrorDump'],
+			'titusLastRun' => $titusLastRunStatus['titusLastRunTime']
 		);
 	}
 
-	function getToolHtml() {
+	private function getLastRunInfo() {
+		// This JSON contains information about titus' last run
+		$titusFinishedLogFile = '/data/titus_log/titus_finished.json';
+
+		// Doing this for error-handling in titusquerytool.tmpl.php
+		$formattedTime = -1;
+		$errors = -1;
+
+		if ( file_exists( $titusFinishedLogFile ) ) {
+			$jsonContents = file_get_contents( '/data/titus_log/titus_finished.json' );
+			$decoded = json_decode( $jsonContents, true );
+			if ( array_key_exists( 'err', $decoded ) ) {
+				$errors = $decoded['err'];
+			}
+			if ( array_key_exists( 'date', $decoded ) ) {
+				$unixTime = $decoded['date'];
+
+				// Making sure we have a numeric Unix timestamp before formatting it
+				if ( is_numeric( $unixTime ) && (int)$unixTime == $unixTime ){
+					$timezone = 'America/Los_Angeles';
+					$dt = new DateTime("now", new DateTimeZone($timezone));
+					$dt->setTimestamp($unixTime);
+					$formattedTime = $dt->format('l jS F Y, g:i a ');
+				} else {
+				// If the timestamp isn't numeric, just use whatever value is stored without formatting it
+					$formattedTime = $unixTime;
+				}
+			}
+		}
+
+		return [
+			'titusLastRunTime' => $formattedTime,
+			'titusLastRunErrorDump' => $errors
+		];
+	}
+
+	private function getToolHtml() {
 		$vars = $this->getToolVars();
-		EasyTemplate::set_path(dirname(__FILE__).'/');
+		EasyTemplate::set_path(__DIR__.'/');
 		return EasyTemplate::html('resources/templates/titusquerytool.tmpl.php', $vars);
 	}
 
-	function handleVault($action) {
-		global $wgRequest;
-		$id = $wgRequest->getVal('id');
+	private function handleVault($action) {
+		$req = $this->getRequest();
+		$id = $req->getVal('id');
 		if ($action === 'store') {
 			$result = array(
 				'success' => true
 			);
 
-			$qName = $wgRequest->getVal('name');
-			$qDescription = $wgRequest->getVal('description');
-			$query = $wgRequest->getVal('query');
+			$qName = $req->getVal('name');
+			$qDescription = $req->getVal('description');
+			$query = $req->getVal('query');
 
 			if (!$qName) {
 				$result['success'] = false;
@@ -518,11 +560,8 @@ class TitusQueryTool extends UnlistedSpecialPage {
 		}
 	}
 
-	function storeQuery($queryName, $queryDescription, $query, &$user=null) {
-		if (!$user) {
-			global $wgUser;
-			$user = $wgUser;
-		}
+	private function storeQuery($queryName, $queryDescription, $query) {
+		$user = $this->getUser();
 
 		$result = array(
 			'success' => false
@@ -573,8 +612,8 @@ class TitusQueryTool extends UnlistedSpecialPage {
 		return $result;
 	}
 
-	function getQueryInfoById($id) {
-		$dbr = wfGetDB(DB_SLAVE);
+	private function getQueryInfoById($id) {
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$row = $dbr->selectRow(
 			'titusdb2.titus_query_vault',
@@ -590,7 +629,7 @@ class TitusQueryTool extends UnlistedSpecialPage {
 	}
 
 	protected function validateExistsAndAllowed($id) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$row = $dbr->selectRow(
 			'titusdb2.titus_query_vault',
@@ -673,17 +712,16 @@ class TitusQueryTool extends UnlistedSpecialPage {
 		return array('success' => true);
 	}
 
-	function getCurrentUserQueries() {
-		global $wgUser;
-
-		if ($wgUser->isAnon()) {
+	private function getCurrentUserQueries() {
+		$user = $this->getUser();
+		if ($user->isAnon()) {
 			return array();
 		}
 
 		$queries = array();
-		$username = $wgUser->getName();
+		$username = $user->getName();
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$res = $dbr->select(
 			'titusdb2.titus_query_vault',
@@ -709,10 +747,10 @@ class TitusQueryTool extends UnlistedSpecialPage {
 		return $queries;
 	}
 
-	function getAllUserQueries() {
+	private function getAllUserQueries() {
 		$userQueries = array();
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$res = $dbr->select(
 			'titusdb2.titus_query_vault',
@@ -737,7 +775,7 @@ class TitusQueryTool extends UnlistedSpecialPage {
 		return $userQueries;
 	}
 
-	function formatQueryInfoRow(&$row) {
+	private function formatQueryInfoRow($row) {
 		return array(
 			'id' => $row->qv_id,
 			'user_id' => $row->qv_user,
@@ -749,8 +787,8 @@ class TitusQueryTool extends UnlistedSpecialPage {
 		);
 	}
 
-	function getQueryByName($userName, $queryName) {
-		$dbr = wfGetDB(DB_SLAVE);
+	private function getQueryByName($userName, $queryName) {
+		$dbr = wfGetDB(DB_REPLICA);
 
 		return $dbr->selectField(
 			'titusdb2.titus_query_vault',

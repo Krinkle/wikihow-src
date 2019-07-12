@@ -8,9 +8,18 @@ class MinervaTemplateWikihow extends MinervaTemplate {
 	 */
 
 	protected  $isMainPage;
+	protected  $isArticlePage;
+	protected  $isSearchPage;
 
 	public function execute() {
 		$this->isMainPage = $this->getSkin()->getTitle()->isMainPage();
+		$title = $this->getSkin()->getTitle();
+		$action = $this->getSkin()->getRequest()->getVal('action', 'view');
+		$this->isArticlePage = $title && !$this->isMainPage && $title->inNamespace(NS_MAIN) && $action == 'view';
+		$this->isSearchPage = false;
+		if (preg_match('@/wikiHowTo@',  $_SERVER['REQUEST_URI'])) {
+			$this->isSearchPage = true;
+		}
 		parent::execute();
 	}
 
@@ -22,7 +31,7 @@ class MinervaTemplateWikihow extends MinervaTemplate {
 		global $wgLanguageCode, $wgUser;
 
 		//Scott - use this hook to tweak display title
-		wfRunHooks( 'MobilePreRenderPreContent', array( &$data ) );
+		Hooks::run( 'MobilePreRenderPreContent', array( &$data ) );
 
 		$internalBanner = $data[ 'internalBanner' ];
 		$isSpecialPage = $this->isSpecialPage;
@@ -34,7 +43,7 @@ class MinervaTemplateWikihow extends MinervaTemplate {
 		//XXCHANGED: BEBETH 2/3/2015 to put in unnabbed alert
 			$skin = $this->getSkin();
 			$title = $skin->getTitle();
-			if ($wgLanguageCode == "en" && $title->getNamespace() == NS_MAIN && !Newarticleboost::isNABbedNoDb($title->getArticleID())) {
+			if ($wgLanguageCode == "en" && $title->inNamespace(NS_MAIN) && !NewArticleBoost::isNABbedNoDb($title->getArticleID())) {
 				/* Show element if showdemoted option is enabled */
 				$style = ($wgUser->getOption('showdemoted') == '1') ? "style='display:block'" : '';
 				echo "<div class='unnabbed_alert_top' $style>" . wfMessage('nab_warning_top')->parse() . "</div>";
@@ -46,7 +55,7 @@ class MinervaTemplateWikihow extends MinervaTemplate {
 				if ( isset( $data['_old_revision_warning'] ) ) {
 					echo $data['_old_revision_warning'];
 					//XX CHANGED: BEBETH
-				} else if ( !$isSpecialPage && !$this->isMainPage ){
+				} elseif ( !$isSpecialPage && !$this->isMainPage ){
 					$this->renderPageActions( $data );
 				}
 				//XXCHANGED: BEBETH
@@ -124,7 +133,7 @@ class MinervaTemplateWikihow extends MinervaTemplate {
 
 		$footerPlaceholder = wfMessage('footer-search-placeholder')->text();
 
-		wfRunHooks( 'MobileTemplateBeforeRenderFooter', array( &$footerPlaceholder ) );
+		Hooks::run( 'MobileTemplateBeforeRenderFooter', array( &$footerPlaceholder ) );
 
 		if ( !$data['disableSearchAndFooter'] ) {
 			//get random random icon
@@ -156,15 +165,16 @@ class MinervaTemplateWikihow extends MinervaTemplate {
 				<a href="/Special:Randomizer"><?=$creature?></a>
 			</div>
 			<div id="footer_bar">
-				<a href="<?= Title::newMainPage()->getLocalURL() ?>" id="footer_logo"<?php if ( $wgLanguageCode != "en" ) { ?> class="footer_logo_intl"<? } ?>></a>
 				<?php
 					global $IP;
 					EasyTemplate::set_path( $IP.'/extensions/wikihow/mobile/' );
-					echo EasyTemplate::html('search-box.tmpl.php',array('id' => 'search_footer', 'placeholder' => $footerPlaceholder, 'class' => '', 'lang' => $wgLanguageCode));
+					echo EasyTemplate::html('search-box.tmpl.php',array('id' => 'search_footer', 'placeholder' => $footerPlaceholder, 'class' => '', 'lang' => $wgLanguageCode, 'form_id' => 'cse-search-box-bottom'));
+
+					if (class_exists('SocialFooter')) echo SocialFooter::getSocialFooter();
 				?>
 			</div>
 				<?php
-					echo wikihowAds::getMobileFooterAd();
+					echo wikihowAds::getMobileAdAnchor();
 				?>
 		</div>
 		<? } ?>
@@ -198,50 +208,13 @@ class MinervaTemplateWikihow extends MinervaTemplate {
 		return $twitterlink;
 	}
 
-	protected function renderShareButtons() {
-		global $wgLanguageCode, $wgCanonicalServer;
-		if ( $wgLanguageCode != "en") return;
-
-		$title = $this->getSkin()->getContext()->getTitle();
-
-		$twitterlink = self::generateTwitterLink();
-		$fburl = "http://m.wikihow.com/" . $title->getPartialURL();
-		//google plus link
-		$gpluslink = "https://plus.google.com/share?url={$wgCanonicalServer}/{$title->getPartialURL()}";
-		$email_sub = 'wikiHow - '.wfMessage('howto',$title->getText())->text();
-		$email_bod = $wgCanonicalServer.'/'.$title->getPartialURL();
-		?>
- 	<div id="sharing_box" style="display:none;">
- 		<div class="section">
-			<h2><span class="mw-headline">Share</span></h2>
- 		</div>
- 		<div id='sharing_buttons'>
- 			<a target="_blank" href="fb_share"><div class='share_icons' id='facebook_share_button'></div></a>
- 			<a target="_blank" href="<?= $twitterlink ?>"><div class='share_icons' id='twitter_share_button'></div></a>
-			<a target="_blank" href="<?= $gpluslink ?>"><div class='share_icons' id='gplus_share_button'></div></a>
-			<a target="_blank" href="pin"><div class='share_icons' id='pinterest_share_button'></div></a>
-			<a href="mailto:?subject=<?=$email_sub?>&body=<?=$email_bod?>"><div class='share_icons' id='email_button'></div></a>
-		</div>
-	</div>
-		<?
-	}
-
-
 	protected function renderPageActions( $data ) {
-		wfRunHooks('BeforeRenderPageActionsMobile', array(&$data));
-		if (isset( $data['expert_icon'] ) && $data['expert_icon']) {
-			echo $data['expert_icon'];
-		} elseif (isset( $data['tech_stamp'] ) && $data['tech_stamp']) {
-			echo $data['tech_stamp'];
-		} elseif (isset( $data['userreview_stamp'] ) && $data['userreview_stamp']) {
-			echo $data['userreview_stamp'];
-		} else {
+		Hooks::run('BeforeRenderPageActionsMobile', array(&$data));
 		?><ul id="page-actions" class="hlist"><?php
 		foreach( $this->getPageActions() as $key => $val ):
 			echo $this->makeListItem( $key, $val );
 		endforeach;
 		?></ul><?php
-		}
 	}
 
 
@@ -264,6 +237,36 @@ class MinervaTemplateWikihow extends MinervaTemplate {
 			echo GoogleAmp::getAmpSidebar( $items );
 	}
 
+	private function getRightRailHtml( $data ) {
+		global $wgTitle;;
+
+		// for some reason putting this on special pages makes their css no work well
+		// so restricting it for now
+		if ( $wgTitle && !$wgTitle->inNamespace( NS_MAIN ) ) {
+			return;
+		}
+		if ( $data['amp'] ) {
+			return;
+		}
+		$context = RequestContext::getMain();
+		$html = '';
+
+		$sp = new SocialProofStats($context, $fullCategoryTree);
+		$socialProofSidebar = $sp->getDesktopSidebarHtml();
+		$html .= $socialProofSidebar;
+
+		$relatedWikihows = new RelatedWikihows( $context, $context->getUser());
+		$relatedOutput = $relatedWikihows->getSideData();
+		$attr = ['id' => 'side_related_articles', 'class' => 'sidebox related_articles'];
+		$html .= Html::rawElement( 'div', $attr, $relatedOutput );
+
+		$html .= RatingArticle::getDesktopSideForm( 0, '' );
+
+		// blanked out for now
+		$html = '';
+
+		return $html;
+	}
 
 	private function renderPageLeft( $data ) {
 		// in amp mode we have to add the header as a direct decendent of <body>
@@ -272,11 +275,15 @@ class MinervaTemplateWikihow extends MinervaTemplate {
 			return;
 		}
 
+		// Don't show desktop link to anons if the page is noindex
+		$desktopLink = WikihowSkinHelper::shouldShowMetaInfo($this->getSkin()->getOutput())
+			? $this->data['mobile-switcher'] : '';
+
 		?>
 		<div id="mw-mf-page-left">
 		<?php
 			$this->renderMainMenu( $data );
-			print $this->data['mobile-switcher'];
+			print $desktopLink;
 		?>
 		</div>
 		<?php
@@ -284,7 +291,7 @@ class MinervaTemplateWikihow extends MinervaTemplate {
 
 	protected function render( $data ) { // FIXME: replace with template engines
 		global $wgLanguageCode;
-		wfRunHooks( "MinvervaTemplateBeforeRender", array( &$data ) );
+		Hooks::run( "MinvervaTemplateBeforeRender", array( &$data ) );
 
 		// begin rendering
 		echo $data[ 'headelement' ];
@@ -299,37 +306,50 @@ class MinervaTemplateWikihow extends MinervaTemplate {
 		if ( $data['amp'] ) {
 			echo GoogleAmp::getHeaderSidebarButton();
 		}
-		$headerClass = $wgLanguageCode == 'ja' ? 'lang_ja' : '';
-		wfRunHooks( 'MinervaTemplateWikihowBeforeCreateHeaderLogo', array( &$headerClass ) );
 
+		$headerClass = '';
+		Hooks::run( 'MinervaTemplateWikihowBeforeCreateHeaderLogo', array( &$headerClass ) );
 		?>
 		<a href="<?= Title::newMainPage()->getLocalURL() ?>" id="header_logo" class="<?= $headerClass ?>"></a>
-		<a href="/Hello" id="noscript_header_logo" class="hide <?= $headerClass ?>"></a>
 		<?php
+		if ( !( Misc::isAltDomain() ) ) {
+			?>
+			<a href="/Hello" id="noscript_header_logo" class="hide <?= $headerClass ?>"></a>
+			<?php
+		}
 		if ( $data['disableSearchAndFooter'] ) {
 			echo $data['specialPageHeader'];
 		} else {
-			//XXCHANGEDXX - using our own search [sc]
+			$query = $this->isSearchPage ? $this->getSkin()->getRequest()->getVal( 'search', '' ) : '';
+			$expand = $data['amp'] ? 'on="tap:hs.toggleClass(class=\'hs_active\',force=true)"' : '';
+			$collapse = $data['amp'] ? 'on="tap:hs.toggleClass(class=\'hs_active\',force=false)"' : '';
+			$classes = [];
+			if ( $this->isSearchPage ) {
+				$classes[] = 'hs_active';
+			}
+			if ( $data['secondaryButton'] ) {
+				$classes[] = 'hs_notif';
+			}
 			?>
-			<div class="search" role="button"></div>
-		<?php
+			<div id="hs" class="<?= implode( $classes, ' ' ) ?>">
+				<form action="/wikiHowTo" class="search" target="_top">
+					<input type="text" id="hs_query" role="textbox" tabindex="0" <?= $expand ?> name="search" value="<?= $query ?>" required placeholder="<?= wfMessage( 'header-search-placeholder' )->text() ?>" <?= !$data['amp'] ? 'x-webkit-speech' : '' ?> aria-label="<?= wfMessage('aria_search')->showIfExists() ?>" />
+					<button type="submit" id="hs_submit"></button>
+					<div id="hs_close" role="button" tabindex="0" <?= $collapse ?> ></div>
+				</form>
+			</div>
+			<?php
 		}
+		?>
+		<?php
 		echo $data['secondaryButton'];
 		?>
-		</div><?php
-		if ( !$data['disableSearchAndFooter'] ) {
-			//XXCHANGEDXX - using our own search [sc]
-			global $IP;
-			EasyTemplate::set_path( $IP.'/extensions/wikihow/mobile/' );
-			$notif_class = ($data['secondaryButton']) ? 'has_notes' : '';
-			echo EasyTemplate::html('search-box.tmpl.php', array('id' => 'search_oversearch', 'placeholder' => '', 'class' => $notif_class, 'lang' => $wgLanguageCode));
-		}
-		?>
+		</div>
 		<?
 		// JRS 06/23/14 Add a hook to add classes to the top-level viewport object
 		// to make it easier to customize css based on classes
 		$classes = array();
-		wfRunHooks('MinervaViewportClasses', array(&$classes));
+		Hooks::run('MinervaViewportClasses', array(&$classes));
 		$classes = empty($classes) ? '' : implode(" ", $classes);
 		$pageCenterClasses = wikihowAds::getMobilePageCenterClass();
 		?>
@@ -338,6 +358,12 @@ class MinervaTemplateWikihow extends MinervaTemplate {
 			$this->renderPageLeft( $data );
 			?>
 			<div id='mw-mf-page-center' class="<?=$pageCenterClasses?>">
+				<? if ( class_exists( 'GDPR' ) && !$data['amp'] ) {
+					if ( $this->isMainPage || $this->isArticlePage || $this->isSearchPage ) {
+						echo GDPR::getHTML();
+						echo GDPR::getInitJs();
+					}
+				} ?>
 				<?php
 				foreach( $this->data['banners'] as $banner ):
 					echo $banner;
@@ -345,22 +371,27 @@ class MinervaTemplateWikihow extends MinervaTemplate {
 				?>
 
 				<div id="content_wrapper" role="main">
+					<div id="content_inner">
+						<?php
+						$this->renderContentWrapper( $data );
+						?>
+					</div>
+
+					<div id="sidebar">
 					<?php
-					$this->renderContentWrapper( $data );
+						$html = $this->getRightRailHtml( $data );
+						echo $html;
 					?>
+					</div>
 				</div>
+				<br class="clearall" />
 
 				<? $schema = SchemaMarkup::getSchema( $this->getSkin()->getOutput() );
-				if ( $schema && !$data['amp'] ) {
+				if ( $schema ) {
 					echo $schema;
 				}?>
 
 				<?php
-				$renderShareButtons = DeferImages::isArticlepage() && !$this->isMainPage && !$data['amp'];
-				wfRunHooks( 'MinervaTemplateWikihowBeforeRenderShareButtons', array( &$renderShareButtons ) );
-				if ( $renderShareButtons ){
-					$this->renderShareButtons();
-				}
 
 				if ( isset( $data['tableofcontents'] ) ) {
 					echo $data['tableofcontents'];
@@ -371,8 +402,7 @@ class MinervaTemplateWikihow extends MinervaTemplate {
 				}  else {
 					$this->renderFooter( $data );
 				}
-				?>
-			</div>
+		   ?>
 		</div>
 		<div id='servedtime'><?= Misc::reportTimeMS(); ?></div>
 		<?php
@@ -381,7 +411,7 @@ class MinervaTemplateWikihow extends MinervaTemplate {
 		echo $data['bottomscripts'];
 
 		// Reuben: using this hook to post-load the ResourceLoader startup
-		wfRunHooks( 'MobileEndOfPage', array( $data ) );
+		Hooks::run( 'MobileEndOfPage', array( $data ) );
 		?>
 		</body>
 		</html>

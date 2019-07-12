@@ -35,7 +35,6 @@ class WikihowArticleStream extends ContextSource {
 	// Each article has a title object, a representative image, and dimensions of
 	// that image.
 	private function peekNext() {
-		wfProfileIn(__METHOD__);
 		// Fill more articles into cache
 		for ($i = $this->current + count($this->cache);
 			 $i < count($this->articles)
@@ -60,26 +59,22 @@ class WikihowArticleStream extends ContextSource {
 				}
 			}
 		}
-		wfProfileOut(__METHOD__);
 		return $this->cache;
 	}
 
 	// Consume n articles from the stream
 	private function consume($consumed) {
-		wfProfileIn(__METHOD__);
 		$n = count($consumed);
 		$this->current += $n;
 		if ($this->cache) {
 			$this->cache = array_slice($this->cache, $n);
 		}
-		wfProfileOut(__METHOD__);
 	}
 
 	public function getChunks($numChunks, $singleWidth, $singleSpacing, $singleHeight, $device = WikihowArticleStream::DESKTOP) {
-		wfProfileIn(__METHOD__);
 		$html = '';
 
-		switch($device) {
+		switch ($device) {
 			case WikihowArticleStream::MOBILE:
 				$rowWidth = 2;
 				break;
@@ -109,10 +104,10 @@ class WikihowArticleStream extends ContextSource {
 						$html .= $this->getArticleThumbWithPath($item['title'], $xUnits*$singleWidth + $singleSpacing*($xUnits-1), $yUnits*$singleHeight + $singleSpacing*($yUnits-1), $item['image']);
 						$html .= "</td>";
 
-						if($across1 < $rowWidth) {
+						if ($across1 < $rowWidth) {
 							//we're still on the first row
 							$across1 += $xUnits;
-							if($yUnits > 1)
+							if ($yUnits > 1)
 								$across2 += $xUnits;
 						}
 						else {
@@ -120,7 +115,7 @@ class WikihowArticleStream extends ContextSource {
 							$across2 += $xUnits;
 						}
 
-						if($across1 == $rowWidth && !$doneAcross1) {
+						if ($across1 == $rowWidth && !$doneAcross1) {
 							$html .= "</tr><tr>";
 							$doneAcross1 = true;
 						}
@@ -130,11 +125,67 @@ class WikihowArticleStream extends ContextSource {
 			}
 		}
 		if ($html) $html .= '<script>gScrollContext = ' . $this->current . ';</script>';
-		wfProfileOut(__METHOD__);
 		return $html;
 	}
 
-	private function getArticleThumbWithPath($t, $width, $height, $file) {
+	public function getFlatChunk($numChunks, $singleWidth, $singleSpacing, $singleHeight, $device = WikihowArticleStream::DESKTOP) {
+		$html = '';
+
+		switch ($device) {
+			case WikihowArticleStream::MOBILE:
+				$rowWidth = 2;
+				break;
+			default:
+				$rowWidth = 4;
+				break;
+		}
+
+		while ($numChunks--) {
+			$articles = $this->peekNext();
+			if ($articles) {
+				list($layout, $consumed) = WikihowBlockLayout::choose($articles, $device);
+				$this->consume($consumed);
+
+				$across1 = 0;
+				$doneAcross1 = false;
+				$across2 = 0;
+				$html .= "<table cellpadding='0' cellspacing='0' width='100%'><tr>";
+				foreach ($layout as $item) {
+					if (!isset($item['title']) || !$item['title']) {
+						//$html .= "- image=(null) dims={$item['dims']}<br>\n";
+					} else {
+						$dims = explode("x", $item['dims']);
+						$xUnits = intval($dims[0]);
+						$yUnits = intval($dims[1]);
+						$html .= "<td colspan='{$xUnits}' rowspan='{$yUnits}' class='image_map'>";
+						$html .= $this->getArticleThumbWithPath($item['title'], $xUnits*$singleWidth + $singleSpacing*($xUnits-1), $yUnits*$singleHeight + $singleSpacing*($yUnits-1), $item['image']);
+						$html .= "</td>";
+
+						if ($across1 < $rowWidth) {
+							//we're still on the first row
+							$across1 += $xUnits;
+							if ($yUnits > 1)
+								$across2 += $xUnits;
+						}
+						else {
+							//we're on the second row
+							$across2 += $xUnits;
+						}
+
+						if ($across1 == $rowWidth && !$doneAcross1) {
+							$html .= "</tr><tr>";
+							$doneAcross1 = true;
+						}
+					}
+				}
+				$html .= "</table>";
+			}
+		}
+		//if ($html) $html .= '<script>gScrollContext = ' . $this->current . ';</script>';
+		return $html;
+	}
+
+	public function getArticleThumbWithPath($t, $width, $height, $file) {
 		global $wgContLang, $wgLanguageCode, $wgTitle;
 
         $mediaSrc = '';
@@ -174,7 +225,7 @@ class WikihowArticleStream extends ContextSource {
             $mediaElement = Misc::getMediaScrollLoadHtml( 'video', $attributes );
         }
 		$articleName = $t->getText();
-		if($wgLanguageCode == "zh") {
+		if ($wgLanguageCode == "zh") {
 			$articleName = $wgContLang->convert($articleName);
 		}
 
@@ -184,8 +235,10 @@ class WikihowArticleStream extends ContextSource {
 		// but prefixed title with no lead for other namespaces
 
 		if ( $t->inNamespace( NS_MAIN ) ) {
-			$articleName = WikihowSkinHelper::getHowToTitle($articleName);
-			$textBlock = WikihowSkinHelper::getHowToLabel() . "<br/><span>$articleName</span>";
+			$msg = wfMessage('howto_prefix');
+			$howToPrefix = $msg->exists() ? ($msg->text() . '<br>') : '';
+			$howToSuffix = wfMessage('howto_suffix')->showIfExists();
+			$textBlock =  $howToPrefix . '<span>' . $articleName . $howToSuffix . '</span>';
 		} else {
 			$textBlock = "<br/><span>" . $t->getFullText() . "</span>";
 		}
@@ -197,7 +250,7 @@ class WikihowArticleStream extends ContextSource {
             'textBlock' => $textBlock,
         );
 
-        $tmpl = new EasyTemplate( dirname(__FILE__) );
+        $tmpl = new EasyTemplate( __DIR__ );
         $tmpl->set_vars($vars);
         $html = $tmpl->execute('ArticleViewerThumb.tmpl.php');
 
@@ -245,24 +298,6 @@ class WikihowBlockLayout {
 		);
 
 		return $possibleMobileFormats;
-	}
-
-	private static function getPossibleCatFormats() {
-		$possibleCatFormats = array(
-			array('2x1',    '', '2x2',    '',
-				'1x1', '1x1',    '',    ''),
-
-			array('2x1',    '', '2x2',    '',
-				'1x1', '1x1',    '',    ''),
-
-			array('2x2',    '', '1x1', '1x1',
-				'',    '', '2x1',    ''),
-
-			array('2x2',    '', '2x1',    '',
-				'',    '', '1x1', '1x1'),
-		);
-
-		return $possibleCatFormats;
 	}
 
 	private static function getPossibleWideFormats() {
@@ -404,12 +439,8 @@ class WikihowBlockLayout {
 		$taller = self::findFirstTall($articles);
 		$large = self::findFirstLarge($articles, $consumed);
 
-		if($device == WikihowArticleStream::MOBILE) {
+		if ($device == WikihowArticleStream::MOBILE) {
 			$possibleFormats = self::getPossibleMobileFormats();
-		}
-		else if ($wgTitle->inNamespace(NS_CATEGORY)) {
-			//only 4 per chunk so we can calculate the pages every time
-			$possibleFormats = self::getpossibleCatFormats();
 		}
 		else {
 			// Get formats based on whether there is an image that could

@@ -23,7 +23,7 @@ class Avatar extends UnlistedSpecialPage {
 			return $default;
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		// check for facebook
 		if ($u->isFacebookUser()) {
 			$row = $dbr->selectRow('avatar', array('av_image','av_patrol'), array('av_user'=>$u->getID()), __METHOD__);
@@ -47,7 +47,8 @@ class Avatar extends UnlistedSpecialPage {
 		$up = $u->getUserPage();
 		$a = new Article($up, 0); //need to put 0 as the oldID b/c Article gets the old id out of the URL
 		if ($a->isRedirect()) {
-			$t = Title::newFromRedirect( $a->fetchContent() );
+			$wp = new WikiPage( $a->getTitle() );
+			$t = $wp->getRedirectTarget();
 			$u = User::newFromName($t->getText());
 			if (!$u) {
 				return $default;
@@ -93,7 +94,7 @@ class Avatar extends UnlistedSpecialPage {
 
 		// not sure what's going on here, User Designer-WG.de ::newFromName does not work, mId==0
 		if ($u->getID() == 0) {
-			$dbr = wfGetDB(DB_SLAVE);
+			$dbr = wfGetDB(DB_REPLICA);
 			$id = $dbr->selectField('user', array('user_id'), array('user_name'=> $name), __METHOD__);
 			$u = User::newFromID($id);
 		}
@@ -138,7 +139,7 @@ class Avatar extends UnlistedSpecialPage {
 			}
 			$ret .= "</div>";
 		} else {
-			$dbr = wfGetDB(DB_SLAVE);
+			$dbr = wfGetDB(DB_REPLICA);
 		    $row = $dbr->selectRow('avatar', array('av_dateAdded'), array('av_user'=>$u->getID(), 'av_patrol'=>0), __METHOD__);
 
 			if ($row && $row->av_dateAdded) {
@@ -310,7 +311,7 @@ class Avatar extends UnlistedSpecialPage {
 </script>
 
 	  <div class='avatarModalBody minor_section'>
-	  <div>". wfMsg('avatar-instructions',$wgUser->getName())."</div>
+	  <div>". wfMessage('avatar-instructions',$wgUser->getName())."</div>
 		 <div id='avatarUpload' >
 				<form name='avatarFileSelectForm' action='/Special:Avatar?type=upload&reload=1' method='post' enctype='multipart/form-data' >
 					File: <input type='file' id='uploadedfile' name='uploadedfile' size='40' /> <input type='submit' id='gatAvatarImageSubmit' disabled='disabled' value='SUBMIT' class='button primary disabled' />
@@ -333,7 +334,7 @@ class Avatar extends UnlistedSpecialPage {
 				<div style='clear: both;'> </div>
 				</div>
 
-				<div>".wfMsg('avatar-copyright-notice')."</div>
+				<div>".wfMessage('avatar-copyright-notice')->text()."</div>
 
 				<div id='cropSubmit' >
 				<form name='crop' method='post' >
@@ -478,7 +479,7 @@ Event.observe(window, 'load', initNonModal);
 			"ON DUPLICATE KEY UPDATE av_patrol=0, av_dateAdded='".wfTimestampNow()."'";
 		$ret = $dbw->query($sql, __METHOD__);
 
-		wfRunHooks("AvatarUpdated", array($wgUser));
+		Hooks::run("AvatarUpdated", array($wgUser));
 
 		return true;
 	}

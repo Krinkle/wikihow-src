@@ -10,20 +10,13 @@ $wgExtensionCredits['specialpage'][] = array(
     'description' => 'Provides a way of reviewing a set of edits separate from RC Patrol, such as removal of stub templates.',
 );
 
-$dir = dirname(__FILE__) . '/';
+$dir = __DIR__ . '/';
 
 $wgSpecialPages['QG'] = 'QG';
 $wgSpecialPages['QC'] = 'QG';
 $wgAutoloadClasses['QG'] = $dir . 'QC.body.php';
 
-
-$wgQCRules = array(
-	"QCRuleTemplateChange" => "ArticleSaveComplete"
-);
-
-foreach ($wgQCRules as $rule=>$hook) {
-	$wgAutoloadClasses[$rule] = $dir . 'QC.body.php';
-}
+$wgAutoloadClasses['QCRuleTemplateChange'] = __DIR__ . '/QC.body.php';
 
 # Internationalisation file
 $wgExtensionMessagesFiles['QG'] = $dir . 'QC.i18n.php';
@@ -46,7 +39,10 @@ $wgResourceModules['ext.wikihow.quality_guardian'] = array(
     'remoteExtPath' => 'wikihow/qc',
     'position' => 'top',
     'targets' => array('desktop', 'mobile'),
-    'dependencies' => array('ext.wikihow.common_top'),
+    'dependencies' => array(
+    	'ext.wikihow.common_top',
+    	'ext.wikihow.common_bottom',
+    ),
 );
 
 $wgQCIntroImageVotesRequired = array ("yes"=>2, "no"=>2);
@@ -55,7 +51,7 @@ $wgQCRCPatrolVotesRequired = array ("yes"=>1, "no"=>1);
 $wgQCNewTipVotesRequired = array ("yes"=>2, "no"=>2);
 
 
-$wgHooks["ArticleSaveComplete"][] = "wfCheckQC";
+$wgHooks["PageContentSaveComplete"][] = "wfCheckQC";
 $wgHooks["MarkPatrolledBatchComplete"][] = array("wfCheckQCPatrols");
 
 //$wgQCRulesToCheck = array("ChangedTemplate/Stub", "ChangedTemplate/Format", "ChangedTemplate/Cleanup", "ChangedTemplate/Copyedit", "ChangedIntroImage", "ChangedVideo", "RCPatrol");
@@ -107,12 +103,12 @@ CREATE TABLE `qc_vote` (
 );
  */
 
-function wfCheckQC(&$article, &$user, $text, $summary, $minoredit, $watchthis, $sectionanchor, &$flags, $revision) {
+function wfCheckQC(&$wikiPage, &$user, $content, $summary, $minoredit, $watchthis, $sectionanchor, &$flags, $revision) {
 	global $wgChangedTemplatesToQC;
 
-	// if an article becomes a redirect, vanquish all previous qc entries
-	if (preg_match("@^#REDIRECT@", $text)) {
-		QCRule::markAllAsPatrolled($article->getTitle());
+	// if an wikiPage becomes a redirect, vanquish all previous qc entries
+	if ($content->isRedirect()) {
+		QCRule::markAllAsPatrolled($wikiPage->getTitle());
 		return true;
 	}
 
@@ -128,25 +124,25 @@ function wfCheckQC(&$article, &$user, $text, $summary, $minoredit, $watchthis, $
 	}
 
 	// check for intro image change, reverts are ok for this one
-	// $l = new QCRuleIntroImage($revision, $article);
+	// $l = new QCRuleIntroImage($revision, $wikiPage);
 	// $l->process();
 
 	// do the templates
 	foreach ($wgChangedTemplatesToQC as $t) {
 		wfDebug("QC: About to process template change $t\n");
-		$l = new QCRuleTemplateChange($t, $revision, $article);
+		$l = new QCRuleTemplateChange($t, $revision, $wikiPage);
 		$l->process();
 	}
 
 	// check for video changes
-	$l = new QCRuleVideoChange($revision, $article);
+	$l = new QCRuleVideoChange($revision, $wikiPage);
 	$l->process();
 
 	return true;
 }
 
 function wfCheckQCPatrols(&$article, &$rcids, &$user) {
-	if ($article && $article->getTitle() && $article->getTitle()->getNamespace() == NS_MAIN) {
+	if ($article && $article->getTitle() && $article->getTitle()->inNamespace(NS_MAIN)) {
 			$l = new QCRCPatrol($article, $rcids); //
 			$l->process();
 	}
@@ -165,7 +161,7 @@ function wfClearQCOnDelete($wikiPage) {
 //only eligible for our Tips Guardian needs
 function wfQGIsEligibleForMobile(&$isEligible) {
 	global $wgTitle, $wgRequest;
-	if($wgTitle && strrpos($wgTitle->getText(), "QG") === 0 &&
+	if ($wgTitle && strrpos($wgTitle->getText(), "QG") === 0 &&
 		($wgRequest->getVal('fetchInnards') || $wgRequest->getVal('postResults'))) {
 		$isEligible = true;
 	}

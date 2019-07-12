@@ -3,7 +3,7 @@
 global $IP;
 require_once("$IP/extensions/wikihow/titus/Titus.class.php");
 
-/** 
+/**
  * Allows searching through top keywords to see the rank of them, and some associated information from Titus.
  */
 class KeywordSearch extends UnlistedSpecialPage {
@@ -12,29 +12,31 @@ class KeywordSearch extends UnlistedSpecialPage {
 	}
 
 	public function execute($par) {
-		global $wgOut, $wgRequest, $wgUser, $wgIsTitusServer, $wgIsDevServer;
-	
-		$user = $wgUser->getName();
-		$userGroups = $wgUser->getGroups();
+		global $wgIsTitusServer, $wgIsDevServer;
 
-		if (!($wgIsTitusServer || $wgIsDevServer) || $wgUser->isBlocked() || !in_array('staff', $userGroups)) {
-			$wgOut->setRobotpolicy('noindex,nofollow');
-			$wgOut->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
+		$req = $this->getRequest();
+		$out = $this->getOutput();
+		$user = $this->getUser();
+		$userGroups = $user->getGroups();
+
+		if (!($wgIsTitusServer || $wgIsDevServer) || $user->isBlocked() || !in_array('staff', $userGroups)) {
+			$out->setRobotPolicy('noindex,nofollow');
+			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
-	
-		$keywords = $wgRequest->getVal('keywords');
-		
+
+		$keywords = $req->getVal('keywords');
+
 		if ( !$keywords ) {
-			EasyTemplate::set_path(dirname(__FILE__).'/');
-			$wgOut->addHTML(EasyTemplate::html('KeywordSearch.tmpl.php',array()));
+			EasyTemplate::set_path(__DIR__.'/');
+			$out->addHTML(EasyTemplate::html('KeywordSearch.tmpl.php',array()));
 		} else {
-			$dbr = wfGetDB(DB_SLAVE);
+			$dbr = wfGetDB(DB_REPLICA);
 
 			// Find keywords, which match keyword database
 			$sql = 'select keywords.* from dedup.keywords where match(title) against (' . $dbr->addQuotes($keywords) . ")";
 			$res = $dbr->query($sql, __METHOD__);
-			
+
 			$queryInfo = array();
 			foreach ( $res as $row ) {
 				$queryInfo[] = array('title' => $row->title, 'position' => $row->position);
@@ -43,7 +45,7 @@ class KeywordSearch extends UnlistedSpecialPage {
 			header("Content-Type: text/tsv");
 			header("Content-Disposition: attachment; filename=\"keyword.xls\"");
 
-			print ("Keyword\tPosition\tTitle\tti_is_top10k\tti_top10k\tFellow Edit\n" );
+			print "Keyword\tPosition\tTitle\tti_is_top10k\tti_top10k\tFellow Edit\n";
 			foreach ( $queryInfo as $qi ) {
 				$altKeywords = array($dbr->addQuotes($qi['title']));
 				// Dedup using verified query database
@@ -53,7 +55,11 @@ class KeywordSearch extends UnlistedSpecialPage {
 					$altKeywords[] = $dbr->addQuotes($row->vqm_query2);
 				}
 				// Load Titus fields
-				$sql = 'select ti_page_title, ti_is_top10k, ti_top10k, ti_last_fellow_edit from dedup.title_query join ' . TitusDB::getDBname() . '.titus_intl ti on ti_page_id=tq_page_id and ti_language_code=tq_lang where tq_query in (' . implode(',', $altKeywords) . ')';
+				$sql = 'SELECT ' .
+						'  ti_page_title, ti_is_top10k, ti_top10k, ti_last_fellow_edit ' .
+						'FROM dedup.title_query ' .
+						'JOIN ' . TitusDB::getDBname() . '.titus_intl ti ON ti_page_id=tq_page_id AND ti_language_code=tq_lang ' .
+						'WHERE tq_query IN (' . implode(',', $altKeywords) . ')';
 				$res = $dbr->query($sql, __METHOD__);
 				$titusRow = false;
 				foreach ( $res as $row ) {

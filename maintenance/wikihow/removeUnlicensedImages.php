@@ -46,11 +46,7 @@ class RemoveUnlicensedImages extends Maintenance {
 			$file = wfLocalFile($title);
 
 			// get the url of the image file so we can pass it on to the copyright check api call
-			$url = wfGetPad($file->getUrl());
-			if (strpos($url, "whstatic") === FALSE) {
-				// maybe we are on a dev server and it cannot create the url with pad so just hardcode pad
-				$url = "http://pad1.whstatic.com".$url;
-			}
+			$url = "http://www.wikihow.com".$file->getUrl();
 
 			// check if copyrighted
 			$result = self::getCopyrightMatches($url);
@@ -97,11 +93,7 @@ class RemoveUnlicensedImages extends Maintenance {
 			}
 
 			// get the url of the image file so we can pass it on to the copyright check api call
-			$url = wfGetPad($file->getUrl());
-			if (strpos($url, "whstatic") === FALSE) {
-				// maybe we are on a dev server and it cannot create the url with pad so just hardcode pad
-				$url = "http://pad1.whstatic.com".$url;
-			}
+			$url = "http://www.wikihow.com".$file->getUrl();
 
 			// check if copyrighted
 			$result = self::getCopyrightMatches($url);
@@ -138,7 +130,7 @@ class RemoveUnlicensedImages extends Maintenance {
 	// updates the template on an image that was checked and not a copyright violation
 	public function markCheckedImage($fromTitle, $scriptUser) {
 		$revision = Revision::newFromTitle($fromTitle);
-		$text = $revision->getText();
+		$text = ContentHandler::getContentText( $revision->getContent() );
 
 		$text = preg_replace(
 				'@\{\{No License\}\}@im',
@@ -216,7 +208,7 @@ class RemoveUnlicensedImages extends Maintenance {
 
 	// check for images that are in the unlicensed image category
 	public function getUnlicensedImages($limit = null) {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$table = array('page', 'categorylinks');
 		$vars = array('page_id');
 		$conds = array('page_id=cl_from', 'page_namespace' => 6, 'cl_to' => "Unlicensed-Images");
@@ -279,7 +271,7 @@ class RemoveUnlicensedImages extends Maintenance {
 
 		$string_to_sign = $key . $action . $date . $nonce . $api_url . $signature_p;
 
-		$signature = hash_hmac("sha1", $string_to_sign, $key);
+		$signature = hash_hmac("sha256", $string_to_sign, $key);
 
 		$url = $api_url . "?api_key=" . $pubkey . "&";
 		$url .= $query_p . "&date=" . $date . "&nonce=" . $nonce . "&api_sig=" . $signature;
@@ -300,7 +292,7 @@ class RemoveUnlicensedImages extends Maintenance {
 		$tempUser = $wgUser;
 		$fromUser = self::getScriptUser();
 		$wgUser = $fromUser;
-		$comment =  wfMsg('image-license-remove-message');
+		$comment =  wfMessage('image-license-remove-message');
 		Misc::adminPostTalkMessage($toUser, $fromUser, $comment);
 		decho("sent removal user talk message to", $user, false);
 		$wgUser = $tempUser;

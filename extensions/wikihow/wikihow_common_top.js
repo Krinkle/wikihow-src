@@ -1,4 +1,5 @@
 (function(mw, $) {
+
 'use strict';
 
 /* Common js for both our desktop and mobile sites
@@ -6,7 +7,7 @@
  * it is loaded before the javascript in whjs (groups config)
  */
 window.WH = window.WH || {};
-WH.isMobileDomain = window.location.hostname.match(/\bm\./) !== null;
+WH.isMobileDomain = window.location.hostname.match(/\bm(-|\.)/) !== null;
 WH.isAndroidAppRequest = window.location.search.match(/wh_an=1/) !== null;
 
 WH.ga = {};
@@ -43,7 +44,10 @@ WH.ga.sendEvent = function(category, action, label, value, nonInter, hitCallback
  * Load Google Analytics
  * @param  String siteVersion Either 'desktop' or 'mobile'
  */
-WH.ga.loadGoogleAnalytics = function(siteVersion, propertyId, extraPropertyIds) {
+WH.ga.loadGoogleAnalytics = function(siteVersion, propertyId, config) {
+	if (window._ga_preloaded) { // Temporary hack - see CommonModules.body.php
+		return;
+	}
 	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
 	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
 	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m);
@@ -51,12 +55,12 @@ WH.ga.loadGoogleAnalytics = function(siteVersion, propertyId, extraPropertyIds) 
 
 	// Do the main GA ping
 	ga('create', propertyId, 'auto', { 'allowLinker': true });
-	ga('linker:autoLink', [/^.*wikihow\.(com|cz|it|jp|vn)$/]);
+	ga('linker:autoLink', [/^.*wikihow\.(com|cz|it|jp|vn|com\.tr)$/]);
 	ga('send', 'pageview');
-
+	ga('set', 'anonymizeIp', true);
 	// ... and extra events if we got any
-	for (var id in extraPropertyIds) {
-		var name = extraPropertyIds[id];
+	for (var id in config.extraPropertyIds) {
+		var name = config.extraPropertyIds[id];
 
 		ga('create', {
 			trackingId: id,
@@ -66,6 +70,22 @@ WH.ga.loadGoogleAnalytics = function(siteVersion, propertyId, extraPropertyIds) 
 		});
 
 		ga(name + '.send', 'pageview');
+
+		// Adjusted bounce rate (https://moz.com/blog/adjusted-bounce-rate)
+
+		var abrCnf = config.adjustedBounceRate;
+		if (abrCnf && $.inArray(id, abrCnf.accounts) !== -1) {
+			(function setABRtimeout(category, action, timeout) {
+				setTimeout(function() {
+					// Don't trigger the event unless the current browser tab is active
+					if (typeof document.hidden !== 'undefined' && document.hidden) {
+						setABRtimeout(category, action, timeout);
+					} else {
+						ga(name + '.send', 'event', category, action);
+					}
+				}, timeout);
+			})(abrCnf.eventCategory, abrCnf.eventAction, abrCnf.timeout * 1000);
+		}
 	}
 
 	//var load_t_delta = (new Date()).getTime() - WH.timeStart;
@@ -148,9 +168,10 @@ WH.whEvent = function(category, action, group, label, version, fromMAEvent) {
 // Machinify event system
 // eventName should be a string identifying the event.
 // eventProps should be a dict with the data to log set in it.
-// noLogToWHEvent is an ignored/unused param
+// callback is optionally a function, it's backwards safe so passing a bool as you would have using
+//    the previous noLogToWHEvent argument won't break anything
 WH.maEventInitialized = false;
-WH.maEvent = function(eventName, eventProps, noLogToWHEvent) {
+WH.maEvent = function(eventName, eventProps, callback) {
 	if (typeof MachinifyAPI == 'undefined') {
 		if (typeof console != 'undefined') {
 			console.log('error: Machinify API called before it was initialized! (Maybe a loading order issue?) maEvent=' + eventName);
@@ -196,12 +217,15 @@ WH.maEvent = function(eventName, eventProps, noLogToWHEvent) {
 	u = u || ''; // user name
 	if (u) eventProps.username = u;
 
+	//add language code
+	eventProps.language = mw.config.get('wgContentLanguage');
+
 	if (isDev) {
 		console.log(eventName);
 		console.log(eventProps);
 	}
 
-	MachinifyAPI.sendEvent(eventName, eventProps);
+	MachinifyAPI.sendEvent(eventName, eventProps, callback);
 };
 
 /**
@@ -292,9 +316,44 @@ $jqWindow.scroll(handleScrollEvent);
 
 var isIOS = navigator.userAgent.match(/(iPod|iPhone|iPad)/gi) !== null;
 if (isIOS) {
-	$jqWindow.bind('touchmove', handleScrollEvent);
-	$jqWindow.bind('touchstart', handleScrollEvent);
-	$jqWindow.bind('touchend', handleScrollEvent);
+	// Feature test for passive event listener support. From:
+	// https://github.com/WICG/EventListenerOptions/blob/gh-pages/explainer.md
+
+	// Test via a getter in the options object to see if the passive property is accessed
+	var supportsPassive = false;
+	try {
+		var opts = Object.defineProperty({}, 'passive', {
+			get: function() {
+				supportsPassive = true;
+			}
+		});
+		window.addEventListener('testPassive', null, opts);
+		window.removeEventListener('testPassive', null, opts);
+	} catch (e) {}
+	var passiveParam = supportsPassive ? { passive: true } : false;
+
+	window.addEventListener('touchstart', handleScrollEvent, passiveParam);
+	window.addEventListener('touchmove', handleScrollEvent, passiveParam);
+	window.addEventListener('touchend', handleScrollEvent);
 }
+
+// Late-load youtube videos. We do this for SEO because youtube
+// blocks some resources from being crawled, so this late loading
+// is a way of hiding this blocked video from Googlebot. This
+// method was recommended by Search Brothers in Feb. 2018. We
+// saw the Googlebot blocked resources from Youtube in Google
+// Search Console. And, it's better for page performance since
+// this resource is at the bottom of the page and should be loaded
+// late in the loading waterfall anyway. -Reuben, 2018
+//
+// Note: this is called below in this same file, and via QG and RCP
+WH.showEmbedVideos = function() {
+    $('iframe.embedvideo').each( function() {
+        var $vid = $(this);
+		WH.shared.addScrollLoadItemByElement($vid.get(0));
+    });
+};
+
+$(window).load(WH.showEmbedVideos);
 
 }(mediaWiki, jQuery));

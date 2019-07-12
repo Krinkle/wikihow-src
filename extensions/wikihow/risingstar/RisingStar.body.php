@@ -22,7 +22,7 @@ class RisingStar {
 		$t = Title::newFromText('wikiHow:Rising-star-feed');
 		if ($t->getArticleId() > 0) {
 			$r = Revision::newFromTitle($t);
-			$text = $r->getText();
+			$text = ContentHandler::getContentText( $r->getContent() );
 		} else {
 			return false;
 		}
@@ -34,7 +34,7 @@ class RisingStar {
 			$tarch = Title::newFromText($archive);
 			if ($tarch->getArticleId() > 0) {
 				$r = Revision::newFromTitle($tarch);
-				$text = $r->getText() ."\n". $text;
+				$text = ContentHandler::getContentText( $r->getContent() ) ."\n". $text;
 			}
 		}
 
@@ -55,14 +55,8 @@ class RisingStar {
 				if (!$t) continue;
 
 				if ($t->isRedirect()) {
-					$a = new Article($t);
-					$t = null;
-					if ($a) {
-						$content = $a->getContent();
-						if ($content) {
-							$t = Title::newFromRedirect( $content );
-						}
-					}
+					$wikiPage = WikiPage::factory($t);
+					$t = $wikiPage->getRedirectTarget();
 				}
 
 				if ($t) {
@@ -78,13 +72,13 @@ class RisingStar {
 	}
 
 	public static function isRisingStar($pageid, $dbr=null) {
-		if (!$dbr) $dbr = wfGetDB(DB_SLAVE);
+		if (!$dbr) $dbr = wfGetDB(DB_REPLICA);
 		$result = $dbr->selectField('pagelist', 'count(*)', array('pl_page'=>$pageid, 'pl_list'=>'risingstar'), __METHOD__) > 0;
 		return $result;
 	}
 
 	public static function getRisingStarList($limit, $dbr=null) {
-		if (!$dbr) $dbr = wfGetDB(DB_SLAVE);
+		if (!$dbr) $dbr = wfGetDB(DB_REPLICA);
 		$ids = array();
 		$res = $dbr->select('pagelist',
 			'pl_page',

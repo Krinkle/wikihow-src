@@ -27,12 +27,11 @@ class TipsPatrol extends SpecialPage {
 		$req = $this->getRequest();
 
 		if ($user->isBlocked()) {
-			$out->blockedPage();
-			return;
+			throw new UserBlockedError( $user->getBlock() );
 		}
 
 		if ($user->isAnon() || self::isBlockedFromTipsPatrol($user)) {
-			$out->setRobotpolicy( 'noindex,nofollow' );
+			$out->setRobotPolicy( 'noindex,nofollow' );
 			$out->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
 			return;
 		}
@@ -58,7 +57,7 @@ class TipsPatrol extends SpecialPage {
 					$this->logTip($tipId, self::TIP_ACTION_DELETE, $tip);
 					$articleId = $req->getVal('articleId');
 					$this->deleteTip($tipId, $articleId, $tip);
-					wfRunHooks('TipsPatrolled');
+					Hooks::run('TipsPatrolled');
 				} elseif ($req->getVal('keepTip')) {
 					$articleId = $req->getVal('articleId');
 					$tip = $req->getVal('tip');
@@ -68,7 +67,7 @@ class TipsPatrol extends SpecialPage {
 					//$this->logTip($tipId, self::TIP_ACTION_KEEP, $tip, $qcId);
 					$dbw = wfGetDB(DB_MASTER);
 					$dbw->delete('tipsandwarnings', array('tw_id' => $tipId));
-					wfRunHooks('TipsPatrolled');
+					Hooks::run('TipsPatrolled');
 				}
 
 				$this->getNextTip($result);
@@ -99,7 +98,7 @@ class TipsPatrol extends SpecialPage {
 
 		WikihowSkinHelper::maybeAddDebugToolbar($out);
 
-		EasyTemplate::set_path(dirname(__FILE__));
+		EasyTemplate::set_path(__DIR__);
 		$vars = array();
 		$vars['tip_skip_title'] = wfMessage('tip_skip_title')->text();
 		$vars['tip_keep_title'] = wfMessage('tip_keep_title')->text();
@@ -148,7 +147,7 @@ CREATE TABLE `tipspatrol_views` (
 
 */
 	private function isBlockedFromTipsPatrol($user) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$blocked = $dbr->selectField('tipspatrol_views', 'tpv_user_blocked', 'tpv_user_id = ' . intval($user->getID())) ?: false;
 		return $blocked;
 	}
@@ -171,7 +170,7 @@ CREATE TABLE `tipspatrol_views` (
 		}
 
 		$userId = $user->getID();
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$patrolledCount = $dbr->selectField('tipspatrol_views', 'tpv_count', 'tpv_user_id = ' . intval($userId)) ?: 0;
 
 		// do not show a coach tip for your first one
@@ -192,7 +191,7 @@ CREATE TABLE `tipspatrol_views` (
 				$target = $target - $coachedCount;
 				$p = 100 - 100 * $target / ($firstSectionSize - $patrolledCount);
 			}
-		} else if ($patrolledCount <= $secondSectionSize) {
+		} elseif ($patrolledCount <= $secondSectionSize) {
 			// show a tip every 15 tips or so
 			$p = 85;
 		}
@@ -235,7 +234,7 @@ CREATE TABLE `tipspatrol_views` (
 		$userId = $user->getID();
 		$where = array("tpt_id != 1 AND tpt_id NOT IN (SELECT tpc_test_id from tipspatrol_completed_test where tpc_user_id = $userId)");
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->select('tipspatrol_test', array('*'), $where, __METHOD__);
 
 		$numRows = $res->numRows();
@@ -251,10 +250,10 @@ CREATE TABLE `tipspatrol_views` (
 		$revision = Revision::newFromTitle($title);
 		$popts = $out->parserOptions();
 		$popts->setTidy(true);
-		$parserOutput = $out->parse($revision->getText(), $title, $popts);
+		$parserOutput = $out->parse(ContentHandler::getContentText( $revision->getContent() ), $title, $popts);
 
-		$magic = WikihowArticleHTML::grabTheMagic($revision->getText());
-		
+		$magic = WikihowArticleHTML::grabTheMagic(ContentHandler::getContentText( $revision->getContent() ));
+
 		$content['article'] = WikihowArticleHTML::processArticleHTML($parserOutput, array('no-ads', 'ns' => NS_MAIN, 'magic-word' => $magic));
 		$content['tip'] = $row->tpt_tip;
 		$content['tipId'] = $row->tpt_id;
@@ -304,10 +303,10 @@ CREATE TABLE `tipspatrol_views` (
 		$user = $this->getUser();
 		$req = $this->getRequest();
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$where = array("tpt_id" => $tipId);
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$row = $dbr->selectRow('tipspatrol_test', '*', $where, __METHOD__);
 		$answer = $row->tpt_answer;
 		$score = -1;
@@ -350,11 +349,11 @@ CREATE TABLE `tipspatrol_views` (
 			if (!$exists) {
 				// send a talk message to the user telling them they failed
 				$from_user = User::newFromName('Patrol-Coach');
-				$comment = "Oops! It looks like you accidentally added a less helpful tip while working on Tips Patrol just now. 
+				$comment = "Oops! It looks like you accidentally added a less helpful tip while working on Tips Patrol just now.
 					That's okay though; you're still learning, and it can be tricky at first!\r\n
-					If you haven't already, read our article on [[Use the Tips Patrol Tool on wikiHow|How to Use the Tips Patrol Tool on wikiHow]] and 
-					give it another try! If you have any questions about adding tips, don't hesitate to reach out to the [[wikiHow_talk:Help-Team|Help Team]]. 
-					And remember, if you're not sure what to do, just press the \"skip\" 
+					If you haven't already, read our article on [[Use the Tips Patrol Tool on wikiHow|How to Use the Tips Patrol Tool on wikiHow]] and
+					give it another try! If you have any questions about adding tips, don't hesitate to reach out to the [[wikiHow_talk:Help-Team|Help Team]].
+					And remember, if you're not sure what to do, just press the \"skip\"
 					button and you'll do fine :)\r\n
 					The Patrol Coach";
 				Misc::adminPostTalkMessage($user, $from_user, $comment);
@@ -467,7 +466,7 @@ CREATE TABLE `tipspatrol_views` (
 				$title = Title::newFromID($row->tw_page);
 				$isRedirect = false;
 				if ($title) {
-					$dbr = wfGetDB(DB_SLAVE);
+					$dbr = wfGetDB(DB_REPLICA);
 					$isRedirect = (int)$dbr->selectField('page', 'page_is_redirect',
 						array('page_id' => $row->tw_page), __METHOD__, array("LIMIT" => 1));
 					if ($isRedirect) {
@@ -482,8 +481,8 @@ CREATE TABLE `tipspatrol_views` (
 					$revision = Revision::newFromTitle($title);
 					$popts = $out->parserOptions();
 					$popts->setTidy(true);
-					$parserOutput = $out->parse($revision->getText(), $title, $popts);
-					$magic = WikihowArticleHTML::grabTheMagic($revision->getText());
+					$parserOutput = $out->parse(ContentHandler::getContentText( $revision->getContent() ), $title, $popts);
+					$magic = WikihowArticleHTML::grabTheMagic(ContentHandler::getContentText( $revision->getContent() ));
 					$content['article'] = WikihowArticleHTML::processArticleHTML($parserOutput, array('no-ads', 'ns' => NS_MAIN, 'magic-word' => $magic));
 					$content['tip'] = $row->tw_tip;
 					$content['tipId'] = $row->tw_id;
@@ -511,7 +510,7 @@ CREATE TABLE `tipspatrol_views` (
 	}
 
 	public static function getCount() {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		// tw_guarded means it went through Quality Guardian (QG)
 		$count = $dbr->selectField('tipsandwarnings', 'COUNT(*)', array( 'tw_guarded' => '1' ), __METHOD__);
 		return $count;
@@ -568,9 +567,9 @@ CREATE TABLE `tipspatrol_views` (
 
 		if ($title) {
 			$revision = Revision::newFromTitle($title);
-			$article = new Article($title);
-			if ($revision && $article) {
-				$wikitext = $revision->getText();
+			$wikiPage = WikiPage::factory($title);
+			if ($revision && $wikiPage) {
+				$wikitext = ContentHandler::getContentText( $revision->getContent() );
 				$section = Wikitext::getSection($wikitext, "Tips", true);
 
 				// do not add the tip if the tips section does not exist.
@@ -582,7 +581,7 @@ CREATE TABLE `tipspatrol_views` (
 				if (self::tipAlreadyAdded($tipId, $tip, $section[0])) {
 					return false;
 				}
-				
+
 				//make a log for this
 				$logPage = new LogPage('newtips', false);
 				$logData = array($tipId);
@@ -594,8 +593,9 @@ CREATE TABLE `tipspatrol_views` (
 				$newText = $wgParser->replaceSection($wikitext, $section[1], $newSection);
 
 				// the save hook will log this tip being approved
-				$success = $article->doEdit($newText, wfMessage('newtips-article-edit-entry_tp')->text());
-				
+				$content = ContentHandler::makeContent($newText, $title);
+				$success = $wikiPage->doEditContent($content, wfMessage('newtips-article-edit-entry_tp')->text());
+
 				return $success;
 			}
 		}
@@ -603,19 +603,19 @@ CREATE TABLE `tipspatrol_views` (
 
 	public function addToQG($tipId, $articleId, $tip) {
 		$title = Title::newFromID($articleId);
-		if ($title) { 
+		if ($title) {
 			$article = new Article($title);
 			if ($article) {
 				//Add it to the QG queue
 				$l = new QCRuleTip($article, $tipId);
-				$qcId = $l->process();	
-				
+				$qcId = $l->process();
+
 				// //log it
 				// $logPage = new LogPage('newtips', false);
 				// $logData = array($tipId);
 				// $logMsg = wfMessage('newtips-sentToQG-logentry', $title->getFullText(), $tip)->text();
 				// $logS = $logPage->addEntry("Added", $title, $logMsg, $logData);
-				
+
 				//add to tips log table tool
 				$this->logTip($tipId, self::TIP_ACTION_DEFAULT, $tip, $qcId);
 				return true;
@@ -635,7 +635,7 @@ CREATE TABLE `tipspatrol_views` (
 	}
 
 	function logTip($tipId, $tipAction, $newtip=null, $qcId = null) {
-		
+
 		$userId = $this->getUser()->getID();
 
 		$row = TipsPatrol::getTipRow($tipId);
@@ -694,18 +694,23 @@ CREATE TABLE `tipspatrol_views` (
 		$previousRevision = $undoRevision ? $undoRevision->getPrevious() : null;
 
 		// do not revert if the page is wrong or changed..
-		if ( is_null($undoRevision) || is_null($previousRevision) || $undoRevision->getPage()!=$previousRevision->getPage() || $undoRevision->getPage()!=$pageId ) {
+		if ( is_null($undoRevision)
+			|| is_null($previousRevision)
+			|| $undoRevision->getPage() != $previousRevision->getPage()
+			|| $undoRevision->getPage() != $pageId
+		) {
 			return false;
 		}
 
 		$title = Title::newFromID($pageId);
-		$article = new Article($title);
+		$wikiPage = WikiPage::factory($title);
 
-		$undoRevisionText = $undoRevision->getText();
-		$currentText = $article->getContent();
+		$undoRevisionText = ContentHandler::getContentText( $undoRevision->getContent() );
+		$currentText = $wikiPage->getContent();
 
 		$undoTips = Wikitext::splitTips(reset(Wikitext::getSection($undoRevisionText, "Tips", true)));
-		$prevTips = Wikitext::splitTips(reset(Wikitext::getSection($previousRevision->getText(), "Tips", true)));
+		$previousRevisionText = ContentHandler::getContentText( $previousRevision->getContent() );
+		$prevTips = Wikitext::splitTips(reset(Wikitext::getSection($previousRevisionText, "Tips", true)));
 		$currentTipsSection = Wikitext::getSection($currentText, "Tips", true);
 		$currentTips = Wikitext::splitTips($currentTipsSection[0]);
 		$section = $currentTipsSection[1];
@@ -730,12 +735,13 @@ CREATE TABLE `tipspatrol_views` (
 			$resultTips .= "\n".$currentTip;
 		}
 		$newText = $wgParser->replaceSection($currentText, $section, $resultTips);
-		$success = $article->doEdit($newText, 'reverting tip from revision '.$revId, EDIT_UPDATE | EDIT_MINOR );
+		$content = ContentHandler::makeContent($newText, $title);
+		$success = $wikiPage->doEditContent($content, 'reverting tip from revision '.$revId, EDIT_UPDATE | EDIT_MINOR );
 
 		// mark the recent change as patrolled
 		if ($success) {
 			// should be ok to read from slave here because the change has been done earlier.
-			$dbr = wfGetDB(DB_SLAVE);
+			$dbr = wfGetDB(DB_REPLICA);
 			$rcid = $dbr->selectField('recentchanges', 'rc_id', array("rc_this_oldid=$revId") );
 			RecentChange::markPatrolled($rcid);
 			PatrolLog::record($rcid, false);
@@ -787,7 +793,7 @@ CREATE TABLE `tipspatrol_views` (
 	// it will get it by user if it can, but if there is no data
 	// with this username it will look for any tip text associated with this tipid
 	static function getTipData($tipId, $userId) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$row = $dbr->selectRow('tipsandwarnings_log', array('tw_tip', 'tw_page'), array('tw_id' => $tipId, 'tw_user'=>$userId), __METHOD__);
 		if ($row) {
@@ -807,7 +813,7 @@ CREATE TABLE `tipspatrol_views` (
 	}
 
 	static function getTipLogRow($tipId) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		if ($row = $dbr->selectRow('tipsandwarnings_log', '*', array('tw_id' => $tipId), __METHOD__)) {
 			$row = get_object_vars($row);
 		} else {
@@ -817,7 +823,7 @@ CREATE TABLE `tipspatrol_views` (
 	}
 
 	function getTipRow($tipId) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		if ($row = $dbr->selectRow('tipsandwarnings', '*', array('tw_id' => $tipId), __METHOD__)) {
 			$row = get_object_vars($row);
 		} else {

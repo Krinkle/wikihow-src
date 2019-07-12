@@ -7,16 +7,15 @@ $wgExtensionCredits['specialpage'][] = array(
 'author' => 'Bebeth Steudel',
 );
 
-$wgSpecialPages['ArticleReviewers'] = 'ArticleReviewers';
-$wgAutoloadClasses['ArticleReviewers'] = dirname(__FILE__) . '/ArticleReviewers.body.php';
-$wgExtensionMessagesFiles['ArticleReviewers'] = __DIR__ . '/ArticleReviewers.i18n.php';
+$wgAutoloadClasses['ArticleReviewers'] = __DIR__ . '/ArticleReviewers.body.php';
 
-$wgSpecialPages['AdminArticleReviewers'] = 'AdminArticleReviewers';
-$wgAutoloadClasses['AdminArticleReviewers'] = dirname(__FILE__) . '/AdminArticleReviewers.body.php';
+$wgSpecialPages['ArticleReviewers'] = 'ArticleReviewers';
+$wgExtensionMessagesFiles['ArticleReviewers'] = __DIR__ . '/ArticleReviewers.i18n.php';
+$wgExtensionMessagesFiles['ArticleReviewersAliases'] = __DIR__ . '/ArticleReviewers.alias.php';
 
 $wgResourceModules['ext.wikihow.articlereviewers'] = array(
 	'styles' => array('articlereviewers.css'),
-	'localBasePath' => dirname(__FILE__) . '/',
+	'localBasePath' => __DIR__ . '/',
 	'remoteExtPath' => 'wikihow/ArticleReviewers',
 	'position' => 'top',
 	'targets' => array( 'desktop', 'mobile' ),
@@ -24,7 +23,7 @@ $wgResourceModules['ext.wikihow.articlereviewers'] = array(
 
 $wgResourceModules['ext.wikihow.articlereviewers_script'] = array(
 	'scripts' => array('articlereviewers.js'),
-	'localBasePath' => dirname(__FILE__) . '/',
+	'localBasePath' => __DIR__ . '/',
 	'remoteExtPath' => 'wikihow/ArticleReviewers',
 	'position' => 'bottom',
 	'targets' => array( 'desktop' ),
@@ -32,15 +31,22 @@ $wgResourceModules['ext.wikihow.articlereviewers_script'] = array(
 
 $wgResourceModules['ext.wikihow.mobilearticlereviewers'] = array(
 	'styles' => array('mobilearticlereviewers.css'),
-	'localBasePath' => dirname(__FILE__) . '/',
+	'localBasePath' => __DIR__ . '/',
 	'remoteExtPath' => 'wikihow/ArticleReviewers',
 	'position' => 'top',
 	'targets' => array( 'desktop', 'mobile' ),
 );
 
+if (Misc::isIntl()) {
+	return;
+}
+
+$wgSpecialPages['AdminArticleReviewers'] = 'AdminArticleReviewers';
+$wgAutoloadClasses['AdminArticleReviewers'] = __DIR__ . '/AdminArticleReviewers.body.php';
+
 $wgResourceModules['ext.wikihow.adminarticlereviewers'] = array(
-	'styles' => array('../../uploadify/uploadify.css'),
-	'localBasePath' => dirname(__FILE__) . '/',
+	'styles' => array('../common/uploadify/uploadify.css'),
+	'localBasePath' => __DIR__ . '/',
 	'remoteExtPath' => 'wikihow/ArticleReviewers',
 	'position' => 'top',
 	'targets' => array( 'desktop', 'mobile' ),

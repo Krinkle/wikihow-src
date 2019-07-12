@@ -9,7 +9,6 @@ if (!$isMobile) {
 	$extraInputClass = ' ar_border_thin';
 	$extraButtonClass = ' ar_button_short';
 ?>
-<hr class='article_rating_divider' /><br />
 <div class='article_rating_container clearfix'>
 <?
 } else {
@@ -61,7 +60,7 @@ if ($rating == 0) {
 	$detailsClasses = implode(' ', $innerClassesArr);
 	$detailsHeadlineMsg = 'ratearticle_rated_details_headline';
 	$detailsPromptMsg = 'ratearticle_rated_details_prompt';
-	$detailsPlaceholderMsg = 'ratearticle_notrated_textarea'; // Reuse the notrated one
+	$detailsPlaceholderMsg = 'ratearticle_rated_textarea';
 	$firstnamePlaceholderMsg = 'ratearticle_firstname';
 	$lastnamePlaceholderMsg = 'ratearticle_lastname';
 }
@@ -78,12 +77,14 @@ if ($rating == 0) {
 		<form class='ar_form' id='ar_form_details' action='javascript:void(0);'>
 			<textarea placeholder='<?=wfMessage($detailsPlaceholderMsg)->text()?>' id='ar_details' class='ar_textarea<?=$extraInputClass?>' name='submit' maxlength='254'></textarea>
 <? if ($rating > 0) { ?>
-			<p id="ar_public_prompt"><?=wfMessage("ratearticle_publicprompt")->text()?></p>
-			<input type="radio" class="ar_public" name="ar_public" value="yes" /> <label class="ar_public_label"><?=wfMessage('ratearticle_publicyes')->text()?></label> <br />
-			<input type="radio" class="ar_public" name="ar_public" value="no" /> <label class="ar_public_label"><?=wfMessage('ratearticle_publicno')->text()?></label><br /><br />
-			<div id="ar_public_info">
-				<input type="text" name="ar_firstname" id="ar_firstname" class="ar_border_thin" placeholder="<?=wfMessage($firstnamePlaceholderMsg)->text()?>" />
+			<div id="ar_user_info" class="ar_public_info">
 				<input type="text" name="ar_lastname" id="ar_lastname" class="ar_border_thin" placeholder="<?=wfMessage($lastnamePlaceholderMsg)->text()?>" />
+				<input type="text" name="ar_firstname" id="ar_firstname" class="ar_border_thin" placeholder="<?=wfMessage($firstnamePlaceholderMsg)->text()?>" />
+			</div>
+			<p id="ar_public_prompt"><?=wfMessage("ratearticle_publicprompt")->text()?></p>
+			<input type="radio" class="ar_public" name="ar_public" id="ar_public_radio_yes" value="yes" /> <label for="ar_public_radio_yes" class="ar_public_label"><?=wfMessage('ratearticle_publicyes')->text()?></label> <br />
+			<input type="radio" class="ar_public" name="ar_public" id="ar_public_radio_no" value="no" /> <label for="ar_public_radio_no" class="ar_public_label"><?=wfMessage('ratearticle_publicno')->text()?></label><br /><br />
+			<div id="ar_public_info" class="ar_public_info">
 				<p id="ar_public_error" style="display:none;"><?= wfMessage("ratearticle_error")->text()?></p>
 				<p><?= wfMessage("ratearticle_public_agree")->text()?></p>
 			</div>

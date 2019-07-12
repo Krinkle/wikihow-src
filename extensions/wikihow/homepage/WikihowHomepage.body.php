@@ -42,7 +42,7 @@ class WikihowHomepage extends Article {
 		$html = $this->faStream->getChunks(WikihowHomepage::FA_STARTING_CHUNKS, WikihowHomepage::SINGLE_WIDTH, WikihowHomepage::SINGLE_SPACING, WikihowHomepage::SINGLE_HEIGHT);
 
 		// We add more from the FA stream on international, because we don't have rising stars on international
-		if($wgLanguageCode != "en") {
+		if ($wgLanguageCode != "en") {
 			$this->faStream = new WikihowArticleStream($faViewer, $this->getContext(), $this->faStream->getStreamPosition() + 1);
 			$html2 = $this->faStream->getChunks(WikihowHomepage::FA_MIDDLE_CHUNKS, WikihowHomepage::SINGLE_WIDTH, WikihowHomepage::SINGLE_SPACING, WikihowHomepage::SINGLE_HEIGHT);
 
@@ -55,7 +55,7 @@ class WikihowHomepage extends Article {
 		$this->faStream = new WikihowArticleStream($faViewer, $this->getContext(), $this->faStream->getStreamPosition() + 1);
 		$html3 = $this->faStream->getChunks(WikihowHomepage::FA_ENDING_CHUNKS, WikihowHomepage::SINGLE_WIDTH, WikihowHomepage::SINGLE_SPACING, WikihowHomepage::SINGLE_HEIGHT);
 
-		wfRunHooks( 'WikihowHomepageFAContainerHtml', array( &$html, &$html2, &$html3 ) );
+		Hooks::run( 'WikihowHomepageFAContainerHtml', array( &$html, &$html2, &$html3 ) );
 
         $totalHtml = $html . $html2 . $html3;
 
@@ -68,6 +68,8 @@ class WikihowHomepage extends Article {
         for ( $i = 0; $i < pq( 'video' )->length - $targetCount; $i++ ) {
             $video = pq('video')->eq( $indices[$i] );
             $image = Misc::getMediaScrollLoadHtml( 'img', ['src' => $video->attr( 'data-poster' )] );
+			$video->next('script')->remove();
+			$video->next('noscript')->remove();
             $video->replaceWith( $image );
         }
         $totalHtml = $tempDoc->documentWrapper->markup();
@@ -76,23 +78,23 @@ class WikihowHomepage extends Article {
 
         $wgOut->addHTML( $container );
 
-		// $catmap = Categoryhelper::getIconMap();
+		// $catmap = CategoryHelper::getIconMap();
 		// ksort($catmap);
 
 		$categories = array();
-		foreach($wgCategoryNames as $ck => $cat) {
+		foreach ($wgCategoryNames as $ck => $cat) {
 			$category = urldecode(str_replace("-", " ", $cat));
-			if($wgLanguageCode == "zh") {
+			if ($wgLanguageCode == "zh") {
 				$category = $wgContLang->convert($category);
 			}
 			// For Non-English we shall try to get the category name from message for the link. We fallback to the category name, because
 			// abbreviated category names are used for easier display. For the icon, we convert to English category names of the corresponding category.
-			if($wgLanguageCode != "en") {
+			if ($wgLanguageCode != "en") {
 				$enCat = $wgCategoryNamesEn[$ck];
 				$msgKey = strtolower(str_replace(' ','-',$enCat));
 				$foreignCat = str_replace('-',' ',urldecode(wfMessage($msgKey)->text()));
 				$catTitle = Title::newFromText("Category:" . $foreignCat);
-				if(!$catTitle) {
+				if (!$catTitle) {
 					$catTitle = Title::newFromText("Category:" . $cat);
 				}
 				$cat = $enCat;
@@ -106,7 +108,7 @@ class WikihowHomepage extends Article {
 			//$categories[$category]->icon = ListRequestedTopics::getCategoryImage($category);
 
 			//icon
-			if($wgLanguageCode != "en") {
+			if ($wgLanguageCode != "en") {
 				$cat = $wgCategoryNamesEn[$ck];
 			}
 			$cat_class = 'cat_'.strtolower(str_replace(' ','',$cat));
@@ -114,7 +116,7 @@ class WikihowHomepage extends Article {
 			$categories[$category]->icon = $cat_class;
 		}
 
-		$tmpl = new EasyTemplate( dirname(__FILE__) );
+		$tmpl = new EasyTemplate( __DIR__ );
 		$tmpl->set_vars(array(
 			'categories' => $categories
 		));
@@ -141,32 +143,35 @@ class WikihowHomepage extends Article {
 		return true;
 	}
 
+	/**
+	 * NOTE: Much of this code is duplicated in WikihowMobileHomepage.body.php (Alberto - 2018-09)
+	 */
 	public static function showTopImage() {
 		global $wgUser, $wgLanguageCode;
 
 		$items = array();
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->select(WikihowHomepageAdmin::HP_TABLE, array('*'), array('hp_active' => 1), __METHOD__, array('ORDER BY' => 'hp_order'));
 
 		$i = 0;
-		foreach($res as $result) {
+		foreach ($res as $result) {
 			$item = new stdClass();
 			$title = Title::newFromID($result->hp_page);
 			// Append Google Analytics tracking to slider URLs
 			$item->url = $title->getLocalURL() . "?utm_source=wikihow&utm_medium=main_page_carousel&utm_campaign=desktop";
-			$item->text = $title->getText();
+			$item->text = $title->getText() . wfMessage('howto_suffix')->showIfExists();
 			$imageTitle = Title::newFromID($result->hp_image);
-			if($imageTitle) {
+			if ($imageTitle) {
 				$file = wfFindFile($imageTitle->getText());
-				if($file) {
+				if ($file) {
 					$item->imagePath = wfGetPad($file->getUrl());
 					$item->itemNum = ++$i;
 					$items[] = $item;
 				}
 			}
 		}
-		wfRunHooks( 'WikihowHomepageAfterGetTopItems', array( &$items ) );
+		Hooks::run( 'WikihowHomepageAfterGetTopItems', array( &$items ) );
 
 		$searchTitle = Title::makeTitle(NS_SPECIAL, "LSearch");
 		$search = '
@@ -174,11 +179,15 @@ class WikihowHomepage extends Article {
 		<input type="text" class="search_box" name="search" />
 		</form>';
 
-		$tmpl = new EasyTemplate( dirname(__FILE__) );
+		$tmpl = new EasyTemplate( __DIR__ );
+		$loginVal = ($wgUser->getID() == 0 ? UserLoginBox::getLogin(false, false) : "");
+		if ( Misc::isAltDomain() ) {
+			$loginVal = '';
+		}
 		$tmpl->set_vars(array(
 			'items' => $items,
 			'imagePath' => wfGetPad('/skins/owl/images/home1.jpg'),
-			'login' => ($wgUser->getID() == 0 ? UserLoginBox::getLogin(false, false) : ""),
+			'login' => $loginVal,
 			'search' => $search
 		));
 		$html = $tmpl->execute('top.tmpl.php');
@@ -189,15 +198,13 @@ class WikihowHomepage extends Article {
 	}
 
 	public static function onArticleFromTitle(&$title, &$article) {
-		if($title->getText() == wfMessage('mainpage')->text()) {
+		if ($title->getText() == wfMessage('mainpage')->text()) {
 
-			$ctx = MobileContext::singleton();
-			$isMobile = $ctx->shouldDisplayMobileView();
-
-			if($isMobile)
+			if (Misc::isMobileMode()) {
 				$article = new WikihowMobileHomepage($title);
-			else
+			} else {
 				$article = new WikihowHomepage($title);
+			}
 			return true;
 		}
 
@@ -210,12 +217,18 @@ class WikihowHomepage extends Article {
 
 		if ($wgTitle->getText() == wfMessage('mainpage')->text()) {
 			$search_url = self::getSearchUrl();
-			if (!$search_url) return true; //can't add this is we don't have a search set up
 
-			$tmpl = new EasyTemplate( dirname(__FILE__) );
+			if (!$search_url) {
+				// We need to make sure the current language has a search engine. For new languages, if there isn't one
+				// set up, we need to set up a CSE. Ask Chris to set it up then get the URL from him for it.
+				echo "ERROR: The Sitelinks Searchbox configuration is missing! Please edit: " . __FILE__;
+				return true;
+			}
+
+			$tmpl = new EasyTemplate( __DIR__ );
 			$tmpl->set_vars(array(
-				'hp_url' => $wgTitle->getFullUrl(),
-				'search_url' => $search_url,
+				'hp_url' => json_encode($wgTitle->getFullUrl()),
+				'search_url' => json_encode($search_url),
 			));
 			$html = $tmpl->execute('sitesearchbox.tmpl.php');
 			print $html;
@@ -223,102 +236,46 @@ class WikihowHomepage extends Article {
 		return true;
 	}
 
-	private static function getSearchUrl() {
-		global $wgCanonicalServer, $wgLanguageCode, $wgActiveLanguages;
-		//gotta be an active language
-		if ($wgLanguageCode != 'en' && !in_array($wgLanguageCode,$wgActiveLanguages)) return '';
+	public static function getSearchUrl($query = '') {
+		global $wgCanonicalServer, $wgLanguageCode;
 
-		$ctx = MobileContext::singleton();
-		$isMobile = $ctx->shouldDisplayMobileView();
-
-		$site = '';
-		$cxid = '';
+		$query = $query ? urlencode($query) : '{search_term_string}';
 
 		if ($wgLanguageCode == 'en') {
-			//this actually isn't used. Overwritten below
-			$site = $wgCanonicalServer.'/Special:GoogSearch';
-			$cxid = 'mr-gwotjmbs';
-		}
-		elseif ($wgLanguageCode == 'de') {
-			$site = $isMobile ? 'http://www.google.de/cse' : $wgCanonicalServer.'/Special:GoogSearch';
-			$cxid = 'uodsdlb5i_g';
-		}
-		elseif ($wgLanguageCode == 'es') {
-			$site = $isMobile ? 'http://www.google.es/cse' : $wgCanonicalServer.'/Special:GoogSearch';
-			$cxid = 'd-m9-bge-b8';
-		}
-		elseif ($wgLanguageCode == 'fr') {
-			$site = $isMobile ? 'http://www.google.fr/cse' : $wgCanonicalServer.'/Special:GoogSearch';
-			$cxid = 'ar_ivxaiyic';
-		}
-		elseif ($wgLanguageCode == 'hi') {
-			$site = $isMobile ? 'http://www.google.com/cse' : $wgCanonicalServer.'/Special:GoogSearch';
-			$cxid = 'veo5jv3yqlo';
-		}
-		elseif ($wgLanguageCode == 'it') {
-			$site = $isMobile ? 'http://www.google.it/cse' : $wgCanonicalServer.'/Special:GoogSearch';
-			$cxid = 'tav742__lhu';
-		}
-		elseif ($wgLanguageCode == 'ja') {
-			$site = $isMobile ? 'http://www.google.co.jp/cse' : 'http://www.google.co.jp/cse';
-			$cxid = 'g_epwflza0e';
-		}
-		elseif ($wgLanguageCode == 'nl') {
-			$site = $isMobile ? 'http://www.google.nl/cse' : $wgCanonicalServer.'/Special:GoogSearch';
-			$cxid = 'lgi9gl9f5so';
-		}
-		elseif ($wgLanguageCode == 'pt') {
-			$site = $isMobile ? 'http://www.google.pt/cse' : $wgCanonicalServer.'/Special:GoogSearch';
-			$cxid = 'npdtpoa9n0o';
-		}
-		elseif ($wgLanguageCode == 'ru') {
-			$site = $isMobile ? 'http://www.google.ru/cse' : $wgCanonicalServer.'/Special:GoogSearch';
-			$cxid = '9eczeje2tra';
-		}
-		elseif ($wgLanguageCode == 'zh') {
-			$site = $isMobile ? 'http://www.google.com/cse' : $wgCanonicalServer.'/Special:GoogSearch';
-			$cxid = 'wqu8qtfdf2g';
-		}
-		elseif ($wgLanguageCode == 'cs') {
-			$site = $isMobile ? 'http://www.google.com/cse' : 'http://www.google.cz/cse';
-			$cxid = 'rbfdcv7xp3y';
-		}
-		elseif ($wgLanguageCode == 'id') {
-			$site = $isMobile ? 'http://www.google.co.id/cse' : 'http://www.google.co.id/cse';
-			$cxid = '-gta3fdvfh8';
-		}
-		elseif ($wgLanguageCode == 'ar') {
-			$site = $isMobile ? 'http://www.google.com/cse' : 'http://www.google.ae/cse';
-			$cxid = 'p69otx3fxl8';
-		}
-		elseif ($wgLanguageCode == 'th') {
-			$site = $isMobile ? 'http://www.google.com/cse' : 'http://www.google.co.th/cse';
-			$cxid = 'ub6yetul04s';
-		}
-		elseif ($wgLanguageCode == 'ko') {
-			$site = $isMobile ? 'http://www.google.co.kr/cse' : 'http://www.google.co.kr/cse';
-			$cxid = '4datrbvuolo';
-		}
-		elseif ($wgLanguageCode == 'vi') {
-			$site = $isMobile ? 'http://www.google.com.vn/cse' : 'http://www.google.com.vn/cse';
-			$cxid = 'tghxspjdhxu';
+			// $cxid = 'mr-gwotjmbs'; // Unused
+			return $wgCanonicalServer . '/wikiHowTo?search=' . $query;
 		}
 
-		//really? nothing?
-		// We need to make sure the current language has a search engine. For new languages, if there isn't one
-		// set up, we need to set up a CSE. Ask Chris to set it up then get the URL from him for it.
-		if (!$site || !$cxid) {
-			print "Something is wrong on the internet! Specifically, this right here. No Search Engine: " . __FILE__ . ":" . __LINE__;
+		// [ [ lang => [cxid, url] ]
+		$cnf = [
+			'ar' => [ 'p69otx3fxl8', 'https://cse.google.ae/cse' ],
+			'cs' => [ 'rbfdcv7xp3y', 'https://cse.google.cz/cse' ],
+			'de' => [ 'uodsdlb5i_g', 'https://cse.google.de/cse' ],
+			'es' => [ 'd-m9-bge-b8', 'https://cse.google.es/cse' ],
+			'fr' => [ 'ar_ivxaiyic', 'https://cse.google.fr/cse' ],
+			'hi' => [ 'veo5jv3yqlo', 'https://cse.google.co.in/cse' ],
+			'id' => [ '-gta3fdvfh8', 'https://cse.google.co.id/cse' ],
+			'it' => [ 'tav742__lhu', 'https://cse.google.it/cse' ],
+			'ja' => [ 'g_epwflza0e', 'https://cse.google.co.jp/cse' ],
+			'ko' => [ '4datrbvuolo', 'https://cse.google.co.kr/cse' ],
+			'nl' => [ 'lgi9gl9f5so', 'https://cse.google.nl/cse' ],
+			'pt' => [ 'npdtpoa9n0o', 'https://cse.google.pt/cse' ],
+			'ru' => [ '9eczeje2tra', 'https://cse.google.ru/cse' ],
+			'th' => [ 'ub6yetul04s', 'https://cse.google.co.th/cse' ],
+			'tr' => [ '5fi_u5xsm5k', 'https://cse.google.com.tr/cse' ],
+			'vi' => [ 'tghxspjdhxu', 'https://cse.google.com.vn/cse' ],
+			'zh' => [ 'wqu8qtfdf2g', 'https://cse.google.com.hk/cse' ],
+		];
+
+		$langCnf = $cnf[$wgLanguageCode] ?? null;
+		if (!$langCnf) {
+			return false;
 		}
 
-		//Avengers Assemble!
-		if ($wgLanguageCode == 'en') {
-			$url = $wgCanonicalServer.'/wikiHowTo?search={search_term_string}';
-		}
-		else {
-			$url = $site.'?cx=008953293426798287586:'.$cxid.'&cof=FORID%3A10&ie=UTF-8&q={search_term_string}';
-		}
-		return $url;
+		$site = Misc::isMobileMode() ? $langCnf[1] : "{$wgCanonicalServer}/Special:GoogSearch";
+		$cxid = $langCnf[0];
+
+		return $site . '?cx=008953293426798287586:' . $cxid . '&cof=FORID%3A10&ie=UTF-8&q=' . $query;
 	}
 
 	public static function getLanguageLinksForHomePage() {
@@ -330,7 +287,8 @@ class WikihowHomepage extends Article {
 		}
 
 		$languageHPs = array();
-		foreach ($wgActiveLanguages as $lang) {
+		$langs = array_merge(['en'], $wgActiveLanguages);
+		foreach ($langs as $lang) {
 			$hp = wfMessage('mainpage')->inLanguage($lang);
 			if ($hp == '') continue;
 			$languageHPs[] = $lang.':'.$hp;

@@ -1,4 +1,4 @@
-<?
+<?php
 // MVC required constants
 define('APP_NS', 'ContentPortal');
 define('APP_DIR', realpath(__DIR__ . '/../'));
@@ -13,10 +13,10 @@ define('WH_USER_ID', 'wh_user_id');
 define('USER_TOKEN', 'user_token');
 define('LOGIN_PATH', 'session/new');
 define('REDIRECT_URL', 'redirect_url');
-define('PORTAL_CONTACT', 'wikihowcontent@gmail.com');
+define('PORTAL_CONTACT', 'support@wikihow.com');
 
-define('URL_PREFIX', 'http://www.wikihow.com/');
-define('LOGIN_API', 'http://wikihow.com/api.php?action=login&format=json');
+define('URL_PREFIX', 'https://www.wikihow.com/');
+define('LOGIN_API', 'https://' . WH_DEV_ACCESS_AUTH . '@daikon.wikiknowhow.com/api.php?action=login&format=json');
 
 define('CARRIE', 'Dr. Carrie');
 define('DANIEL', 'Daniel');

@@ -49,6 +49,15 @@ class SpecialBlockList extends SpecialPage {
 		$out = $this->getOutput();
 		$lang = $this->getLanguage();
 		$out->setPageTitle( $this->msg( 'ipblocklist' ) );
+
+		if(!$this->getUser()->isLoggedIn()) {
+			//google thought these were soft 404s, so 404ing them ourselves
+			$out = $this->getOutput();
+			$out->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
+			$out->setStatusCode( 404 );
+			return;
+		}
+
 		$out->addModuleStyles( 'mediawiki.special' );
 
 		$request = $this->getRequest();

@@ -2,22 +2,25 @@
 
 class Sitemap extends SpecialPage {
 
-	function __construct() {
+	public function __construct() {
 		parent::__construct( 'Sitemap' );
 	}
 
-	function getTopLevelCategories() {
+	private function getTopLevelCategories() {
 		global $wgCategoriesArticle;
-		$results = array (); 
-		$revision = Revision::newFromTitle( Title::newFromText( wfMsg('categories_article') ) );
+		$results = array ();
+		$title = CategoryHelper::getCategoryTreeTitle();
+		$revision = Revision::newFromTitle($title);
 		if (!$revision) return $results;
 
 		// INTL: If there is a redirect to a localized page name, follow it
-		if(strpos($revision->getText(), "#REDIRECT") !== false) {
-			$revision = Revision::newFromTitle( Title::newFromRedirect($revision->getText()));
+		if (strpos(ContentHandler::getContentText( $revision->getContent() ), "#REDIRECT") !== false) {
+			$wikiPage = WikiPage::factory($title);
+			$newTitle = $wikiPage->getRedirectTarget();
+			$revision = Revision::newFromTitle( $newTitle );
 		}
 
-		$lines = explode("\n", $revision->getText() );
+		$lines = explode("\n", ContentHandler::getContentText( $revision->getContent() ) );
 		foreach ($lines as $line) {
 			if (preg_match ('/^\*[^\*]/', $line)) {
 				$line = trim(substr($line, 1)) ;
@@ -33,29 +36,16 @@ class Sitemap extends SpecialPage {
 		return $results;
 	}
 
-	function getSubcategories($t) {
-		$dbr =& wfGetDB( DB_SLAVE );
-		$subcats = array();
-		$res = $dbr->select ( array ('categorylinks', 'page'),
-			array('page_title'),
-			array('page_id=cl_from',
-				'cl_to' => $t->getDBKey(),
-				'page_namespace=' .NS_CATEGORY
-			),
-			"Sitemap:wfGetSubcategories"
-		);
-		while ($row = $dbr->fetchObject($res)) {
-			if (strpos($row->page_title, 'Requests') !== false) continue;
-			$subcats[] = $row->page_title;
-		}
+	private function getSubcategories($t) {
+		$categoryViewer = new WikihowCategoryViewer($t, $this->getContext());
+		$subcats = $categoryViewer->getSubcategories($t, false);
 		return $subcats;
 	}
-	
-	function execute($par) {
-		global $wgOut, $wgUser;
+
+	public function execute($par) {
+		global $wgUser;
 		$out = $this->getOutput();
-		$out->setRobotPolicy("index,follow");
-		$sk = $wgUser->getSkin();
+		$out->setRobotPolicy('noindex,follow');
 		$topcats = $this->getTopLevelCategories();
 
 		$out->setHTMLTitle('wikiHow Sitemap');
@@ -90,8 +80,7 @@ class Sitemap extends SpecialPage {
 				$subcats = $this->getSubcategories($t);
 				$html .= "<td><h3>" . Linker::link($t, $t->getText()) . "</h3><ul id='catentry'>";
 				foreach ($subcats as $sub) {
-					$t = Title::newFromText($sub, NS_CATEGORY);
-					$html .= "<li>" . Linker::link($t, $t->getText()) . "</li>\n";
+					$html .= "<li>" . Linker::link($sub, $sub->getText()) . "</li>\n";
 				}
 				$html .= "</ul></td>\n";
 			}
@@ -109,10 +98,9 @@ class Sitemap extends SpecialPage {
 
 		$html .= "</table>";
 
-		wfRunHooks( 'SitemapOutputHtml', array( &$html ) );
+		Hooks::run( 'SitemapOutputHtml', array( &$html ) );
 
 		$out->addHTML( $html );
 	}
 
 }
-

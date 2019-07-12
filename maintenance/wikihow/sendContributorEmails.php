@@ -3,7 +3,6 @@
  * Send e-mails to contributors whose contributions were made on articles
  * that have since been updated by an Editing Fellow.
  * Only active for specific tools, e.g.:
- *     KnowledgeBox
  *     Rating Reason
  */
 
@@ -74,7 +73,7 @@ SQL;
 			die();
 		}
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		// Fetch e-mails and their entries per tool.
 		// An e-mail's submission will be included if:
@@ -274,26 +273,7 @@ SQL;
 					$howtoTitle = wfMessage('howto', $article['title'])->text();
 
 					// TODO: move subjects to MW messages or separate function
-					if ($tool === 'knowledgebox') {
-						$selectedTopic = $this->getTopic(array($article));
-
-						if (!$selectedTopic) {
-							$this->printDebug("  !! $tool $emailAddr: no topic found\n");
-							continue;
-						}
-
-						$topics[$selectedTopic]++;
-						if (mb_strlen($selectedTopic) > 40) {
-							$this->printDebug("  !! $tool $emailAddr: topic '"
-								. $selectedTopic
-								. "' too long for subject.\n");
-							continue;
-						}
-						$subject =
-							'Thanks for telling us about '
-							. $selectedTopic
-							. '. We\'ve updated our article.';
-					} elseif ($tool === 'ratingreason') {
+					if ($tool === 'ratingreason') {
 						if (mb_strlen($howtoTitle) > 40) {
 							$this->printDebug("  !! $tool $emailAddr: title '"
 								. $howtoTitle
@@ -344,27 +324,7 @@ SQL;
 					}
 
 					// TODO: move subjects to MW messages or separate function
-					if ($tool === 'knowledgebox') {
-						$selectedTopic = $this->getTopic($articles);
-
-						if (!$selectedTopic) {
-							$this->printDebug("  !! $tool $emailAddr: no topic found\n");
-							continue;
-						}
-
-						$topics[$selectedTopic]++;
-						if (mb_strlen($selectedTopic) > 40) {
-							$this->printDebug(
-								"  !! $tool $emailAddr: topic '"
-								. $selectedTopic
-								. "' too long for subject.\n");
-							continue;
-						}
-						$subject =
-							'Thanks for telling us about '
-							. $selectedTopic
-							. '. We\'ve updated our article.';
-					} elseif ($tool === 'ratingreason') {
+					if ($tool === 'ratingreason') {
 						if ($validSubjectArtTitle === false) {
 							$this->printDebug(
 								"  !! $tool $emailAddr: title '"
@@ -413,73 +373,13 @@ SQL;
 		return $results;
 	}
 
-	/**
-	 * Fetch a KB topic for the given article if one exists.
-	 */
-	public function getTopic($article_info) {
-		$tool_ids = array();
-
-		foreach ($article_info as $article) {
-			$tool_ids[] = $article['tool_id'];
-		}
-
-		$dbr = wfGetDB(DB_SLAVE);
-
-		$res = $dbr->select(
-			array(
-				'kbc' => 'knowledgebox_contents',
-				'kba' => 'knowledgebox_articles'
-			),
-			array(
-				'kba_topic'
-			),
-			array(
-				'kbc_id' => $tool_ids,
-				'kba_topic <> "N/A"'
-			),
-			__METHOD__,
-			array(),
-			array(
-				'kba' => array(
-					'INNER JOIN',
-					array('kba_aid = kbc_aid')
-				)
-			)
-		);
-
-		$topics = array();
-
-		foreach ($res as $row) {
-			$topic = $row->kba_topic;
-
-			if ($topic) {
-				$topics[$topic]++;
-			}
-		}
-
-		if (!$topics) {
-			return false;
-		}
-
-		$selectedTopic = array('weight' => 0);
-
-		foreach ($topics as $topic=>$weight) {
-			if ($weight > $selectedTopic['weight']) {
-				$selectedTopic['topic'] = $topic;
-				$selectedTopic['weight'] = $weight;
-			}
-		}
-
-		return $selectedTopic['topic'];
-	}
-
 	// See: AuthorEmailNotification::getCTA()
 	// NOTE: Currently unused.
 	public function getRandCTA() {
 		$rand = rand(1, 3);
 
 		$link = AuthorEmailNotification::getCTALink('', '');
-		$sentence = wfMsg('aen_cta_'.$rand, $link);
+		$sentence = wfMessage('aen_cta_' . $rand, $link);
 
 		return $sentence;
 	}
@@ -510,14 +410,10 @@ SQL;
 	 * Send the actual e-mails
 	 */
 	protected function sendEmails($emails) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$dbw = wfGetDB(DB_MASTER);
 
 		$types_encountered = array(
-			'knowledgebox' => array(
-				'single' => 0,
-				'multiple' => 0
-			),
 			'ratingreason' => array(
 				'single' => 0,
 				'multiple' => 0
@@ -565,7 +461,7 @@ SQL;
 			$to = new MailAddress($email['to']);
 			$ts = wfTimestampNow();
 
-			$topic = $tool == 'knowledgebox' ? $email['topic'] : '[[N/A]]';
+			$topic = '[[N/A]]';
 			$entry_ids_str = implode(',', $email['entry_ids']);
 
 			$this->printDebug(
@@ -603,9 +499,7 @@ SQL;
 				);
 
 				// SEND THE ACTUAL EMAILS
-				if ($tool === "knowledgebox") {
-					$emailCategory = "KB_edit";
-				} else if ($tool === "ratingreason") {
+				if ($tool === "ratingreason") {
 					$emailCategory = "nothelpful_edit";
 				} else {
 					// do not tag with SendGrid cat
@@ -630,11 +524,9 @@ SQL;
 	}
 
 	protected function getTesterEmails() {
-		$tester_addrs = array(
-			'george@wikihow.com'
-			, 'elizabeth@wikihow.com'
-			, 'alissa@wikihow.com'
-		);
+		$tester_addrs = [
+			'elizabeth@wikihow.com'
+		];
 
 		$tester_emails = array();
 
@@ -656,12 +548,12 @@ SQL;
 
 		$this->categoryWhitelist = array();
 
-		$categoryTreeArray = Categoryhelper::getCategoryTreeArray();
+		$categoryTreeArray = CategoryHelper::getCategoryTreeArray();
 		unset($categoryTreeArray['']);
 		unset($categoryTreeArray['WikiHow']);
 		unset($categoryTreeArray['Other']);
 		foreach ($categoryTreeArray as $subTree) {
-			Categoryhelper::flattenary($this->categoryWhitelist, $subTree);
+			CategoryHelper::flattenary($this->categoryWhitelist, $subTree);
 		}
 
 		$this->categoryWhitelist = array_unique($this->categoryWhitelist);
@@ -678,4 +570,3 @@ SQL;
 
 $maintClass = 'SendContributorEmails';
 require_once RUN_MAINTENANCE_IF_MAIN;
-

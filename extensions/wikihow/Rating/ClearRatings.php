@@ -62,6 +62,9 @@ class ClearRatings extends SpecialPage {
 				if ($type == 'article') {
 					$starRatingTool = new RatingStar();
 					$starRatingTool->clearRatings($clearId, $user);
+
+					// clear data about the summary section (videos and helpfulness)
+					AdminClearRatings::resetSummaryData( $target );
 				}
 
 				$out->addHTML(wfMessage('clearratings_clear_finished') . "<br/><br/>");
@@ -97,7 +100,7 @@ class ClearRatings extends SpecialPage {
 			$id = $ratingTool->getId($t);
 			if ($id === 0) {
 				$err = wfMessage('clearratings_no_such_title', $target);
-			} elseif ($type == "article" && $t->getNamespace() != NS_MAIN) {
+			} elseif ($type == "article" && !$t->inNamespace(NS_MAIN)) {
 				$err = wfMessage('clearratings_only_main', $target);
 			} else {
 				// clearing info

@@ -17,21 +17,7 @@
 	color: #FFF;
 	background-color: #B3CE9C;
 }
-#search_oversearch {
-	display: block !important;
-	right: 0;
-	width: 30%;
-}
-#search_oversearch #cse-search-box {
-	margin: 0 10px;
-}
-#search_oversearch .cse_sa {
-	background-color: #B3CE9C;
-	background-image: url(/extensions/wikihow/mobile/images/white_mag.png);
-	background-size:22px;
-	margin-top:3px;
-	right:12px;
-}
+
 .wh_search .cse_q {
 	width:88%;
 }
@@ -78,9 +64,6 @@
   width: auto;
   height: 51px;
   padding: 0 14px;
-}
-#noscript_header_logo.lang_ja {
-  background-image: url(/extensions/wikihow/mobile/images/wikihow_logo_230_ja.png);
 }
 .addTipElement {
 	display: none;

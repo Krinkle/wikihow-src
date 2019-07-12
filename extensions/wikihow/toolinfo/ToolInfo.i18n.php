@@ -34,6 +34,9 @@ $messages['en'] = array (
 	'ti_TechFeedback_bullets' => "<li><b>Vote yes</b> if this is helpful feedback that could be used to improve and/or update this article.</li>
 		<li><b>Vote no</b> if it's not constructive feedback, is unrelated to the topic, or is too vague to be useful.</li>
 		<li><b>Skip</b> to the next one if you're not sure.</li>",
+	'ti_ArticleFeedback_bullets' => "<li><b>Vote yes</b> if this is helpful feedback that could be used to improve and/or update this article.</li>
+		<li><b>Vote no</b> if it's not constructive feedback, is unrelated to the topic, or is too vague to be useful.</li>
+		<li><b>Skip</b> to the next one if you're not sure.</li>",
 	'ti_FixFlaggedAnswers_bullets' => "Consider the question, answer, flag reason and flag details (if any), and then decide what should be done to fix the problem:<br>
 		<ul>
 		<li><b>Delete Q&A pair</b> if the question is a bad fit for the article, or is a duplicate of a question answered below.</li>

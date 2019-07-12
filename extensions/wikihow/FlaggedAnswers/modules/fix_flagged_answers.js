@@ -8,12 +8,10 @@
 		skipping: false,
 		question_min: 20,
 		question_max: 500,
-		answer_min: 75,
+		answer_min: 60,
 		answer_max: 1000,
 		qfa_data: {},
 		is_staff: $('#ffa_staff').length > 0,
-		minSubmittedQuestionChars: 20,
-		minProposedAnswerChars: 75,
 
 		init: function() {
 			this.addHandlers();

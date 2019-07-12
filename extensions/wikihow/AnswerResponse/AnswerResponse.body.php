@@ -37,6 +37,9 @@ class AnswerResponse extends UnlistedSpecialPage {
 		if ($helpful == '') return;
 		$this->helpful = $helpful;
 
+		// allow redirections to mobile domain
+		Misc::setHeaderMobileFriendly();
+
 		$out->setHtmlTitle(wfMessage('qaar_title')->text());
 
 		$out->addModuleStyles('wikihow.answer_response');
@@ -173,7 +176,7 @@ class AnswerResponse extends UnlistedSpecialPage {
 
 		if ($talkPage->getArticleId() > 0) {
 			$rev = Revision::newFromTitle($talkPage);
-			$wikitext = $rev->getText();
+			$wikitext = ContentHandler::getContentText( $rev->getContent() );
 		}
 		$wikitext .= "\n\n$formattedComment\n\n";
 

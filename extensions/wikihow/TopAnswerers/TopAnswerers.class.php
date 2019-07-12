@@ -1,41 +1,50 @@
 <?php
 /*
 CREATE TABLE `top_answerers` (
-	`ta_id` int(10) PRIMARY KEY AUTO_INCREMENT,
-	`ta_user_id` int(10) NOT NULL DEFAULT 0,
-	`ta_source` varbinary(14) NOT NULL DEFAULT '',
-	`ta_is_blocked` tinyint(4) NOT NULL DEFAULT 0,
-	`ta_created` varbinary(14) NOT NULL DEFAULT '',
-	`ta_updated` varbinary(14) NOT NULL DEFAULT '',
+	`ta_id` INT(10) PRIMARY KEY AUTO_INCREMENT,
+	`ta_user_id` INT(10) NOT NULL DEFAULT 0,
+	`ta_source` VARBINARY(14) NOT NULL DEFAULT '',
+	`ta_is_blocked` TINYINT(4) NOT NULL DEFAULT 0,
+	`ta_created` VARBINARY(14) NOT NULL DEFAULT '',
+	`ta_updated` VARBINARY(14) NOT NULL DEFAULT '',
 	UNIQUE KEY (`ta_user_id`)
 );
 
 CREATE TABLE `qa_answerer_categories` (
-	`qac_id` int(10) PRIMARY KEY AUTO_INCREMENT,
-	`qac_user_id` int(10) NOT NULL DEFAULT 0,
-	`qac_category` varbinary(255) NOT NULL DEFAULT '',
-	`qac_count` int(4) NOT NULL DEFAULT 0,
+	`qac_id` INT(10) PRIMARY KEY AUTO_INCREMENT,
+	`qac_user_id` INT(10) NOT NULL DEFAULT 0,
+	`qac_category` VARBINARY(255) NOT NULL DEFAULT '',
+	`qac_count` INT(4) NOT NULL DEFAULT 0,
 	UNIQUE KEY `qac_index` (`qac_user_id`,`qac_category`),
 	KEY (`qac_count`)
 );
 
-CREATE TABLE `qa_answerer_stats` (
-	`qas_id` int(10) PRIMARY KEY AUTO_INCREMENT,
-	`qas_user_id` int(10) NOT NULL DEFAULT 0,
-	`qas_answers_count` int(4) NOT NULL DEFAULT 0,
-	`qas_avg_app_rating` DECIMAL(3,2) UNSIGNED NOT NULL DEFAULT 0,
-	`qas_avg_sim_score` DECIMAL(3,2) UNSIGNED NOT NULL DEFAULT 0,
-	UNIQUE KEY (`qas_user_id`)
+CREATE TABLE `qa_answerer_similarity_scores` (
+	`qass_id` INT(10) PRIMARY KEY AUTO_INCREMENT,
+	`qass_user_id` INT(10) NOT NULL DEFAULT 0,
+	`qass_sqid` INT(10) NOT NULL DEFAULT 0,
+	`qass_sim_score` DECIMAL(3,2) UNSIGNED NOT NULL DEFAULT 0,
+	KEY (`qass_user_id`)
 );
+
+CREATE TABLE `qa_answerer_approval_ratings` (
+	`qaar_id` INT(10) PRIMARY KEY AUTO_INCREMENT,
+	`qaar_user_id` INT(10) NOT NULL DEFAULT 0,
+	`qaar_sqid` INT(10) NOT NULL DEFAULT 0,
+	`qaar_approved` TINYINT(4) UNSIGNED NOT NULL DEFAULT 0,
+	KEY (`qaar_user_id`)
+);
+
 */
 class TopAnswerers {
 	var $id, $userId, $source, $isBlocked, $createDate, $updateDate;
-	var $avgAppRating, $avgSimScore, $answersCount;
+	var $avgAppRating, $avgSimScore, $liveAnswersCount, $calculatedAnswersCount;
 	var $userName, $userRealName, $userLink, $userImage, $topCats;
 
 	const TABLE_TOP_ANSWERERS 				= 'top_answerers';
 	const TABLE_ANSWERER_CATEGORIES 	= 'qa_answerer_categories';
-	const TABLE_ANSWERER_STATS 				= 'qa_answerer_stats';
+	const TABLE_ANSWERER_SIM_SCORES		= 'qa_answerer_similarity_scores';
+	const TABLE_ANSWERER_APP_RATINGS	= 'qa_answerer_approval_ratings';
 	const SOURCE_ADMIN 								= 'admin';
 	const SOURCE_AUTO 								= 'auto';
 	const THRESHOLD_ANSWER_COUNT			= 50;
@@ -47,19 +56,20 @@ class TopAnswerers {
 	var $current_cat 	= 0;	//set to ignore the current category (for listing on an article)
 
 	public function __construct() {
-		$this->userId 			= 0;
-		$this->source 			= '';
-		$this->isBlocked		= 0;
-		$this->createDate 	= wfTimeStampNow();
-		$this->updateDate 	= wfTimeStampNow();
-		$this->avgAppRating = 0;
-		$this->avgSimScore 	= 0;
-		$this->answersCount = 0;
-		$this->userName 		= '';
-		$this->userRealName = '';
-		$this->userLink 		= '';
-		$this->userImage		= '';
-		$this->topCats 			= '';
+		$this->userId 								= 0;
+		$this->source 								= '';
+		$this->isBlocked							= 0;
+		$this->createDate 						= wfTimeStampNow();
+		$this->updateDate 						= wfTimeStampNow();
+		$this->avgAppRating 					= 0;
+		$this->avgSimScore 						= 0;
+		$this->liveAnswersCount 			= 0;
+		$this->calculatedAnswersCount = 0;
+		$this->userName 							= '';
+		$this->userRealName 					= '';
+		$this->userLink 							= '';
+		$this->userImage							= '';
+		$this->topCats 								= '';
 	}
 
 	public function loadFromDbRow($row) {
@@ -69,9 +79,6 @@ class TopAnswerers {
 		$this->isBlocked		= $row->ta_is_blocked;
 		$this->createDate 	= $row->ta_created;
 		$this->updateDate 	= $row->ta_updated;
-		$this->avgAppRating = $row->qas_avg_app_rating;
-		$this->avgSimScore 	= $row->qas_avg_sim_score;
-		$this->answersCount = $row->qas_answers_count;
 
 		//get user data
 		$user = User::newFromId($this->userId);
@@ -84,6 +91,12 @@ class TopAnswerers {
 
 		//category info
 		$this->topCats = $this->getTopCatsData();
+
+		//do the math for the other data
+		$this->liveAnswersCount 			= self::countLiveAnswersByUserId($this->userId);
+		$this->calculatedAnswersCount = self::countCalculatedAnswersByUserId($this->userId);
+		$this->avgAppRating 					= self::averageApprovalRating($this->userId);
+		$this->avgSimScore 						= self::averageSimilarityScore($this->userId);
 	}
 
 	/**
@@ -97,19 +110,12 @@ class TopAnswerers {
 	public function loadById($id) {
 		if (!is_int($id)) return false;
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->select(
-			[
-				self::TABLE_TOP_ANSWERERS,
-				self::TABLE_ANSWERER_STATS
-			],
+			self::TABLE_TOP_ANSWERERS,
 			'*',
 			['ta_id' => $id],
-			__METHOD__,
-			[],
-			[
-				self::TABLE_ANSWERER_STATS => ['LEFT JOIN', 'ta_user_id = qas_user_id']
-			]
+			__METHOD__
 		);
 
 		$row = $res->fetchObject();
@@ -134,19 +140,12 @@ class TopAnswerers {
 	public function loadByUserId($user_id) {
 		if (empty($user_id)) return false;
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->select(
-			[
-				self::TABLE_TOP_ANSWERERS,
-				self::TABLE_ANSWERER_STATS
-			],
+			self::TABLE_TOP_ANSWERERS,
 			'*',
 			['ta_user_id' => $user_id],
-			__METHOD__,
-			[],
-			[
-				self::TABLE_ANSWERER_STATS => ['LEFT JOIN', 'ta_user_id = qas_user_id']
-			]
+			__METHOD__
 		);
 
 		$row = $res->fetchObject();
@@ -194,7 +193,7 @@ class TopAnswerers {
 			//let's load up all the stuff
 			$this->loadByUserId($this->userId);
 			//let's also send a congratulatory email
-			$this->sendGratsEmail();
+			if (!$this->isBlocked) $this->sendGratsEmail();
 			//oh! and clear the ta cache
 			$this->clearTAcache();
 		}
@@ -204,20 +203,21 @@ class TopAnswerers {
 
 	public function toJSON() {
 		return [
-			'ta_id' 						=> $this->id,
-			'ta_user_id' 				=> $this->userId,
-			'ta_source' 				=> $this->source,
-			'ta_is_blocked' 		=> $this->isBlocked,
-			'ta_created'				=> $this->createDate,
-			'ta_updated'				=> $this->updateDate,
-			'ta_user_name'			=> $this->userName,
-			'ta_user_real_name'	=> $this->userRealName,
-			'ta_user_link'			=> $this->userLink,
-			'ta_user_image'			=> $this->userImage,
-			'ta_avg_app_rating'	=> $this->avgAppRating,
-			'ta_avg_sim_score' 	=> $this->avgSimScore,
-			'ta_answers_count' 	=> $this->answersCount,
-			'ta_top_cats'				=> $this->topCats
+			'ta_id' 								=> $this->id,
+			'ta_user_id' 						=> $this->userId,
+			'ta_source' 						=> $this->source,
+			'ta_is_blocked' 				=> $this->isBlocked,
+			'ta_created'						=> $this->createDate,
+			'ta_updated'						=> $this->updateDate,
+			'ta_user_name'					=> $this->userName,
+			'ta_user_real_name'			=> $this->userRealName,
+			'ta_user_link'					=> $this->userLink,
+			'ta_user_image'					=> $this->userImage,
+			'ta_avg_app_rating'			=> $this->avgAppRating,
+			'ta_avg_sim_score' 			=> $this->avgSimScore,
+			'ta_answers_live_count' => $this->liveAnswersCount,
+			'ta_answers_calc_count' => $this->calculatedAnswersCount,
+			'ta_top_cats'						=> $this->topCats
 		];
 	}
 
@@ -243,7 +243,7 @@ class TopAnswerers {
 	 * @return array of category links, category names, # of answers in that cat
 	 */
 	public function getTopCatsData() {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$cats = [];
 
 		$where = [
@@ -282,6 +282,90 @@ class TopAnswerers {
 		return $cats;
 	}
 
+	public static function countLiveAnswersByUserId($user_id) {
+		if (empty($user_id)) return 0;
+		$dbr = wfGetDB(DB_REPLICA);
+
+		$answer_count = $dbr->selectField(
+			QADB::TABLE_ARTICLES_QUESTIONS,
+			'COUNT(*)',
+			[
+				'qa_submitter_user_id' => $user_id,
+				'qa_inactive' => 0
+			],
+			__METHOD__
+		);
+
+		return $answer_count;
+	}
+
+	public static function countCalculatedAnswersByUserId($user_id) {
+		if (empty($user_id)) return 0;
+		$dbr = wfGetDB(DB_REPLICA);
+
+		$answer_count = $dbr->selectField(
+			self::TABLE_ANSWERER_APP_RATINGS,
+			'COUNT(*)',
+			['qaar_user_id' => $user_id],
+			__METHOD__
+		);
+
+		return $answer_count;
+	}
+
+	public static function averageSimilarityScore($user_id) {
+		if (empty($user_id)) return null;
+		$dbr = wfGetDB(DB_REPLICA);
+
+		$res = $dbr->select(
+			self::TABLE_ANSWERER_SIM_SCORES,
+			[
+				'COUNT(*) AS total',
+				'SUM(qass_sim_score) AS total_similarity_score',
+			],
+			['qass_user_id' => $user_id],
+			__METHOD__
+		);
+		$row = $res->fetchObject();
+
+		return self::averageCalculation($row->total_similarity_score, $row->total);
+	}
+
+	public static function averageApprovalRating($user_id) {
+		if (empty($user_id)) return null;
+		$dbr = wfGetDB(DB_REPLICA);
+
+		$res = $dbr->select(
+			self::TABLE_ANSWERER_APP_RATINGS,
+			[
+				'COUNT(*) AS total',
+				'SUM(qaar_approved) AS total_approved',
+			],
+			['qaar_user_id' => $user_id],
+			__METHOD__
+		);
+		$row = $res->fetchObject();
+
+		return self::averageCalculation($row->total_approved, $row->total);
+	}
+
+	private static function averageCalculation($sum, $count) {
+		$avg = $count > 0 ? $sum / $count : 0;
+		$avg = $avg == 0 ? 0 : number_format($avg, 2);
+		return $avg;
+	}
+
+	public static function topAnswererMaterial($user_id): bool {
+		if (empty($user_id)) return false;
+		$answer_count = self::countLiveAnswersByUserId($user_id);
+		if ($answer_count < self::THRESHOLD_ANSWER_COUNT) return false;
+
+		$sim_score = self::averageSimilarityScore($user_id);
+		if ($sim_score <= self::THRESHOLD_SIMILARITY_SCORE) return false;
+
+		$approval_rating = self::averageApprovalRating($user_id);
+		return $approval_rating > self::THRESHOLD_APPROVAL_RATING;
+	}
 
 	/**
 	 * getTACount()
@@ -312,7 +396,7 @@ class TopAnswerers {
 	 * @return integer of the number of top answerers who have been removed
 	 */
 	private static function getCount($blocked) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->selectField(
 			self::TABLE_TOP_ANSWERERS,
 			'count(*)',
@@ -328,16 +412,17 @@ class TopAnswerers {
 	 * @return integer of the number of total answers top answerers have answered
 	 */
 	public static function getTAAnswerCount() {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->selectField(
 			[
-				self::TABLE_TOP_ANSWERERS,
-				self::TABLE_ANSWERER_STATS
+				QADB::TABLE_ARTICLES_QUESTIONS,
+				self::TABLE_TOP_ANSWERERS
 			],
-			'SUM(qas_answers_count)',
+			'COUNT(qa_id)',
 			[
+				'ta_user_id = qa_submitter_user_id',
 				'ta_is_blocked' => 0,
-				'ta_user_id = qas_user_id'
+				'qa_inactive' => 0
 			],
 			__METHOD__
 		);
@@ -352,11 +437,10 @@ class TopAnswerers {
 	public static function getTAs($order_by = '') {
 		$ta_results = [];
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->select(
 			[
 				self::TABLE_TOP_ANSWERERS,
-				self::TABLE_ANSWERER_STATS,
 				'wiki_shared.user'
 			],
 			'*',
@@ -366,7 +450,6 @@ class TopAnswerers {
 				'ORDER BY' => $order_by ?: 'user_name'
 			],
 			[
-				self::TABLE_ANSWERER_STATS => ['LEFT JOIN', 'ta_user_id = qas_user_id'],
 				'wiki_shared.user' => ['LEFT JOIN', 'ta_user_id = user_id']
 			]
 		);
@@ -388,7 +471,7 @@ class TopAnswerers {
 	public static function getBlockedUsers() {
 		$ta_results = [];
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->select(
 			[
 				self::TABLE_TOP_ANSWERERS,
@@ -425,7 +508,7 @@ class TopAnswerers {
 		$t = Title::newFromId($article_id);
 		if (empty($t)) return '';
 
-		$cats = Categoryhelper::getCurrentParentCategories($t);
+		$cats = CategoryHelper::getCurrentParentCategories($t);
 		if (empty($cats) || !is_array($cats) || sizeof($cats) == 0) return '';
 
 		$keys = array_keys($cats);
@@ -445,6 +528,78 @@ class TopAnswerers {
 		return $cat;
 	}
 
+	public static function addCat($user_id, $category, $count) {
+		$dbw = wfGetDB(DB_MASTER);
+		$res = $dbw->upsert(
+			self::TABLE_ANSWERER_CATEGORIES,
+			[
+				'qac_user_id' => $user_id,
+				'qac_category' => $category,
+				'qac_count' => $count
+			],
+			[
+				'qac_user_id',
+				'qac_category'
+			],
+			[
+				'qac_user_id = VALUES(qac_user_id)',
+				'qac_category = VALUES(qac_category)',
+				'qac_count = VALUES(qac_count)'
+			],
+			__METHOD__
+		);
+	}
+
+	/**
+	 * deletes the old categories attributed to a user after we recalculate
+	 *
+	 * @param $user_id = int
+	 * @param $categories_answered_by_user = array (of strings)
+	 */
+	public static function deleteOldCats($user_id, $categories_answered_by_user) {
+		if (empty($categories_answered_by_user)) return;
+
+		$dbw = wfGetDB(DB_MASTER);
+		$res = $dbw->delete(
+			self::TABLE_ANSWERER_CATEGORIES,
+			[
+				'qac_user_id' => $user_id,
+				"qac_category NOT IN (".$dbw->makeList($categories_answered_by_user).")"
+			],
+			__METHOD__
+		);
+	}
+
+	public static function addNewSimilarityScore($user_id, $sqid, $similarity_score) {
+		if (empty($user_id)) return;
+
+		$dbw = wfGetDB(DB_MASTER);
+		$res = $dbw->insert(
+			self::TABLE_ANSWERER_SIM_SCORES,
+			[
+				'qass_user_id' 		=> $user_id,
+				'qass_sqid' 			=> $sqid,
+				'qass_sim_score' 	=> $similarity_score
+			],
+			__METHOD__
+		);
+	}
+
+	public static function addNewApprovalRating($user_id, $sqid, $approved) {
+		if (empty($user_id)) return;
+
+		$dbw = wfGetDB(DB_MASTER);
+		$res = $dbw->insert(
+			self::TABLE_ANSWERER_APP_RATINGS,
+			[
+				'qaar_user_id' 	=> $user_id,
+				'qaar_sqid' 		=> $sqid,
+				'qaar_approved' => $approved
+			],
+			__METHOD__
+		);
+	}
+
 	/**
 	 * getAllTaUserIds()
 	 *
@@ -457,7 +612,7 @@ class TopAnswerers {
 		$tas = $wgMemc->get($key);
 
 		if (empty($tas)) {
-			$dbr = wfGetDB(DB_SLAVE);
+			$dbr = wfGetDB(DB_REPLICA);
 			$res = $dbr->select(
 				self::TABLE_TOP_ANSWERERS,
 				'ta_user_id',
@@ -511,8 +666,8 @@ class TopAnswerers {
 
 			UserMailer::send($to, $from, $subject, $body, null, $content_type);
 
-			//send an email to alissa too!
-			$to = new MailAddress('alissa@wikihow.com');
+			//send an email to Anna too!
+			$to = new MailAddress('anna@wikihow.com');
 			$subject = '[Top Answerer email] '.$name;
 			UserMailer::send($to, $from, $subject, $body, null, $content_type);
 		}
@@ -525,11 +680,13 @@ class TopAnswerers {
 
 		if ($spaces) $templates = str_replace('-', ' ', $templates);
 
+		//all empty string categories are BAD
+		$templates[] = '';
+
 		return $templates;
 	}
 
-
-	/************ HOOKS **************/
+	/************ JOB CREATION **************/
 	public static function onInsertArticleQuestion($aid, $aqid, $isNew) {
 		if ($isNew) {
 			$jobTitle = Title::newFromId($aid);
@@ -540,18 +697,6 @@ class TopAnswerers {
 			$job = Job::factory('TAInsertArticleQuestionJob', $jobTitle, $jobParams);
 			JobQueueGroup::singleton()->push($job);
 		}
-		return true;
-	}
-
-	public static function onUpdateAnswererStats($aid, $user_id, $sim_score, $approved) {
-		$jobTitle = Title::newFromId($aid);
-		$jobParams = [
-			'user_id' 	=> $user_id,
-			'sim_score'	=> $sim_score,
-			'approved' 	=> intval($approved)
-		];
-		$job = Job::factory('TAUpdateStatsJob', $jobTitle, $jobParams);
-		JobQueueGroup::singleton()->push($job);
 		return true;
 	}
 }

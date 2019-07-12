@@ -42,7 +42,7 @@ class FlaggedAnswers {
 	}
 
 	public function loadById($qfa_id) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$res = $dbr->select(
 			self::TABLE,
@@ -100,19 +100,16 @@ class FlaggedAnswers {
 		return $this->id > 0;
 	}
 
-	public static function remaining($skippedIds = null) {
-		$where = ['qfa_active' => 1];
-
-		if (is_array($skippedIds) && !empty($skippedIds)) {
-			$where[] = "qfa_id NOT IN (" . implode(',', $skippedIds) . ")";
-		}
-
-		$dbr = wfGetDB(DB_SLAVE);
+	public static function remaining($include_experts = false) {
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$count = $dbr->selectField(
 			self::TABLE,
 			'count(*)',
-			$where,
+			[
+				'qfa_active' => 1,
+				'qfa_expert' => $include_experts ? 1 : 0
+			],
 			__METHOD__
 		);
 

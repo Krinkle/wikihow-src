@@ -22,7 +22,7 @@ class UnitGuardian extends UnlistedSpecialPage {
 
 	public static function onIsEligibleForMobileSpecial(&$mobileAllowed) {
 		global $wgTitle;
-		if($wgTitle && strrpos($wgTitle->getText(), "UnitGuardian") === 0) {
+		if ($wgTitle && strrpos($wgTitle->getText(), "UnitGuardian") === 0) {
 			$mobileAllowed = true;
 		}
 
@@ -33,7 +33,7 @@ class UnitGuardian extends UnlistedSpecialPage {
 		$request = $this->getRequest();
 		$out = $this->getOutput();
 
-		if(!Misc::isMobileMode()) {
+		if (!Misc::isMobileMode()) {
 			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
@@ -85,7 +85,7 @@ class UnitGuardian extends UnlistedSpecialPage {
 					$result['error'] = wfMessage('ug-invalid-action');
 			}
 
-			print_r(json_encode($result));
+			print(json_encode($result));
 			return;
 		}
 
@@ -93,10 +93,10 @@ class UnitGuardian extends UnlistedSpecialPage {
 		$out->setHTMLTitle(wfMessage('unitguardian'));
 		$this->addModules();
 
-		$tmpl = new EasyTemplate(dirname(__FILE__));
+		$tmpl = new EasyTemplate(__DIR__);
 		$vars = $this->getTemplateVars();
 		$vars['tool_info'] = class_exists('ToolInfo') ? ToolInfo::getTheIcon($this->getContext()) : '';
-		
+
 		$tmpl->set_vars($vars);
 		$out->addHTML($tmpl->execute("unitguardian.tmpl.php"));
 
@@ -137,7 +137,7 @@ class UnitGuardian extends UnlistedSpecialPage {
 	protected function getNext() {
 		$result = array();
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$next = null;
 
@@ -195,12 +195,11 @@ class UnitGuardian extends UnlistedSpecialPage {
 	}
 
 	protected function getArticleStuff($title, $revision, $originalText) {
-		$revisionText = $revision->getText();
+		$revisionText = ContentHandler::getContentText( $revision->getContent() );
 		$quotedOriginal = preg_quote($originalText);
 		preg_match("@(\p{Lu}|[^{$this->previousSentenceEnd}])*{$quotedOriginal}.*?({$this->sentenceEnd})($|\s|\W|\D)@um", $revisionText, $matches);
 		//var_dump("@(\p{Lu}|[^{$this->previousSentenceEnd}])*{$quotedOriginal}.*?({$this->sentenceEnd})($|\s|\W|\D)@u");
 		if ($matches[0] == null) {
-			mail('bebeth@wikihow.com', 'null content in unit guardian', "Title: " . $title->getText() . "\nOriginal Content:{$originalText}");
 			$content = "";
 		} else {
 			$content = trim($matches[0]);
@@ -227,7 +226,7 @@ class UnitGuardian extends UnlistedSpecialPage {
 			$popts = $out->parserOptions();
 			$popts->setTidy(true);
 			$parserOutput = $out->parse($revisionText, $title, $popts);
-			$magic = WikihowArticleHTML::grabTheMagic($revision->getText());
+			$magic = WikihowArticleHTML::grabTheMagic(ContentHandler::getContentText( $revision->getContent() ));
 			$html = WikihowArticleHTML::processArticleHTML(
 				$parserOutput,
 				array('no-ads' => true, 'ns' => NS_MAIN, 'magic-word' => $magic));
@@ -311,14 +310,14 @@ class UnitGuardian extends UnlistedSpecialPage {
 		if ($t && $t->exists()) {
 			$log = new LogPage( 'unitguardian', false );
 			$logType = Misc::isMobileMode() ? "m" : "d";
-			$msg = wfMsgHtml("ug-edit-message-$logType", "[[{$t->getText()}]]");
+			$msg = wfMessage("ug-edit-message-$logType")->rawParams("[[{$t->getText()}]]")->escaped();
 			$log->addEntry($action, $t, $msg, null);
 		}
 	}
 
 	public static function onPageContentSaveComplete($article) {
 		$dbw = wfGetDB(DB_MASTER);
-		if($article->getTitle()->getNamespace() == NS_MAIN && !$article->isRedirect()) {
+		if ($article->getTitle()->inNamespace(NS_MAIN) && !$article->isRedirect()) {
 			$dbw->update(self::TABLE_NAME_CONVERSIONS, array('ugc_dirty' => 1), array('ugc_page' => $article->getId()), __METHOD__);
 			$dbw->upsert(self::TABLE_NAME_TOOL, array('ug_page' => $article->getId(), 'ug_dirty' => 1, 'ug_whitelist' => 0), array(), array('ug_dirty' => 1), __METHOD__);
 		} else {
@@ -402,7 +401,7 @@ class UnitGuardianContents extends QueryPage {
 	}
 
 	function getList() {
-		list($limit, $offset) = wfCheckLimits();
+		list( $limit, $offset ) = RequestContext::getMain()->getRequest()->getLimitOffset(50, 'rclimit');
 		$this->limit = $limit;
 		$this->offset = $offset;
 

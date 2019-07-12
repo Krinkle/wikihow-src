@@ -18,6 +18,10 @@
 				var $related = $("#relatedwikihows").children().first();
 				var target = $("a", $related).attr("href");
 				var title = $(".related-title-text", $related).text();
+				//make sure there's a space after How to
+				if(title.indexOf("How to ") == -1) {
+					title = title.replace("How to", "How to ");
+				}
 				WH.Quiz.allRight += " <a href='" + target + "'>" + title + "</a>";
 			}
 
@@ -49,11 +53,15 @@
 			if(WH.Quiz.allAnswered) {
 				if (WH.Quiz.currentScore == WH.Quiz.totalQuizzes) {
 					$(".qz_explanation span", $answerObj).html(WH.Quiz.allRight);
+					$answerObj.trigger("lastAnswerCorrect");
 				} else if (isCorrect) {
 					var id = $(".qz_container.answered:not(.correct):first").attr("id").substring(13); //qz_container_3
 					$(".qz_explanation span", $answerObj).html(WH.Quiz.lastRight).find("a").attr("href", "#qz_anchor_"+id);
 				}
 			}
+
+			var $quiz_yourself_cta = $container.next('.qy_cta');
+			if ($quiz_yourself_cta.length) $quiz_yourself_cta.slideDown();
 
 			WH.maEvent('quiz_answer_click', { correct: isCorrect?1:0, articleTitle: mw.config.get('wgPageName') }, true);
 		},

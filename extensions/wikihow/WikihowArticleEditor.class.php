@@ -313,18 +313,27 @@ class WikihowArticleEditor {
 		  $text .= "\n== " . wfMessage('video')->text() . " ==\n" . trim($tmp) . "\n";
 
 		// do the bullet sections
-		$bullet_lists = array("tips", "warnings", "thingsyoullneed", "related", "sources");
+		$hasReferences = false;
+		$bullet_lists = array("tips", "warnings", "thingsyoullneed", "related", "references", "sources");
 		foreach ($bullet_lists as $b) {
 			$tmp = self::formatBulletList($this->getSection($b));
 			if ($tmp != "") {
-				$text .= "\n== " . wfMessage($b)->text() . " ==\n" . $tmp;
+				if ($b == "references") {
+					$hasReferences = true;
+				}
+				if ($b == "sources" && $hasReferences == true) {
+					$text .= $tmp;
+				} else {
+					$text .= "\n== " . wfMessage($b)->text() . " ==\n" . $tmp;
+				}
 			}
 		}
 
 		$text .= $this->mLangLinks;
+		$text = str_replace("*{{reflist}}", "{{reflist}}", $text);
 
 		// add the references div if necessary
-		if (strpos($text, "<ref>") !== false) {
+		if (strpos($text, "<ref>") !== false && strpos($text, "{{reflist}}" === false)) {
 			$rdiv = '{{reflist}}';
 			$headline = "== "  . wfMessage('sources')->text() .  " ==";
 			if (strpos($text, $headline) !== false) {
@@ -369,15 +378,15 @@ class WikihowArticleEditor {
 	 * Iterates over the article's sections and makes sure it contains
 	 * all the normal sections.
 	 *
-	 * DEPRECATED -- used only in includes/Wiki.php to determine if we
-	 * can load the article in the guided editor.
+	 * DEPRECATED -- used only in extensions/wikihow/guidededitor/GuidedEditor.class.php
+	 * to determine if we can load the article in the guided editor.
 	 */
-	static function useWrapperForEdit($article) {
-		global $wgWikiHowSections;
+	public static function useWrapperForEdit($article) {
+		global $wgWikiHowSections, $wgParser;
 
 		$index = 0;
 		$foundSteps = 0;
-		$text = $article->getContent(true);
+		$text = ContentHandler::getContentText( $article->getPage()->getContent() );
 
 		$mw = MagicWord::get( 'forceadv' );
 		if ($mw->match( $text ) ) {
@@ -393,7 +402,7 @@ class WikihowArticleEditor {
 		}
 
 		while ($index < $count) {
-			$section = $article->getSection($text, $index);
+			$section = $wgParser->getSection($text, $index);
 			$title = self::getSectionTitle($section);
 
 			if ($title == wfMessage('steps')->text()) {
@@ -432,7 +441,7 @@ class WikihowArticleEditor {
 	  *
 	  * This function returns 'Steps'.
 	  */
-	private static function getSectionTitle($section) {
+	public static function getSectionTitle($section) {
 		$title = "";
 		$index = strpos(trim($section), "==");
 		if ($index !== false && $index == 0) {
@@ -524,6 +533,7 @@ class WikihowArticleEditor {
 			$whow->setRelatedString($request->getVal("related_list"));
 		}
 		$whow->setSection("sources", $request->getVal("sources"));
+		$whow->setSection("references", $request->getVal("references"));
 		$whow->setSection("video", $request->getVal("video"));
 		$whow->setCategoryString($categories);
 		return $whow;
@@ -578,7 +588,7 @@ class WikihowArticleEditor {
 			$text = preg_replace("@\[[^\]]*\]@", "", $text);
 			// for http://www.inlinedlinks.com
 			$text = preg_replace("@http://[^ |\n]*@", "", $text);
-		} else if (!isset($options["externallinks"])) {
+		} elseif (!isset($options["externallinks"])) {
 			// take out internal links
 			preg_match_all("@\[[^\]]*\]@", $text, $matches);
 			foreach ($matches[0] as $m) {
@@ -723,9 +733,9 @@ class WikihowArticleEditor {
 				}
 			}
 
-			$helpTitle = Title::newFromText( wfMsgForContent('edithelppage') );
+			$helpTitle = Title::newFromText( wfMessage('edithelppage')->inContentLanguage()->text() );
 			$editHelp = Linker::linkKnown( $helpTitle,
-				wfMessage('edithelp_link'),
+				wfMessage('edithelp_link')->text(),
 				['target' => '_blank']);
 		}
 
@@ -742,7 +752,7 @@ class WikihowArticleEditor {
 	static function setImageSections($articleText) {
 		global $wgContLang;
 
-		$sectionArray = array("summary", "steps", "video", "tips", "warnings", "things you'll need", "related wikihows", "ingredients", "sources and citations");
+		$sectionArray = array("summary", "steps", "video", "tips", "warnings", "things you'll need", "related wikihows", "ingredients", "sources and citations", "references");
 
 		self::$imageArray = array();
 
@@ -780,7 +790,7 @@ class WikihowArticleEditor {
 					if (count($parts) >= 3) {
 						$previewImageTitle = Title::newFromText($parts[1], NS_IMAGE);
 						$imageTitle = Title::newFromText($parts[2], NS_IMAGE);
-					} else if (count($parts) == 2) {
+					} elseif (count($parts) == 2) {
 						$previewImageTitle = Title::newFromText($parts[1]);
 					}
 
@@ -814,7 +824,7 @@ class WikihowArticleEditor {
 	static function resolveRedirects($title) {
 		$res = null;
 		$i = 5; // max redirects
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		while ($i > 0 && $title && $title->exists()) {
 			$titleKey = $dbr->selectField('redirect',
@@ -842,7 +852,7 @@ class BuildWikihowArticle extends UnlistedSpecialPage {
 	public function execute($par) {
 		$req = $this->getRequest();
 		$out = $this->getOutput();
-		$out->disable();
+		$out->setArticleBodyOnly(true);
 		$whow = WikihowArticleEditor::newFromRequest($req);
 		if ($req->getVal('parse') == '1') {
 			$body = $out->parse($whow->formatWikiText());

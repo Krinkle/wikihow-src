@@ -48,7 +48,7 @@
 		},
 
 		articlesLoaded: function (data) {
-			if (!data.articles || data.articles.length === 0) {
+			if (!data || !data.articles || data.articles.length === 0) {
 				this.retries += 1;
 
 				if (this.retries < this.MAX_RETRIES) {
@@ -78,7 +78,7 @@
 			});
 
 			this.listen(this.pusher.$currentSlide);
-			
+
 			if (WH.isMobileDomain && !$.cookie('cg_prompted') && !this.voted && this.numPagesLoaded > 2) {
 				this.showPrompt();
 			}
@@ -88,7 +88,7 @@
 			$scope.find('.choice').click($.proxy(this, 'markChoice'));
 			$scope.find('.answer-text').click($.proxy(this, 'toggleBlurb'));
 		},
-		
+
 		showPrompt: function () {
 			//slideDown actually means slide it up because it's BIZARRO WIKIHOW!!!
 			$('#skip_prompt').slideDown(function() {
@@ -99,10 +99,10 @@
 					$('#skip_prompt').slideUp(); //opposite of what you might expect
 				});
 			});
-			
+
 			//let's not show it ever again
 			$.cookie('cg_prompted','1',{expires: 365 * 100});
-			
+
 			//log
 			WH.usageLogs.log({
 				event_action: 'show_prompt',
@@ -160,7 +160,7 @@
 				$.post(this.URL, payload)
 					.done($.proxy(this, 'articlesLoaded'))
 					.fail($.proxy(this, 'getArticles'));
-				
+
 			} else {
 				this.getArticles();
 			}
@@ -194,7 +194,7 @@
 			event.preventDefault();
 
 			this.voted = true;
-			
+
 			var $choice = $(event.currentTarget),
 				$text = $choice.parent().parent().find('.answer-text');
 

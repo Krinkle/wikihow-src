@@ -2,7 +2,7 @@
 
 class FacebookApiClient {
 
-	const API_VERSION = 'v2.10';
+	const API_VERSION = 'v3.3';
 
 	private $fb; // \Facebook\Facebook
 
@@ -18,14 +18,6 @@ class FacebookApiClient {
 
 	public function getProfile(string $token) { // : ?array
 		return $this->apiCall($token, '/me?fields=id,email,name,first_name,last_name');
-	}
-
-	public function getFriendCount(string $token): int {
-		$data = $this->apiCall($token, '/me/friends');
-		if ($data && isset($data['summary']['total_count'])) {
-			return (int) $data['summary']['total_count'];
-		}
-		return 0;
 	}
 
 	/**

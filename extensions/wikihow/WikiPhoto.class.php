@@ -62,7 +62,7 @@ class WikiPhoto {
 	 */
 	public static function getArticleSections($articleText) {
 		static $stepsMsg = '';
-		if (empty($stepsMsg)) $stepsMsg = wfMsg('steps');
+		if (empty($stepsMsg)) $stepsMsg = wfMessage('steps');
 
 		$out = array();
 
@@ -103,7 +103,7 @@ class WikiPhoto {
 	 */
 	public static function getStepsSection($articleText) {
 		static $stepsMsg = '';
-		if (empty($stepsMsg)) $stepsMsg = wfMsg('steps');
+		if (empty($stepsMsg)) $stepsMsg = wfMessage('steps');
 
 		$out = array();
 
@@ -132,7 +132,7 @@ class WikiPhoto {
 	 */
 	public static function articleBodyHasNoImages(&$dbr, $id) {
 		$rev = Revision::loadFromPageId($dbr, $id);
-		$text = $rev->getText();
+		$text = ContentHandler::getContentText( $rev->getContent() );
 		$steps = self::getStepsSection($text);
 		$len = strlen($steps);
 		$imgs = preg_match('@\[\[Image:@', $steps);
@@ -144,7 +144,7 @@ class WikiPhoto {
 	 */
 	public static function articleHasVideo(&$dbr, $id) {
 		$rev = Revision::loadFromPageId($dbr, $id);
-		$text = $rev->getText();
+		$text = ContentHandler::getContentText( $rev->getContent() );
 		$hasVideo = preg_match('@\{\{video@i', $text) > 0;
 		return $hasVideo;
 	}
@@ -170,7 +170,7 @@ class WikiPhoto {
 	 * couldn't be found, return null.
 	 */
 	public static function getArticleTitleNoCheck($url) {
-		$url = trim($url);
+		$url = urldecode(trim($url));
 		if (preg_match('@^[0-9]+$@', $url)) {
 			$title = Title::newFromID($url);
 		} else {

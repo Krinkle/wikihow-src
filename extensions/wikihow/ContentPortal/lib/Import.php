@@ -1,4 +1,4 @@
-<?
+<?php
 namespace ContentPortal;
 use __;
 
@@ -51,14 +51,14 @@ class Import {
 			$article->state_id      = $role ? $role->id : Role::write()->id;
 			$article->category_id   = $this->findOrCreateCategory($item['category'])->id;
 
-			$user = $this->findOrCreateUser($item['url_to_user'], $article);
+			$user = $this->findUser($item['url_to_user'], $article);
 
 			$valid = $article->is_valid();
 			$article->assigned_id = $user ? $user->id : null;
 
-			// if ($item['url_to_user'] && is_null($user)) {
-			// 	$article->errors->add('assigned_id', "I could not find the user {$item['url_to_user']}");
-			// }
+			if ($item['url_to_user'] && is_null($user)) {
+				$article->errors->add('assigned_id', "I could not find the user {$item['url_to_user']}");
+			}
 
 			//add notes on import
 			$article->import_notes = isset($item['notes']) ? $item['notes'] : null;

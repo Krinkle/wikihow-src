@@ -231,7 +231,7 @@ function rcwReload() {
 		if (rcwTestStatusOn) $('#teststatus').innerHTML = "Reload Counter..."+rcLoadCounter;
 	}
 
-	var url = RCW_CDN_SERVER + rc_URL + '?function=WH.RCWidget.rcwOnReloadData&fromhttp=1';
+	var url = RCW_CDN_SERVER + rc_URL + '?function=WH.RCWidget.rcwOnReloadData';
 	rcwLoadUrl(url);
 }
 
@@ -264,7 +264,7 @@ function rcwLoad() {
 	}
 
 
-	var url = RCW_CDN_SERVER + rc_URL + '?function=WH.RCWidget.rcwOnLoadData&fromhttp=1';
+	var url = RCW_CDN_SERVER + rc_URL + '?function=WH.RCWidget.rcwOnLoadData';
 	if(rcUser != -1)
 		url += "&userId=" + rcUser;
 	rcwLoadUrl(url);

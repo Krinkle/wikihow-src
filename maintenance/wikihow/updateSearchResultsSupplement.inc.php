@@ -17,7 +17,7 @@ function updateSearchResultsSupplement($start, $end, $quiet) {
 	$wgBots = WikihowUser::getBotIDs();
 
 	$dbw = wfGetDB(DB_MASTER);
-	$dbr = wfGetDB(DB_SLAVE);
+	$dbr = wfGetDB(DB_REPLICA);
 
 	output("Updating search index results between $start and $end\n");
 
@@ -119,7 +119,7 @@ function addSearchResultsArticle(&$dbw, &$dbr, &$row, $startProcessing) {
 		$revTitleObj = $rev->getTitle();
 		$revTitle = $revTitleObj->getDBkey();
 		$urlTitle = $revTitleObj->getPartialURL();
-		$text = $rev->getText();
+		$text = ContentHandler::getContentText( $rev->getContent() );
 		$textEnc = $dbr->strencode($text);
 		$titleEnc = $dbr->strencode($revTitle);
 		//$urlTitleEnc = $dbr->strencode($urlTitle);
@@ -127,7 +127,7 @@ function addSearchResultsArticle(&$dbw, &$dbr, &$row, $startProcessing) {
 
 		$sections = preg_split('@==\s*(\w+)\s*==@', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
 		$intro = count($sections) > 0 ? $sections[0] : '';
-		$stepsMsg = wfMsg('steps');
+		$stepsMsg = wfMessage('steps');
 		while ($curr = next($sections)) {
 			if ($curr == $stepsMsg) break;
 		}
@@ -232,4 +232,3 @@ function output($text) {
 		print $text;
 	}
 }
-

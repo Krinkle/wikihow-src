@@ -29,7 +29,7 @@ class WikiVisualInvoicing extends \UnlistedSpecialPage
 		$groups = $user->getGroups();
 
 		if ($user->isBlocked() || !in_array('staff', $groups)) {
-			$out->setRobotpolicy('noindex,nofollow');
+			$out->setRobotPolicy('noindex,nofollow');
 			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
@@ -42,20 +42,21 @@ class WikiVisualInvoicing extends \UnlistedSpecialPage
 			$out->addHTML($html);
 		}
 		else {
-			$out->disable();
+			$out->setArticleBodyOnly(true);
 			$mailer = new Mailer(
-				'wikiHow Photos <wikihowphotos@gmail.com>',
+				'wikiHow Photos <support@wikihow.com>',
 				'WikiVisual Invoicing report',
 				[
 					'subject_w_loan' => $req->getText('subject_w_loan'),
-					'subject_wo_loan' => $req->getText('subject_wo_loan')
+					'subject_wo_loan' => $req->getText('subject_wo_loan'),
+					'reply_to' => 'wikiHow Photos <wikihowphotos@gmail.com>',
 				]
 			);
 			$result = $mailer->sendInvoices(
 				$sheet->parseSheet(),
 				$req->getText('report_recipients')
 			);
-			echo $this->getConfirmationHtml($result);
+			print($this->getConfirmationHtml($result));
 		}
 	}
 

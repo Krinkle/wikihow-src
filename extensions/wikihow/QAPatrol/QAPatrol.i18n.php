@@ -45,5 +45,7 @@ $messages['en'] = array(
 	'qap_email_expert_stinger' => 'This information is for informational and educational purposes only, and is not a substitute for professional advice, treatment or diagnosis.',
 	'qap_answer_lf_err' => "This answer has line breaks, which will be removed when it is published. You can still save it, but it's better to reformat so it reads clearly without line breaks.",
 	'qap_flag_great' => '$1 <span>(<a href="#" id="qap_flag_great">flag as great answerer</a>)</span>',
-	'qap_flag_thanks' => 'Thanks!'
+	'qap_flag_thanks' => 'Thanks!',
+	'qap_leaderboard_title' => 'Top Q&A Patrollers - Last 7 Days',
+	"qap_currentstats" => "Your Q&A Patrollers Stats"
 );

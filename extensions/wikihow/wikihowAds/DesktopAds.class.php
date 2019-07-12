@@ -11,6 +11,7 @@ class DesktopAds {
 	// are the ads active on this page
 	var $mActive = true;
 	var $mDocViewer = false;
+	var $mSearchPage = false;
 	var $mFundingChoicesActive = false;
 
 	var $mAlternateDomain = null;
@@ -47,6 +48,10 @@ class DesktopAds {
 		// get the html for all the ads and their dfpunitinfo
 		$this->mAdCreator->setupAdHtml();
 		$this->mShowExtraRightRailElements = isset( $this->mAdCreator->mAdServices['rightrail1'] );
+	}
+
+	public function isActive() {
+		return $this->mActive;
 	}
 
 	public function getShowExtraRightRailElements() {
@@ -87,21 +92,26 @@ class DesktopAds {
 		}
 
 		// restricted url type
-		if( preg_match("@^/index\.php@", @$_SERVER["REQUEST_URI"]) ) {
+		if ( preg_match("@^/index\.php@", @$_SERVER["REQUEST_URI"]) ) {
 			$this->mActive = false;
 			return;
 		}
 
 		$allowedSpecialPage = false;
-		if ( $this->mTitle->isSpecial( 'Categorylisting' )
+		if ( $this->mTitle->isSpecial( 'CategoryListing' )
 			|| $this->mTitle->isSpecial( 'DocViewer' )
 			|| $this->mTitle->isSpecial( 'Quizzes' )
+			|| $this->mTitle->isSpecial( 'LSearch' )
 		) {
 			$allowedSpecialPage = true;
 		}
 
 		if ( $this->mTitle->isSpecial( 'DocViewer' ) ) {
 			$this->mDocViewer = true;
+		}
+
+		if ( $this->mTitle->isSpecial( 'LSearch' ) ) {
+			$this->mSearchPage = true;
 		}
 
 		// if not in these namespaces and not an allowed special page
@@ -112,7 +122,7 @@ class DesktopAds {
 
 		// restricted actions
 		$action = $this->mContext->getRequest()->getVal('action', 'view');
-		if( $action == 'edit' ) {
+		if ( $action == 'edit' ) {
 			$this->mActive = false;
 			return;
 		}
@@ -135,7 +145,7 @@ class DesktopAds {
 		}
 
 		// no ads on category pages
-		if ( $this->mTitle->getNamespace() == NS_CATEGORY ) {
+		if ( $this->mTitle->inNamespace(NS_CATEGORY) ) {
 			$this->mActive = false;
 			return;
 		}
@@ -146,6 +156,30 @@ class DesktopAds {
 			return;
 		}
 
+		if ( Misc::isAltDomain() ) {
+			$currentDomain = AlternateDomain::getCurrentRootDomain();
+			if ( $currentDomain == 'wikihow.mom' ) {
+				$this->mActive = false;
+				return;
+			}
+			if ( $currentDomain == 'wikihow.health' ) {
+				$this->mActive = false;
+				return;
+			}
+		}
+
+		// check for decline cookie policy cookie
+		if ( $this->mIsMainPage	) {
+			$this->mActive = false;
+			return;
+		}
+
+		foreach ($_COOKIE as $name => $val) {
+			if ($name == "gdpr_decline" && $val == 1) {
+				$this->mActive = false;
+				return;
+			}
+		}
 	}
 
 	// more connecting code to wikihowAds that can be refactored out later
@@ -153,7 +187,7 @@ class DesktopAds {
 		$data = wikihowAds::getUnitParams( 1 );
 		if ( $position == "left" ) {
 			return $data[0];
-		} else if ( $position == "right" ) {
+		} elseif ( $position == "right" ) {
 			return $data[1];
 		}
 	}
@@ -167,6 +201,77 @@ class DesktopAds {
 			return $this->mAdCreator->mAds['rightrail'.$position]->mHtml;
 		}
 		return "";
+	}
+
+	public function modifyRightRailForAdTest( $html, $relatedWikihows ) {
+		$pageId = $this->mTitle->getArticleID();
+
+		$doc = phpQuery::newDocument( $html );
+		if ( pq( '.rr_container' )->length < 3 ) {
+			pq('#ratearticle_sidebar')->remove();
+		}
+
+		$rightRailHtml = $doc->htmlOuter();
+		return $rightRailHtml;
+	}
+
+	public function modifyForHealthlineTest( $html, $relatedWikihows ) {
+		// first two rr elements are already in the html
+		$rr3 = $this->getRightRailAdHtml( 3 );
+		$html .= $rr3;
+
+		//  add the rr that goes on the top of each method
+		for ( $i = 4; $i < 10; $i++ ) {
+			$rr = $this->getRightRailAdHtml( $i );
+			if ( $rr ) {
+				$html .= $rr;
+			}
+		}
+
+		$doc = phpQuery::newDocument( $html );
+
+		if ( pq( '#sp_stats_sidebox' )->length ) {
+			pq( '#sp_stats_sidebox' )->after( pq( '#rightrail0' ) );
+		} else if ( pq( '#social_proof_sidebox' )->length ) {
+			pq( '#social_proof_sidebox' )->after( pq( '#rightrail0' ) );
+		}
+
+		pq( '#rightrail0' )->next()->prependTo( pq( '#rightrail1 .whad' ) );
+		pq( '#rightrail0' )->after( pq( '#rightrail1' ) );
+
+		pq( '#side_related_articles' )->prependTo( pq( '#rightrail2 .whad' ) );
+		pq( '#rightrail1' )->after( pq( '#rightrail2' ) );
+
+		pq( '#ratearticle_sidebar' )->prependTo( pq( '#rightrail3 .whad' ) );
+		pq( '#rightrail2' )->after( pq( '#rightrail3' ) );
+
+		if ( $relatedWikihows ) {
+			$relatedWikihowsLarger = $relatedWikihows->getSideDataLarger();
+			$attr = ['id' => 'side_related_articles_larger', 'class' => 'sidebox related_articles'];
+			$relatedWikihowsLarger = Html::rawElement( 'div', $attr, $relatedWikihowsLarger );
+			pq( $relatedWikihowsLarger )->prependTo( pq( '#rightrail4 .whad' ) );
+		}
+
+		// now add spacing on the right rail ads
+		pq( '.rr_container' )->addClass( 'nofixed' );
+
+		// clear the heights
+		pq( '.rr_container' )->attr( 'style', '' );
+
+		$rightRailHtml = $doc->htmlOuter();
+
+		return $rightRailHtml;
+	}
+
+	/*
+	 * @return the html for related section ad
+	 */
+	public function getRelatedAdHtml() {
+		$html = '';
+		if ( isset( $this->mAdCreator->mAds['related'] ) && $this->mAdCreator->mAds['related'] ) {
+			$html = $this->mAdCreator->mAds['related']->mHtml;
+		}
+		return $html;
 	}
 	/*
 	 * @param int the doc viewer ad
@@ -183,8 +288,8 @@ class DesktopAds {
 	 * get the html of the banner ad if it is set
 	 */
 	public function getBannerAdHtml() {
-		if ( isset( $this->mAdCreator->mAds['bannerad'] ) ) {
-			return $this->mAdCreator->mAds['bannerad']->mHtml;
+		if ( $this->mAdCreator ) {
+			return $this->mAdCreator->getPreContentAdHtml();
 		}
 	}
 
@@ -199,7 +304,7 @@ class DesktopAds {
 		if ( !$this->mFundingChoicesActive ) {
 			return "";
 		}
-		$html = file_get_contents( dirname( __FILE__ )."/fundingchoices.html" );
+		$html = file_get_contents( __DIR__."/fundingchoices.html" );
 		return $html;
 	}
 
@@ -227,49 +332,82 @@ class DesktopAds {
 	}
 
 	/*
+	 * Hook from the WikihowTemplate class that lets us insert html after the action bar
+	 */
+	public static function onAfterActionbar( $wgOut, $desktopAds ) {
+		echo "";
+	}
+
+	/*
 	 * determine which ad creator to use
 	 */
 	private function getAdCreator() {
-		if ( !$this->mEnglishSite ) {
-			$adCreator = new InternationalAdCreator();
-            $adCreator->setRefreshableRightRail( true );
-			$adCreator->setShowRightRailLabel( true );
-			$adCreator->setAdLabelVersion( 2 );
-			$adCreator->setRightRailAdLabelVersion( 2 );
-            return $adCreator;
-		}
-        if ( $this->mAlternateDomain == true ) {
-            $adCreator = new AlternateDomainAdCreator();
-            $adCreator->setRefreshableRightRail( true );
-            $adCreator->setShowRightRailLabel( true );
-            $adCreator->setAdLabelVersion( 2 );
-            $adCreator->setRightRailAdLabelVersion( 2 );
-            return $adCreator;
-        }
-
 		$pageId = $this->mTitle->getArticleID();
-
-		if ( RequestContext::getMain()->getRequest()->getInt( "dfpad" ) == 1 ) {
-			$adCreator  = new DeprecatedDFPAdCreator();
-		} else if ( $this->mIsMainPage ) {
-			$adCreator = new MainPageAdCreator();
-		} else if ( $this->mTitle->getNamespace() == NS_CATEGORY ) {
-			$adCreator = new CategoryPageAdCreator();
-		} else if ( $this->mDocViewer == true ) {
-			$adCreator  = new DocViewerAdCreator();
-            $adCreator->setRefreshableRightRail( true );
-			$adCreator->setShowRightRailLabel( true );
-			$adCreator->setAdLabelVersion( 2 );
-			$adCreator->setRightRailAdLabelVersion( 2 );
-		} else {
-            $adCreator = new MixedAdCreatorVersion2();
-            $adCreator->setRefreshableRightRail( true );
+		if ( $this->mAlternateDomain == true ) {
+			$adCreator = new AlternateDomainAdCreator();
 			if ( (class_exists("TechLayout") && ArticleTagList::hasTag(TechLayout::CONFIG_LIST, $pageId)) ) {
 				 $adCreator->mAdServices['intro'] = '';
 			}
 			$adCreator->mAdServices['step'] = '';
-			$adCreator->mAdServices['method'] = '';
+			$adCreator->setRefreshableRightRail( true );
+			$adCreator->setStickyIntro( false );
+			$adCreator->setShowRightRailLabel( true );
+			$adCreator->setAdLabelVersion( 2 );
+			$adCreator->setRightRailAdLabelVersion( 2 );
+			return $adCreator;
+		}
 
+		if ( RequestContext::getMain()->getRequest()->getInt( "dfpad" ) == 1 ) {
+			$adCreator  = new DeprecatedDFPAdCreator();
+		} elseif ( $this->mIsMainPage ) {
+			$adCreator = new MainPageAdCreator();
+		} elseif ( $this->mTitle->inNamespace(NS_CATEGORY) ) {
+			$adCreator = new CategoryPageAdCreator();
+		} elseif ( $this->mDocViewer == true ) {
+			$adCreator = new DocViewerAdCreatorVersion2();
+			$adCreator->setRefreshableRightRail( true );
+			$adCreator->setShowRightRailLabel( true );
+			$adCreator->setAdLabelVersion( 2 );
+			$adCreator->setRightRailAdLabelVersion( 2 );
+		} elseif ( $this->mSearchPage == true ) {
+			$searchQuery = LSearch::getSearchQuery();
+			$adCreator  = new SearchPageAdCreator( $searchQuery );
+			if ( !$this->mEnglishSite ) {
+				$adCreator = new InternationalSearchPageAdCreator( $searchQuery );
+			}
+			$adCreator->setRefreshableRightRail( true );
+			$adCreator->setShowRightRailLabel( true );
+			$adCreator->setAdLabelVersion( 2 );
+			$adCreator->setRightRailAdLabelVersion( 2 );
+		} else {
+			$adCreator = new MixedAdCreatorScrollTo();
+			$adCreator->mAdServices['step'] = '';
+
+			if ( $pageId % 100 < 95 ) {
+				$adCreator = new TwoRightRailAdCreator();
+				$adCreator->mAdServices['step'] = '';
+			}
+			if ( (class_exists("TechLayout") && ArticleTagList::hasTag(TechLayout::CONFIG_LIST, $pageId)) ) {
+				 $adCreator->mAdServices['intro'] = '';
+			}
+
+			if ( ArticleTagList::hasTag( WikihowToc::CONFIG_LIST_NAME, $pageId ) ) {
+				$adCreator->addAdsenseChannel( 4805470868 );
+			} else {
+				$adCreator->addAdsenseChannel( 3492389196 );
+			}
+
+			if ( !$this->mEnglishSite ) {
+				if ( $pageId % 4 == 1 ) {
+					$adCreator = new InternationalAdCreatorAllAdsense();
+				} else {
+					$adCreator = new InternationalAdCreator();
+				}
+				$adCreator->mAdServices['step'] = '';
+			}
+			// some settings that have become default over time
+			// we can refactor them to be the default in the class at construction time
+			$adCreator->setRefreshableRightRail( true );
 			$adCreator->setStickyIntro( false );
 			$adCreator->setShowRightRailLabel( true );
 			$adCreator->setAdLabelVersion( 2 );
@@ -291,13 +429,19 @@ class DesktopAds {
 		$this->mAdCreator->insertAdsInBody();
 	}
 
+	public function getVideoAdsJavascriptFile() {
+		if ( !$this->mActive ) {
+			return '';
+		}
+		return __DIR__ . "/videoads.compiled.js";
+	}
+
 	public function getJavascriptFile() {
 		if ( !$this->mActive ) {
 			return '';
 		}
-		return dirname( __FILE__ ) . "/wikihowdesktopads.js";
+		// TODO compiled this js
+		return __DIR__ . "/wikihowdesktopads.js";
 	}
-    // a comment
-    // another comment
 }
 

@@ -19,7 +19,7 @@ class DupImage {
 	private static function getDB($type) {
 		static $dbw = null, $dbr = null;
 		if ('read' == $type) {
-			if (!$dbr) $dbr = wfGetDB(DB_SLAVE);
+			if (!$dbr) $dbr = wfGetDB(DB_REPLICA);
 			return $dbr;
 		} elseif ('write' == $type) {
 			if (!$dbw) $dbw = wfGetDB(DB_MASTER);
@@ -62,7 +62,7 @@ class DupImage {
 		$contents = @file_get_contents($filename);
 		if ($contents) {
 			$sha1 = sha1($contents);
-			$db_title = $dbr->selectField('images_sha1', 
+			$db_title = $dbr->selectField('images_sha1',
 				'is_page_title',
 				array('is_sha1' => $sha1),
 				__METHOD__);

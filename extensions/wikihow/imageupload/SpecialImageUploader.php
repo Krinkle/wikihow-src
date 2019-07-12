@@ -156,6 +156,10 @@ class ImageUploader extends UnlistedSpecialPage {
 		$upload = new UploadFromStash($user);
 		$upload->initialize($fileKey, $mwname);
 		$file = $upload->getLocalFile();
+		if (!$file) {
+			return ['error' => 'Unable to upload file'];
+		}
+
 		self::getFileS3($file);
 		$comment = $this->getFileCommitComment();
 		$status = $upload->performUpload(
@@ -231,8 +235,12 @@ class ImageUploader extends UnlistedSpecialPage {
 		}
 
 		$file = $upload->stashFile();
-		$fileKey = $upload->stashFileGetKey();
-		$origname = $upload->getTitle()->getText();
+		$fileKey = $file->getFileKey();
+		$origTitle = $upload->getTitle();
+		if (!$origTitle) {
+			return ['error' => "File has null title"];
+		}
+		$origname = $origTitle->getText();
 		$mwname = self::legalizeImageName($origname);
 		list($first, $ext) = self::splitFilenameExt($mwname);
 		$isImage = !$error && $file && in_array($file->getMediaType(), ['BITMAP', 'DRAWING', 'UNKNOWN']);
@@ -269,7 +277,7 @@ class ImageUploader extends UnlistedSpecialPage {
 
 	private function getFileCommitComment() {
 		$commentMsg = $this->msg('eiu-upload', 'edit page image upload');
-		$comment = $commentMsg->inContentLanguage()->isBlank() 
+		$comment = $commentMsg->inContentLanguage()->isBlank()
 			? 'Image upload via edit page'
 			: $commentMsg->plain();
 		return $comment;
@@ -356,6 +364,10 @@ class ImageUploader extends UnlistedSpecialPage {
 
 	private function checkMediawikiFilename($mwname) {
 		list($first, $ext) = self::splitFilenameExt($mwname);
+		if (!trim($first)) {
+			return ['valid' => false, 'error' => wfMessage('iu-invalid-title')->text()];
+		}
+
 		$ext = strtolower($ext);
 		$exts = self::getFileExtensions();
 		if (!in_array($ext, $exts)) {
@@ -382,8 +394,7 @@ class ImageUploader extends UnlistedSpecialPage {
 		$user = $this->getUser();
 
 		if ($user->isBlocked()) {
-			$out->blockedPage();
-			return;
+			throw new UserBlockedError( $user->getBlock() );
 		}
 
 		$action = $req->getVal('action');

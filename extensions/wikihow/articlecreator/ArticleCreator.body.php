@@ -1,60 +1,64 @@
 <?php
 
 /*
-* A visual tool to create new wikiHow articles
-*/
+ * A visual tool to create new wikiHow articles
+ */
 class ArticleCreator extends SpecialPage {
 	// You can set this to false for debugging purposes
 	// but it should be set true in production
 	var $onlyEditNewArticles = true;
-	
-	function __construct() {
+
+	public function __construct() {
 		global $wgHooks;
 		parent::__construct('ArticleCreator');
 		$wgHooks['getToolStatus'][] = array('SpecialPagesHooks::defineAsTool');
 	}
 
-	function execute($par) {
+	public function execute($par) {
 		$context = $this->getContext();
 		$request = $context->getRequest();
 		$out = $context->getOutput();
-		
+
 		if ($request->getVal('ac_created_dialog', 0)) {
 			$out->setArticleBodyOnly(true);
 			$out->addHtml($this->getCreatedDialogHtml());
-			return; 
+			return;
 		}
 
 		$out->addModules( 'ext.wikihow.articlecreator_css' ); // css for the tool
 		$out->addModules( 'ext.wikihow.articlecreator' ); // module to enable mw messages in javascript
 		$out->addModules( 'ext.guidedTour' );  // used for showing validation responses
-			
+
 		if ( is_null( $request->getVal( 't' ) ) ) {
 			$out->setRobotPolicy( 'noindex,nofollow' );
 			$out->addWikitext( 'You must specify a title to create.' );
 			return;
 		}
-		
+
 		$t = Title::newFromText($request->getVal('t'));
+		if (!$t) {
+			$out->addWikitext( 'Bad title specified.' );
+			return;
+		}
 		$out->setHTMLTitle(wfMessage('ac-html-title', $t->getText()));
 
-		$overwriteAllowed = Newarticleboost::isOverwriteAllowed($t);
-			
+		$overwriteAllowed = NewArticleBoost::isOverwriteAllowed($t);
+
 		if ($request->wasPosted()) {
 			$out->setArticleBodyOnly(true);
 			$response = array();
-			$token = $context->getUser()->getEditToken();
-			if ($request->getVal('ac_token') != $token) {
+			$token = $request->getVal('ac_token');
+			if ( ! $context->getUser()->matchEditToken( $token ) ) {
 				$response['error'] = wfMessage('ac-invalid-edit-token');
-			} else if ($this->onlyEditNewArticles && $t->exists() && !$overwriteAllowed) {
+			} elseif ($this->onlyEditNewArticles && $t->exists() && !$overwriteAllowed) {
 				$response['error'] = wfMessage('ac-title-exists', $t->getEditUrl());
-			} else if (!$t->userCan( 'create', $context->getUser(), false)) {
+			} elseif (!$t->userCan( 'create', $context->getUser(), false)) {
 				$response['error'] = wfMessage('ac-cannot-create', $t->getEditUrl());
 			} else {
 				$response = $this->saveArticle($t, $request, $response);
 			}
-			
-			$out->addHtml(json_encode($response));	
+
+			$out->addHtml(json_encode($response));
 		} else {
 			$out->setRobotPolicy( 'noindex,nofollow' );
 			if ( $this->onlyEditNewArticles && $t->exists() && !$overwriteAllowed) {
@@ -64,50 +68,50 @@ class ArticleCreator extends SpecialPage {
 			}
 		}
 	}
-	
+
 	private function outputStartupHtml() {
 		$out = $this->getContext()->getOutput();
 		$request = $this->getContext()->getRequest();
-		
+
 		if ( is_null ( $request->getVal( 't' ) ) ) {
 			$out->addWikitext( 'You must specifiy a title to create.' );
 			return;
 		}
-		
+
 		$t = Title::newFromText($request->getVal('t'));
 		$advancedEditLink = Linker::linkKnown( $t, wfMessage('advanced_editing_link')->text(), array(), array('action' => 'edit', 'advanced' => 'true'), array('ac_advanced_link', 'known', 'noclasses') );
-		
+
 		$out->addHtml($this->getTemplatesHtml($t));
-	
+
 		$sections = array(
-			array('name' => wfMessage('ac-section-intro-name')->text(), 
+			array('name' => wfMessage('ac-section-intro-name')->text(),
 					'token' => $this->getContext()->getUser()->getEditToken(),
 					'advancedEditLink' => $advancedEditLink,
 					'pageTitle' => $t->getText(),
-					'desc' => wfMessage('ac-section-intro-desc')->text(), 
+					'desc' => wfMessage('ac-section-intro-desc')->text(),
 					'buttonTxt' => wfMessage('ac-section-intro-button-txt')->text(),
 					'placeholder' => wfMessage('ac-section-intro-placeholder')->text(),
 			),
-			array('name' => wfMessage('ac-section-steps-name')->text(),  
+			array('name' => wfMessage('ac-section-steps-name')->text(),
 					'pageTitle' => $t->getText(),
 					'methodSelectorText' => wfMessage('ac-method-selector-txt')->text(),
 					'addMethodButtonTxt' => wfMessage('ac-section-steps-add-method-button-txt')->text(),
 			),
-			array('name' => wfMessage('ac-section-tips-name')->text(), 
-					'desc' => wfMessage('ac-section-tips-desc')->text(), 
+			array('name' => wfMessage('ac-section-tips-name')->text(),
+					'desc' => wfMessage('ac-section-tips-desc')->text(),
 					'buttonTxt' => wfMessage('ac-section-tips-button-txt')->text(),
 					'placeholder' => wfMessage('ac-section-tips-placeholder')->text(),
-					
+
 			),
-			array('name' => wfMessage('ac-section-warnings-name')->text(), 
-					'desc' => wfMessage('ac-section-warnings-desc')->text(), 
+			array('name' => wfMessage('ac-section-warnings-name')->text(),
+					'desc' => wfMessage('ac-section-warnings-desc')->text(),
 					'buttonTxt' => wfMessage('ac-section-warnings-button-txt')->text(),
 					'placeholder' => wfMessage('ac-section-warnings-placeholder')->text(),
 			),
-			array('name' => wfMessage('ac-section-sources-name')->text(),
-					'desc' => wfMessage('ac-section-sources-desc')->text(),
-					'buttonTxt' => wfMessage('ac-section-sources-button-txt')->text(),
-					'placeholder' => wfMessage('ac-section-sources-placeholder')->text(),
+			array('name' => wfMessage('ac-section-references-name')->text(),
+					'desc' => wfMessage('ac-section-references-desc')->text(),
+					'buttonTxt' => wfMessage('ac-section-references-button-txt')->text(),
+					'placeholder' => wfMessage('ac-section-references-placeholder')->text(),
 			),
 		);
 
@@ -125,27 +129,27 @@ class ArticleCreator extends SpecialPage {
 			}
 		}
 		$out->addHtml($this->getFooterHtml());
-		if(Newarticleboost::isOverwriteAllowed($t)) {
+		if (NewArticleBoost::isOverwriteAllowed($t)) {
 			$out->addHTML("<input type='hidden' name='overwrite' id='overwrite' value='yes' />");
 		}
 	}
-	
+
 	private function getFooterHtml() {
 
-		$copywarn = $this->msg( 'copyrightwarning', 
-						Linker::link( $this->msg( 'copyrightpage' )->text() ) 
+		$copywarn = $this->msg( 'copyrightwarning',
+						Linker::link( $this->msg( 'copyrightpage' )->text() )
 					)->plain();
 
 		$vars = array(
 				'copyrightwarning' => $copywarn
 				);
-		EasyTemplate::set_path(dirname(__FILE__).'/');
-		return EasyTemplate::html('ac-footer', $vars);
+		EasyTemplate::set_path(__DIR__.'/');
+		return EasyTemplate::html('ac-footer.tmpl.php', $vars);
 	}
-		
+
 	private function getTemplatesHtml($t) {
 		$vars = array(
-			'desc' => wfMessage('ac-section-steps-desc')->text(), 
+			'desc' => wfMessage('ac-section-steps-desc')->text(),
 			'pageTitle' => $t->getText(),
 			'doneButtonTxt' => wfMessage('ac-section-steps-method-done-button-txt')->text(),
 			'addMethodButtonTxt' => wfMessage('ac-section-steps-add-method-button-txt')->text(),
@@ -154,8 +158,8 @@ class ArticleCreator extends SpecialPage {
 			'addStepPlaceholder' => wfMessage('ac-section-steps-addstep-placeholder')->text(),
 			'copyWikitextMsg' => wfMessage('ac-copy-wikitext')->text(),
 		);
-		EasyTemplate::set_path(dirname(__FILE__).'/');
-		return EasyTemplate::html('ac-html-templates', $vars);
+		EasyTemplate::set_path(__DIR__.'/');
+		return EasyTemplate::html('ac-html-templates.tmpl.php', $vars);
 	}
 
 	/**
@@ -175,7 +179,7 @@ class ArticleCreator extends SpecialPage {
 		$contentFormat = $handler->getDefaultFormat();
 		$content = ContentHandler::makeContent( $text, $t, $contentModel, $contentFormat );
 		$status = Status::newGood();
-		if (!wfRunHooks('EditFilterMergedContent', array($this->getContext(), $content, &$status, '', $user, false))) {
+		if (!Hooks::run('EditFilterMergedContent', array($this->getContext(), $content, &$status, '', $user, false))) {
 			$response['error'] = wfMessage('ac-error-editfilter')->text();
 			return $response;
 		}
@@ -202,7 +206,7 @@ class ArticleCreator extends SpecialPage {
 			return $response;
 		}
 
-		if($request->getVal("overwrite") == "yes") {
+		if ($request->getVal("overwrite") == "yes") {
 			//it's a rewrite. let us start anew
 			$page = WikiPage::factory($t);
 			$reason = wfMessage('ac-overwrite-reason')->text();
@@ -212,14 +216,16 @@ class ArticleCreator extends SpecialPage {
 				return $response;
 			}
 		}
-		
-		$a = new Article($t);
-		$a->doEdit($request->getVal('wikitext'), wfMessage('ac-edit-summary'));
-		if($request->getVal("overwrite") == "yes") {
+
+		$wikiPage = WikiPage::factory($t);
+		$wikitext = $request->getVal('wikitext');
+		$content = ContentHandler::makeContent($wikitext, $t);
+		$wikiPage->doEditContent($content, wfMessage('ac-edit-summary'));
+		if ($request->getVal("overwrite") == "yes") {
 			//put the article back into nab
-			// Newarticleboost::redoNabStatus($t);
-			ChangeTags::addTags('article rewrite', null, $a->getLatest());
-		} 
+			// NewArticleBoost::redoNabStatus($t);
+			ChangeTags::addTags('article rewrite', null, $wikiPage->getLatest());
+		}
 		// Add an author email notification
 		$aen = new AuthorEmailNotification();
 		$aen->addNotification($t->getText());
@@ -230,42 +236,41 @@ class ArticleCreator extends SpecialPage {
 	}
 
 	private function getMethodSelectorHtml() {
-		EasyTemplate::set_path(dirname(__FILE__).'/');
-		return EasyTemplate::html('ac-method-selector');
+		EasyTemplate::set_path(__DIR__.'/');
+		return EasyTemplate::html('ac-method-selector.tmpl.php');
 	}
-	
+
 	private function getStepsSectionHtml(&$section) {
-		EasyTemplate::set_path(dirname(__FILE__).'/');
-		return EasyTemplate::html('ac-steps-section', $section);
+		EasyTemplate::set_path(__DIR__.'/');
+		return EasyTemplate::html('ac-steps-section.tmpl.php', $section);
 	}
-	
+
 	private function getIntroSectionHtml(&$section) {
-		EasyTemplate::set_path(dirname(__FILE__).'/');
-		
-		return EasyTemplate::html('ac-intro', $section);
+		EasyTemplate::set_path(__DIR__.'/');
+
+		return EasyTemplate::html('ac-intro.tmpl.php', $section);
 	}
-	
+
 	private function getOtherSectionHtml(&$section) {
-		EasyTemplate::set_path(dirname(__FILE__).'/');
-		return EasyTemplate::html('ac-section', $section);
+		EasyTemplate::set_path(__DIR__.'/');
+		return EasyTemplate::html('ac-section.tmpl.php', $section);
 	}
-	
+
 	private function getCreatedDialogHtml() {
-		global $wgUser;
-		EasyTemplate::set_path(dirname(__FILE__).'/');
-		$vars['dialogStyle'] = "<link type='text/css' rel='stylesheet' href='" . 
+		$user = $this->getUser();
+		EasyTemplate::set_path(__DIR__.'/');
+		$vars['dialogStyle'] = "<link type='text/css' rel='stylesheet' href='" .
 			wfGetPad('/extensions/wikihow/articlecreator/ac_modal.css?rev=' . WH_SITEREV) . "' />\n" .
 			"<link type='text/css' rel='stylesheet' href='/extensions/wikihow/common/font-awesome-4.2.0/css/font-awesome.min.css?rev='".WH_SITEREV."' />\n";
-		$vars['anon'] = $wgUser->isAnon();
-		$vars['email'] = $wgUser->getEmail();
+		$vars['anon'] = $user->isAnon();
+		$vars['email'] = $user->getEmail();
 		$vars['on_off'] = !$vars['anon'] && !$vars['email'] ? 'off' : 'on';
-		return EasyTemplate::html('ac-created-dialog', $vars);
+		return EasyTemplate::html('ac-created-dialog.tmpl.php', $vars);
 	}
-	
+
 	public static function printArticleCreatedScript($t) {
-		global $wgUser;
 		$aid = $t->getArticleId();
-		
+
 		// deprecated cookie?
 		// setcookie('aen_dialog_check', $aid, time()+3600);
 		 echo '
@@ -274,7 +279,7 @@ class ArticleCreator extends SpecialPage {
 				var url = "/extensions/wikihow/common/jquery.simplemodal.1.4.4.min.js";
 				$.getScript(url, function() {
 					$.get("/Special:ArticleCreator?ac_created_dialog=1", function(data) {
-						$.modal(data, { 
+						$.modal(data, {
 							zIndex: 100000007,
 							maxWidth: 400,
 							minWidth: 400,
@@ -291,12 +296,13 @@ class ArticleCreator extends SpecialPage {
 			$(window).load(whNewLoadFunc);
 
 			</script>
-		';	  
+		';
 	}
-	
+
 	public static function onEditFormPreloadText( &$text, &$title ) {
-		global $wgRequest;
-		if ($wikitext = $wgRequest->getVal('ac_wikitext')) {
+		$req = RequestContext::getMain()->getRequest();
+		$wikitext = $req->getVal('ac_wikitext');
+		if ($wikitext) {
 			$text = $wikitext;
 		}
 		return true;

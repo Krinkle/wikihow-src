@@ -61,7 +61,7 @@ class Quizzes extends UnlistedSpecialPage {
 
 			list($question, $answers, $progress) = self::formatQuiz($quiz_blob);
 
-			$tmpl = new EasyTemplate( dirname(__FILE__) );
+			$tmpl = new EasyTemplate( __DIR__ );
 			$tmpl->set_vars(array(
 				'quiz_title' => $quiz_title,
 				'quiz_progress' => $progress,
@@ -96,7 +96,7 @@ class Quizzes extends UnlistedSpecialPage {
 		$quiz_blob = $wgMemc->get($memkey);
 
 		if (!is_string($quiz_blob)) {
-			$dbr = wfGetDB(DB_SLAVE);
+			$dbr = wfGetDB(DB_REPLICA);
 			$quiz_blob = $dbr->selectField('quizzes', 'quiz_data', array('quiz_name' => $quiz_name), __METHOD__);
 
 			//blob it into memcache
@@ -190,7 +190,7 @@ class Quizzes extends UnlistedSpecialPage {
 	private static function getFoundInArticles($quiz_name) {
 		$html = '';
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->select('quiz_links', 'ql_page', array('ql_name' => $quiz_name), __METHOD__);
 
 		foreach ($res as $row) {
@@ -252,7 +252,7 @@ class Quizzes extends UnlistedSpecialPage {
 	 * deal with the link table
 	 */
 	public static function updateLinkTable($article, $quiz_name, $bAdd = true) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$dbw = wfGetDB(DB_MASTER);
 
 		//assemble our db array for docs
@@ -327,7 +327,7 @@ class Quizzes extends UnlistedSpecialPage {
 	}
 
 	private static function getOtherQuizzes($quiz) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$others = array();
 
 		//grab 3 other quizzes that aren't this quiz
@@ -359,13 +359,16 @@ class Quizzes extends UnlistedSpecialPage {
 		return $img;
 	}
 
-	public function execute($par = '') {
-		global $wgOut, $wgRequest, $wgHooks, $wgCanonical, $wgSquidMaxage;
+	public function execute($par) {
+		global $wgHooks, $wgCanonical, $wgSquidMaxage;
 
-		if ($wgRequest->getVal('otherquizzesfor')) {
-			$others = self::getOtherQuizzes($wgRequest->getVal('otherquizzesfor'));
-			$wgOut->disable();
-			print_r(json_encode($others));
+		$req = $this->getRequest();
+		$out = $this->getOutput();
+
+		if ($req->getVal('otherquizzesfor')) {
+			$others = self::getOtherQuizzes($req->getVal('otherquizzesfor'));
+			$out->setArticleBodyOnly(true);
+			print json_encode($others);
 			return;
 		}
 
@@ -377,32 +380,33 @@ class Quizzes extends UnlistedSpecialPage {
 		$wgHooks['ShowHeadSection'][] = array('Quizzes::removeHeadSectionCallback');
 
 		//make a custom canonical url
-		self::$quizURL = wfExpandUrl(self::$quizURL . $par);
+		self::$quizURL = Misc::getLangBaseURL() . self::$quizURL . $par;
 		$wgHooks['GetFullURL'][] = array('Quizzes::getCanonicalUrl');
+		$out->setCanonicalUrl(self::$quizURL);
 
 		//page title
 		$page_title = wfMessage('quiz_pagetitle')->text().' '.wfMessage('howto',$quiz)->text();
-		$wgOut->setHTMLTitle( wfMessage('pagetitle', $page_title)->text() );
+		$out->setHTMLTitle( wfMessage('pagetitle', $page_title)->text() );
 
 		//css & js for quizzes
-		$wgOut->addModules('ext.wikihow.quizzes');
+		$out->addModules('ext.wikihow.quizzes');
 		$html = self::displayContainer($par);
 
 		if (!$html) {
 			//nothin'
-			$wgOut->setStatusCode(404);
+			$out->setStatusCode(404);
 			$html = '<p>'.wfMessage('quiz-no-quiz-err')->text().'</p>';
 		}
 		else {
 			//http caching headers
-			$wgOut->setSquidMaxage($wgSquidMaxage);
+			$out->setSquidMaxage($wgSquidMaxage);
 
 			//meta tags
-			$wgOut->addMeta('description','Test yourself on How to '.$quiz.' with a fun and challenging quiz from wikiHow. See how well you score.');
-			$wgOut->setRobotPolicy('index,follow');
+			$out->addMeta('description','Test yourself on How to '.$quiz.' with a fun and challenging quiz from wikiHow. See how well you score.');
+			$out->setRobotPolicy('index,follow');
 		}
 
-		$wgOut->addHTML($html);
+		$out->addHTML($html);
 	}
 
 }

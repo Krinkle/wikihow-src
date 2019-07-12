@@ -29,7 +29,7 @@ class DeleteBot extends Maintenance {
 				$u = User::newFromName($exclude);	
 			}
 			if( !$u || $u->getId() == 0 ) {
-                $to = new MailAddress("gershon@wikihow.com");
+                $to = new MailAddress("eng@wikihow.com");
                 $from = new MailAddress("alerts@wikihow.com");
                 $subject = "Delete bot exclude list error";
 				$errors = "The following user on the exclude list was not found: \"" . $exclude . "\" Article delete bot was aborted."; 
@@ -46,7 +46,7 @@ class DeleteBot extends Maintenance {
 	 * Called command line.
 	 */
 	public function execute() {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$user = User::newFromName( 'NewArticleCleanupBot' );
 		$reason = wfMessage( 'auto_delete_reason' )->plain();
 		$userIdExcludeList = $this->getExcludeList();
@@ -62,10 +62,11 @@ class DeleteBot extends Maintenance {
 				$feUserId = $dbr->selectField( 'firstedit', 'fe_user', array('fe_page' => $t->getArticleId()) );
 				$r = Revision::newFromTitle( $t );
 
-				if ( !preg_match( "@{{inuse@i", $r->getText(), $matches ) 
+				if ( !preg_match( "@{{inuse@i", ContentHandler::getContentText( $r->getContent() ), $matches ) 
 					&& !in_array( $feUserId, $userIdExcludeList ) ) {
 					$p = WikiPage::factory( $t );
 					print( "Deleting article: " . $t->getText() . "\n" ); 
+					// 2nd and 3rd params to this call are ignored after MW 1.27
 					$p->doDeleteArticle( $reason, false, 0, false, $error, $user );
 				}
 				else {

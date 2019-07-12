@@ -18,7 +18,12 @@ class DomitianSegments extends UnlistedSpecialPage {
 		parent::__construct($this->specialpage);
 	}
 
-	function execute($par) {
+	// method stops redirects when running on titus host
+	public function isSpecialPageAllowedOnTitus() {
+		return true;
+	}
+
+	public function execute($par) {
 		global $wgLanguageCode, $wgHooks;
 
 		$user = $this->getUser();

@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Static functions that can be used to pull out parts of an article
  * for use in mobile html builder and ios api
@@ -88,7 +89,7 @@ class ArticleHTMLParser {
 
 		$urlPrefix = "";
 		if ( $wgIsDevServer ) {
-		    $urlPrefix = "http://www.wikihow.com";
+		    $urlPrefix = "https://www.wikihow.com";
 		}
 		$result = array('obj' => '', 'url' => '');
 		if ($image) {
@@ -147,7 +148,7 @@ class ArticleHTMLParser {
 		}
 
 		for ($i = 0; $i < 7; $i++) {
-			$id .= chr(97 + mt_rand(0, 25));
+			$id = chr(97 + mt_rand(0, 25));
 		}
 
 		// make sure the div with this id doesn't already exist
@@ -167,12 +168,12 @@ class ArticleHTMLParser {
 	// processes a section type before a specified next element
 	// used for processing the intro
 	// if $processImage is true it will also create thumbnails of the intro image if applicable
-	public function processIntro($imageNsText, $processImage = true) {
+	public static function processIntro($imageNsText, $processImage = true) {
 		//remove any TOC that will mess up our h2 logic
 		if (pq('div#toc')->length) {
 			pq('div#toc')->remove();
 		}
-	
+
 		// the intro is before the first h2
 		$before = "h2";
 
@@ -180,8 +181,8 @@ class ArticleHTMLParser {
 		$id = self::randomDivId();
 
 		$first = pq("$before:first");
-		if(pq($first)->length() > 0) {
-			pq($first)->prevAll()->reverse()->wrapAll("<div id='".$id."' class='section {$sticky}'></div>");
+		if (pq($first)->length() > 0) {
+			pq($first)->prevAll()->reverse()->wrapAll("<div id='".$id."' class='section'></div>");
 		}
 
 		// only allow intro images if they have introimage class type

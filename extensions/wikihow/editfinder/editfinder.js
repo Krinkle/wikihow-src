@@ -252,6 +252,9 @@ EditFinder.prototype.display = function (title, url, id, DIV, origin, currentSte
 
 			jQuery('#editfinder_article_inner').fadeIn();
 			jQuery('#' + DIV).fadeIn();
+
+			// show post-loaded youtube embed videos
+			WH.showEmbedVideos();
 		});
 	});
 

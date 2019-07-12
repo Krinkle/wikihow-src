@@ -18,7 +18,12 @@ class DomitianSummary extends UnlistedSpecialPage {
 		parent::__construct($this->specialpage);
 	}
 
-	function execute($par) {
+	// method stops redirects when running on titus host
+	public function isSpecialPageAllowedOnTitus() {
+		return true;
+	}
+
+	public function execute($par) {
 		global $wgLanguageCode, $wgHooks;
 
 		$user = $this->getUser();
@@ -35,7 +40,7 @@ class DomitianSummary extends UnlistedSpecialPage {
 		// $wgHooks['ShowSideBar'][] = array('DomitianUtil::removeSideBarCallBack');
 
 		$req = $this->getRequest();
-		
+
 		$action = $req->getVal('action');
 		$tools = $req->getVal('tools');
 		$date_from = $req->getVal('date_from');

@@ -20,7 +20,7 @@ class ProposedRedirects extends SpecialPage {
 
 	public static function deleteProposedRedirect($from, $to, $deleteAllFrom = false) {
 		$dbw = wfGetDB(DB_MASTER);
-		if($deleteAllFrom) {
+		if ($deleteAllFrom) {
 			$dbw->delete('proposedredirects',
 				['pr_from' => $from],
 				__METHOD__);
@@ -34,7 +34,7 @@ class ProposedRedirects extends SpecialPage {
 	function createProposedRedirect($from, $to, $user = null) {
 		global $wgUser;
 
-		if($user == null) {
+		if ($user == null) {
 			$user = $wgUser;
 		}
 
@@ -79,10 +79,10 @@ class ProposedRedirects extends SpecialPage {
 
 		$this->setHeaders();
 		$wgOut->addHTML("<div class='minor_section'>");
-		if($wgRequest->getInt("tool") == 1) {
-			$wgOut->addHTML(wfMsg('proposedredirects_info_tool'));
+		if ($wgRequest->getInt("tool") == 1) {
+			$wgOut->addHTML(wfMessage('proposedredirects_info_tool'));
 		} else {
-			$wgOut->addHTML(wfMsg('proposedredirects_info'));
+			$wgOut->addHTML(wfMessage('proposedredirects_info'));
 		}
 		$t = Title::makeTitle(NS_PROJECT, "Proposed Redirects");
 		$a = new Article($t);
@@ -96,7 +96,7 @@ class ProposedRedirects extends SpecialPage {
 				if (strpos($key, "id-") === false) continue;
 				$id = str_replace("id-", "btn-", $key);
 				$newval = $wgRequest->getVal($id);
-				switch($newval) {
+				switch ($newval) {
 					case 'accept':
 					case 'reject':
 						$changes[$value] = $newval;
@@ -107,7 +107,7 @@ class ProposedRedirects extends SpecialPage {
 				$from = Title::makeTitle(NS_MAIN, str_replace("_", " ", $params[0]));
 				$to = Title::makeTitle(NS_MAIN, str_replace("_", " ", $params[1]));
 				$response = self::handleRedirectVote($from, $to, $v);
-				if($response !== true) {
+				if ($response !== true) {
 					$wgOut->addHTML($response);
 				}
 			}
@@ -118,15 +118,15 @@ class ProposedRedirects extends SpecialPage {
 		$r = Revision::newFromTitle($t);
 		$text = "";
 		if ($r) {
-			$text = $r->getText();
+			$text = ContentHandler::getContentText( $r->getContent() );
 		}
 		$lines = explode("\n", $text);
 		$s = "";
 		$conditions = [];
-		if($wgRequest->getInt("tool") == 1) {
+		if ($wgRequest->getInt("tool") == 1) {
 			$conditions['pr_user_text'] = DuplicateTitles::BOT_NAME;
 		}
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->select('proposedredirects',
 			array('pr_from', 'pr_to', 'pr_user_text'),
 			$conditions,
@@ -199,7 +199,7 @@ class ProposedRedirects extends SpecialPage {
 			}
 			$wgOut->addHTML("</td><td style='text-align: right;'>
 								<input type='button' class='guided-button' value='Reset' onclick='clearForm();'>
-								<input type='button' class='guided-button' value='" .  wfMsg('Submit') . "'onclick='document.proposedform.submit();'>
+								<input type='button' class='guided-button' value='" .  wfMessage('Submit') . "'onclick='document.proposedform.submit();'>
 							</td></tr></table>
 						</form>");
 		}

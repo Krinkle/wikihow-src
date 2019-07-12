@@ -10,19 +10,19 @@ class ReverificationExporter {
 	const ACTION_EXPORT_RANGE = 'export_new';
 	const ACTION_EXPORT_ALL = 'export_range';
 
-	const DELIMETER = "\t";
-
 	const HEADER_ROW = [
 		'Article ID',
 		'Article Title',
 		'Article Url',
 		'Date action taken',
+		'Coauthor ID',
 		'Verifier Name',
 		'Reverified',
 		'Date Reverified',
 		'Re-verified article version URL',
 		'Quick Feedback text',
 		'Request Extensive Feedback',
+		'Feedback Doc Url',
 		'Feedback Editor',
 		'Flagged for Outside Review',
 		'Script Export Timestamp',
@@ -36,7 +36,7 @@ class ReverificationExporter {
 	function exportData($exportType, $from = null, $to = null) {
 		$response = new FileAttachmentResponse($this->getFilename($exportType));
 		$response->start();
-		$response->outputData($this->getHeaderRow());
+		$response->outputCSVRow($this->getHeaderRow());
 
 		$db = ReverificationDB::getInstance();
 		$reverifications = $db->getExported($from, $to);
@@ -44,7 +44,7 @@ class ReverificationExporter {
 		$ts = wfTimestampNow();
 		$reverificationIds = [];
 		foreach ($reverifications as $rever) {
-			$response->outputData($this->getReverificationOutputRow($rever, $ts));
+			$response->outputCSVRow($this->getReverificationOutputRow($rever, $ts));
 			$reverificationIds []= $rever->getId();
 		}
 
@@ -64,7 +64,7 @@ class ReverificationExporter {
 	}
 
 	protected function getHeaderRow() {
-		return implode(self::DELIMETER, self::HEADER_ROW) . "\n";
+		return self::HEADER_ROW;
 	}
 
 	protected function getEmptyRow() {
@@ -80,6 +80,7 @@ class ReverificationExporter {
 			$row['Article Title'] = $t->getText();
 			$row['Article Url'] = Misc::getLangBaseURL('en') . $t->getLocalURL();
 			$row['Date action taken'] = $rever->getNewDate(ReverificationData::FORMAT_SPREADSHEET);
+			$row['Coauthor ID'] = $rever->getVerifierId();
 			$row['Verifier Name'] = $rever->getVerifierName();
 			$row['Reverified'] = $rever->getReverified() ? 'Y' : 'N';
 
@@ -91,8 +92,11 @@ class ReverificationExporter {
 
 			$row['Date Reverified'] = $rever->getReverified() ?
 				$rever->getNewDate(ReverificationData::FORMAT_SPREADSHEET) : '';
-			$row['Quick Feedback text'] = $rever->getFeedback();
+			// Strip new line characters b/c Daniel's version of Excel mac auto-formats cell.  Daniel
+			// says the resulting spreadsheet output "can get messy"
+			$row['Quick Feedback text'] = str_replace("\n", "", $rever->getFeedback());
 			$row['Request Extensive Feedback'] = $rever->getExtensiveFeedback() ? 'Y' : 'N';
+			$row['Feedback Doc Url'] = $rever->getExtensiveDoc() ?  $rever->getExtensiveDoc() : '';
 			$row['Feedback Editor'] = $rever->getFeedbackEditor() ?: '';
 			$row['Flagged for Outside Review'] = $rever->getFlag() ? 'Y' : 'N';
 			$row['Script Export Timestamp'] = $rever->getScriptExportTimestamp();
@@ -101,6 +105,6 @@ class ReverificationExporter {
 			$row['Article Title'] = 'Error: Article not found for given Article ID';
 		}
 
-		return implode(self::DELIMETER, array_values($row)) . "\n";
+		return array_values($row);
 	}
 }

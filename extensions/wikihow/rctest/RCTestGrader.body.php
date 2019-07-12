@@ -1,6 +1,7 @@
 <?php
 
 class RCTestGrader extends UnlistedSpecialPage {
+
 	// Response Constants
 	const RESP_QUICKNOTE = 1;
 	const RESP_QUICKEDIT = 2;
@@ -10,54 +11,53 @@ class RCTestGrader extends UnlistedSpecialPage {
 	const RESP_THUMBSUP = 6;
 	const RESP_LINK = 7;
 
-	function __construct() {
+	public function __construct() {
 		parent::__construct( 'RCTestGrader' );
 	}
 
-	function execute($par) {
-		global $wgUser, $wgOut, $wgRequest;
+	public function execute($par) {
+		$req = $this->getRequest();
+		$out = $this->getOutput();
+		$user = $this->getUser();
 
-		if ( $wgUser->isAnon() ) {
-			$wgOut->showErrorPage( 'nosuchspecialpage', 'prefsnologintext' );
+		if ( $user->isAnon() ) {
+			$out->showErrorPage( 'nosuchspecialpage', 'prefsnologintext' );
 			return;
 		}
 
-		$rcTest = new RCTest();
-		$testId = $wgRequest->getVal('id');
-		$response = $wgRequest->getVal('response');
+		$rcTest = new RCTest;
+		$testId = $req->getVal('id');
+		$response = $req->getVal('response');
 		$result = $rcTest->gradeTest($testId, $response);
-		$wgOut->setArticleBodyOnly(true);
+		$out->setArticleBodyOnly(true);
 
 		$this->printResponse($result, $response);
 	}
 
-	function printResponse($testResult, $response) {
-		global $wgOut, $wgUser;
-
-		
-		$testResult['heading'] = wfMsg('rct_heading', $wgUser->getName());
-		$testResult['intro'] = wfMsg('rct_intro');
+	private function printResponse($testResult, $response) {
+		$testResult['heading'] = wfMessage('rct_heading', $this->getUser()->getName())->text();
+		$testResult['intro'] = wfMessage('rct_intro')->text();
 		$testResult['img_class'] = $this->getImgClass($testResult, $response);
 		$testResult['bg_class'] = $this->getBackgroundClass($testResult, $response);
 		$testResult['response_heading'] = $this->getResponseHeading($testResult['correct'], $response);
 		$testResult['response_txt'] = $this->getResponseText($testResult['ideal_responses'], $response, $testResult['correct']);
-		$testResult['exp_heading'] = ($testResult['correct']) ? wfMsg('rct_exp_heading_correct') : wfMsg('rct_exp_heading_wrong');
+		$testResult['exp_heading'] = ($testResult['correct']) ? wfMessage('rct_exp_heading_correct')->text() : wfMessage('rct_exp_heading_wrong')->text();
 
-		EasyTemplate::set_path( dirname(__FILE__).'/' );
-		$html = EasyTemplate::html('RCTestGrader', $testResult);
-		$wgOut->addHtml($html);
+		EasyTemplate::set_path( __DIR__.'/' );
+		$html = EasyTemplate::html('RCTestGrader.tmpl.php', $testResult);
+		$this->getOutput()->addHtml($html);
 	}
 
-	function getResponseText($idealResponses, $response, $isCorrect) {
-		if ($response == RCTestGrader::RESP_LINK) {
-			$txt = wfMsg('rct_link_txt');
+	private function getResponseText($idealResponses, $response, $isCorrect) {
+		if ($response == self::RESP_LINK) {
+			$txt = wfMessage('rct_link_txt')->text();
 		} else {
 			$txt = $this->getIdealResponsesText($idealResponses, $response, $isCorrect);
 		}
 		return $txt;
 	}
 
-	function getIdealResponsesText($idealResponses, $response, $isCorrect) {
+	private function getIdealResponsesText($idealResponses, $response, $isCorrect) {
 		$ideal = explode(",", $idealResponses);
 		$cnt = sizeof($ideal);
 
@@ -68,10 +68,10 @@ class RCTestGrader extends UnlistedSpecialPage {
 		}
 		$txt .= $cnt > 1 ? " buttons." : " button.";
 
-		if ($response == RCTestGrader::RESP_SKIP) {
-			$txt = wfMsg('rct_skip_txt', $txt);
-		} else if (!$isCorrect) {
-			$txt = wfMsg('rct_incorrect_txt', $txt);
+		if ($response == self::RESP_SKIP) {
+			$txt = wfMessage('rct_skip_txt', $txt)->text();
+		} elseif (!$isCorrect) {
+			$txt = wfMessage('rct_incorrect_txt', $txt)->text();
 		} else {
 			$txt = "";
 		}
@@ -81,38 +81,38 @@ class RCTestGrader extends UnlistedSpecialPage {
 	}
 
 	public function getButtonText($response) {
-		return wfMsg('rct_button_' . $response);
+		return wfMessage('rct_button_' . $response)->text();
 	}
 
-	function getImgClass(&$testResult, $response) {
-		if ($response == RCTestGrader::RESP_SKIP) {
+	private function getImgClass(&$testResult, $response) {
+		if ($response == self::RESP_SKIP) {
 			$class = "rct_skip";
-		} else if ($response == RCTestGrader::RESP_LINK) {
-			$class = "rct_skip";	
+		} elseif ($response == self::RESP_LINK) {
+			$class = "rct_skip";
 		} else {
 			$class = $testResult['correct'] ? "rct_correct" : "rct_incorrect";
 		}
 		return $class;
 	}
-	
-	function getBackgroundClass(&$testResult, $response) {
-		if ($response == RCTestGrader::RESP_SKIP) {
+
+	private function getBackgroundClass(&$testResult, $response) {
+		if ($response == self::RESP_SKIP) {
 			$class = "rct_background_neutral";
-		} else if ($response == RCTestGrader::RESP_LINK) {
-			$class = "rct_background_neutral";	
+		} elseif ($response == self::RESP_LINK) {
+			$class = "rct_background_neutral";
 		} else {
 			$class = $testResult['correct'] ? "rct_background_correct" : "rct_background_incorrect";
 		}
 		return $class;
 	}
-	
-	function getResponseHeading($isCorrect, $response) {
-		if ($response == RCTestGrader::RESP_SKIP) {
-			$heading = wfMsg('rct_skip');
-		} else if ($response == RCTestGrader::RESP_LINK) {
-			$heading = wfMsg('rct_link');	
+
+	private function getResponseHeading($isCorrect, $response) {
+		if ($response == self::RESP_SKIP) {
+			$heading = wfMessage('rct_skip')->text();
+		} elseif ($response == self::RESP_LINK) {
+			$heading = wfMessage('rct_link')->text();
 		}else {
-			$heading = $isCorrect ? wfMsg('rct_correct') : wfMsg('rct_incorrect');
+			$heading = $isCorrect ? wfMessage('rct_correct')->text() : wfMessage('rct_incorrect')->text();
 		}
 		return $heading;
 	}

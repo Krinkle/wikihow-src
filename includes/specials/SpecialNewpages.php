@@ -142,8 +142,8 @@ class SpecialNewpages extends IncludableSpecialPage {
 		$out = $this->getOutput();
 
 		$this->setHeaders();
-		// JRS 01/23/14 manually overriding default robot policy to index,follow
-		$out->setRobotPolicy('index,follow');
+		// JRS 01/23/14 manually overriding default robot policy to noindex,follow
+		$out->setRobotPolicy('noindex,follow');
 		$this->outputHeader();
 
 		$this->showNavigation = !$this->including(); // Maybe changed in setup

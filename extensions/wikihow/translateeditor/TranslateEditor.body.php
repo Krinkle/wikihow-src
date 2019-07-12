@@ -61,7 +61,7 @@ class TranslateEditor extends UnlistedSpecialPage {
 		$arr = preg_split("@[\r\n]+@", wfMessage($msg)->plain());
 		// Remove empty elements at end
 		$last = sizeof($arr) - 1;
-		while($last >= 0 && !$arr[$last]) {
+		while ($last >= 0 && !$arr[$last]) {
 			unset($arr[$last]);
 			$last--;
 		}
@@ -73,7 +73,7 @@ class TranslateEditor extends UnlistedSpecialPage {
 	 * Override the functionality of the edit to require a URL to translate
 	 */
 	static function onCustomEdit() {
-		global $wgRequest, $wgOut;
+		global $wgRequest, $wgOut, $wgLanguageCode, $wgUser;
 
 		$draft = $wgRequest->getVal('draft', null);
 		$target = $wgRequest->getVal('title', null);
@@ -81,40 +81,64 @@ class TranslateEditor extends UnlistedSpecialPage {
 		$section = $wgRequest->getVal('section',$wgRequest->getVal('wpSection',null));
 		$save = $wgRequest->getVal('wpSave',null);
 		$title = Title::newFromURL($target);
+
+		Mustache_Autoloader::register();
+		$options =  ['loader' => new Mustache_Loader_FilesystemLoader(__DIR__)];
+		$m = new Mustache_Engine($options);
+		$vars = [
+			'remove_templates' => json_encode( array_map(preg_quote, self::getMsgArray('remove_templates')) ),
+			'remove_sections'  => json_encode( array_map(preg_quote, self::getMsgArray('remove_sections')) ),
+			'sources_name' => json_encode(wfMessage('Sources')->text()),
+			'steps_name' => json_encode(wfMessage('Steps')->text()),
+			'references_name' => json_encode(wfMessage('references')->text())
+		];
+
 		// We have the dialog to enter the URL when we are adding a new article, and have no existing draft.
-		if(self::isTranslatorUser()) {
+		if ($title && $title->inNamespace(NS_MAIN) && self::isTranslatorUser()) {
 
-			if($draft == null
-			&& !$title->exists()
-			&& $action=='edit') {
-
-				EasyTemplate::set_path(dirname(__FILE__).'/');
+			if ($draft == null
+				&& (!$title->exists() || CreateEmptyIntlArticle::isEligibleToTranslate($title, $wgLanguageCode, $wgUser))
+				&& $action=='edit'
+			) {
 
 				// Templates to remove from translation
-				$remove_templates = self::getMsgArray('remove_templates');
 				// Words or things to automatically translate
-				$translations = array(array('from'=>self::getSectionRegex('Steps'), 'to' =>self::getSectionWikitext(wfMsg('Steps'))),
-															array('from'=>self::getSectionRegex('Tips'),'to'=>self::getSectionWikitext(wfMsg('Tips'))),
-															array('from'=>self::getSectionRegex('Warnings'),'to'=>self::getSectionWikitext(wfMsg('Warnings'))),
-															array('from'=>self::getSectionRegex('Ingredients'),'to'=>self::getSectionWikitext(wfMsg('Ingredients'))),
-															array('from'=>self::getSectionRegex("Things You'll need"),'to'=>self::getSectionWikitext(wfMsg('Thingsyoullneed'))),
-															array('from'=>self::getSectionRegex("Sources and Citations"),'to'=>self::getSectionWikitext(wfMsg('Sources'))),
-															array('from'=>'\[\[Category:[^\]]+\]\]', 'to' => "")
-															);
-				$remove_sections = self::getMsgArray('remove_sections');
-				$vars = array('title' => $target, 'checkForLL' => true, 'translateURL'=>true, 'translations' => json_encode($translations), 'remove_templates'=> array_map(preg_quote,$remove_templates), 'remove_sections' => json_encode(array_map(preg_quote,$remove_sections)), 'source_name' => wfMsg('Sources'));
-				$html = EasyTemplate::html('TranslateEditor.tmpl.php', $vars);
+				$translations = array(array('from' => self::getSectionRegex('Steps'), 'to' => self::getSectionWikitext(wfMessage('Steps'))),
+					array('from' => self::getSectionRegex('Tips'), 'to' => self::getSectionWikitext(wfMessage('Tips'))),
+					array('from' => self::getSectionRegex('Warnings'), 'to' => self::getSectionWikitext(wfMessage('Warnings'))),
+					array('from' => self::getSectionRegex('Ingredients'), 'to' => self::getSectionWikitext(wfMessage('Ingredients'))),
+					array('from' => self::getSectionRegex("Things You'll need"), 'to' => self::getSectionWikitext(wfMessage('Thingsyoullneed'))),
+					array('from' => self::getSectionRegex("Sources and Citations"), 'to' => self::getSectionWikitext(wfMessage('Sources'))),
+					array('from' => self::getSectionRegex("References"), 'to' => self::getSectionWikitext(wfMessage('References'))),
+					array('from' => '\[\[Category:[^\]]+\]\]', 'to' => "")
+				);
+				$vars = array_merge( $vars, [
+					'title' => $target,
+					'checkForLL' => true,
+					'translateURL' => true,
+					'translations' => json_encode($translations),
+				]);
+				if($title->exists()) {
+					$dbr = wfGetDB(DB_REPLICA);
+					$wikiText = Wikitext::getWikitext($dbr, $title);
+					$summary = Wikitext::getSummarizedSection($wikiText);
+					if($summary != "") {
+						$vars['translationExists'] = true;
+						$vars['translatedSummary'] = wfMessage("summary_section_notice")->text() . "\n" . $summary;
+					}
+				}
+
+				$html = $m->render('TranslateEditor.mustache', $vars);
 				$wgOut->addHTML($html);
 				QuickEdit::showEditForm($title);
 				return false;
 			}
-			elseif($section == null && $save == null) {
-				EasyTemplate::set_path(dirname(__FILE__).'/');
-				$vars = array('title' => $target, 'checkForLL' => true, 'translateURL'=>false);
-				$html = EasyTemplate::html('TranslateEditor.tmpl.php', $vars);
+			elseif ($section == null && $save == null) {
+				$vars = array_merge( $vars, ['title'=>$target, 'checkForLL'=>true, 'translateURL'=>false] );
+				$html = $m->render('TranslateEditor.mustache', $vars);
 				$wgOut->addHTML($html);
 				QuickEdit::showEditForm($title);
-				return(false);
+				return false;
 			}
 		}
 		return true;
@@ -124,14 +148,14 @@ class TranslateEditor extends UnlistedSpecialPage {
 	 **/
 	function execute ($par) {
 		global $wgRequest, $wgOut, $wgUser, $wgLang;
-		if ($wgUser->isBlocked()) {
-			$wgOut->blockedPage();
-			return;
+		$user = $this->getUser();
+		if ($user->isBlocked()) {
+			throw new UserBlockedError( $user->getBlock() );
 		}
-		$userGroups = $wgUser->getGroups();
+		$userGroups = $user->getGroups();
 
 		if (!self::isTranslatorUser()) {
-			$wgOut->setRobotpolicy( 'noindex,nofollow' );
+			$wgOut->setRobotPolicy( 'noindex,nofollow' );
 			$wgOut->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
 			return;
 		}
@@ -139,7 +163,7 @@ class TranslateEditor extends UnlistedSpecialPage {
 		$target = $wgRequest->getVal('target', null);
 		$toTarget = $wgRequest->getVal('toTarget', null);
 
-		if($action == "getarticle") {
+		if ($action == "getarticle") {
 			$this->startTranslation($target, $toTarget);
 		}
 	}
@@ -149,16 +173,12 @@ class TranslateEditor extends UnlistedSpecialPage {
 	 * This is done so the code can run properly on international wikis
 	 */
 	static function getArticleRevisionInfo($target) {
-		global $wgIsProduction;
 
-		$domain = $wgIsProduction ? 'www.wikihow.com' : 'alberto.wikidogs.com';
-		$url = "https://$domain/api.php?action=query&prop=revisions&titles=" . urlencode($target) . "&rvprop=content|ids&format=json";
+		$url = "https://www.wikihow.com/api.php?action=query&prop=revisions&titles="
+			 . urlencode($target) . "&rvprop=content|ids&format=json";
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_URL, $url);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		if (!$wgIsProduction) {
-			curl_setopt($ch, CURLOPT_USERPWD, WH_DEV_ACCESS_AUTH);
-		}
 		$text = curl_exec($ch);
 		curl_close($ch);
 
@@ -172,41 +192,75 @@ class TranslateEditor extends UnlistedSpecialPage {
 		global $wgOut, $wgRequest, $wgLanguageCode, $wgUser;
 		$target = urldecode($fromTarget);
 		$text = self::getArticleRevisionInfo($target);
-
 		$output = array();
 		$wgOut->setArticleBodyOnly(true);
 		$json = json_decode($text, true);
 		$ak = array_keys($json['query']['pages']);
 		$fromAID = intVal($ak[0]);
-		//The article we are translating exists
-		if($fromAID > 0 ) {
-			$exists = false;
-			$links = TranslationLink::getLinksTo("en", $fromAID, $wgLanguageCode);
+		$translationExists = false;
+		$stubExists = false;
+		//first check to see if there's a translation started, and if so, is it the same article
+		$toTitle = Title::newFromText(urldecode($toTarget));
+		if($toTitle && $toTitle->getArticleID() > 0) {
+			$links = TranslationLink::getLinks("en", $wgLanguageCode, ['tl_to_aid = ' . $toTitle->getArticleID()]);
 			foreach($links as $link) {
-				if($link->toLang == $wgLanguageCode) {
-					$exists = true;
+				if($link->fromAID != $fromAID) {
+					$translationExists = true;
+				} else {
+					if($link->isTranslated == TranslationLink::TL_TRANSLATED) {
+						$translationExists = true;
+					}
 				}
 			}
-			if(!$exists) {
+		}
+
+		//The article we are translating exists
+		if ($fromAID > 0 ) {
+			$links = TranslationLink::getLinksTo("en", $fromAID, true);
+			foreach ($links as $link) {
+				if($link->toLang == $wgLanguageCode) {
+					if ($link->isTranslated == TranslationLink::TL_STUBBED && $toTitle && $link->toAID != $toTitle->getArticleID()) {
+						$stubExists = true;
+						$stubTitle = $link->toURL;
+						$translationExists = true;
+					} elseif ($link->isTranslated == TranslationLink::TL_STUBBED && !$toTitle) {
+						$stubExists = true;
+						$stubTitle = $link->toURL;
+						$translationExists = true;
+					} elseif ($link->isTranslated == TranslationLink::TL_TRANSLATED) {
+						$translationExists = true;
+					}
+				}
+			}
+			if (!$translationExists) {
 				$fromRevisionId = $json['query']['pages'][$fromAID]['revisions'][0]['revid'];
 				$txt = $json['query']['pages'][$fromAID]['revisions'][0]['*'];
-				if(preg_match("/#REDIRECT/",$txt)) {
+				if (preg_match("/#REDIRECT/",$txt)) {
 					$output['error'] = "It seems the article you are attempting to translate is a redirect. Please contact your project manager.";
 					$output['success'] = false;
 				}
 				else {
+					$txt = self::replaceInternalLinks($txt);
+
+					$page_title = $json['query']['pages'][$fromAID]['title'];
+					$txt = self::removeSummary($txt, $page_title);
+
 					$output['success'] = true;
 					$output['aid'] = $fromAID;
-					$output['text'] = self::replaceInternalLinks($txt);
+					$output['text'] = $txt;
+
 					$dbw = wfGetDB(DB_MASTER);
 					$sql = 'insert into pre_translation_link(ptl_translator, ptl_english_aid, ptl_to_title, ptl_timestamp) values(' . $dbw->addQuotes($wgUser->getId()) . ',' . $dbw->addQuotes($fromAID) . ',' . $dbw->addQuotes($toTarget) . ',' . $dbw->addQuotes(wfTimestampNow()) .  ') on duplicate key update ptl_english_aid=' . $dbw->addQuotes($fromAID) . ', ptl_timestamp=' . $dbw->addQuotes(wfTimestampNow());
 					$dbw->query($sql, __METHOD__);
 					TranslationLink::writeLog(TranslationLink::ACTION_NAME, 'en', $fromRevisionId, $fromAID,$target,$wgLanguageCode,$toTarget);
 				}
-			}
-			else {
+			} else {
+				if($stubExists) {
+					$output['warning'] = wfMessage('translation_stub_warning', $stubTitle)->parse();
+				} else {
+					$output['error'] = "It seems the article was already translated. Please contact your project manager.";
+				}
 				$output['success'] = false;
-				$output['error'] = "It seems the article was already translated. Please contact your project manager.";
 			}
 		}
 		else {
@@ -220,8 +274,8 @@ class TranslateEditor extends UnlistedSpecialPage {
 	 */
 	static function checkUrl($url) {
 		$pages = Misc::getPagesFromURLs(array($url));
-		foreach($pages as $u => $p) {
-			if($p['page_is_redirect'] == 0 && $p['page_namespace'] == NS_MAIN) {
+		foreach ($pages as $u => $p) {
+			if ($p['page_is_redirect'] == 0 && $p['page_namespace'] == NS_MAIN) {
 				return true;
 			}
 		}
@@ -232,13 +286,13 @@ class TranslateEditor extends UnlistedSpecialPage {
 	 * If so, return true otherwise return false
 	 */
 	static function isLink($langA, $aidA, $langB, $aidB) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$sql = "select count(*) as ct from language_links where (ll_from_lang=" . $dbr->addQuotes($langA) . " AND ll_from_aid=" . $dbr->addQuotes($aidA) . " AND " . "ll_to_lang=" . $dbr->addQuotes($langB) . " AND ll_to_aid=" . $dbr->addQuotes($aidB) . ") OR "
 		. "(ll_from_lang=" . $dbr->addQuotes($langB) . " AND ll_from_aid=" . $dbr->addQuotes($aidB) . " AND " . "ll_to_lang=" . $dbr->addQuotes($langA) . " AND ll_to_aid=" . $dbr->addQuotes($aidA) . ")";
 
 		$res = $dbr->query($sql, __METHOD__);
 		$row = $dbr->fetchObject($res);
-		if($row->ct == 1) {
+		if ($row->ct == 1) {
 			return true;
 		}
 		else {
@@ -291,7 +345,7 @@ class TranslateEditor extends UnlistedSpecialPage {
 
 		// Fetch the English page IDs from the database
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$tables = Misc::getLangDB('en') . '.page';
 		$fields = ['page_id', 'page_title'];
 		$where = ['page_namespace' => NS_MAIN, 'page_title' => array_keys($linksByTitle)];
@@ -314,7 +368,7 @@ class TranslateEditor extends UnlistedSpecialPage {
 		$transLinks = TranslationLink::getLinks('en', $wgLanguageCode, $where);
 		foreach ($transLinks as $transLink) {
 			$intlTitle = Title::newFromID($transLink->toAID);
-			if (!RobotPolicy::isIndexable($intlTitle))
+			if (!RobotPolicy::isTitleIndexable($intlTitle))
 				continue;
 			$intlURL = $intlTitle->getPartialURL();
 			foreach ($linksByID[$transLink->fromAID] as &$link) {
@@ -338,5 +392,20 @@ class TranslateEditor extends UnlistedSpecialPage {
 			}
 		}
 		return $wikitext;
+	}
+
+	private static function removeSummary(string $wikitext, string $page_title): string {
+		$namespace = MWNamespace::getCanonicalName(NS_SUMMARY);
+
+		$page_dbkey = str_replace(' ','-',$page_title);
+		$title_regex = '('.preg_quote($page_title).'|'.preg_quote($page_dbkey).')';
+
+		$regex = 	'\<!--.*--\>\n'.	//comment
+							'==.*==\n'.	//header
+							'({{whvid.*}}\n)?'.	//optional video summary
+							'{{'.$namespace.':'.$title_regex.'}}';	//summary
+
+		$wikitext = preg_replace('/'.$regex.'/i', '', $wikitext);
+		return trim($wikitext);
 	}
 }

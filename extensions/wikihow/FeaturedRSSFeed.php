@@ -7,12 +7,12 @@ class FeaturedRSSFeed extends RSSFeed {
          * Original implementation in parent class: Feed.php#ChannelFeed
          */
         function outXmlHeader() {
-            global $wgStylePath, $wgStyleVersion;
+            global $wgStylePath;
 
             $this->httpHeaders();
             echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
             echo '<?xml-stylesheet type="text/css" href="' .
-                htmlspecialchars( wfExpandUrl( "$wgStylePath/common/feed.css?$wgStyleVersion", PROTO_CURRENT ) ) .
+                htmlspecialchars( wfExpandUrl( "$wgStylePath/common/feed.css", PROTO_CURRENT ) ) .
                 '"?' . ">\n";
         }
 
@@ -46,8 +46,8 @@ class FeaturedRSSFeed extends RSSFeed {
                         <link><?= $item->getUrl() ?></link>
                         <guid isPermaLink="true"><?= $item->getUrl() ?></guid>
                         <description><?= $item->getDescription() ?></description>
-                        <?php if( $item->getDate() ) { ?><pubDate><?= $this->formatTime( $item->getDate() ) ?></pubDate><?php } ?>
-                        <?php if( $item->getAuthor() ) { ?><dc:creator><?= $item->getAuthor() ?></dc:creator><?php }?>
+                        <?php if ( $item->getDate() ) { ?><pubDate><?= $this->formatTime( $item->getDate() ) ?></pubDate><?php } ?>
+                        <?php if ( $item->getAuthor() ) { ?><dc:creator><?= $item->getAuthor() ?></dc:creator><?php }?>
                 </item>
 <?php
         }
@@ -85,10 +85,10 @@ class FeaturedRSSFeed extends RSSFeed {
                         <guid isPermaLink="true"><?= $item->getUrl() ?></guid>
                         <description><?= $item->getDescription() ?></description>
                         <content:encoded><![CDATA[<?= $content ?>]]></content:encoded>
-                        <?php if( $item->getDate() && $wgLanguageCode == 'en') { ?>
+                        <?php if ( $item->getDate() && $wgLanguageCode == 'en') { ?>
 								<pubDate><?= $this->formatTime( $item->getDate() ) ?></pubDate>
 								<?php } ?>
-                        <?php if( $item->getAuthor() ) { ?><dc:creator><?= $item->getAuthor() ?></dc:creator><?php }?>
+                        <?php if ( $item->getAuthor() ) { ?><dc:creator><?= $item->getAuthor() ?></dc:creator><?php }?>
                         <?php if (isset($images)) {
                            foreach ($images as $i) { $this->outImageMRSS($i); }
                         } ?>
@@ -134,8 +134,8 @@ class FeaturedRSSFeed extends RSSFeed {
                         <link><?= $item->getUrl() ?></link>
                         <guid isPermaLink="true"><?= $item->getUrl() ?></guid>
                         <description><?= $item->getDescription() ?></description>
-                        <?php if( $item->getDate() ) { ?><pubDate><?= $this->formatTime( $item->getDate() ) ?></pubDate><?php } ?>
-                        <?php if( $item->getAuthor() ) { ?><dc:creator><?= $item->getAuthor() ?></dc:creator><?php }?>
+                        <?php if ( $item->getDate() ) { ?><pubDate><?= $this->formatTime( $item->getDate() ) ?></pubDate><?php } ?>
+                        <?php if ( $item->getAuthor() ) { ?><dc:creator><?= $item->getAuthor() ?></dc:creator><?php }?>
                         <?php foreach ($images as $i) { $this->outImageMRSS($i); } ?>
                 </item>
 <?php

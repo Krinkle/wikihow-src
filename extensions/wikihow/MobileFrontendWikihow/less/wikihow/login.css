@@ -184,3 +184,16 @@ div.user-login-social {
 	max-width: 105px;
 	width: 47%;
 }
+
+#social-login-form .social_login_button_text {
+	margin-top: 10px;
+}
+
+#social-login-form .social_login_button.loading {
+	opacity: 0.75;
+	background-size: 20px;
+}
+
+#social-login-form .loading .social_login_button_text {
+	opacity: 0;
+}

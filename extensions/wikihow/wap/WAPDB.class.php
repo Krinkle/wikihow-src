@@ -1,4 +1,4 @@
-<?
+<?php
 class WAPDB {
 	// DB Types
 	const DB_CONCIERGE = 1;
@@ -116,7 +116,7 @@ class WAPDB {
 			WAPArticle::STATE_EXCLUDED => array(),
 			WAPArticle::STATE_UNASSIGNED => array(),
 			WAPArticle::STATE_ASSIGNED => array(),
-			WAPArticle::STATE_COMPLETED => array(),
+			WAPArticle::STATE_COMPLETE => array(),
 			WAPArticle::STATE_NEW => array());
 
 		$urls = $this->parseURLlist($urlList, $langCode);
@@ -128,7 +128,7 @@ class WAPDB {
 				if (in_array($aid, $excludeList)) {
 					$processedUrls[WAPArticle::STATE_EXCLUDED][] = $url;
 				} elseif ($wa->isCompleted()) {
-					$processedUrls[WAPArticle::STATE_COMPLETED][] = $url;
+					$processedUrls[WAPArticle::STATE_COMPLETE][] = $url;
 				} elseif ($wa->isAssigned()) {
 					$processedUrls[WAPArticle::STATE_ASSIGNED][] = $url;
 				} elseif (!$wa->isAssigned()) {
@@ -311,7 +311,7 @@ class WAPDB {
 			$datum['ct_page_id'] = $t->getArticleId();
 			$datum['ct_lang_code'] = $langCode;
 			$datum['ct_page_title'] = $dbw->strencode($t->getDBKey());
-			$datum['ct_catinfo'] = Categoryhelper::getTitleCategoryMask($t);
+			$datum['ct_catinfo'] = CategoryHelper::getTitleCategoryMask($t);
 			$datum['ct_categories'] = implode(",", $this->getTopLevelCategories($t));
 			$data[] = $datum;
 		}
@@ -348,7 +348,7 @@ class WAPDB {
 		$cats = array();
 		if ($t && $t->exists()) {
 			$catTxt = $wgLang->getNsText (NS_CATEGORY) . ":";
-			$cats = Categoryhelper::getTitleTopLevelCategories($t);
+			$cats = CategoryHelper::getTitleTopLevelCategories($t);
 			foreach($cats as $i => $cat) {
 				if ($cat == $catTxt . "WikiHow") {
 					// Don't show wikiHow category
@@ -441,7 +441,7 @@ class WAPDB {
 	*  of all articles with corresponding tags without having to query the tagdb for each row
 	*/
 	private function processTagsOnWAPArticles(&$aids, $langCode, $tags, $add = true) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$dbw = wfGetDB(DB_MASTER);
 
 		$aids = array_unique($aids);
@@ -703,7 +703,7 @@ class WAPDB {
 	}
 
 	public function getArticles(&$aids, $langCode) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$articles = array();
 		if (sizeof($aids)) {
 			$table = $this->getWAPConfig()->getArticleTableName();
@@ -720,7 +720,7 @@ class WAPDB {
 	}
 
 	public function getArticlesByUser($uid, $offset, $limit, $articleState) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$options = array('OFFSET' => $offset, 'LIMIT' => $limit);
 		$conds['ct_user_id'] = $uid;
 		if (WAPUser::ARTICLE_ASSIGNED == $articleState) {
@@ -780,7 +780,7 @@ class WAPDB {
 			$orderBy
 			$limitSql
 			";
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->query($sql, __METHOD__);
 		$articles = array();
 		$articleClass = $this->getWAPConfig()->getArticleClassName();
@@ -803,7 +803,7 @@ class WAPDB {
 		$articleTagTable = $this->getWAPConfig()->getArticleTagTableName();
 		$articleTable = $this->getWAPConfig()->getArticleTableName();
 		$sql = "SELECT COUNT(*) AS count FROM $articleTagTable WHERE ca_tag_id = $tagId";
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->query($sql, __METHOD__);
 		$row = $res->fetchRow();
 		return $row['count'];
@@ -818,7 +818,7 @@ class WAPDB {
 	}
 
 	public function getUsers() {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$groupName = $this->wapConfig->getWikiHowGroupName();
 		$res = $dbr->select(array('user_groups'), array('ug_user'), array('ug_group' => $groupName), __METHOD__);
 		$users = array();

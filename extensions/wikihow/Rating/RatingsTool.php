@@ -17,8 +17,8 @@ abstract class RatingsTool {
 	protected $mContext;
 
 	protected function __construct() {
-        $this->reasonTable = 'rating_reason';
-        $this->reasonPrefix = 'ratr_';
+		$this->reasonTable = 'rating_reason';
+		$this->reasonPrefix = 'ratr_';
 	}
 
 	public function setContext($context){
@@ -40,7 +40,7 @@ abstract class RatingsTool {
 	}
 
 	public function getUnrestoredCount($itemId) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$pf = $this->tablePrefix;
 		$count = $dbr->selectField($this->tableName,
 			'count(*)',
@@ -51,7 +51,7 @@ abstract class RatingsTool {
 	}
 
 	public function getAllRatedItems() {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$pf = $this->tablePrefix;
 		$res = $dbr->select($this->tableName,
@@ -69,7 +69,8 @@ abstract class RatingsTool {
 	}
 
 	public function clearRatings($itemId, $user, $reason = null) {
-		global $wgRequest, $wgLanguageCode, $wgEnotifWatchlist;
+		global $wgEnotifWatchlist;
+
 		$dbw = wfGetDB( DB_MASTER );
 
 		$pf = $this->tablePrefix;
@@ -85,34 +86,62 @@ abstract class RatingsTool {
 			["{$pf}page" => $itemId, "{$pf}isdeleted" => 0],
 			__METHOD__);
 
-		//FIX
-		if ($wgLanguageCode == 'en')
-			$dbw->delete($this->lowTable, array("{$this->lowTablePrefix}page" => $itemId));
-		if ($reason == null)
-			$reason = $wgRequest->getVal('reason');
+		if (RequestContext::getMain()->getLanguage()->getCode() == 'en') {
+			$dbw->delete($this->lowTable, ["{$this->lowTablePrefix}page" => $itemId], __METHOD__);
+		}
+
+		if (!$reason) {
+			$reason = RequestContext::getMain()->getRequest()->getVal('reason');
+		}
 
 		if ($this->ratingType == 'article') {
-			wfRunHooks("RatingsCleared", array($this->ratingType, $itemId));
+			$this->keepHistory($itemId, 'rating');
+
+			Hooks::run("RatingsCleared", array($this->ratingType, $itemId));
 		}
 
 		$wgEnotifWatchlist = false; // We don't want watchers to receive emails about this
 		$this->logClear($itemId, $result->max, $result->min, $result->count, $reason);
 	}
 
+	/*
+	CREATE TABLE rating_history (
+		rh_pageid INTEGER UNSIGNED NOT NULL,
+		rh_timestamp VARCHAR(14) NOT NULL,
+		rh_source VARCHAR(32) NOT NULL DEFAULT '',
+		INDEX(rh_pageid),
+		INDEX(rh_timestamp)
+	);
+	*/
+	// We keep records of all clears of ratings or Stu, since Stu2 uses either of
+	// these events as a "reset event".
+	//
+	// We also keep track of this because there are reset events of ratings done
+	// by users that are never tracked in the database anywhere outside the MW
+	// logging system. For example, if a page has no ratings and the ratings are
+	// reset, the only way to see that a reset happened is to look at the log
+	// messages. This isn't good enough for our purposes.
+	public function keepHistory($itemId, $source) {
+		$dbw = wfGetDB(DB_MASTER);
+		$dbw->insert('rating_history',
+			['rh_pageid' => $itemId, 'rh_timestamp' => wfTimestampNow(), 'rh_source' => substr($source, 0, 32)],
+			__METHOD__);
+	}
+
 	public function listRecentResets($humanTime = '24 hours ago') {
-		$newerThan = strtotime($humanTime);
-		$dbr = wfGetDB( DB_SLAVE );
+		$newer = strtotime($humanTime);
+		if (!$newer) return [];
+		$newerThan = wfTimestamp( TS_MW, $newer );
+		$dbr = wfGetDB( DB_REPLICA );
 		$pf = $this->tablePrefix;
-		$res = $dbr->select( $this->tableName,
-			["{$pf}page AS pageid", "UNIX_TIMESTAMP(MAX({$pf}deleted_when)) AS reset_time"],
-			["{$pf}deleted_when > FROM_UNIXTIME({$newerThan})", "{$pf}isdeleted" => 1],
+		$res = $dbr->select( 'rating_history',
+			['rh_pageid AS pageid', 'MAX(rh_timestamp) AS reset_time'],
+			["rh_timestamp > $newerThan"],
 			__METHOD__,
-			["GROUP BY" => "{$pf}page"] );
+			['GROUP BY' => 'rh_pageid'] );
 		$rows = [];
 		foreach ($res as $row) {
-			// cast array values to int
-			$row = array_map(function ($x) { return (int)$x; }, (array)$row);
-			$rows[] = $row;
+			$rows[] = ['pageid' => (int)$row->pageid, 'reset_time' => $row->reset_time];
 		}
 		return $rows;
 	}
@@ -138,14 +167,14 @@ abstract class RatingsTool {
 		$dbw->update($table, $values, $conds, $fname, $options);
 	}
 
-	public function addRatingReason($ratrPageId, $ratrItem, $ratrUser, $ratrUserText, $ratrReason, $ratrType, $ratrRating, $ratrDetail, $ratrName, $ratrEmail, $ratrIsPublic, $ratrFirstname, $ratrLastname) {
-		global $wgUser;
-
+	public function addRatingReason($ratrPageId, $ratrItem, $ratrUser,
+		$ratrUserText, $ratrReason, $ratrType, $ratrRating, $ratrDetail,
+		$ratrName, $ratrEmail, $ratrIsPublic, $ratrFirstname, $ratrLastname
+	) {
 		$dbw = wfGetDB(DB_MASTER);
-
 		$pf = $this->reasonPrefix;
-
 		$table = $this->reasonTable;
+
 		$a = array();
 		$a[$pf."page_id"] = $ratrPageId ? $ratrPageId : 0;
 		$a[$pf."item"] = strip_tags($ratrItem);
@@ -175,19 +204,19 @@ abstract class RatingsTool {
 				$ratrLastname,
 				$ratrReason,
 				"",
-				$wgUser->getId(),
+				RequestContext::getMain()->getUser()->getId(),
 				WikihowUser::getVisitorId()
 			);
-			if( $sur->isQualified()) {
+			if ( $sur->isQualified()) {
 				$sur->correctFields();
 				$sur->save();
 			}
 		}
 
-		wfRunHooks( 'RatingsToolRatingReasonAdded', array( $insertId, $a ) );
+		Hooks::run( 'RatingsToolRatingReasonAdded', array( $insertId, $a ) );
 
 		return $this->getRatingReasonResponse($ratrRating);
-    }
+	}
 
 	public function deleteRatingReason($ratrItem) {
 		$dbw = wfGetDB(DB_MASTER);
@@ -219,24 +248,24 @@ abstract class RatingsTool {
 		$dbw->upsert($table, $rows, array(), $set, __METHOD__);
 		$ratingId = $dbw->insertId();
 
-		wfRunHooks("RatingAdded", array($this->ratingType, $itemId));
+		Hooks::run("RatingAdded", array($this->ratingType, $itemId));
 
 		return $this->getRatingResponse($itemId, $rating, $source, $ratingId);
 	}
 
-	function showClearingInfo($title, $id, $selfUrl, $target) {
-		global $wgOut;
+	// Used in Special:ClearRatings
+	public function showClearingInfo($title, $id, $selfUrl, $target) {
+		$dbr = wfGetDB( DB_REPLICA );
 
-		$dbr = wfGetDB( DB_SLAVE );
-
-		$wgOut->addHTML(wfMsg('clearratings_previous_clearings') . "<ul>");
+		$out = RequestContext::getMain()->getOutput();
+		$out->addHTML(wfMessage('clearratings_previous_clearings') . "<ul>");
 
 		$loggingResults = $this->getLoggingInfo($title);
 
-		foreach($loggingResults as $logItem) {
-			$wgOut->addHTML("<li>" . Linker::link($logItem['userPage'], $logItem['userName']) . " ({$logItem['date']}): ");
-			$wgOut->addHTML( $logItem['comment']);
-			$wgOut->addHTML("</i>");
+		foreach ($loggingResults as $logItem) {
+			$out->addHTML("<li>" . Linker::link($logItem['userPage'], $logItem['userName']) . " ({$logItem['date']}): ");
+			$out->addHTML( $logItem['comment']);
+			$out->addHTML("</i>");
 			if ($logItem['show']) {
 				$linkAttribs = array(
 					"page" => $id,
@@ -246,53 +275,54 @@ abstract class RatingsTool {
 					"target" => $target,
 					"user" => $logItem['userId'],
 					"restore" => 1);
-				$wgOut->addHTML("(" . Linker::link($selfUrl, wfMsg('clearratings_previous_clearings_restore'), $linkAttribs) . ")");
+				$out->addHTML("(" . Linker::link($selfUrl, wfMessage('clearratings_previous_clearings_restore'), $linkAttribs) . ")");
 			}
-			$wgOut->addHTML("</li>");
+			$out->addHTML("</li>");
 		}
-		$wgOut->addHTML("</ul>");
+		$out->addHTML("</ul>");
 
 		if (count($loggingResults) == 0)
-			$wgOut->addHTML(wfMsg('clearratings_previous_clearings_none') . "<br/><br/>");
+			$out->addHTML(wfMessage('clearratings_previous_clearings_none') . "<br/><br/>");
 
 		$pf = $this->tablePrefix;
-		$res= $dbr->select($this->tableName,
-			array ("COUNT(*) AS C", "AVG({$pf}rating) AS R"),
-			array ("{$pf}page" => $id, "{$pf}isdeleted" => "0"),
+		$row = $dbr->selectRow($this->tableName,
+			array("COUNT(*) AS C", "AVG({$pf}rating) AS R"),
+			array("{$pf}page" => $id, "{$pf}isdeleted" => "0"),
 			__METHOD__);
 
-		if ($row = $dbr->fetchObject($res))  {
+		if ($row) {
 			$percent = $row->R * 100;
-			$wgOut->addHTML( Linker::link($title, $title->getFullText() ) . "<br/><br/>"  .
-				wfMsg('clearratings_number_votes') . " {$row->C}<br/>" .
-				wfMsg('clearratings_avg_rating') . " {$percent} %<br/><br/>
+			$out->addHTML( Linker::link($title, $title->getFullText() ) . "<br/><br/>"  .
+				wfMessage('clearratings_number_votes') . " {$row->C}<br/>" .
+				wfMessage('clearratings_avg_rating') . " {$percent} %<br/><br/>
 						<form  id='clear_ratings' method='POST' action='{$selfUrl->getFullURL()}'>
 							<input type=hidden value='$id' name='clearId'>
 							<input type=hidden value='{$this->ratingType}' name='type'>
 							<input type=hidden value='" . htmlspecialchars($target) ."' name='target'>
-							" . wfMsg('clearratings_reason') . " <input type='text' name='reason' size='40'><br/><br/>
-							<input type=submit value='" . wfMsg('clearratings_clear_submit') . "'>
+							" . wfMessage('clearratings_reason') . " <input type='text' name='reason' size='40'><br/><br/>
+							<input type=submit value='" . wfMessage('clearratings_clear_submit') . "'>
 						</form><br/><br/>
 						");
 		}
-		$dbr->freeResult($res);
 	}
 
+	/* unused - 3/2019
 	function showListRatings() {
-		global $wgOut;
-
 		// Just change this if you don't want users seeing the ratings
-		$wgOut->setHTMLTitle('List Ratings - Accuracy Patrol');
-		$wgOut->setPageTitle('List ' . ucfirst($this->ratingType) . ' Ratings');
+		$out = RequestContext::getMain()->getOutput();
+		$out->setHTMLTitle('List Ratings - Accuracy Patrol');
+		$out->setPageTitle('List ' . ucfirst($this->ratingType) . ' Ratings');
 
 		list( $limit, $offset ) = wfCheckLimits();
 		$lrs = new ListRatingsPage();
 		$lrs->setRatingTool($this);
 		$lrs->doQuery( $offset, $limit );
 	}
+	*/
 
+	/* unused - 3/2019
 	function getRatings() {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$pf = $this->tablePrefix;
 		$res = $dbr->select($this->tableName,
 			["{$pf}page", "AVG({$pf}rating) as R", 'count(*) as C'],
@@ -302,18 +332,21 @@ abstract class RatingsTool {
 
 		return $res;
 	}
+	*/
 
+	/* unused - 3/2019
 	function showAccuracyPatrol() {
-		global $wgOut;
-
-		$wgOut->setHTMLTitle(wfMsg('accuracypatrol'));
-		$wgOut->setPageTitle(ucfirst($this->ratingType) . " Accuracy Patrol");
+		$out = RequestContext::getMain()->getOutput();
+		$out->setHTMLTitle(wfMessage('accuracypatrol'));
+		$out->setPageTitle(ucfirst($this->ratingType) . " Accuracy Patrol");
 
 		list( $limit, $offset ) = wfCheckLimits();
 		$llr = $this->getQueryPage();
 		return $llr->doQuery( $offset, $limit );
 	}
+	*/
 
+	/* unused - 3/2019
 	function getListRatingsSql() {
 		$pf = $this->tablePrefix;
 		return "SELECT {$pf}page, AVG({$pf}rating) as R, count(*) as C
@@ -322,6 +355,7 @@ abstract class RatingsTool {
 			GROUP BY {$pf}page
 			ORDER BY R";
 	}
+	*/
 
 	function getTablePrefix() {
 		return $this->tablePrefix;
@@ -361,15 +395,15 @@ abstract class RatingsTool {
 	 * - 50th
 	 * - 100th
 	 */
-	function sendHelpfulEmails($type, $pageid) {
-		global $wgLanguageCode, $wgIsDevServer;
+	public static function sendHelpfulEmails($type, $pageid) {
+		global $wgIsDevServer;
 
 		$msg = '';
 		$basesite = WikihowMobileTools::getNonMobileSite();
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		// only for English
-		if ($wgLanguageCode != 'en') return true;
+		if (RequestContext::getMain()->getLanguage()->getCode() != 'en') return true;
 		// not for samples
 		if ($type != 'article') return true;
 
@@ -378,12 +412,12 @@ abstract class RatingsTool {
 		if (!$r) return true;
 
 		// not for articles with bad templates
-		$badTemplates = implode("|", explode("\n", trim(wfMsg('ratings_bad_templates'))));
-		$hasBadTemp = preg_match("@{{($badTemplates)[}|]@mi", $r->getText()) == 1 ? 1 : 0;
+		$badTemplates = implode("|", explode("\n", trim(wfMessage('ratings_bad_templates'))));
+		$hasBadTemp = preg_match("@{{($badTemplates)[}|]@mi", ContentHandler::getContentText( $r->getContent() )) == 1 ? 1 : 0;
 		if ($hasBadTemp) return true;
 
 		// gotta be promoted
-		if (!Newarticleboost::isNABbed($dbr, $pageid)) return true;
+		if (!NewArticleBoost::isNABbed($dbr, $pageid)) return true;
 
 		// grab the author's email (if they want emails)
 		$to_email = AuthorEmailNotification::getArticleAuthorEmail($pageid);
@@ -426,7 +460,7 @@ abstract class RatingsTool {
 			$article_link = $basesite . '/' . $t->getPartialUrl() . $qs.'article_title';
 
 			$req_link = $basesite. '/Special:ListRequestedTopics'.$qs.'answer_request';
-			$topcat = Categoryhelper::getTopCategory($t);
+			$topcat = CategoryHelper::getTopCategory($t);
 			if ($topcat) {
 				$req_link .= '&category='.str_replace('-','+',$topcat);
 				$topcat = str_replace('-',' ',$topcat);

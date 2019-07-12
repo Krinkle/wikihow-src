@@ -28,9 +28,10 @@ class UserCompletedImages extends UnlistedSpecialPage {
 		parent::__construct('UserCompletedImages');
 	}
 
-	public function isMobileCapable() {
-		return true;
-	}
+	//[sc] 12/2018 - removing UCI from mobile
+	// public function isMobileCapable() {
+	// 	return true;
+	// }
 
 	public function execute($par) {
 		if ($this->getUser()->isBlocked()) {
@@ -216,7 +217,7 @@ class UserCompletedImages extends UnlistedSpecialPage {
 			$userDBKey = $userID > 0 ? 'uci_user_id' : 'uci_user_text';
 			$userDBVal = $userID > 0 ? $userID : $user->getName();
 
-			$dbr = wfGetDB(DB_SLAVE);
+			$dbr = wfGetDB(DB_REPLICA);
 			$res = $dbr->select(
 				'user_completed_images',
 				array('uci_user_id', 'uci_user_text'),
@@ -253,7 +254,7 @@ class UserCompletedImages extends UnlistedSpecialPage {
 
 	public static function hasUCI($title, $purge = false) {
 		$result = false;
-		if (!$title->exists() || $title->getNamespace() != NS_MAIN) {
+		if (!$title->exists() || !$title->inNamespace(NS_MAIN)) {
 			return false;
 		}
 
@@ -318,8 +319,9 @@ class UserCompletedImages extends UnlistedSpecialPage {
 			$lbSrc = wfGetPad($lightboxThumbs[$pageId]['url']);
 			$src = wfGetPad($thumb['url']);
 			$timeago = wfTimeAgo($thumb['ts']);
-			$html .= "<a class='uci_thumbnail uci_thumbnail_steps swipebox' pageid='$pageId' href='$lbSrc'><img src='$src' alt='' /></a>\n";
-			$data[] = array('pageId'=>$pageId, 'lbSrc'=>$lbSrc, 'src' => $src, 'timeago'=> $timeago);
+			$img = Misc::getMediaScrollLoadHtml( 'img', [ 'src' => $src, 'alt' => '', 'class' => 'whcdn' ] );
+			$html .= "<a class='uci_thumbnail uci_thumbnail_steps swipebox' pageid='$pageId' href='$lbSrc'>$img</a>\n";
+			$data[] = array('pageId'=>$pageId, 'lbSrc'=>$lbSrc, 'src' => $src, 'timeago'=> $timeago, 'img' => $img );
 		}
 
 		$lbData = array();
@@ -382,8 +384,8 @@ class UserCompletedImages extends UnlistedSpecialPage {
 		$result = null;
 		$data = self::getUCIData( $context, $title, $offset, $limit );
 		if ( $data ) {
-			EasyTemplate::set_path(dirname(__FILE__).'/');
-			$result = EasyTemplate::html( 'usercompletedimages.desktop.sidebar', $data );
+			EasyTemplate::set_path(__DIR__.'/');
+			$result = EasyTemplate::html( 'usercompletedimages.desktop.sidebar.tmpl.php', $data );
 		}
 		return $result;
 	}
@@ -466,7 +468,7 @@ class UserCompletedImages extends UnlistedSpecialPage {
 
 		$pageTitle = str_replace( ' ', '-', $pageTitle );
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$res = $dbr->select(
 			'user_completed_images',
@@ -565,8 +567,8 @@ class UserCompletedImages extends UnlistedSpecialPage {
 			if ( !$data['totalCount'] ) {
 				$data['headerextraclass'] = 'nouciimages';
 			}
-			EasyTemplate::set_path(dirname(__FILE__).'/');
-			$result = EasyTemplate::html( 'usercompletedimages.desktop.section', $data );
+			EasyTemplate::set_path(__DIR__.'/');
+			$result = EasyTemplate::html( 'usercompletedimages.desktop.section.tmpl.php', $data );
 
 		}
 		return $result;
@@ -600,35 +602,36 @@ class UserCompletedImages extends UnlistedSpecialPage {
 		}
 	}
 
-	public static function getMobileSectionHTML($context) {
-		if (class_exists('AndroidHelper') && AndroidHelper::isAndroidRequest()) {
-			return '';
-		}
+	//[sc] 12/2018 - removing UCI from mobile
+	// public static function getMobileSectionHTML($context) {
+	// 	if (class_exists('AndroidHelper') && AndroidHelper::isAndroidRequest()) {
+	// 		return '';
+	// 	}
 
-		if (!$context) {
-			return '';
-		}
+	// 	if (!$context) {
+	// 		return '';
+	// 	}
 
-		$title = $context->getTitle();
+	// 	$title = $context->getTitle();
 
-		if ( !$title || !$title->exists() ) {
-			return '';
-		}
+	// 	if ( !$title || !$title->exists() ) {
+	// 		return '';
+	// 	}
 
-		if (!self::onWhitelist($title)) {
-			return '';
-		}
+	// 	if (!self::onWhitelist($title)) {
+	// 		return '';
+	// 	}
 
-		$offset = 0;
-		$limit = 7;
-		$data = self::getUCIData( $context, $title, $offset, $limit );
-		if ( $data ) {
-			EasyTemplate::set_path(dirname(__FILE__).'/');
-			$result = EasyTemplate::html( 'mobile-image-upload', $data );
-		}
+	// 	$offset = 0;
+	// 	$limit = 7;
+	// 	$data = self::getUCIData( $context, $title, $offset, $limit );
+	// 	if ( $data ) {
+	// 		EasyTemplate::set_path(__DIR__.'/');
+	// 		$result = EasyTemplate::html( 'mobile-image-upload.tmpl.php', $data );
+	// 	}
 
-		return $result;
-	}
+	// 	return $result;
+	// }
 
 	private static function updateWhitelist($pageIds, $val) {
 		$dbw = wfGetDB(DB_MASTER);
@@ -653,16 +656,17 @@ class UserCompletedImages extends UnlistedSpecialPage {
 		self::updateWhitelist($pageIds, 1);
 	}
 
-	public static function onAddMobileTOCItemData($wgTitle, &$extraTOCPreData, &$extraTOCPostData) {
-		if (self::onWhitelist($wgTitle)) {
-			$extraTOCPostData[] = [
-				'anchor' => 'uci_header',
-				'name' => 'Reader Pictures',
-				'priority' => 1600,
-				'selector' => '.section#uci_section',
-			];
-		}
+	//[sc] 12/2018 - removing UCI from mobile
+	// public static function onAddMobileTOCItemData($wgTitle, &$extraTOCPreData, &$extraTOCPostData) {
+	// 	if (self::onWhitelist($wgTitle)) {
+	// 		$extraTOCPostData[] = [
+	// 			'anchor' => 'uci_header',
+	// 			'name' => 'Reader Pictures',
+	// 			'priority' => 1600,
+	// 			'selector' => '.section#uci_section',
+	// 		];
+	// 	}
 
-		return true;
-	}
+	// 	return true;
+	// }
 }

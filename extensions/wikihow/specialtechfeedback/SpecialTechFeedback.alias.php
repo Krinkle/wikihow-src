@@ -1,4 +1,3 @@
-
 <?php
 /**
  * Aliases for Special:TechFeedback
@@ -10,4 +9,3 @@ $specialPageAliases = array();
 $specialPageAliases['en'] = array(
 	'SpecialTechFeedback' => array( 'TechFeedback', 'SpecialTechFeedback' ),
 );
-

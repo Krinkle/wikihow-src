@@ -12,7 +12,7 @@ class ReindexedPages extends QueryPage {
 	public function execute($par) {
 		list($this->limit, $this->offset) = $this->getRequest()->getLimitOffset(250, '');
 		parent::execute($par);
-		$this->getOutput()->setRobotPolicy('index,follow');
+		$this->getOutput()->setRobotPolicy('noindex,follow');
 	}
 
 	function getQueryInfo() {

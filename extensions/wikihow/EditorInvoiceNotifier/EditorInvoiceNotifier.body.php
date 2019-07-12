@@ -225,7 +225,7 @@ class EditorInvoiceNotifier extends UnlistedSpecialPage {
 	}
 
 	protected function getSenderAddress() {
-		return new MailAddress('wikihowcontent@gmail.com');
+		return new MailAddress('support@wikihow.com');
 	}
 
 	protected function getSubjectLine() {

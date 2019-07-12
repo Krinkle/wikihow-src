@@ -236,7 +236,7 @@ class OutputPage extends ContextSource {
 	 */
 	protected $mJQueryDone = false;
 
-	// JRS 12/11/13 Adding a debug variable for robot policy 
+	// JRS 12/11/13 Adding a debug variable for robot policy
 	private $mRobotPolicyDebug = 'default';
 	private $mIndexPolicy = 'index';
 	private $mFollowPolicy = 'follow';
@@ -1253,6 +1253,9 @@ class OutputPage extends ContextSource {
 					if ( array_key_exists( $category, $categories ) ) {
 						continue;
 					}
+				}
+				if (!RobotPolicy::isIndexable($title)) { // Alberto (wikiHow), 2018-04-01
+					continue;
 				}
 				$text = $wgContLang->convertHtml( $title->getText() );
 				$this->mCategories[] = $title->getText();
@@ -3231,7 +3234,7 @@ $templates
 		$tags['meta-robots'] = Html::element( 'meta', array(
 			'name' => 'robots',
 			'content' => $p,
-		) ); 
+		) );
 		$tags['meta-robots'] .= "<!--{$this->mRobotPolicyDebug}-->";
 
 		//$p = "{$this->mIndexPolicy},{$this->mFollowPolicy}";
@@ -3324,6 +3327,8 @@ $templates
 		}
 
 		# Language variants
+		// Alberto, 2018-03: don't add hreflang links for language variants
+		/*
 		if ( !$wgDisableLangConversion && $wgCanonicalLanguageLinks ) {
 			$lang = $this->getTitle()->getPageLanguage();
 			if ( $lang->hasVariants() ) {
@@ -3344,6 +3349,7 @@ $templates
 				}
 			}
 		}
+		*/
 
 		# Copyright
 		$copyright = '';
@@ -3797,7 +3803,7 @@ $templates
 	}
 
 	/**
-	 * Return whatever the current robots policy is set to be, or how it 
+	 * Return whatever the current robots policy is set to be, or how it
 	 * output if that's done
 	 */
 	public function getRobotPolicy() {

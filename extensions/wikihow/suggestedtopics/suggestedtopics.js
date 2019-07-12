@@ -67,7 +67,7 @@ WH.SuggestedTopics.saveSuggestion = function() {
 			document.suggested_topics_manage.elements[i].checked = true;
 		}
 	}
-	
+
 	$('#dialog-box').dialog('close');
 };
 
@@ -86,15 +86,15 @@ WH.SuggestedTopics.editSuggestion = function(id) {
 
 WH.SuggestedTopics.checkSTForm = function() {
 	if (document.suggest_topic_form.suggest_topic.value =='') {
-		alert(gEnterTitle);
+		alert(mw.msg('suggest_please_enter_title'));
 		return false;
 	}
 	if (document.suggest_topic_form.suggest_category.value =='') {
-		alert(gSelectCat);
+		alert(mw.msg('suggest_please_select_cat'));
 		return false;
 	}
 	if (document.suggest_topic_form.suggest_email_me_check.checked && document.suggest_topic_form.suggest_email.value =='') {
-		alert(gEnterEmail);
+		alert(mw.msg('suggest_please_enter_email'));
 		return false;
 	}
 	return true;
@@ -103,11 +103,11 @@ WH.SuggestedTopics.checkSTForm = function() {
 function chooseCat(key,bChoose) {
 	var safekey = key.replace("&", "and");
 	var e = $("#" + safekey);
-	
+
 	//forcing it or based off the setting?
 	if (bChoose == null)
 		bChoose = (e.hasClass('not_chosen')) ? true : false;
-	
+
 	if (bChoose) {
 		e.removeClass('not_chosen');
 		e.addClass('chosen');

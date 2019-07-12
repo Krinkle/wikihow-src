@@ -16,6 +16,11 @@ class UserReviewImporter extends UnlistedSpecialPage {
 		parent::__construct('UserReviewImporter');
 	}
 
+	// method stops redirects when running on titus host
+	public function isSpecialPageAllowedOnTitus() {
+		return true;
+	}
+
 	public function execute($par) {
 		$out = $this->getOutput();
 		$user = $this->getuser();
@@ -23,7 +28,7 @@ class UserReviewImporter extends UnlistedSpecialPage {
 
 		$userGroups = $user->getGroups();
 		if ($user->isBlocked() || !in_array('staff', $userGroups)) {
-			$out->setRobotpolicy('noindex,nofollow');
+			$out->setRobotPolicy('noindex,nofollow');
 			$out->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext' );
 			return;
 		}
@@ -44,9 +49,9 @@ class UserReviewImporter extends UnlistedSpecialPage {
 		}
 		$out->addModules('ext.wikihow.userreviewimporter');
 		$out->setPageTitle("User Review Importer");
-		
+
 		$options =  array(
-			'loader' => new Mustache_Loader_FilesystemLoader(dirname(__FILE__)),
+			'loader' => new Mustache_Loader_FilesystemLoader(__DIR__),
 		);
 		$m = new Mustache_Engine($options);
 		$vars = array('waitingurl' => wfGetPad('/extensions/wikihow/rotate.gif'));
@@ -65,8 +70,7 @@ class UserReviewImporter extends UnlistedSpecialPage {
 		return self::processCuratedSheetData($data);
 	}
 
-	private static function getSpreadsheetData($sheetId, $worksheetId)
-	{
+	private static function getSpreadsheetData($sheetId, $worksheetId) {
 		global $IP;
 		require_once("$IP/extensions/wikihow/docviewer/SampleProcess.class.php");
 
@@ -129,7 +133,7 @@ class UserReviewImporter extends UnlistedSpecialPage {
 		foreach($data as $row) {
 			$isEligible = UserReview::isArticleEligibleForReviews($row->{'gsx$articleid'}->{'$t'});
 			$reviewId = $row->{'gsx$usidfromsubmittedtable'}->{'$t'};
-			if($reviewId == "") {
+			if ($reviewId == "") {
 				self::insertNewReview(
 					$row->{'gsx$articleid'}->{'$t'},
 					$row->{'gsx$email'}->{'$t'},
@@ -180,7 +184,7 @@ class UserReviewImporter extends UnlistedSpecialPage {
 			'us_positive' => $isPositive
 		);
 
-		if($autoCurate) {
+		if ($autoCurate) {
 			$insertValues['us_curated_user'] = $wgUser->getId();
 			$insertValues['us_curated_timestamp'] = wfTimestampNow();
 		}
@@ -231,7 +235,7 @@ class UserReviewImporter extends UnlistedSpecialPage {
 
 		$dbw->update(UserReview::TABLE_SUBMITTED, $submittedArray, array('us_id' => $reviewId), __METHOD__);
 
-		if($autoCurate) {
+		if ($autoCurate) {
 			$dbw->upsert(UserReview::TABLE_CURATED,
 				array_merge($curatedArray, array('uc_submitted_id' => $reviewId)),
 				array(),
@@ -263,14 +267,14 @@ CREATE TABLE `userreview_submitted` (
 	KEY `us_article_id` (`us_article_id`),
 	KEY `us_submitted_timestamp` (`us_submitted_timestamp`),
 	KEY `us_eligible` (`us_eligible`),
-	KEY `us_positive` (`us_positive`)
+	KEY `us_positive` (`us_positive`),
+	KEY `us_email` (`us_email`(16))
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 CREATE TABLE `userreview_curated` (
 	`uc_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
 	`uc_submitted_id` int(10) unsigned NOT NULL,
 	`uc_article_id` int(10) unsigned NOT NULL,
-	`uc_email` text NOT NULL,!!!
 	`uc_review` text NOT NULL,
 	`uc_firstname` text NOT NULL,
 	`uc_lastname` text NOT NULL,

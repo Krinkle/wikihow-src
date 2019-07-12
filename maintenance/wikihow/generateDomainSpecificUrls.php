@@ -36,7 +36,7 @@ class GenerateDomainSpecificUrls extends Maintenance {
 				continue;
 			}
 			$title = Title::newFromID( $pageId );
-			if ( $title ) {
+			if ( $title && !$title->isRedirect() ) {
 				$line = "https://www.$domain{$title->getLocalURL()}";
 				$line .= ' lastmod=' . self::iso8601_date( $title->getTouched() );
 				print "$line\n";

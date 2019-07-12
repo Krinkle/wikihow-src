@@ -8,8 +8,22 @@
  */
 class ReverificationData {
 
-	var $id, $aid, $oldDate, $oldRevId, $sheetName, $verifierName, $newDate, $reverified, $newRevId, $feedback,
-		$extensiveFeedback, $exportTimestamp, $scriptExportTimestamp, $flag, $skipTimestamp, $feedbackEditor;
+	var $id, $aid, $oldDate, $oldRevId, $sheetName, $verifierId, $verifierName, $newDate, $reverified, $newRevId, $feedback,
+		$extensiveFeedback, $extensiveDoc, $exportTimestamp, $scriptExportTimestamp, $flag, $skipTimestamp, $feedbackEditor;
+
+	/**
+	 * @return mixed
+	 */
+	public function getExtensiveDoc() {
+		return $this->extensiveDoc;
+	}
+
+	/**
+	 * @param mixed $extensiveDoc
+	 */
+	public function setExtensiveDoc($extensiveDoc) {
+		$this->extensiveDoc = $extensiveDoc;
+	}
 
 	/*
 	 * Reset the Reverification by clearing certain data elements
@@ -121,6 +135,7 @@ class ReverificationData {
 		$this->setOldDate($row->rv_old_date);
 		$this->setOldRevId($row->rv_old_revision);
 		$this->setSheetName($row->rv_sheet);
+		$this->setVerifierId($row->rv_verifier_id);
 		$this->setVerifierName($row->rv_verifier_name);
 		$this->setNewDate($row->rv_new_date);
 		$this->setReverified($row->rv_reverified);
@@ -128,6 +143,7 @@ class ReverificationData {
 		$this->setFeedback($row->rv_feedback);
 		$this->setFlag($row->rv_flag);
 		$this->setFeedbackEditor($row->rv_feedback_editor);
+		$this->setExtensiveDoc($row->rv_extensive_doc);
 		$this->setExtensiveFeedback($row->rv_extensive_feedback);
 		$this->setExportTimestamp($row->rv_export_ts);
 		$this->setScriptExportTimestamp($row->rv_script_export_ts);
@@ -141,6 +157,7 @@ class ReverificationData {
 			'rv_old_date' => $this->getOldDate(),
 			'rv_old_revision' => $this->getOldRevId(),
 			'rv_sheet' => $this->getSheetName(),
+			'rv_verifier_id' => $this->getVerifierId(),
 			'rv_verifier_name' => $this->getVerifierName(),
 			'rv_new_date' => $this->getNewDate(),
 			'rv_reverified' => $this->getReverified(),
@@ -149,6 +166,7 @@ class ReverificationData {
 			'rv_flag' => $this->getFlag(),
 			'rv_feedback_editor' => $this->getFeedbackEditor(),
 			'rv_extensive_feedback' => $this->getExtensiveFeedback(),
+			'rv_extensive_doc' => $this->getExtensiveDoc(),
 			'rv_export_ts' => $this->getExportTimestamp(),
 			'rv_script_export_ts' => $this->getScriptExportTimestamp(),
 			'rv_skip_ts' => $this->getSkipTimestamp(),
@@ -172,11 +190,12 @@ class ReverificationData {
 	/**
 	 * @param VerifyData $data
 	 */
-	public function loadFromVerifyData($data) {
+	private function loadFromVerifyData($data) {
 		$this->setAid($data->aid);
 		$this->setOldDate($this->formatDate($data->date));
 		$this->setOldRevId($data->revisionId);
 		$this->setSheetName($data->worksheetName);
+		$this->setVerifierId($data->verifierId);
 		$this->setVerifierName($data->name);
 	}
 
@@ -229,6 +248,20 @@ class ReverificationData {
 	 */
 	public function setOldRevId($oldRevId) {
 		$this->oldRevId = $oldRevId;
+	}
+
+	/**
+	 * @return mixed
+	 */
+	public function getVerifierId() {
+		return $this->verifierId;
+	}
+
+	/**
+	 * @param mixed $verifierId
+	 */
+	public function setVerifierId($verifierId) {
+		$this->verifierId = $verifierId;
 	}
 
 	/**

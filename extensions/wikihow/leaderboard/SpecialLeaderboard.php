@@ -41,8 +41,12 @@ class Leaderboard extends SpecialPage {
 				$tab9 = $tab=='techfeedbackreviewed' ? "class='on'" : "";
 				$tab10 = $tab=='techarticletested' ? "class='on'" : "";
 				$tab11 = $tab=='duplicatetitles' ? "class='on'" : "";
+				$tab12 = $tab=='articlefeedbackreviewed' ? "class='on'" : "";
+				$tab13 = $tab=='fixflaggedanswers' ? "class='on'" : "";
+				$tab14 = $tab=='qap' ? "class='on'" : "";
+				$tab15 = $tab=='topicstagged' ? "class='on'" : "";
 
-				$tabs = " <ul class='sub_tabs'> <li><a href='/Special:Leaderboard/total_edits' $tab1 >All Edits</a></li> <li><a href='/Special:Leaderboard/thumbs_up' $tab2 >Thumbs Up</a></li> <li><a href='/Special:Leaderboard/articles_categorized' $tab3 >Categorization</a></li><li><a href='/Special:Leaderboard/welcomewagon_indiv1' $tab4 >Welcome Wagon</a></li> <li><a href='/Special:Leaderboard/tiptool_indiv1' $tab5>Tips Patrol</a> </ul> <ul class='sub_tabs'></li><li><a href='/Special:Leaderboard/nfd' $tab6 >NFD</a></li> <li><a href='/Special:Leaderboard/CategoryGuardian' $tab7 >Category Guardian</a></li> <li><a href='/Special:Leaderboard/questionssorted' $tab8 >Approve Questions</a></li> <li><a href='/Special:Leaderboard/techfeedbackreviewed' $tab9 >Review Tech Feedback</a></li><li><a href='/Special:Leaderboard/techarticletested' $tab10 >Test Tech Articles</a></li><li><a href='/Special:Leaderboard/duplicatetitles' $tab11 >Find Duplicate Titles</a></li></ul>";
+				$tabs = " <ul class='sub_tabs'> <li><a href='/Special:Leaderboard/total_edits' $tab1 >All Edits</a></li> <li><a href='/Special:Leaderboard/thumbs_up' $tab2 >Thumbs Up</a></li> <li><a href='/Special:Leaderboard/articles_categorized' $tab3 >Categorization</a></li><li><a href='/Special:Leaderboard/welcomewagon_indiv1' $tab4 >Welcome Wagon</a></li> <li><a href='/Special:Leaderboard/tiptool_indiv1' $tab5>Tips Patrol</a> </ul> <ul class='sub_tabs'></li><li><a href='/Special:Leaderboard/nfd' $tab6 >NFD</a></li> <li><a href='/Special:Leaderboard/CategoryGuardian' $tab7 >Category Guardian</a></li> <li><a href='/Special:Leaderboard/questionssorted' $tab8 >Approve Questions</a></li> <li><a href='/Special:Leaderboard/techfeedbackreviewed' $tab9 >Review Tech Feedback</a></li><li><a href='/Special:Leaderboard/techarticletested' $tab10 >Test Tech Articles</a></li><li><a href='/Special:Leaderboard/duplicatetitles' $tab11 >Find Duplicate Titles</a></li><li><a href='/Special:Leaderboard/articlefeedbackreviewed' $tab12 >Review Article Feedback</a></li><li><a href='/Special:Leaderboard/fixflaggedanswers' $tab13 >Fix Flagged Answers</a></li><li><a href='/Special:Leaderboard/qap' $tab14 >Q&A Patrol</a></li><li><a href='/Special:Leaderboard/topicstagged' $tab15 >Topic Tagging</a></li></ul>";
 				return $tabs;
 			} elseif ($section == "Greenhouse") {
 				$tab1 = $tab=='repair_format' ? "class='on'" : "";
@@ -145,6 +149,15 @@ class Leaderboard extends SpecialPage {
 			case 'duplicatetitles':
 				$data = LeaderboardStats::getDuplicateTitlesReviewed($starttimestamp, $user, true);
 				break;
+			case 'articlefeedbackreviewed':
+				$data = LeaderboardStats::getArticleFeedbackReviewed($starttimestamp, $user, true);
+				break;
+			case 'fixflaggedanswers':
+				$data = LeaderboardStats::getFixFlaggedAnswers($starttimestamp, $user, true);
+				break;
+			case 'topicstagged':
+				$data = LeaderboardStats::getTopicsTagged($starttimestamp, $user, true);
+				break;
 			default:
 				return;
 		}
@@ -157,6 +170,8 @@ class Leaderboard extends SpecialPage {
 	}
 
 	private function showArticlesPage($page, $period, $starttimestamp, $user) {
+		$out = $this->getOutput();
+
 		$out->addHTML("
 			<script>
 				var lb_page = '$target';
@@ -281,7 +296,7 @@ class Leaderboard extends SpecialPage {
 
 		$out->addHTML("\n<div id='Leaderboard'>\n");
 		$out->addHTML("<br />$subtitle<br/>" .
-			wfMessage('leaderboard_articlespage_msg', $userlink, $regdate, $contributions, $otherlinks) ."<br/>\n");
+			wfMessage('leaderboard_articlespage_msg', $userlink, $regdate, $contributions, $otherlinks)->text() ."<br/>\n");
 
 		$out->addHTML("<table class='leader_table' style='width:475px; margin:0 auto;'>" );
 
@@ -324,11 +339,11 @@ class Leaderboard extends SpecialPage {
 		}
 
 		$out->setPageTitle( wfMessage('leaderboard_title') );
-		$out->setRobotpolicy('noindex,nofollow');
+		$out->setRobotPolicy('noindex,nofollow');
 
 		$wgHooks["pageTabs"][] = "wfLeaderboardTabs";
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$me = Title::makeTitle(NS_SPECIAL, "Leaderboard");
 
@@ -524,6 +539,30 @@ class Leaderboard extends SpecialPage {
 				$columnHeader = 'Duplicate Titles';
 				$data = LeaderboardStats::getDuplicateTitlesReviewed($starttimestamp);
 				break;
+			case 'articlefeedbackreviewed':
+				$section = 'Other';
+				$learnlink = '/wikiHow:articlefeedback';
+				$columnHeader = 'Review Article Feedback';
+				$data = LeaderboardStats::getArticleFeedbackReviewed($starttimestamp);
+				break;
+			case 'fixflaggedanswers':
+				$section = 'Other';
+				$learnlink = '/wikiHow:fixflaggedanswers';
+				$columnHeader = 'Fix Flagged Answers';
+				$data = LeaderboardStats::getFixFlaggedAnswers($starttimestamp);
+				break;
+			case 'qap':
+				$section = 'Other';
+				$learnlink = '/wikiHow:QAPatrol';
+				$columnHeader = 'Q&A Patrol';
+				$data = LeaderboardStats::getQAPatrollers($starttimestamp);
+				break;
+			case 'topicstagged':
+				$section = 'Other';
+				$learnlink = '/wikiHow:TopicTagging';
+				$columnHeader = 'Topic Tagging';
+				$data = LeaderboardStats::getTopicsTagged($starttimestamp);
+				break;
 			default:
 				$out->redirect("/Special:Leaderboard/articles_written");
 				return;
@@ -577,7 +616,7 @@ class Leaderboard extends SpecialPage {
 			if (isset($u)) {
 				$this->showArticlesPage( $target, $period, $starttimestamp, $u->getName() );
 			} else {
-				print wfMessage('leaderboard-invalid-user');
+				$out->addHTML( wfMessage('leaderboard-invalid-user') );
 			}
 			return;
 		}

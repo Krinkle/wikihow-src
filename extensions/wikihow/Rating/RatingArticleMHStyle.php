@@ -5,30 +5,50 @@ class RatingArticleMHStyle extends RatingArticle {
 		parent::__construct();
 	}
 
-	function getRatingResponsePlatform($itemId, $rating, $ratingId, $isMobile) {
-		$tmpl = new EasyTemplate(dirname(__FILE__));
+	function getRatingResponsePlatform($itemId, $rating, $ratingId, $source) {
+		if (GoogleAmp::isAmpMode(RequestContext::getMain()->getOutput())) {
+			return json_encode(['result' => 'true']);
+		}
+
+		$tmpl = new EasyTemplate(__DIR__);
 		$title = Title::newFromID($itemId);
 		$tmpl->set_vars(
 			array(
 				'rating' => $rating,
 				'titleText' => $title->getText(),
 				'ratingId' => $ratingId,
-				'isMobile' => $isMobile
+				'isMobile' => $source == 'mobile'
 		));
 
-		$template = 'rating_mh_style.tmpl.php';
-		if ( SpecialTechFeedback::isTitleInTechCategory( $title ) ) {
+		$tech_article = SpecialTechFeedback::isTitleInTechCategory( $title );
+
+		if ($tech_article) {
 			$template = 'rateitem_response_tech.tmpl.php';
 		}
+		elseif ($source == 'discuss_tab') {
+			$tmpl->set_vars['tech_article'] = $tech_article;
+			$template = 'rating_mh_modal.tmpl.php';
+		}
+		else {
+			$template = 'rating_mh_style.tmpl.php';
+		}
+
 		return $tmpl->execute( $template );
 	}
 
 	function getRatingResponseMobile($itemId, $rating, $ratingId) {
-		return $this->getRatingResponsePlatform($itemId, $rating, $ratingId, true);
+		$source = 'mobile';
+		return $this->getRatingResponsePlatform($itemId, $rating, $ratingId, $source);
 	}
 
 	function getRatingResponseDesktop($itemId, $rating, $ratingId) {
-		return $this->getRatingResponsePlatform($itemId, $rating, $ratingId, false);
+		$source = 'desktop';
+		return $this->getRatingResponsePlatform($itemId, $rating, $ratingId, $source);
+	}
+
+	function getRatingResponseModal($itemId, $rating, $ratingId) {
+		$source = 'discuss_tab';
+		return $this->getRatingResponsePlatform($itemId, $rating, $ratingId, $source);
 	}
 }
 

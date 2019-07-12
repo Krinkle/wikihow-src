@@ -134,18 +134,34 @@ WH.ArticleCreator = function() {
 	WikitextBuilder.prototype.METHOD_HEADING_TEMPLATE = '=== $name ===\n';
 	WikitextBuilder.prototype.STEP_LI_TYPE = '#';
 	WikitextBuilder.prototype.BULLET_LI_TYPE = '*';
-	WikitextBuilder.prototype.SUB_LI_TYPE = '#*';	
+	WikitextBuilder.prototype.SUB_LI_TYPE = '#*';
+	WikitextBuilder.prototype.PARTS_MAGIC_WORD = '\n__PARTS__\n';
+	WikitextBuilder.prototype.METHODS_MAGIC_WORD = '\n__METHODS__\n';
 	
 	WikitextBuilder.prototype.buildArticle = function(article) {
 		var wikitext = this.buildIntro(article.intro);
 		wikitext += this.buildSteps(article.steps);
 		wikitext += this.buildTips(article.tips);
 		wikitext += this.buildWarnings(article.warnings);
-		wikitext += this.buildSources(article.sourcesandcitations);
-		
+		wikitext += this.buildReferences(article.references);
+		wikitext += this.buildMagicWords(article);
+
 		return wikitext;
 	};
-	
+
+	WikitextBuilder.prototype.buildMagicWords = function(article) {
+		var magicWords = '';
+		if (article.steps.methods.length > 1) {
+			if (article.steps.methodType == Method.PARTS_METHOD_TYPE) {
+				magicWords += this.PARTS_MAGIC_WORD;
+			} else if (article.steps.methodType == Method.METHODS_METHOD_TYPE){
+				magicWords += this.METHODS_MAGIC_WORD;
+			}
+		}
+
+		return magicWords;
+	};
+
 	WikitextBuilder.prototype.buildIntro = function(intro) {
 		return intro + this.SECTION_SEPARATOR;
 	};
@@ -213,8 +229,8 @@ WH.ArticleCreator = function() {
 		return this.buildOtherSection(warnings);
 	};
 	
-	WikitextBuilder.prototype.buildSources = function(sources) {
-		return this.buildOtherSection(sources);
+	WikitextBuilder.prototype.buildReferences = function(references) {
+		return this.buildOtherSection(references);
 	};
 	
 	WikitextBuilder.prototype.buildOtherSection = function(section) {
@@ -373,7 +389,7 @@ WH.ArticleCreator = function() {
 		this.steps = new StepsSection("Steps", "steps");
 		this.tips = new OtherSection("Tips", "tips");
 		this.warnings = new OtherSection("Warnings", "warnings");
-		this.sourcesandcitations = new OtherSection("Sources and Citations", "sourcesandcitations");
+		this.references = new OtherSection("References", "references");
 		
 	};
 	
@@ -438,9 +454,9 @@ WH.ArticleCreator = function() {
            }
        });
        
-       $(document).on('click', '#ac_add_sources_link', function() {
-    	  $('.add_sources_section').hide();
-    	  $('#sourcesandcitations').show();
+       $(document).on('click', '#ac_add_references_link', function() {
+    	  $('.add_references_section').hide();
+    	  $('#references').show();
        });
 		      	
        $(document).on('click', '.ac_question', function(e) {
@@ -468,7 +484,7 @@ WH.ArticleCreator = function() {
 				var wikitext = builder.buildArticle(a);
 				
 				var postData = {t: mw.util.getParamValue('t'), wikitext: wikitext, ac_token: $('#ac_token').text(), overwrite: $("#overwrite").val()};
-				$.post(mw.util.wikiGetlink(), postData, function(data) {
+				$.post(mw.util.getUrl(), postData, function(data) {
 					var result = $.parseJSON(data);
 					if (result.error) {
 						var dialogHtml = $('#ac_publish_error_tmpl').html()

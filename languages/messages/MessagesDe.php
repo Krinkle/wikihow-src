@@ -4144,7 +4144,7 @@ Eine [{{SERVER}}{{SCRIPTPATH}}/COPYING Kopie der ''GNU General Public License'']
 'tag-filter-submit' => 'Filter',
 'tag-list-wrapper' => '([[Special:Tags|{{PLURAL:$1|Markierung|Markierungen}}]]: $2)',
 'tags-title' => 'Markierungen',
-'tags-intro' => 'Diese Seite zeigt alle Markierungen, die für Bearbeitungen verwendet wurden, sowie deren Bedeutung. 
+'tags-intro' => 'Diese Seite zeigt alle Markierungen, die für Bearbeitungen verwendet wurden, sowie deren Bedeutung.
 
 Bei entsprechender Einstellung können die Missbrauchfilter beliebige Markierungen in die Versionsgeschichte setzen. Man kann die Versionsgeschichte dann nach den Markierungen filtern.',
 'tags-tag' => 'Markierungsname',
@@ -4359,3 +4359,10 @@ unset($namespaceAliases['Bild']);
 unset($namespaceAliases['Bild_Diskussion']);
 $namespaceAliases['Datei'] = NS_FILE;
 $namespaceAliases['Datei_Diskussion'] = NS_FILE_TALK;
+
+$imageFilesWH = array(
+	'button-bold'     => '1x1_transparent.gif',
+	'button-italic'   => '1x1_transparent.gif',
+);
+$imageFiles = array_merge($imageFiles, $imageFilesWH);
+

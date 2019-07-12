@@ -49,6 +49,7 @@ function initKeyBindings() {
 
 	$(document).bind('rcdataloaded', function () {
 		setupTracking();
+		WH.showEmbedVideos();
 	});
 
 	setupTracking();
@@ -62,7 +63,7 @@ function setupTracking() {
 	$('#markpatrolurl').addClass('op-action');
 	$('#rb_button').addClass('op-action');
 	$('#qe_button').addClass('op-action');
-	$('#skippatrolurl');
+	$('#skippatrolurl').addClass('op-action');
 }
 
 function setRCLinks() {
@@ -159,9 +160,9 @@ function setContentInner(html, fade) {
 	$("#rc_user_filter").val(rc_user_filter);
 	if (rc_user_filter) openSubMenu('user');
 	if (rev || ns >= 0) openSubMenu('ordering');
-	// Fire even to initialize wikivideo
-	$(document).trigger('rcdataloaded');
 
+	// Fire event to initialize youtube embeds
+	$(document).trigger('rcdataloaded');
 }
 
 function setContent(html) {

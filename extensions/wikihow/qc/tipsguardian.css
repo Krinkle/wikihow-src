@@ -1,8 +1,8 @@
 #tg_result { margin: 0 5px; }
 
-#intro { 
-	margin: 0 !important; 
-	font-size: 1em; 
+#intro {
+	margin: 0 !important;
+	font-size: 1em;
 	padding-top: 8px !important;
 }
 
@@ -11,7 +11,6 @@
 #tg_tip { text-align: left; }
 
 #qc_box h3 { display: none; }
-#qc_box .wh_block { margin-top: -1.3em; }
 #qc_box ul { list-style: none; }
 
 #buttonBlocker {
@@ -32,7 +31,7 @@ div#footer div#footer_random_button {
     display: block;
 }
 
-#tg_waiting { 
+#tg_waiting {
 	text-align: center;
 	padding: 10px;
 }

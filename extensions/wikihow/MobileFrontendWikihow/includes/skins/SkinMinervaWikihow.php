@@ -56,6 +56,9 @@ class SkinMinervaWikihow extends SkinMinerva {
 		// Google Site Verification Code
 		$out->addMeta('google-site-verification','Jb3uMWyKPQ3B9lzp5hZvJjITDKG8xI8mnEpWifGXUb0');
 
+		ArticleMetaInfo::addFacebookMetaProperties($out->getPageTitle());
+		ArticleMetaInfo::addTwitterMetaProperties();
+
 		// Add canonical link if it doesn't exist already (it will for Samples)
 		if (!$out->mCanonicalUrl) {
 			$canonicalUrl = WikihowMobileTools::getNonMobileSite() . '/' . $this->getSkin()->getTitle()->getPrefixedURL();
@@ -74,6 +77,9 @@ class SkinMinervaWikihow extends SkinMinerva {
 		if ($description) {
 			$out->addMeta('description', $description);
 		}
+
+		// Hreflang links
+		$this->addHreflangs();
 
 		// HTML title
 		if (class_exists('AndroidHelper') && AndroidHelper::isAndroidRequest()) {
@@ -162,6 +168,7 @@ class SkinMinervaWikihow extends SkinMinerva {
 		unset($items['uploads']);
 		unset($items['settings']);
 		unset($items['preferences']);
+		Hooks::run( 'WikihowMobileSkinAfterPreparePersonalTools', array( &$items ) );
 		$tpl->set('personal_urls', $items);
 	}
 
@@ -179,7 +186,7 @@ class SkinMinervaWikihow extends SkinMinerva {
 
 			$items['categories'] = array(
 				'text' => wfMessage( 'menu-categories' )->escaped(),
-				'href' => SpecialPage::getTitleFor( 'Categorylisting' )->getFullUrl(),
+				'href' => SpecialPage::getTitleFor( 'CategoryListing' )->getFullUrl(),
 				'class' => 'icon-categories',
 				'id' => 'icon-categories',
 			);
@@ -195,8 +202,17 @@ class SkinMinervaWikihow extends SkinMinerva {
 			}
 		}
 
+		if (WikihowNamespacePages::showMobileAboutWikihow()) {
+			$items['aboutwikihow'] = array(
+				'text' => wfMessage( 'menu-aboutwikihow' )->escaped(),
+				'href' => Title::newFromText( wfMessage('about-page')->text(), NS_PROJECT )->getFullUrl(),
+				'class' => 'icon-aboutwikihow',
+				'id' => 'icon-aboutwikihow',
+			);
+		}
+
 		$title = $this->getSkin()->getTitle();
-		if($title) {
+		if ($title) {
 			//add page help header
 			$items['header3'] =  array(
 				'text' => wfMessage('menu-help-page')->text(),
@@ -206,8 +222,8 @@ class SkinMinervaWikihow extends SkinMinerva {
 			$help_page_added = false;
 
 			$isMainPage = $title->getText() == wfMessage('mainpage')->text();
-			if($title->getNamespace() == NS_MAIN && !$isMainPage) {
-				if(class_exists('TipsAndWarnings') && TipsAndWarnings::isActivePage() && TipsAndWarnings::isValidTitle($title)) {
+			if ($title->inNamespace(NS_MAIN) && !$isMainPage) {
+				if (class_exists('TipsAndWarnings') && TipsAndWarnings::isActivePage() && TipsAndWarnings::isValidTitle($title)) {
 					$items['addtip'] = array(
 						'text' => wfMessage( 'mobile-wikihow-addtip-link' )->escaped(),
 						'href' => '#',
@@ -303,6 +319,16 @@ class SkinMinervaWikihow extends SkinMinerva {
 			$hasCommunityTools = true;
 		}
 
+		if ($wgLanguageCode == "en" && class_exists('QuizYourself')) {
+			$items['quizyourself'] = array(
+				'text' => wfMessage( 'menu-quizyourself' )->escaped(),
+				'href' => SpecialPage::getTitleFor( 'QuizYourself' )->getFullUrl(),
+				'class' => 'icon-quizyourself',
+				'id' => 'icon-quizyourself',
+			);
+			$hasCommunityTools = true;
+		}
+
 		/*if (class_exists('DuplicateTitles')) {
 			$items['duplicatetitles'] = array(
 				'text' => wfMessage('menu-duplicatetitles')->escaped(),
@@ -322,17 +348,6 @@ class SkinMinervaWikihow extends SkinMinerva {
 			// );
 			// $hasCommunityTools = true;
 		// }
-
-		// if (class_exists('KBGuardian')) {
-			// $items['kbguardian'] = array(
-				// 'text' => wfMessage('menu-kbguardian')->text(),
-				// 'href' => SpecialPage::getTitleFor('KBGuardian')->getFullUrl(),
-				// 'class' => 'icon-kbguardian',
-				// 'id' => 'icon-kbguardian',
-			// );
-			// $hasCommunityTools = true;
-		// }
-
 
 		// if (class_exists('PicturePatrol')) {
 			// $items['picturepatrol'] = array(
@@ -375,6 +390,7 @@ class SkinMinervaWikihow extends SkinMinerva {
 		$tpl->set('historyLink', null);
 		unset($items['nearby']);
 		$items['random']['href'] = SpecialPage::getTitleFor( 'Randomizer' )->getLocalUrl();
+		Hooks::run( 'WikihowMobileSkinAfterPrepareDiscoveryTools', array( &$items ) );
 		$tpl->set('discovery_urls', $items);
 	}
 
@@ -414,6 +430,8 @@ class SkinMinervaWikihow extends SkinMinerva {
 	}
 
 	protected function prepareHeaderAndFooter( BaseTemplate $tpl ) {
+		global $wgLanguageCode;
+
 		parent::prepareHeaderAndFooter( $tpl );
 		$title = $this->getTitle();
 		$out = $this->getOutput();
@@ -427,7 +445,7 @@ class SkinMinervaWikihow extends SkinMinerva {
 			$tpl->set('specialPageHeader', '');
 
 			$isTool = false;
-			wfRunHooks( 'getMobileToolStatus', array( &$isTool ) );
+			Hooks::run( 'getMobileToolStatus', array( &$isTool ) );
 
 			if ($pageHeading && !$isTool) {
 				$preBodyText = Html::rawElement( 'h1', array( 'id' => 'section_0', 'class' => 'special_title'), $pageHeading );
@@ -438,13 +456,15 @@ class SkinMinervaWikihow extends SkinMinerva {
 			$tpl->set( 'disableFooter', $isTool);
 		} else {
 			if ( $pageHeading ) {
-				if ($title->getNamespace() == NS_MAIN) {
+				if ($title->inNamespace(NS_MAIN)) {
 					//standard; add "How to"
-					$preBodyText = Html::rawElement( 'h1', array( 'id' => 'section_0', 'class' => $this->getTitleClass($title->getText()) ), wfMessage('howto', $pageHeading)->text() );
+					$titleMsg = $wgLanguageCode == 'ja' ? 'howto_article_heading' : 'howto';
+					$titleTxt = wfMessage($titleMsg, $pageHeading)->text();
+				} else {
+					$titleTxt = $pageHeading;
 				}
-				else {
-					$preBodyText = Html::rawElement( 'h1', array( 'id' => 'section_0', 'class' => $this->getTitleClass($title->getText()) ), $pageHeading );
-				}
+				$class = $this->getTitleClass($title->getText());
+				$preBodyText = Html::rawElement( 'h1', ['id' => 'section_0', 'class' => $class], $titleTxt );
 			} else {
 				$preBodyText = '';
 			}
@@ -477,13 +497,27 @@ class SkinMinervaWikihow extends SkinMinerva {
 		$url = $this->mobileContext->getDesktopUrl( wfExpandUrl(
 			$req->appendQuery( 'mobileaction=toggle_view_desktop' )
 		) );
-		$url = htmlspecialchars( $url );
-
-		$desktop = wfMessage( 'mobile-frontend-view-desktop-wh' )->escaped();
-		$switcherHtml = <<<HTML
-<a id="mw-mf-display-toggle" href="{$url}">{$desktop}</a>
-HTML;
+		$fullSiteText = wfMessage( 'mobile-frontend-view-desktop-wh' )->escaped();
+		$switcherHtml = self::getMobileMenuFullSiteLink( $fullSiteText, $url );
 		$tpl->set( 'mobile-switcher', $switcherHtml );
+	}
+
+	// annoying but for gdpr we make the section twice and use the one that is appropriate
+	public static function getMobileMenuFullSiteLink( $message, $url ) {
+		$first = Html::rawElement( 'a', ['class' => 'mw-mf-display-toggle-link gdpr-menu', 'href' => $url], $message );
+		$original = Html::rawElement( 'div', ['class' => ['mw-mf-display-toggle', 'gdpr_no_display']], $first );
+
+		$gdprText = wfMessage('gdpr_mobile_menu_bottom')->text();
+		$href = Title::newFromText( wfMessage("gdpr_mobile_menu_bottom_link")->text(), NS_PROJECT )->getLinkURL();
+		$attr = array(
+			'href' => $href,
+			'class' => 'gdpr-menu'
+		);
+		$gdpr .= Html::element( "span", [], " | " );
+		$gdpr .= Html::rawElement( 'a', $attr, $gdprText );
+		$gdpr = Html::rawElement( 'div', ['class' => ['mw-mf-display-toggle', 'gdpr_only_display']], $first . $gdpr );
+
+		return $original . $gdpr;
 	}
 
 	protected function preparePageActions( BaseTemplate $tpl ) {
@@ -492,6 +526,7 @@ HTML;
 		unset($menu['photo']);
 		unset($menu['watch']);
 		unset($menu['unwatch']);
+		unset($menu['talk']);
 		$tpl->set('page_actions', $menu);
 	}
 
@@ -535,7 +570,7 @@ HTML;
 		if ($count > 40) {
 			$className = 'title_sm';
 		}
-		else if ($count > 20) {
+		elseif ($count > 20) {
 			$className = 'title_md';
 		}
 		else {
@@ -548,6 +583,31 @@ HTML;
 	// Do nothing in this method. But method must exist because it's called
 	// from our StandingsIndividual class.
 	public function addWidget($html) {
+	}
+
+	protected function addHreflangs() {
+		global $wgLanguageCode, $wgRequest;
+
+		if ( !RobotPolicy::isIndexable($this->getTitle(), $this->getContext()) ) {
+			return;
+		}
+
+		$out = $this->getOutput();
+		$hreflangs = WikihowSkinHelper::getLanguageLinks();
+		$params = $wgRequest->getBool('amp') ? '?amp=1' : '';
+
+		if (is_array($hreflangs) && !empty($hreflangs)) {
+			// Include self-referencing hreflang
+			$href = PROTO_HTTPS . Misc::getCanonicalDomain('', true) . $this->getTitle()->getLocalURL();
+			array_unshift($hreflangs, ['code' => $wgLanguageCode, 'href' => $href]);
+			foreach ($hreflangs as $item) {
+				$lang = $item['code'];
+				$href = $item['href'] . $params;
+				$out->addHeadItem("hreflang_{$lang}", "\n" . Html::element('link', [
+						'rel' => 'alternate', 'hreflang' => $lang, 'href' => $href
+					]));
+			}
+		}
 	}
 
 }

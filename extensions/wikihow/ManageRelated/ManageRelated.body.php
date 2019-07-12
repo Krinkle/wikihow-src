@@ -7,41 +7,50 @@ class ManageRelated extends UnlistedSpecialPage {
 	}
 
 	public function execute($par) {
-		global $wgRequest, $wgOut, $wgUser;
+		global $wgParser;
 
-		$this->setHeaders();
+		$req = $this->getRequest();
+		$out = $this->getOutput();
+		$user = $this->getUser();
 
-		if( $wgUser->isBlocked() ) {
-			$wgOut->blockedPage();
+		if ( $user && $user->isBlocked() ) {
+			throw new UserBlockedError( $user->getBlock() );
+		}
+
+		if ( !$user || $user->isAnon() ) {
+			$out->addHTML('Use this page logged in');
 			return;
 		}
 
-		$target = isset($par) ? $par : $wgRequest->getVal('target');
+		$target = isset($par) ? $par : $req->getVal('target');
 		if (!$target) {
-			$wgOut->addHTML(wfMsg('notarget'));
+			$out->addHTML(wfMessage('notarget'));
 			return;
 		}
 
 		$titleObj = Title::newFromUrl(urldecode($target));
 		if (!$titleObj || !$titleObj->exists()) {
-			$wgOut->addHTML('Error: bad target');
+			$out->addHTML('Error: bad target');
 			return;
 		}
+
+		$this->setHeaders();
 
 		$whow = WikihowArticleEditor::newFromTitle($titleObj);
 		$rev = Revision::newFromTitle($titleObj);
 		$article = Article::newFromTitle($titleObj, $this->getContext());
-		$text = $rev->getText();
+		$text = ContentHandler::getContentText( $rev->getContent() );
+		$origText = ContentHandler::getContentText( $article->getPage()->getContent() );
 
-		if ($wgRequest->wasPosted()) {
+		if ($req->wasPosted()) {
 			// protect from users who can't edit
 			if ( ! $titleObj->userCan('edit') ) {
-				$wgOut->readOnlyPage( $article->getContent(), true );
+				$out->readOnlyPage($origText, true);
 				return;
 			}
 
 			// construct the related wikihow section
-			$rel_array = explode('|', $wgRequest->getVal('related_list'));
+			$rel_array = explode('|', $req->getVal('related_list'));
 			$result = "";
 			foreach ($rel_array as $rel) {
 				$rel = urldecode(trim($rel));
@@ -49,36 +58,36 @@ class ManageRelated extends UnlistedSpecialPage {
 				$result .= "* [[" . $rel . "]]\n";
 			}
 
-			if (strpos($text, "\n== "  . wfMsg('relatedwikihows') .  " ==\n") !== false) {
+			if (strpos($text, "\n== "  . wfMessage('relatedwikihows') .  " ==\n") !== false) {
 				// no newline neeeded to start with
-				$result = "== "  . wfMsg('relatedwikihows') .  " ==\n" . $result;
+				$result = "== "  . wfMessage('relatedwikihows') .  " ==\n" . $result;
 			} else {
-				$result = "\n== "  . wfMsg('relatedwikihows') .  " ==\n" . $result;
+				$result = "\n== "  . wfMessage('relatedwikihows') .  " ==\n" . $result;
 			}
 
 			$text = "";
 			$index = 0;
-			$content = $article->getContent();
+			$content = $origText;
 			$last_heading = "";
 			$inserted = false;
 
 			$section = -1;
 			$ext_links_section = -1;
 
-			if ($article->getSection($content, $index) == null) {
+			if ($wgParser->getSection($content, $index) == null) {
 				$index++; // weird where there's no summary
 			}
 
-			while ( ($sectiontext = $article->getSection($content, $index)) != null) {
+			while ( ($sectiontext = $wgParser->getSection($content, $index)) != null) {
 				$i = strpos($sectiontext, "\n");
 				if ($i > 0) {
 					$heading = substr($sectiontext, 0, $i);
 					$heading = trim(str_replace("==", "", $heading));
-					if ($heading == wfMsg('relatedwikihows') ) {
+					if ($heading == wfMessage('relatedwikihows') ) {
 						$section = $index;
 						break;
 					}
-					if ($heading == wfMsg('sources')) {
+					if ($heading == wfMessage('sources')) {
 						$ext_links_section = $index;
 					}
 				}
@@ -87,7 +96,7 @@ class ManageRelated extends UnlistedSpecialPage {
 
 			$text = $result;
 			$tail = '';
-			$text = $article->getContent();
+			$text = $origText;
 
 			// figure out which section to replace if related wikihows
 			// don't exist
@@ -98,14 +107,14 @@ class ManageRelated extends UnlistedSpecialPage {
 					$section = $ext_links_section;
 					// glue external links and related wikihows together
 					// and replace external links
-					$result = $result . "\n" . $article->getSection($content, $section);
+					$result = $result . "\n" . $wgParser->getSection($content, $section);
 				} else {
 					$section = $index;
 					$result = "\n" . $result; // make it a bit prettier
 					$just_append = true;
 				}
 			} else {
-				$s = $article->getSection($content, $section);
+				$s = $wgParser->getSection($content, $section);
 				$lines = explode("\n", $s);
 				for ($i = 1; $i < sizeof($lines); $i++) {
 					$line = $lines[$i];
@@ -118,9 +127,8 @@ class ManageRelated extends UnlistedSpecialPage {
 
 			$result .= $tail;
 
-			$summary = '';
 			if (!$just_append) {
-				$text = $article->replaceSection($section, $result, $summary);
+				$text = $wgParser->replaceSection($text, $section, $result);
 			} else {
 				$text = $text . $result;
 			}
@@ -128,10 +136,10 @@ class ManageRelated extends UnlistedSpecialPage {
 			$watch = false;
 			$minor = false;
 			$forceBot = false;
-			if ($wgUser->getID() > 0) {
-				$watch = $wgUser->isWatched($titleObj);
+			if ($user->getID() > 0) {
+				$watch = $user->isWatched($titleObj);
 			}
-			$summary = wfMsg('relatedwikihows'); // summary for the edit
+			$summary = wfMessage('relatedwikihows'); // summary for the edit
 
 			$article->updateArticle( $text, $summary, $minor, $watch, $forceBot);
 			$this->getContext()->getOutput()->redirect( $article->getTitle()->getFullURL() );
@@ -139,17 +147,17 @@ class ManageRelated extends UnlistedSpecialPage {
 
 		// MW should handle editing extensions better, duplication of code sucks
 
-		if( $titleObj->isProtected( 'edit' ) ) {
-			if( $titleObj->isSemiProtected() ) {
-				$notice = wfMsg( 'semiprotectedpagewarning' );
+		if ( $titleObj->isProtected( 'edit' ) ) {
+			if ( $titleObj->isSemiProtected() ) {
+				$notice = wfMessage( 'semiprotectedpagewarning' );
 			} else {
-				$notice = wfMsg( 'protectedpagewarning' );
+				$notice = wfMessage( 'protectedpagewarning' );
 			}
-			$wgOut->addWikiText( $notice );
+			$out->addWikiText( $notice );
 		}
 
 		$relatedHTML = "";
-		$text = $article->getContent();
+		$text = $origText;
 
 		$relwh = $whow->getSection("related wikihows");
 
@@ -171,11 +179,11 @@ class ManageRelated extends UnlistedSpecialPage {
 		}
 
 		$me = Title::makeTitle(NS_SPECIAL, "ManageRelated");
-		$wgOut->addModules(['ext.wikihow.ManageRelated']);
+		$out->addModules(['ext.wikihow.ManageRelated']);
 
 		$targetEnc = htmlspecialchars($target, ENT_QUOTES);
 
-		$wgOut->addHTML(<<<EOHTML
+		$out->addHTML(<<<EOHTML
 	<style type='text/css' media='all'>/*<![CDATA[*/ @import '{$cssFile}'; /*]]>*/</style>
 	<script type='text/javascript' src='{$jsFile}'></script>
 
@@ -233,26 +241,28 @@ class PreviewPage extends UnlistedSpecialPage {
 	}
 
 	public function execute($par) {
-		global $wgRequest, $wgOut;
+		global $wgParser;
 
-		$wgOut->setArticleBodyOnly(true);
-		$wgOut->clearHTML();
+		$req = $this->getRequest();
+		$out = $this->getOutput();
 
-		$target = isset($par) ? $par : $wgRequest->getVal('target');
+		$out->setArticleBodyOnly(true);
+		$out->clearHTML();
+
+		$target = isset($par) ? $par : $req->getVal('target');
 		$title = Title::newFromUrl($target);
 		if (!$title || !$title->exists()) {
-			$wgOut->addHTML('Title no longer exists: ' . $target);
+			$out->addHTML('Title no longer exists: ' . $target);
 			return;
 		}
 
-		$article = new Article($title);
-		$text = $article->getContent(true);
-		$snippet = $article->getSection($text, 0) . "\n"
-			. $article->getSection($text, 1);
-		$html = $wgOut->parse($snippet);
+		$wikiPage = WikiPage::factory($title);
+		$wikitext = ContentHandler::getContentText( $wikiPage->getContent() );
+		$snippet = $wgParser->getSection($wikitext, 0) . "\n"
+			. $wgParser->getSection($wikitext, 1);
+		$html = $out->parse($snippet);
 
-		$wgOut->addHTML($html);
+		$out->addHTML($html);
 	}
 
 }
-

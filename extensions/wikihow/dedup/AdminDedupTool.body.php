@@ -1,12 +1,16 @@
 <?php
 
-
 class AdminDedupTool extends UnlistedSpecialPage {
 
-	const TABLE_NAME = 'deduptool';
+	const TABLE_NAME = 'dedup.deduptool';
 
 	public function __construct() {
 		parent::__construct( 'AdminDedupTool' );
+	}
+
+	// method stops redirects when running on titus host
+	public function isSpecialPageAllowedOnTitus() {
+		return true;
 	}
 
 	public function execute( $subPage ) {
@@ -26,7 +30,7 @@ class AdminDedupTool extends UnlistedSpecialPage {
 		}
 
 		$groups = $user->getGroups();
-		if( !in_array('staff', $groups) && !in_array('staff_widget', $groups)) {
+		if ( !in_array('staff', $groups) && !in_array('staff_widget', $groups)) {
 			$output->showErrorPage( 'nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
@@ -52,7 +56,7 @@ class AdminDedupTool extends UnlistedSpecialPage {
 			'queries' => $this->getData()
 		];
 
-		$loader = new Mustache_Loader_CascadingLoader( [new Mustache_Loader_FilesystemLoader( dirname( __FILE__ ) )] );
+		$loader = new Mustache_Loader_CascadingLoader( [new Mustache_Loader_FilesystemLoader( __DIR__ )] );
 		$options = array( 'loader' => $loader );
 		$m = new Mustache_Engine( $options );
 		$html = $m->render( 'admindeduptool', $vars );
@@ -62,7 +66,7 @@ class AdminDedupTool extends UnlistedSpecialPage {
 
 	private function getData() {
 		$data =[];
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->select(
 			DedupTool::TABLE_NAME,
 			['*', 'count(*) as count', 'sum(case when ddt_final = 0 then 1 else 0 end) as remaining'],
@@ -71,7 +75,7 @@ class AdminDedupTool extends UnlistedSpecialPage {
 			['GROUP BY' => 'ddt_import_timestamp', 'ORDER BY' => 'ddt_import_timestamp DESC']
 		);
 
-		foreach($res as $row) {
+		foreach ($res as $row) {
 			$data[] = [
 				'date' => date("F j Y, G:i", wfTimestamp(TS_UNIX, $row->ddt_import_timestamp)),
 				'numQueries' => $row->count,
@@ -87,7 +91,7 @@ class AdminDedupTool extends UnlistedSpecialPage {
 		header("Content-Type: text/tsv");
 		header('Content-Disposition: attachment; filename="Dedup_'.$timestamp.'.xls"');
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->select(
 			DedupTool::TABLE_NAME,
 			'*',
@@ -97,15 +101,19 @@ class AdminDedupTool extends UnlistedSpecialPage {
 
 		print "Query\tMatch\tMatched URL\tMatched article ID\tUser ID\tTimestamp\n";
 
-		foreach($res as $row) {
+		foreach ($res as $row) {
 			print $row->ddt_query . "\t";
-			if($row->ddt_final > 0) {
+			if ($row->ddt_final > 0) {
 				$title = Title::newFromId($row->ddt_final);
-				print "1\thttp://www.wikihow.com/" . $title->getPartialURL() . "\t" . $row->ddt_final . "\t";
+				if ($title) {
+					print "1\thttp://www.wikihow.com/" . $title->getPartialURL() . "\t" . $row->ddt_final . "\t";
+				} else {
+					print "1\tMatched article deleted\t0\t";
+				}
 			} else {
 				print "0\t\t\t";
 			}
-			if($row->ddt_final_userid > 0) {
+			if ($row->ddt_final_userid > 0) {
 				$user = User::newFromId($row->ddt_final_userid);
 				print $user->getName() . "\t" . date("F n Y, G:i", wfTimestamp(TS_UNIX, $row->ddt_import_timestamp)) . "\n";
 			} else {

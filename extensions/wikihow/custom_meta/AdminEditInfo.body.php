@@ -7,7 +7,7 @@ class AdminEditInfo extends UnlistedSpecialPage {
 		global $wgTitle;
 		$this->specialPage = $wgTitle->getPartialUrl();
 		$this->editDescs = $this->specialPage == 'AdminEditMetaInfo';
-	
+
 		parent::__construct($this->specialPage);
 	}
 
@@ -20,7 +20,7 @@ class AdminEditInfo extends UnlistedSpecialPage {
 		foreach ($pageList as $url) {
 			$url = trim($url);
 			if (!empty($url)) {
-				$title = WikiPhoto::getArticleTitle($url);
+				$title = WikiPhoto::getArticleTitleNoCheck($url);
 				if ($title && $title->exists()) {
 					$id = $title->getArticleId();
 					$url = array(
@@ -33,9 +33,9 @@ class AdminEditInfo extends UnlistedSpecialPage {
 						$desc = $meta->getDescription();
 						$url['desc'] = $desc;
 					} else {
-						$tt = TitleTests::newFromTitle($title);
-						if ($tt) {
-							$pageTitle = $tt->getTitle();
+						$ct = CustomTitle::newFromTitle($title);
+						if ($ct) {
+							$pageTitle = $ct->getTitle();
 						} else {
 							$pageTitle = '<i>error generating title</i>';
 						}
@@ -79,10 +79,10 @@ class AdminEditInfo extends UnlistedSpecialPage {
 		$default = '';
 		$wasEdited = false;
 		if ($title) {
-			$tt = TitleTests::newFromTitle($title);
-			if ($tt) {
-				$pageTitle = $tt->getTitle();
-				list($default, $wasEdited) = $tt->getDefaultTitle();
+			$ct = CustomTitle::newFromTitle($title);
+			if ($ct) {
+				$pageTitle = $ct->getTitle();
+				list($default, $wasEdited) = $ct->getDefaultTitle();
 			}
 		}
 		return array($pageTitle, $default, $wasEdited);
@@ -124,16 +124,16 @@ class AdminEditInfo extends UnlistedSpecialPage {
 		$dbw = wfGetDB(DB_MASTER);
 
 		if ('default' == $type) {
-			TitleTests::dbRemoveTitle($dbw, $title);
+			CustomTitle::dbRemoveTitle($dbw, $title);
 		} elseif ('edited' == $type && $pageTitle) {
-			TitleTests::dbSetCustomTitle($dbw, $title, $pageTitle);
+			CustomTitle::dbSetCustomTitle($dbw, $title, $pageTitle);
 		} else {
 			return '';
 		}
 
-		$tt = TitleTests::newFromTitle($title);
-		if ($tt) {
-			return $tt->getTitle();
+		$ct = CustomTitle::newFromTitle($title);
+		if ($ct) {
+			return $ct->getTitle();
 		} else {
 			return '';
 		}
@@ -144,12 +144,12 @@ class AdminEditInfo extends UnlistedSpecialPage {
 	 */
 	private static function listPageTitlesCSV() {
 		header("Content-Type: text/csv");
-		$dbr = wfGetDB(DB_SLAVE);
-		$titles = TitleTests::dbListCustomTitles($dbr);
+		$dbr = wfGetDB(DB_REPLICA);
+		$titles = CustomTitle::dbListCustomTitles($dbr);
 		print "page,title\n";
 		foreach ($titles as $custom) {
-			$title = Title::newFromDBkey($custom['tt_page']);
-			print '"http://www.wikihow.com/' . $title->getPartialUrl() . '","' . $custom['tt_custom'] . '"' . "\n";
+			$title = Title::newFromDBkey($custom['ct_page']);
+			print '"http://www.wikihow.com/' . $title->getPartialUrl() . '","' . $custom['ct_custom'] . '"' . "\n";
 		}
 		exit;
 	}
@@ -158,24 +158,26 @@ class AdminEditInfo extends UnlistedSpecialPage {
 	 * Execute special page.  Only available to wikihow staff.
 	 */
 	public function execute($par) {
-		global $wgRequest, $wgOut, $wgUser, $wgLang;
+		$req = $this->getRequest();
+		$out = $this->getOutput();
+		$user = $this->getUser();
 
-		$userGroups = $wgUser->getGroups();
-		if ($wgUser->isBlocked() || !in_array('staff', $userGroups)) {
-			$wgOut->setRobotpolicy('noindex,nofollow');
-			$wgOut->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
+		$userGroups = $user->getGroups();
+		if ($user->isBlocked() || !in_array('staff', $userGroups)) {
+			$out->setRobotPolicy('noindex,nofollow');
+			$out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
 			return;
 		}
 
-		if ($wgRequest->wasPosted()) {
-			$wgOut->setArticleBodyOnly(true);
-			$dbr = wfGetDB(DB_SLAVE);
+		if ($req->wasPosted()) {
+			$out->setArticleBodyOnly(true);
+			$dbr = wfGetDB(DB_REPLICA);
 
-			$action = $wgRequest->getVal('action', '');
+			$action = $req->getVal('action', '');
 
 			if ('list-descs' == $action || 'list-titles' == $action) {
 				$type = preg_replace('@^list-@', '', $action);
-				$pageList = $wgRequest->getVal('pages-list', '');
+				$pageList = $req->getVal('pages-list', '');
 				$urls = self::parseURLlist($type, $pageList);
 				if (!empty($urls)) {
 					$html = self::genURLListTable($type, $urls);
@@ -184,7 +186,7 @@ class AdminEditInfo extends UnlistedSpecialPage {
 				}
 				$result = array('result' => $html);
 			} elseif ('load-descs' == $action) {
-				$page = $wgRequest->getInt('page', '');
+				$page = $req->getInt('page', '');
 				list($desc, $defaultDesc, $wasEdited) = self::loadPageDesc($page);
 				$result = array(
 					'data' => $desc,
@@ -192,9 +194,9 @@ class AdminEditInfo extends UnlistedSpecialPage {
 					'was-edited' => $wasEdited,
 				);
 			} elseif ('save-descs' == $action) {
-				$type = $wgRequest->getVal('edit-type', '');
-				$page = $wgRequest->getInt('page', '');
-				$desc = $wgRequest->getVal('data', '');
+				$type = $req->getVal('edit-type', '');
+				$page = $req->getInt('page', '');
+				$desc = $req->getVal('data', '');
 				$msg = 'saved';
 				$desc = self::savePageDesc($type, $page, $desc);
 				$result = array(
@@ -202,7 +204,7 @@ class AdminEditInfo extends UnlistedSpecialPage {
 					'data' => $desc,
 				);
 			} elseif ('load-titles' == $action) {
-				$page = $wgRequest->getInt('page', '');
+				$page = $req->getInt('page', '');
 				list($pageTitle, $defaultPageTitle, $wasEdited) = self::loadPageTitle($page);
 				$result = array(
 					'data' => $pageTitle,
@@ -210,9 +212,9 @@ class AdminEditInfo extends UnlistedSpecialPage {
 					'was-edited' => $wasEdited,
 				);
 			} elseif ('save-titles' == $action) {
-				$type = $wgRequest->getVal('edit-type', '');
-				$page = $wgRequest->getInt('page', '');
-				$pageTitle = $wgRequest->getVal('data', '');
+				$type = $req->getVal('edit-type', '');
+				$page = $req->getInt('page', '');
+				$pageTitle = $req->getVal('data', '');
 				$msg = 'saved';
 				$pageTitle = self::savePageTitle($type, $page, $pageTitle);
 				$result = array(
@@ -227,10 +229,11 @@ class AdminEditInfo extends UnlistedSpecialPage {
 			print json_encode($result);
 		} else {
 			$title = $this->editDescs ? 'Admin - Edit Meta Info' : 'Admin - Edit Page Titles';
-			$wgOut->setHTMLTitle( wfMsg('pagetitle', $title) );
+			$out->setHTMLTitle( wfMessage('pagetitle', $title) );
+			$out->addModules('jquery.ui.dialog');
 
 			$tmpl = $this->genAdminForm();
-			$wgOut->addHTML($tmpl);
+			$out->addHTML($tmpl);
 		}
 	}
 
@@ -250,18 +253,35 @@ $html .= <<<EOHTML
 	{$header}
 </div>
 EOHTML;
+
 		if (!$this->editDescs) {
 $html .= <<<EOHTML
-<div>
-	<a class="pages-list-all" href="#">list all pages with custom titles</a><br/>
+<div style="font-size: 13px; font-style: italic">
+	<p>Note: check out our <a href="/Special:AdminTitles">other tool</a> used to bulk-edit custom titles.</p>
+</div>
+EOHTML;
+		} else {
+$html .= <<<EOHTML
+<div style="font-size: 13px; font-style: italic">
+	<p>Note: check out our <a href="/Special:AdminMetaDescs">other tool</a> used to bulk-edit custom meta descriptions.</p>
+</div>
+EOHTML;
+		}
+
+		if (!$this->editDescs) {
+$html .= <<<EOHTML
+<div style="font-size: 13px">
+	<br>
+	<a class="pages-list-all" href="#">list all pages with custom titles</a>
 </div>
 EOHTML;
 		}
 $html .= <<<EOHTML
 <div style="font-size: 13px; margin: 20px 0 7px 0;">
-	Enter a list of URLs such as <code style="font-weight: bold;">http://www.wikihow.com/Lose-Weight-Fast</code> to look up. One per line.
+	<p>Enter a list of URLs such as <code style="font-weight: bold;">https://www.wikihow.com/Lose-Weight-Fast</code> to look up. One per line.</p>
 </div>
 <textarea id="pages-list" name="pages-list" type="text" rows="10" cols="70"></textarea>
+<br>
 EOHTML;
 		if (!$this->editDescs) {
 $html .= <<<EOHTML

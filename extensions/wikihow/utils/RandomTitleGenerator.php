@@ -40,7 +40,7 @@ class RandomTitleGenerator {
 		$urls = [];
 		if ($type == self::TYPE_MOBILE) {
 			$urls = array_merge($urls, $getUrls($titles, $mobileBaseUrl));
-		} else if ($type == self::TYPE_DESKTOP) {
+		} elseif ($type == self::TYPE_DESKTOP) {
 			$urls = array_merge($urls, $getUrls($titles, $desktopBaseUrl));
 		} else {
 			$urls = array_merge($urls, $getUrls($titles, $mobileBaseUrl));
@@ -62,6 +62,23 @@ class RandomTitleGenerator {
 				return $url . '?amp=1';
 			},
 			$urls
+		);
+	}
+
+	/**
+	 * @param $count
+	 * @param bool $https
+	 * @return string[]
+	 */
+	public function getGoogleAmpUrls($count) {
+		$titles = $this->getTitles($count);
+
+		return array_map(
+			function($t) {
+				return 'https://www.google.com/amp/s/' .  wfCanonicalDomain('', true) . '/'
+					. $t->getPartialUrl() . urlencode('?amp=1');
+			},
+			$titles
 		);
 	}
 
@@ -116,7 +133,7 @@ class RandomTitleGenerator {
 		$titles = [];
 		for ($i = 0; $i < $count; $i++) {
 			$title = ($langCode == 'en') ? Randomizer::getRandomTitle() : $randomPage->getRandomTitle();
-			if ($title) {
+			if ($title && !$title->isMainPage() && RobotPolicy::isTitleIndexable($title)) {
 				$titles []= $title;
 			} else {
 				$i--;

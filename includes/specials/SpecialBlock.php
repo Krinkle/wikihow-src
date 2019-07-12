@@ -58,7 +58,13 @@ class SpecialBlock extends FormSpecialPage {
 	 * @throws ErrorPageError
 	 */
 	protected function checkExecutePermissions( User $user ) {
-		parent::checkExecutePermissions( $user );
+		try {
+			parent::checkExecutePermissions($user);
+		} catch(Exception $e) {
+			//google thought these were soft 404s, so 404ing them ourselves
+			$this->getOutput()->setStatusCode( 404 );
+			throw $e;
+		}
 
 		# bug 15810: blocked admins should have limited access here
 		$status = self::checkUnblockSelf( $this->target, $user );

@@ -106,12 +106,10 @@ class WatermarkSupport {
 		$after = file_exists($dstPath) ? filesize($dstPath) : 'f';
 		$currentDate = `date`;
 		wfErrorLog(trim($currentDate) . " $cmd b:$before a:$after\n", '/tmp/watermark.log');
-		wfProfileOut( 'watermark' );
 	}
 
 	public static function addWatermark($srcPath, $dstPath, $width, $height) {
 		global $IP, $wgImageMagickConvertCommand, $wgImageMagickCompositeCommand;
-		global $wgIsImageScaler;
 
 		// do not add a watermark if the image is too small
 		if (self::validImageSize($width, $height) == false) {
@@ -138,15 +136,9 @@ class WatermarkSupport {
 			$srcPath = $dstPath;
 		}
 
-		// On certain servers (naming the image scalers), we have a newer
-		// version of ImageMagick (version 6.5.7 instead of version 6.2.8
-		// on the app servers), which requires an additional param to do
-		// alpha blending.
-		if ($wgIsImageScaler) {
-			$imageMagick5678param = " -blend 50";
-		} else {
-			$imageMagick5678param = "";
-		}
+		// We now have a newer version of ImageMagick (version 6.7.7+), which
+		// requires an additional param to do alpha blending.
+		$imageMagick5678param = " -blend 50";
 
 		$cmd = $cmd . wfEscapeShellArg($wgImageMagickConvertCommand) . " -density $density -background none " . wfEscapeShellArg($wm) .
 				" miff:- | " . wfEscapeShellArg($wgImageMagickCompositeCommand) . $imageMagick5678param .
@@ -160,7 +152,6 @@ class WatermarkSupport {
 		$after = file_exists($dstPath) ? filesize($dstPath) : 'f';
 		$currentDate = `date`;
 		wfErrorLog(trim($currentDate) . " $cmd b:$before a:$after\n", '/tmp/watermark.log');
-		wfProfileOut( 'watermark' );
 	}
 
 	// adds version 3 watermark to the image
@@ -207,7 +198,6 @@ class WatermarkSupport {
 		$after = file_exists($dstPath) ? filesize($dstPath) : 'f';
 		$currentDate = `date`;
 		wfErrorLog(trim($currentDate) . " $cmd b:$before a:$after\n", '/tmp/watermark.log');
-		wfProfileOut( 'watermark' );
 	}
 
 
@@ -319,8 +309,8 @@ class WatermarkSupport {
 
 				$result = $file->getHandler()->doTransform($file, $thumbPath, $thumbUrl, $params);
 				if ( get_class($result) == 	MediaTransformError) {
-					echo "there was an error processing this file \n";
-					echo $result->toText();
+					print "there was an error processing this file \n";
+					print $result->toText();
 				}
 			}
 		}

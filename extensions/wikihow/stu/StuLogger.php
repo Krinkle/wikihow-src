@@ -13,6 +13,7 @@ $wgSpecialPages['StuInspector'] = 'StuInspector';
 $wgAutoloadClasses['StuLogger'] = __DIR__ . '/StuLogger.body.php';
 $wgAutoloadClasses['StuInspector'] = __DIR__ . '/StuInspector.php';
 $wgExtensionMessagesFiles['StuLogger'] = __DIR__ . '/StuLogger.i18n.php';
+$wgExtensionMessagesFiles['StuInspectorAliases'] = __DIR__ . '/StuInspector.alias.php';
 
 $wgHooks['AddTopEmbedJavascript'][] = 'StuLogger::getJavascriptPaths';
 $wgHooks['BeforePageDisplay'][] = 'StuLogger::onBeforePageDisplay';

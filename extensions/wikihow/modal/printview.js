@@ -5,6 +5,10 @@
 
 	window.WH.PrintView = {
 		popModal: function () {
+			WH.shared.loadAllImages();
+			if (WH.video) {
+				WH.video.loadAllVideos();
+			}
 			$.get('/Special:BuildWikihowModal?modal=printview', function(data) {
 				$.modal(data, {
 					zIndex: 100000007,
@@ -14,24 +18,28 @@
 				});
 
 				WH.PrintView.prep();
-
-				console.log('wut wut');
 			});
 		},
 
 		prep: function () {
 			$('#wh_modal_close').click(function () {
 				$.modal.close()
+				$('.mwimg').removeClass('mwimg-show');
 				return false;
 			});
 
 			$('#wh_modal_btn_text_only').click(function () {
-				window.location.href = '/' + wgPageName + '?printable=yes';
+				window.print();
+				$.modal.close()
 				return false;
 			});
 
+
 			$('#wh_modal_btn_incl_imgs').click(function () {
-				window.location.href = '/' + wgPageName + '?printable=yes&images=1';
+				$('.mwimg').addClass('mwimg-show');
+				window.print();
+				$.modal.close()
+				$('.mwimg').removeClass('mwimg-show');
 				return false;
 			});
 		}

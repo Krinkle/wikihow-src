@@ -120,9 +120,11 @@
 				var ext = 'ext.wikihow.UserReviewForm';
 			}
 			mw.loader.using(ext, function () {
-				window.WH.UserReviewForm.prototype.loadUserReviewForm();
+				var urf = new window.WH.UserReviewForm();
+				urf.loadUserReviewForm();
 				$(document).on("click", '#urf-popup', function(){
-					WH.UserReviewForm.prototype.setUCIImage($("#uci_userreview_cta").data("image"));
+					var urf = new window.WH.UserReviewForm();
+					urf.setUCIImage($("#uci_userreview_cta").data("image"));
 				});
 			});
 		});

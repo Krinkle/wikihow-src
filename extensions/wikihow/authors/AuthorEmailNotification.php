@@ -1,10 +1,10 @@
 <?php
 if ( ! defined( 'MEDIAWIKI' ) )
 	die();
-    
+
 /**#@+
  * An extension notifies users on certain events
- * 
+ *
  * @package MediaWiki
  * @subpackage Extensions
  *
@@ -20,10 +20,10 @@ $wgExtensionCredits['specialpage'][] = array(
 	'description' => 'Notifies by email on certain events',
 );
 
-$wgExtensionMessagesFiles['AuthorEmailNotification'] = dirname(__FILE__) . '/AuthorEmailNotification.i18n.php';
+$wgExtensionMessagesFiles['AuthorEmailNotification'] = __DIR__ . '/AuthorEmailNotification.i18n.php';
 $wgSpecialPages['AuthorEmailNotification'] = 'AuthorEmailNotification';
-$wgAutoloadClasses['AuthorEmailNotification'] = dirname( __FILE__ ) . '/AuthorEmailNotification.body.php';
-$wgAutoloadClasses['EmailActionButtonScript'] = dirname( __FILE__ ) . '/EmailActionButtonScript.class.php';  //Class that returns script for including gmail action buttons
+$wgAutoloadClasses['AuthorEmailNotification'] = __DIR__ . '/AuthorEmailNotification.body.php';
+$wgAutoloadClasses['EmailActionButtonScript'] = __DIR__ . '/EmailActionButtonScript.class.php';  //Class that returns script for including gmail action buttons
 
 $wgHooks['AddNewAccount'][] = array("attributeAnon");
 $wgHooks['AddNewAccount'][] = array("setUserTalkOption");
@@ -37,7 +37,7 @@ function sendModNotification(&$rcid, &$article) {
 	if ($article) {
 		$articleTitle = $article->getTitle();
 	}
-	
+
 	try {
 		if ($articleTitle && $articleTitle->getArticleID() != 0)  {
 			$dbw = wfGetDB(DB_MASTER);
@@ -59,7 +59,7 @@ function attributeAnon( $user ) {
 			if ($user->getEmail() != '') {
 				AuthorEmailNotification::addUserWatch($aid, 1);
 			}
-			
+
 			//now send them a talk page message for their first article
 			$title = Title::newFromID($aid);
 			if ($title) CreatePage::sendTalkPageMsg($user, $title);
@@ -79,31 +79,6 @@ function setUserTalkOption( $user ) {
 	return true;
 }
 
-function addFirstEdit($article, $details) {
-	global $wgTitle, $wgRequest, $wgOut, $wgUser;
-
-	try {
-        $t = $article->getTitle();
-        if (!$t || $t->getNamespace() != NS_MAIN)
-            return true;        
-		$dbr = wfGetDB(DB_MASTER);
-		$num_revisions = $dbr->selectField('revision', 'count(*)', array('rev_page=' . $article->getId()));
-		if ($num_revisions > 1) return true;
-		$user_name  = $dbr->selectField('revision', 'rev_user_text', array('rev_page=' . $article->getId()));
-		if (
-			(strpos($_SERVER['HTTP_REFERER'], "action=edit") !== false || strpos($_SERVER['HTTP_REFERER'], "action=submit2"))
-			&& $wgUser->getName() == $user_name) {
-
-	      $dbw = &wfGetDB(DB_MASTER);
-			$sql = "insert ignore into firstedit select rev_page, rev_user, rev_user_text, min(rev_timestamp) from page, revision where page_id=rev_page and page_namespace=0 and page_is_redirect=0 and page_id=". $article->getId() ." group by rev_page";
-			$ret = $dbw->query($sql);
-
-		}
-	} catch (Exception $e) {
-	}
-	return true;
-}
-
 //for when a user adds (and confirms) an email to their account
 //flip all their started article notifications on
 function setUserWatchToWatchAll($user) {
@@ -111,7 +86,7 @@ function setUserWatchToWatchAll($user) {
 		$dbw = wfGetDB(DB_MASTER);
 		$res = $dbw->select(array('firstedit','page'),array ('page_id'),
 				array ('fe_page=page_id', 'fe_user' => $user->getID()),__METHOD__);
-				
+
 		foreach ($res as $row) {
 			AuthorEmailNotification::addUserWatch($row->page_id, 1);
 		}

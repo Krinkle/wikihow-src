@@ -1,5 +1,5 @@
 <?php
-if ( !defined( 'MEDIAWIKI' ) ) 
+if ( !defined( 'MEDIAWIKI' ) )
 	die();
 
 $wgExtensionCredits['specialpage'][] = array(
@@ -9,8 +9,8 @@ $wgExtensionCredits['specialpage'][] = array(
 );
 
 $wgSpecialPages['ArticleCreator'] = 'ArticleCreator';
-$wgAutoloadClasses['ArticleCreator'] = dirname(__FILE__) . '/ArticleCreator.body.php';
-$wgExtensionMessagesFiles['ArticleCreator'] = dirname(__FILE__) . '/ArticleCreator.i18n.php';
+$wgAutoloadClasses['ArticleCreator'] = __DIR__ . '/ArticleCreator.body.php';
+$wgExtensionMessagesFiles['ArticleCreator'] = __DIR__ . '/ArticleCreator.i18n.php';
 $wgHooks['EditFormPreloadText'][] = 'ArticleCreator::onEditFormPreloadText';
 
 
@@ -54,18 +54,18 @@ $wgResourceModules['ext.wikihow.articlecreator'] = array(
 		'ac-section-warnings-desc',
 		'ac-section-warnings-button-txt',
 		'ac-section-warnings-placeholder',
-		'ac-section-sources-name',
-		'ac-section-sources-desc',
-		'ac-section-sources-button-txt',
-		'ac-section-sources-placeholder',
+		'ac-section-references-name',
+		'ac-section-references-desc',
+		'ac-section-references-button-txt',
+		'ac-section-references-placeholder',
 		'ac-section-button-txt',
 		'ac-edit-summary',
 		'ac-invalid-edit-token'	=> 'Looks like you have an invalid edit token which means we can\'t go any further from here.',
 		'ac-title-exists',
 		'ac-html-title',
 		'ac-successful-publish',
-		'ac-copy-wikitext',	
-		'ac-whats-this-txt',	
+		'ac-copy-wikitext',
+		'ac-whats-this-txt',
 		'ac-validation-error-title',
 		'ac-error-too-short',
 		'ac-error-no-steps',

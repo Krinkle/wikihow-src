@@ -8,10 +8,10 @@ var config = {
 
 if (config.isDev) {
     config.logSpreadsheet = '1pRUMV7piMUo-V2THIWg4oqaj-Q7EkzrNzXGAK3ISKQ4';
-    config.backend = 'http://alberto.wikidogs.com';
+    config.backend = 'https://alber1.wikidogs.com';
 } else {
     config.logSpreadsheet = '1oU0ms8ZSd3OZbJcC6ABj-l78f66oavjvUzoq9JBobDk';
-    config.backend = 'http://www.wikihow.com';
+    config.backend = 'https://www.wikihow.com';
 }
 
 // Logger = BetterLog.useSpreadsheet(config.logSpreadsheet);

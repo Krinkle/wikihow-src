@@ -54,7 +54,7 @@ class DocViewer extends UnlistedSpecialPage {
 		return true;
 	}
 
-	public static function getCanonicalUrl(&$this, &$url, $query) {
+	public static function getCanonicalUrl(&$title, &$url, $query) {
 		$url = self::$wgSampleURL;
 		return true;
 	}
@@ -77,7 +77,7 @@ class DocViewer extends UnlistedSpecialPage {
 		$name = $wgMemc->get($memkey);
 
 		if (!is_string($name)) {
-			$dbr = wfGetDB(DB_SLAVE);
+			$dbr = wfGetDB(DB_REPLICA);
 			$name = $dbr->selectField('dv_display_names','dvdn_display_name',
 					array('dvdn_doc' => $sample),__METHOD__);
 
@@ -100,8 +100,8 @@ class DocViewer extends UnlistedSpecialPage {
 
 		return $isLoggedIn &&
 			   in_array('staff', $wgUser->getGroups()) &&
-			   $wgTitle->getNamespace() == NS_SPECIAL &&
-			   class_exists('Pagestats');
+			   $wgTitle->inNamespace(NS_SPECIAL) &&
+			   class_exists('PageStats');
 	}
 
 	/**
@@ -120,7 +120,7 @@ class DocViewer extends UnlistedSpecialPage {
 
 		if ($doc_name) {
 			//grab data from the db
-			$dbr = wfGetDB(DB_SLAVE);
+			$dbr = wfGetDB(DB_REPLICA);
 			$res = $dbr->select('dv_sampledocs','*',array('dvs_doc' => $doc_name), __METHOD__);
 
 			//did we find a sample?
@@ -156,7 +156,7 @@ class DocViewer extends UnlistedSpecialPage {
 				}
 			}
 
-			$tmpl = new EasyTemplate( dirname(__FILE__) );
+			$tmpl = new EasyTemplate( __DIR__ );
 			$tmpl->set_vars(array(
 				'doc_title' => self::getDisplayName($doc_name),
 				'header_get' => wfMessage('header_get')->text(),
@@ -207,8 +207,7 @@ class DocViewer extends UnlistedSpecialPage {
 	}
 
 	private static function addWidgets(&$tmpl) {
-		global $wgUser, $wgTitle;
-		$sk = $wgUser->getSkin();
+		$sk = RequestContext::getMain()->getSkin();
 
 		// Staff stats
 		$html = $tmpl->execute('widget_staff.tmpl.php');
@@ -242,7 +241,7 @@ class DocViewer extends UnlistedSpecialPage {
 	}
 
 	private static function showPdf($doc_name) {
-		if( !isset(self::$isPdf) ) {
+		if ( !isset(self::$isPdf) ) {
 			$val = ConfigStorage::dbGetConfig('sample_pdfs');
 			$pageList = preg_split('@[\r\n]+@', $val);
 
@@ -302,6 +301,7 @@ class DocViewer extends UnlistedSpecialPage {
 			// the samples
 			$doc = phpQuery::newDocument($html);
 			$styles = pq("style");
+			$docHtml = "";
 			foreach ($styles as $style) {
 				$docHtml .= pq($style)->htmlOuter();
 			}
@@ -325,19 +325,14 @@ class DocViewer extends UnlistedSpecialPage {
 	private static function getFoundInArticles($doc_name) {
 		$html = '';
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$res = $dbr->select('dv_links', 'dvl_page', array('dvl_doc' => $doc_name), __METHOD__);
 
 		foreach ($res as $row) {
 			$t = Title::newFromId($row->dvl_page);
 
-			if($t && $t->exists()) {
-				$img = ImageHelper::getGalleryImage($t, 44, 33);
-
-				if($is_mobile)
-					$html .= FeaturedArticles::featuredArticlesRow($t);
-				else
-					$html .= ImageHelper::getArticleThumb($t, 127, 140);
+			if ($t && $t->exists()) {
+			    $html .= ImageHelper::getArticleThumb($t, 127, 140);
 
 				//save for meta description
 				if (!self::$firstRelated) {
@@ -381,7 +376,7 @@ class DocViewer extends UnlistedSpecialPage {
 	 * deal with the link table
 	 */
 	public static function updateLinkTable($article, $doc_name, $bAdd = true) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$dbw = wfGetDB(DB_MASTER);
 
 		$samples = array();
@@ -456,28 +451,17 @@ class DocViewer extends UnlistedSpecialPage {
 	 * Function to display the thumb on an article page
 	 */
 	public static function grabDocThumb($doc_name) {
-		$html = '<div id="sd_container" class="section_text">';
+		$html = '<div id="sd_container">';
 		$limit = 3;
 
 		//figure out how many thumbs we have here
 		$doc_array = explode(',',$doc_name);
 		foreach ($doc_array as $key => $doc) {
 			if ($doc == '') continue;
-			$sample_class = self::getSampleClass(count($doc_array),($key+1), $limit);
-
-			$html .= '<div'.$sample_class.'>'.self::grabOneDoc($doc).'</div>'."\n";
-
-			if ((($key+1) == $limit) || (($key+1) % $limit == 0)) {
-				$html .= "\n".'<br class="clearall" />';
-			}
+			$html .= self::grabOneDoc($doc);
 		}
 
 		$html .='</div>';
-
-		//make sure we have a final clearall
-		//Bebeth - taking out as it was causing spacing problem on articles with only sample
-		//if (count($doc_array) < $limit) $html .= "\n".'<br class="clearall" />';
-
 		return $html;
 	}
 
@@ -496,21 +480,18 @@ class DocViewer extends UnlistedSpecialPage {
 		if (!$file || !isset($file)) $file = wfFindFile($doc_name.'.png');
 
 		if ($file && isset($file)) {
-			$thumb = $file->getThumbnail(170);
+			$thumb = $file->getThumbnail(340);
 
 			$display_name = self::getDisplayName($doc_name_hyphenized);
-			$img = Html::element( 'img',
-				array(
+			$img = Misc::getMediaScrollLoadHtml( 'img', [
 					'class' => 'whcdn',
 					'src' => $thumb->getUrl(),
 					'width' => $thumb->getWidth(),
-					'height' => $thumb->getHeight(),
-				)
-			);
+					'height' => $thumb->getHeight()
+			] );
 
 			$html = '<div class="sd_thumb">'.
-					'<a href="/Sample/'.$doc_name_hyphenized.'">'.$img.'</a>'.
-					'<p><a href="/Sample/'.$doc_name_hyphenized.'">'.$display_name.'</a></p>'.
+					'<a href="/Sample/'.$doc_name_hyphenized.'">'.$img.'<span>'.$display_name.'</span>'.'</a>'.
 					'</div>';
 		}
 
@@ -563,7 +544,7 @@ class DocViewer extends UnlistedSpecialPage {
 	 * EXECUTE
 	 **/
 	public function execute($par = '') {
-		global $wgOut, $wgRequest, $wgHooks, $wgCanonical, $wgSquidMaxage;
+		global $wgOut, $wgRequest, $wgHooks, $wgCanonical, $wgSquidMaxage, $wgLanguageCode;
 
 		$ctx = MobileContext::singleton();
 		$isMobile = $ctx->shouldDisplayMobileView();
@@ -580,9 +561,9 @@ class DocViewer extends UnlistedSpecialPage {
 		}
 
 		// make a custom canonical url
-		if ($isMobile) {
-			$wgOut->setCanonicalUrl(WikihowMobileTools::getNonMobileSite() . self::$wgSampleURL . $par);
-		}
+		//we want to do this for desktop and mobile so neither ends up with the Special:Docviewer canonical url
+		$wgOut->setCanonicalUrl(Misc::getLangBaseURL($wgLanguageCode) . self::$wgSampleURL . $par);
+
 		self::$wgSampleURL = wfExpandUrl(self::$wgSampleURL . $par);
 		$wgHooks['GetFullURL'][] = array('DocViewer::getCanonicalUrl');
 
@@ -597,7 +578,7 @@ class DocViewer extends UnlistedSpecialPage {
 		if (!$html) {
 			//nothin'
 			$wgOut->setStatusCode(404);
-			$wgOut->setRobotpolicy('noindex,nofollow');
+			$wgOut->setRobotPolicy('noindex,nofollow');
 			$html = '<p>'.wfMessage('dv-no-doc-err')->text().'</p>';
 		}
 		else {

@@ -1,4 +1,4 @@
-<?
+<?php
 
 class QAPatrolWidget extends DashboardWidget {
 
@@ -10,17 +10,21 @@ class QAPatrolWidget extends DashboardWidget {
 	 * Returns the start link for this widget
 	 */
 	public function getStartLink($showArrow, $widgetStatus){
-		if($widgetStatus == DashboardWidget::WIDGET_ENABLED)
+		if ($widgetStatus == DashboardWidget::WIDGET_ENABLED)
 			$link = "<a href='/Special:QAPatrol' class='comdash-start'>Start";
-		else if($widgetStatus == DashboardWidget::WIDGET_LOGIN)
+		elseif ($widgetStatus == DashboardWidget::WIDGET_LOGIN)
 			$link = "<a href='/Special:Userlogin?returnto=Special:QAPatrol' class='comdash-login'>Login";
-		else if($widgetStatus == DashboardWidget::WIDGET_DISABLED)
+		elseif ($widgetStatus == DashboardWidget::WIDGET_DISABLED)
 			$link = "<a href='/Become-a-New-Article-Booster-on-wikiHow' class='comdash-start'>Start";
-		if($showArrow)
+		if ($showArrow)
 			$link .= " <img src='" . wfGetPad('/skins/owl/images/actionArrow.png') . "' alt=''>";
 		$link .= "</a>";
 
 		return $link;
+	}
+
+	public function showMobileCount() {
+		return true;
 	}
 
 	public function getMWName(){
@@ -33,11 +37,39 @@ class QAPatrolWidget extends DashboardWidget {
 	 * for the last contributor to this widget
 	 */
 	public function getLastContributor(&$dbr){
-		$res = $dbr->select('qap_vote', array('*'), array(), 'QAPatrolWidget::getLastContributor', array("ORDER BY"=>"qapv_timestamp DESC", "LIMIT"=>1));
+		$where = [];
+
+		$qa_editor_ids = WikihowUser::getUserIDsByUserGroup('qa_editors');
+		if (!empty($qa_editor_ids)) {
+			$where[] = 'qapv_user_id IN ('.$dbr->makeList($qa_editor_ids).')';
+		}
+
+		$res = $dbr->select(
+			'qap_vote',
+			[
+				'qapv_user_id',
+				'qapv_timestamp'
+			],
+			$where,
+			__METHOD__,
+			[
+				'ORDER BY' => 'qapv_timestamp DESC',
+				'LIMIT' => 1
+			]
+		);
 		$row = $dbr->fetchObject($res);
 		$res->free();
 
-		return $this->populateUserObject($row->qapv_user_id, $row->qapv_timestamp);
+		if (!empty($row)) {
+			$user = $row->qapv_user_id;
+			$timestamp = $row->qapv_timestamp;
+		}
+		else {
+			$user = '';
+			$timestamp = '';
+		}
+
+		return $this->populateUserObject($user, $timestamp);
 	}
 
 	/**
@@ -45,20 +77,41 @@ class QAPatrolWidget extends DashboardWidget {
 	 * Provides the content in the footer of the widget
 	 * for the top contributor to this widget
 	 */
-	public function getTopContributor(&$dbr){
+	public function getTopContributor(&$dbr) {
 		global $wgSharedDB;
 		$startdate = strtotime("7 days ago");
 		$starttimestamp = date('YmdG',$startdate) . floor(date('i',$startdate)/10) . '00000';
-		$sql = "SELECT *, SUM(C) as C, MAX(qapv_timestamp) as qap_recent  FROM
-			(SELECT qapv_user_id, count(*) as C, MAX(qapv_timestamp) as qapv_timestamp FROM qap_vote LEFT JOIN $wgSharedDB.user ON qapv_user_id=user_id 
-				WHERE qapv_timestamp > '{$starttimestamp}' GROUP BY qapv_user_id ORDER BY C DESC LIMIT 25) t1
-			GROUP BY qapv_user_id  order by C desc limit 1";	
+		$starttimestamp = $dbr->addQuotes($starttimestamp);
+
+		$qa_editor_ids = WikihowUser::getUserIDsByUserGroup('qa_editors');
+		$qa_editor_ids_sql = !empty($qa_editor_ids) ? 'AND qapv_user_id IN ('.$dbr->makeList($qa_editor_ids).')' : '';
+
+		$sql = "
+			SELECT qapv_user_id, SUM(C) AS C, MAX(qapv_timestamp) AS qap_recent
+			  FROM (SELECT qapv_user_id, count(*) AS C, MAX(qapv_timestamp) AS qapv_timestamp
+					  FROM qap_vote LEFT JOIN $wgSharedDB.user ON qapv_user_id = user_id
+					 WHERE qapv_timestamp > {$starttimestamp} $qa_editor_ids_sql
+					 GROUP BY qapv_user_id
+					 ORDER BY C DESC
+					 LIMIT 25) t1
+			GROUP BY qapv_user_id
+			ORDER BY C DESC
+			LIMIT 1";
 
 		$res = $dbr->query($sql);
 		$row = $dbr->fetchObject($res);
 		$res->free();
 
-		return $this->populateUserObject($row->qapv_user_id, $row->qap_recent);
+		if (!empty($row)) {
+			$user = $row->qapv_user_id;
+			$timestamp = $row->qap_recent;
+		}
+		else {
+			$user = '';
+			$timestamp = '';
+		}
+
+		return $this->populateUserObject($user, $timestamp);
 	}
 
 	/**
@@ -83,13 +136,13 @@ class QAPatrolWidget extends DashboardWidget {
 	}
 
 	public function getUserCount(){
-		$standings = new QCStandingsIndividual();
+		$standings = new QAPatrolStandingsIndividual();
 		$data = $standings->fetchStats();
 		return $data['week'];
 	}
 
 	public function getAverageCount(){
-		$standings = new QCStandingsGroup();
+		$standings = new QAPatrolStandingsGroup();
 		return $standings->getStandingByIndex(self::GLOBAL_WIDGET_MEDIAN);
 	}
 
@@ -99,7 +152,7 @@ class QAPatrolWidget extends DashboardWidget {
 	 */
 	public function getLeaderboardData(&$dbr, $starttimestamp){
 
-		$data = LeaderboardStats::getQCPatrols($starttimestamp);
+		$data = LeaderboardStats::getQAPatrollers($starttimestamp);
 		arsort($data);
 
 		return $data;
@@ -111,10 +164,14 @@ class QAPatrolWidget extends DashboardWidget {
 	}
 
 	public function isAllowed($isLoggedIn, $userId=0){
-		if(!$isLoggedIn)
+		if (!$isLoggedIn)
 			return false;
-		else
-			return true;
+		elseif ($isLoggedIn && $userId == 0)
+			return false;
+		else{
+			$user = User::newFromId($userId);
+			return QAPatrol::isAllowed($user);
+		}
 	}
 
 }

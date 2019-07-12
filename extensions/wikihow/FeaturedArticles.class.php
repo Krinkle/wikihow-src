@@ -14,7 +14,7 @@ class FeaturedArticles {
 		if (!$t) return $default;
 		$r = Revision::newFromTitle($t);
 		if (!$r) return $default;
-		$text = $r->getText();
+		$text = ContentHandler::getContentText( $r->getContent() );
 		if (!$text) return $default;
 		$x = strpos($text, $header);
 		if ($x === false) return $default;
@@ -81,7 +81,7 @@ class FeaturedArticles {
 		$ret = array();
 		if (is_array($feeds)) {
 			foreach ($feeds as $feedItem) {
-				if($wgLanguageCode != "en") {
+				if ($wgLanguageCode != "en") {
 					$title = Title::newFromURL(urldecode($feedItem[0]));
 				}
 				else {
@@ -125,7 +125,7 @@ class FeaturedArticles {
 			$rev = Revision::newFromTitle($title);
 			if (!$rev) return array();
 
-			$texts[$titleHash] = $rev->getText();
+			$texts[$titleHash] = ContentHandler::getContentText( $rev->getContent() );
 		}
 		$text = $texts[$titleHash];
 
@@ -193,7 +193,7 @@ class FeaturedArticles {
 			$item[1] = $ts;
 			$xx = $t_url_map[$ts];
 			$item[0] = $xx[0];
-			if(isset($xx[1])) $item[2] = $xx[1];
+			if (isset($xx[1])) $item[2] = $xx[1];
 			$feeds[] = $item;
 		}
 
@@ -214,15 +214,13 @@ class FeaturedArticles {
 
 		// Select the $limit newest articles older than 2 weeks, and their EN pageviews
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$twoWeeksAgo = wfTimestamp(TS_MW, time() - 1209600);
 
-		if (in_array($wgLanguageCode, ['ja', 'nl', 'ru', 'th', 'vi'])) {
-			$limit = 400;
-		} elseif ($wgLanguageCode == 'id') {
-			$limit = 300;
-		} else {
+		if (in_array($wgLanguageCode, ['es', 'pt', 'de', 'fr', 'it'])) {
 			$limit = 200;
+		} else {
+			$limit = 100;
 		}
 
 		$tables = [ 'page', 'firstedit', 'index_info', 't1' => 'wikidb_112.titus_copy',
@@ -391,7 +389,7 @@ class FeaturedArticles {
 	 * The article IDs are stored in the 'featured_articles_exclude' AdminTag in the EN DB.
 	 */
 	private static function getArticlesToExclude(): array {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 		$tables = [ 'wikidb_112.articletag', 'wikidb_112.articletaglinks' ];
 		$fields = [ 'atl_page_id' ];
 		$where = [ 'at_id = atl_tag_id', 'at_tag' => 'featured_articles_exclude' ];
@@ -404,4 +402,3 @@ class FeaturedArticles {
 		return $articles;
 	}
 }
-

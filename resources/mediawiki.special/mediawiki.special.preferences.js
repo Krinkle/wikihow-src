@@ -29,6 +29,20 @@ jQuery( function ( $ ) {
 		.children( 'legend' )
 		.addClass( 'mainLegend' );
 
+	/*
+	$('#prefs_delete').on("click", function() {
+		var postData = {};
+		var requestUrl = '/Special:GDPR';
+		$.post( requestUrl, postData, function(data) {
+			var data = JSON.parse(data);
+			if (data.result == true) {
+				alert( mediaWiki.msg( 'prefs-delete-account-confirm' ) );
+			}
+		});
+		return false;
+	});
+	*/
+
 	// Make sure the accessibility tip is selectable so that screen reader users take notice,
 	// but hide it per default to reduce interface clutter. Also make sure it becomes visible
 	// when selected. Similar to jquery.mw-jump

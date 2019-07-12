@@ -164,6 +164,9 @@ class UserMailer {
 		global $wgSMTP, $wgEnotifMaxRecips, $wgAdditionalMailParams, $wgAllowHTMLEmail, $wgDisableScriptEmails;
 		global $wgIsDevServer;
 
+		// Alberto (wikiHow) - 2017-12-01
+		wfDebugLog('email', "$subject ($from -> $to)\n$body\n----------");
+
 		$mime = null;
 		if ( !is_array( $to ) ) {
 			$to = array( $to );
@@ -378,8 +381,20 @@ class UserMailer {
 
 					// only send email if we're in a production environment OR the recipient is someone@wikihow.com.
 					// we do this so that non-staff do not get spammed from our dev site.
+					// AG wikiHow added logic to have custom list of recipients for testing
 					global $wgIsDevServer;
-					if ( !$wgIsDevServer || preg_match('/@wikihow\.com>?$/', $recip) ) {
+					$authorizedDevEmail = false;
+					if ( $wgIsDevServer ) {
+						$authorizedDevEmails = explode( "\n", ConfigStorage::dbGetConfig( 'authorized_dev_emails', true ) );
+						foreach( $authorizedDevEmails as $authorizedEmail ) {
+							if (strpos( $recip, $authorizedEmail ) !== false) {
+								$authorizedDevEmail = true;
+								break;
+							}
+						}
+					}
+
+					if ( !$wgIsDevServer || preg_match('/@wikihow\.com>?$/', $recip) || $authorizedDevEmail ) {
 						if ( $safeMode ) {
 							$sent = mail( $recip, self::quotedPrintable( $subject ), $body, $headers );
 						} else {

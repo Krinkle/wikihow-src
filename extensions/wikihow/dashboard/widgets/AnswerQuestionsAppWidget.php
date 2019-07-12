@@ -1,4 +1,4 @@
-<?
+<?php
 
 class AnswerQuestionsAppWidget extends DashboardWidget {
 
@@ -10,15 +10,19 @@ class AnswerQuestionsAppWidget extends DashboardWidget {
 	 * Returns the start link for this widget
 	 */
 	public function getStartLink($showArrow, $widgetStatus) {
-		if($widgetStatus == DashboardWidget::WIDGET_ENABLED || $widgetStatus == DashboardWidget::WIDGET_LOGIN)
+		if ($widgetStatus == DashboardWidget::WIDGET_ENABLED || $widgetStatus == DashboardWidget::WIDGET_LOGIN)
 			$link = "<a href='/Special:AnswerQuestions' class='comdash-start'>Start";
-		else if($widgetStatus == DashboardWidget::WIDGET_DISABLED)
+		elseif ($widgetStatus == DashboardWidget::WIDGET_DISABLED)
 			$link = "<a href='/Become-a-New-Article-Booster-on-wikiHow' class='comdash-start'>Start";
-		if($showArrow)
+		if ($showArrow)
 			$link .= " <img src='" . wfGetPad('/skins/owl/images/actionArrow.png') . "' alt=''>";
 		$link .= "</a>";
 
 		return $link;
+	}
+
+	public function showMobileCount() {
+		return true;
 	}
 
 	public function getMWName() {
@@ -61,7 +65,7 @@ class AnswerQuestionsAppWidget extends DashboardWidget {
 	 * Returns the number of images left to be added.
 	 */
 	public function getCount(&$dbr) {
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$count = $dbr->selectField([AnswerQuestions::TABLE_QUEUE, QADB::TABLE_SUBMITTED_QUESTIONS], 'count(*)', ['aqq_page = qs_article_id', 'qs_ignore' => 0, 'qs_curated' => 0, 'qs_proposed' => 0], __METHOD__);
 		$count = floor($count/10);

@@ -9,5 +9,9 @@
 	"ulb_joinwh": "Join wikiHow",
 	"ulb_email": "Email",
 	"ulb_haveacct": "Have an account?",
-	"ulb_whacct": "wikiHow Account"
+	"ulb_whacct": "wikiHow Account",
+	"ulb-btn-fb": "Facebook",
+	"ulb-btn-gplus": "Google",
+	"ulb-btn-civic": "Civic",
+	"ulb-btn-loading": "Loading..."
 }

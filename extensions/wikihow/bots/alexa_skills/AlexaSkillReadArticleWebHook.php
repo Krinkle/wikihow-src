@@ -1,45 +1,34 @@
 <?php
 
-
-use Alexa\Response\Response;
+use Alexa\Request\CustomSkillRequestTypes;
+use Alexa\Request\ElementSelectedRequest;
 use Doctrine\Common\Annotations\AnnotationRegistry;
 
 class AlexaSkillReadArticleWebHook extends UnlistedSpecialPage {
 	const LOG_GROUP = 'AlexaSkillReadArticleWebHook';
 	const USAGE_LOGS_EVENT_TYPE = 'alexa_skill_read_article';
 
+	const INTERFACE_DISPLAY_TEMPLATE = 'Display';
+	const INTERFACE_VIDEO_APP = 'VideoApp';
+
 	const ATTR_ARTICLE = 'article_data';
 
+	const MAX_RESPONSE_BYTE_SIZE = 24576;
+
 	/**
-	 * @var ReadArticleBot
+	 * @var ReadArticleBotV2
 	 */
 	var $bot = null;
 
 	/**
-	 * @var Response
+	 * @var ReadArticleModelV2
+	 */
+	var $articleModel = null;
+
+	/**
+	 * @var \Alexa\Request\RequestInterface
 	 */
 	var $alexaRequest = null;
-
-	const INTENT_FALLBACK = 'FallbackIntent';
-	const INTENT_START = 'wh_start';
-	const INTENT_END = 'wh_end';
-	const INTENT_HOWTO = 'QueryIntent';
-	const INTENT_GOTO_STEP = 'GoToStepIntent';
-	const INTENT_START_OVER = 'AMAZON.StartOverIntent';
-	const INTENT_FIRST_STEP = 'FirstStep';
-	const INTENT_LAST_STEP = 'LastStep';
-	const INTENT_STOP = 'AMAZON.StopIntent';
-	const INTENT_PAUSE = 'AMAZON.PauseIntent';
-	const INTENT_REPEAT = 'AMAZON.RepeatIntent';
-	const INTENT_PREVIOUS = 'AMAZON.PreviousIntent';
-	const INTENT_RESUME = 'AMAZON.ResumeIntent';
-	const INTENT_NEXT = 'AMAZON.NextIntent';
-	const INTENT_NO = 'AMAZON.NoIntent';
-	const INTENT_YES = 'AMAZON.YesIntent';
-	const INTENT_NEXT_STEP = 'NextStep';
-	const INTENT_STEP_DETAILS = 'StepDetails';
-	const INTENT_CANCEL = 'AMAZON.CancelIntent';
-	const INTENT_HELP = 'AMAZON.HelpIntent';
 
 	function __construct() {
 		parent::__construct('AlexaSkillReadArticleWebHook');
@@ -48,7 +37,7 @@ class AlexaSkillReadArticleWebHook extends UnlistedSpecialPage {
 	public static function fatalHandler() {
 		wfDebugLog(self::LOG_GROUP, var_export('Last error on line following', true), true);
 		$error = error_get_last();
-		if( $error !== NULL) {
+		if ( $error !== NULL) {
 			$errno   = $error["type"];
 			$errfile = $error["file"];
 			$errline = $error["line"];
@@ -67,11 +56,12 @@ class AlexaSkillReadArticleWebHook extends UnlistedSpecialPage {
 	}
 
 	function execute($par) {
+		$this->getOutput()->setArticleBodyOnly(true);
+
 		//Define an error handler if you need to debug errors
 		//error_reporting(E_CORE_ERROR|E_COMPILE_ERROR);
 		//register_shutdown_function("AlexaSkillReadArticleWebHook::fatalHandler");
-		$old_error_handler = set_error_handler("AlexaSkillReadArticleWebHook::errorHandler");
-
+		set_error_handler("AlexaSkillReadArticleWebHook::errorHandler");
 
 		$this->getOutput()->setRobotPolicy('noindex,nofollow');
 		$this->getOutput()->setArticleBodyOnly(true);
@@ -80,11 +70,20 @@ class AlexaSkillReadArticleWebHook extends UnlistedSpecialPage {
 		$_SERVER['HTTP_USER_AGENT'] = "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2785.143 Safari/537.36";
 
 		try {
-			$applicationId = WH_ALEXA_SKILL_READ_ARTICLE_APP_ID; // See developer.amazon.com and your Application. Will start with "amzn1.echo-sdk-ams.app."
+			$appId = WH_ALEXA_SKILL_READ_ARTICLE_APP_ID; // See developer.amazon.com and your Application. Will start with "amzn1.echo-sdk-ams.app."
+			$devAppId = WH_ALEXA_SKILL_READ_ARTICLE_APP_ID_DEV;
 			$rawRequest = file_get_contents("php://input"); // This is how you would retrieve this with Laravel or Symfony 2.
+			wfDebugLog(self::LOG_GROUP, var_export("Incoming raw request:", true), true);
+			wfDebugLog(self::LOG_GROUP, var_export($rawRequest, true), true);
+
 			$alexaRequestFactory = new \Alexa\Request\RequestFactory();
 			$this->initAnnotationsLoader();
-			$this->alexaRequest = $alexaRequestFactory->fromRawData($rawRequest, [$applicationId]);
+
+			// Add a new Request type since the current API doesn't support.  In the future, we should consider
+			// forking and extending since updates aren't keeping up with new Alexa features
+			CustomSkillRequestTypes::$validTypes['Display.ElementSelected'] = ElementSelectedRequest::class;
+
+			$this->alexaRequest = $alexaRequestFactory->fromRawData($rawRequest, [$appId, $devAppId]);
 
 			$this->processRequest();
 		}
@@ -109,121 +108,184 @@ class AlexaSkillReadArticleWebHook extends UnlistedSpecialPage {
 		wfDebugLog(self::LOG_GROUP, var_export("Incoming request", true), true);
 		wfDebugLog(self::LOG_GROUP, var_export($this->alexaRequest->getData(), true), true);
 
-		$this->initBot();
-		$this->processCommand($this->getIntent());
+		if ($this->alexaRequest instanceof \Alexa\Request\SessionEndedRequest) {
+			$this->onSessionEndedRequest();
+		} else {
+			$this->initBot();
+			$this->processCommand($this->getIntent());
+		}
 	}
 
 	protected function getIntent() {
 		$request = $this->alexaRequest;
-		$intent = self::INTENT_FALLBACK;
+		$intent = ReadArticleSkillIntents::INTENT_FALLBACK;
 
 		if ($request instanceof \Alexa\Request\LaunchRequest) {
-			$intent = self::INTENT_START;
+			$intent = ReadArticleSkillIntents::INTENT_START;
 		}
 
 		if ($request instanceof \Alexa\Request\IntentRequest) {
 			$intent = $request->getIntentName();
 		}
 
-		if ($request instanceof \Alexa\Request\SessionEndedRequest) {
-			$intent = self::INTENT_END;
+		// Currently we define all action values as intent names
+		if ($request instanceof \Alexa\Request\ElementSelectedRequest) {
+			$intent = $request->getToken();
 		}
 
 		return $intent;
 	}
 
+	protected function getSlots() {
+		$request = $this->getAlexaRequest();
+
+		$slots = null;
+		if ($request instanceof \Alexa\Request\IntentRequest) {
+			$slots = $request->getSlots();
+		}
+
+		return $slots;
+	}
+
+	/**
+	 * @return \Alexa\Request\RequestInterface
+	 */
+	public function getAlexaRequest(): \Alexa\Request\RequestInterface {
+		return $this->alexaRequest;
+	}
 
 	public function processCommand($intentName) {
 		wfDebugLog(self::LOG_GROUP, var_export(__METHOD__ . " - intent name: " .
 			$intentName, true), true);
-		$bot = $this->getBot();
-		switch($intentName) {
-			case self::INTENT_NEXT_STEP:
-			case self::INTENT_NEXT:
-				$responseText = $bot->onIntentNext($bot);
-				$response = $this->getTextResponseWithSession($responseText);
-				break;
-			case self::INTENT_LAST_STEP:
-			case self::INTENT_PREVIOUS:
-				$responseText = $bot->onIntentPrevious();
-				$response = $this->getTextResponseWithSession($responseText);
-				break;
-			case self::INTENT_PAUSE:
-				$responseText = $bot->onIntentPause();
-				$response = $this->getTextResponseWithSession($responseText);
-				break;
-			case self::INTENT_REPEAT:
-			case self::INTENT_RESUME:
-				$responseText = $bot->onIntentRepeat();
-				$response = $this->getTextResponseWithSession($responseText);
-				break;
-			case self::INTENT_FIRST_STEP:
-			case self::INTENT_START_OVER:
-				$responseText = $bot->onIntentStartOver();
-				$response = $this->getTextResponseWithSession($responseText);
-				break;
-			case self::INTENT_HOWTO:
-				$query = strtolower($this->alexaRequest->getSlot('query'));
-				wfDebugLog(self::LOG_GROUP, var_export("User query: $query", true), true);
-				$responseText = $bot->onIntentHowTo($query);
-				$response = $this->getTextResponseWithSession($responseText);
-				$response = $this->addCardToResponse($response);
-				break;
-			case self::INTENT_GOTO_STEP:
-				$stepNum = intVal($this->alexaRequest->getSlot('step_num'));
-				wfDebugLog(self::LOG_GROUP, var_export("step number: " . $stepNum, true), true);
-				$responseText = $bot->onIntentGoToStep($stepNum);
-				$response = $this->getTextResponseWithSession($responseText);
-				break;
-			case self::INTENT_NO:
-				$responseText = $bot->onIntentNo();
-				$response = $this->getTextResponseWithSession($responseText);
-				if ($bot->getArticleData() && $bot->getArticleData()->isLastStepInMethod()) {
-					$response->endSession();
-				}
-				break;
-			case self::INTENT_YES:
-				$responseText = $bot->onIntentNo();
-				$response = $this->getTextResponseWithSession($responseText);
-				break;
-			case self::INTENT_STOP:
-			case self::INTENT_CANCEL:
-				$responseText = $bot->onIntentEnd();
-				$response = $this->getTextResponseWithSession($responseText);
-				$response->endSession();
-				break;
-			case self::INTENT_HELP:
-				$responseText = $bot->onIntentHelp();
-				$response = $this->getTextResponseWithSession($responseText);
-				break;
-			case self::INTENT_START:
-				$responseText = $bot->onIntentStart();
-				$response = $this->getTextResponseWithSession($responseText);
-				break;
-			case self::INTENT_END:
-				$this->onSessionEndedRequest();
-			case self::INTENT_FALLBACK:
-			default:
-				$responseText = $bot->onIntentFallback();
-				$response = $this->getTextResponseWithSession($responseText);
-		}
 
-		$response = $this->setReprompt($response);
+		$factory = OutputSpeechFactory::newInstance(
+			$intentName,
+			$this->getArticleModel(),
+			$this->getSlots(),
+			self::USAGE_LOGS_EVENT_TYPE
+		);
+
+		$responseText = $factory->getComponent();
+		$this->setArticleModel($factory->getBot()->getArticleModel());
+		wfDebugLog(self::LOG_GROUP, var_export(__METHOD__ . " - output speech: " .
+			$responseText, true), true);
+		$response = $this->getTextResponseWithSession($responseText);
+
+		$response = $this->supplementResponse($intentName, $response);
+
 		$this->sendResponse($response);
 	}
 
+	/**
+	 * @return null|ReadArticleModelV2
+	 */
+	public function getArticleModel() {
+		return $this->articleModel;
+	}
+
+	/**
+	 * @param ReadArticleModelV2 $articleModel
+	 */
+	public function setArticleModel($articleModel) {
+		$this->articleModel = $articleModel;
+	}
+
+	/**
+	 * @param $intentName
+	 * @param $response WikihowAlexaResponse
+	 */
+	protected function supplementResponse($intentName, $response) {
+		$articleModel = $this->getArticleModel();
+		wfDebugLog(self::LOG_GROUP, var_export(__METHOD__, true), true);
+		wfDebugLog(self::LOG_GROUP, var_export($articleModel, true), true);
+
+		$factory = EndSessionFactory::newInstance($intentName, $articleModel);
+		$shouldEndSession = $factory->getComponent();
+		if ($shouldEndSession) {
+			$response->endSession();
+		}
+
+		$factory = RepromptFactory::newInstance($intentName, $articleModel);
+		$repromptText = $factory->getComponent();
+		if (!empty($repromptText)) {
+			$response->reprompt($repromptText);
+		}
+
+		if ($this->deviceSupportsInterface(self::INTERFACE_DISPLAY_TEMPLATE)) {
+			$factory = DisplayTemplateFactory::newInstance($intentName, $articleModel,
+				$this->deviceSupportsInterface(self::INTERFACE_VIDEO_APP));
+			$displayTemplate = $factory->getComponent();
+			if (!is_null($displayTemplate)) {
+				$response->setDisplayTemplate($displayTemplate);
+			}
+		}
+
+		if ($this->deviceSupportsInterface(self::INTERFACE_VIDEO_APP)) {
+			$factory = VideoAppFactory::newInstance($intentName, $articleModel);
+			$videoApp = $factory->getComponent();
+			if (!is_null($videoApp)) {
+				$response->setVideoApp($videoApp);
+				// Don't read step text after playing the video
+				$response->respond("");
+			}
+		}
+
+		$factory = HintFactory::newInstance($intentName, $articleModel);
+		$hintText = $factory->getComponent();
+		if (!empty($hintText)) {
+			$response->setHint($hintText);
+		}
+
+		$factory = StandardCardFactory::newInstance($intentName, $articleModel);
+		$standardCard = $factory->getComponent();
+		if (!is_null($standardCard)) {
+			$response->withStandardCard(
+				$standardCard->getTitle(),
+				$standardCard->getText(),
+				$standardCard->getLargeImageUrl(),
+				$standardCard->getSmallImageUrl()
+			);
+		}
+
+		return $response;
+	}
+
+	protected function deviceSupportsInterface($interface) {
+		wfDebugLog(self::LOG_GROUP, var_export(__METHOD__, true), true);
+		$data = $this->alexaRequest->getData();
+		$interfaces = array_keys($data['context']['System']['device']['supportedInterfaces']);
+		wfDebugLog(self::LOG_GROUP, var_export($interfaces, true), true);
+		return in_array($interface, $interfaces);
+	}
+
 	protected function sendResponse($response) {
+		if (!$this->isValidResponse($response)) {
+			$response = $this->getTextResponseNoSession("Sorry, couldn't find anything for you. Try asking me how to do something else.");
+			$response->shouldEndSession(false);
+		}
+
 		echo json_encode($response->render());
+
+	}
+
+	/**
+	 * @param $response
+	 * @return bool
+	 */
+	protected function isValidResponse($response) {
+		$renderedResponse = $response->render();
+		$jsonResponse = json_encode($renderedResponse);
+		return strlen($jsonResponse) <= self::MAX_RESPONSE_BYTE_SIZE;
 	}
 
 	protected function getTextResponseNoSession($text) {
-		$response = new \Alexa\Response\Response;
+		$response = new WikihowAlexaResponse();
 		$response->respond($text);
 		return $response;
 	}
 
 	/**
-	 * @param Response $response
+	 * @param WikihowAlexaResponse $response
 	 * @return mixed
 	 */
 	protected function setSessionAttributes($response) {
@@ -231,9 +293,9 @@ class AlexaSkillReadArticleWebHook extends UnlistedSpecialPage {
 			$response->addSessionAttribute($key, $val);
 		}
 
-		$bot = $this->getBot();
-		if (!is_null($bot)) {
-			$response->addSessionAttribute(self::ATTR_ARTICLE, $bot->getState());
+		$articleModel = $this->getArticleModel();
+		if (!is_null($articleModel)) {
+			$response->addSessionAttribute(self::ATTR_ARTICLE, serialize($articleModel));
 		}
 
 		return $response;
@@ -241,7 +303,7 @@ class AlexaSkillReadArticleWebHook extends UnlistedSpecialPage {
 
 	/**
 	 * @param $responseText
-	 * @return Response|mixed
+	 * @return WikihowAlexaResponse|mixed
 	 */
 	protected function getTextResponseWithSession($responseText) {
 		$response = $this->getTextResponseNoSession($responseText);
@@ -258,58 +320,20 @@ class AlexaSkillReadArticleWebHook extends UnlistedSpecialPage {
 
 	protected function initBot() {
 		$articleData = $this->alexaRequest->getSession()->getAttributes()[self::ATTR_ARTICLE];
+
 		wfDebugLog(self::LOG_GROUP, var_export("Article data: ", true), true);
 		wfDebugLog(self::LOG_GROUP, var_export($articleData, true), true);
 
-		$this->bot = ReadArticleBot::newFromArticleState($articleData, self::USAGE_LOGS_EVENT_TYPE);
+		if (!empty($articleData)) {
+			$this->articleModel = unserialize($articleData);
+		}
 	}
 
 	/**
-	 * @return ReadArticleBot
+	 * @return ReadArticleBotV2
 	 */
 	protected function getBot() {
 		return $this->bot;
-	}
-
-	protected function addCardToResponse($response) {
-		$bot = $this->bot;
-		$a = $bot->getArticleData();
-		if ($a && $a->isFirstStepInMethod()) {
-			$response->withCard($a->getArticleTitle(), $a->getArticleUrl());
-		}
-
-		return $response;
-	}
-
-	/**
-	 * Certain intents relating to article navigation should have a custom reprompt
-	 * @param $response
-	 * @return mixed
-	 */
-	protected function setReprompt($response) {
-		// Custom reprompt only when reading an article
-		if ($this->getBot()->getArticleData() === NULL) return $response;
-
-		$intentName = $this->getIntent();
-		switch ($intentName) {
-			case self::INTENT_NEXT:
-			case self::INTENT_PREVIOUS:
-			case self::INTENT_REPEAT:
-			case self::INTENT_RESUME:
-			case self::INTENT_FIRST_STEP:
-			case self::INTENT_HOWTO:
-			case self::INTENT_GOTO_STEP:
-				wfDebugLog(self::LOG_GROUP, var_export(__METHOD__ . ": setting custom reprompt", true), true);
-				$isLastStep = $this->getBot()->getArticleData()->isLastStepInMethod();
-				if ($isLastStep) {
-					$prompt = wfMessage('reading_article_no_response_prompt')->text();
-				} else {
-					$prompt =  wfMessage('reading_article_instructions')->text();
-				}
-				$response->reprompt($prompt);
-				break;
-		}
-		return $response;
 	}
 
 	/**

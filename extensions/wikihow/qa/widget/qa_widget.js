@@ -1,3 +1,4 @@
+/*global WH*/
 (function($, mw) {
 	"use strict";
 	window.WH = window.WH || {};
@@ -17,6 +18,7 @@
 		endpoint: '/Special:QA',
 		patrolEndpoint: '/Special:QAPatrol',
 		maxQuestionsVisible: WH.isMobileDomain ? 5 : 10,
+		maxSubmittedQuestionsVisible: 5,
 		minSpaces: 2,
 		minSubmittedQuestionChars: 20,
 		minProposedAnswerChars: 75,
@@ -40,11 +42,14 @@
 		exbox_pos_start: 45,
 		exbox_pos_end: 55,
 		exbox_duration: 150,
+		initial_question_count: 0,
 
 		init: function() {
 			this.initListeners();
 
-			if (!this.getAllQuestions().length) {
+			this.initial_question_count = this.getAllQuestions().length;
+
+			if (!this.initial_question_count) {
 				this.$prompt.html(mw.msg('qa_prompt_first')).show();
 
 				// Hide Answered questions section for non-admins if there aren't any
@@ -72,7 +77,7 @@
 			$li.addClass('qa_editing_up');
 			var formData = {
 				qa_up_edit_form_question: $li.find('.qa_q_txt').html(),
-				qa_up_edit_form_answer: $li.find('.qa_answer:first-child').html(),
+				qa_up_edit_form_answer: $li.find('.qa_answer').html(),
 				qa_up_edit_form_submitter_id: $li.data('submitter_id'),
 				selected: function() {
 					return this.id == $li.data('verifier_id') ? 'selected' : '';
@@ -110,7 +115,7 @@
 			var formData = {
 				qa_edit_form_inactive_val: $li.data('qa_inactive') ? 'checked' : '',
 				qa_edit_form_question: $li.find('.qa_q_txt').html(),
-				qa_edit_form_answer: $li.find('.qa_answer:first-child').html(),
+				qa_edit_form_answer: $li.find('.qa_answer').html(),
 				qa_edit_form_submitter_id: $li.data('submitter_id'),
 				selected: function() {
 					return this.id == $li.data('verifier_id') ? 'selected' : '';
@@ -290,35 +295,6 @@
 					WH.QAWidget.submitFlagOption($(this));
 				});
 				//^^^ Flag as... pop-up ^^^
-
-				//(desktop only)
-				//*** Flag as... pop-up for answered questions***
-				$('.qa').on('mouseenter', '.qa_ignore_answered',  function() {
-					WH.QAWidget.popAnswerFlagOptions($(this));
-				})
-					.on('mouseleave', '.qa_ignore_answered', function() {
-						WH.QAWidget.hideAnswerFlagOptions();
-					})
-					.on('click', '.qa_ignore_answered', function() {
-						return false;
-					});
-
-				$("#qa_answer_flag_options").hover(function() {
-					$(this)
-						.stop(true)
-						.fadeIn({queue: false, duration: 150})
-						.animate({ bottom: WH.QAWidget.afo_reg_height, opacity: 1 }, 80);
-				}, function() {
-					$(this)
-						.fadeOut({queue: false, duration: 150})
-						.animate({ bottom: WH.QAWidget.fo_trans_height }, 150);
-				});
-
-				$('#qa_answer_flag_options a').click(function(e){
-					e.preventDefault();
-					WH.QAWidget.submitAnswerFlagOption($(this));
-				});
-				//^^^ Flag as... pop-up ^^^
 			}
 
 			$('.qa').on('click', '.qa_aq_cancel',  function(e) {
@@ -397,10 +373,7 @@
 			if (!WH.isMobileDomain) {
 				$('#qa')
 					.on('mouseenter mouseleave', '.qa_expert_area', function(e) {
-						WH.QAWidget.popExpertInfo($(this).parent().find('.qa_expert_pop'), e.type);
-					})
-					.on('mouseenter mouseleave', '.qa_expert_pop', function(e) {
-						WH.QAWidget.popExpertInfo(this, e.type);
+						WH.QAWidget.popExpertInfo($(this).parent().find('.qa_user_hover'), e.type);
 					});
 			}
 
@@ -414,9 +387,6 @@
 				$('#qa')
 					.on('mouseenter mouseleave', '.qa_ta_area', function(e) {
 						WH.QAWidget.topAnswererBox($(this).parent(), e.type);
-					})
-					.on('mouseenter mouseleave', '.qa_ta_pop', function(e) {
-						WH.QAWidget.topAnswererBox(this, e.type);
 					});
 			}
 			//--------------------
@@ -530,26 +500,41 @@
 				}
 			// }
 
-			if (data.question.length && data.answer.length) {
-				$li.addClass('qa_saving');
+			if ( data.question.length && data.answer.length ) {
+				$li.addClass( 'qa_saving' );
 				$.post(
 					widget.endpoint,
 					data,
-					$.proxy(function(result) {
-						$li.removeClass('qa_saving');
-						widget.sqids.push($li.data('sqid'));
-
-						if (result.isAnon) {
-							widget.showSocialLoginForm($li);
-						} else {
-							widget.showAnswerConfirmation($li);
-						}
-
-						if (!result.userBlocked) {
-							WH.whEvent(WH.QAWidget.EVENT_CAT, 'proposed_answer_submission');
-							$.publish(WH.QAWidget.EVENT_PROPOSED_ANSWER_SUBMISSION);
-						}
-					}, this),
+					function ( result ) {
+						$.when( WH.social.fb(), WH.social.gplus() ).then( function () {
+							$li.removeClass( 'qa_saving' );
+							widget.sqids.push( $li.data( 'sqid' ) );
+							if ( result.isAnon ) {
+								widget.showSocialLoginForm( $li );
+							} else {
+								widget.showAnswerConfirmation( $li );
+							}
+							if ( !result.userBlocked ) {
+								WH.whEvent( WH.QAWidget.EVENT_CAT, 'proposed_answer_submission' );
+								$.publish( WH.QAWidget.EVENT_PROPOSED_ANSWER_SUBMISSION );
+							}
+						},
+						function() {
+							// fail case
+							$li.removeClass( 'qa_saving' );
+							widget.sqids.push( $li.data( 'sqid' ) );
+							var html = Mustache.render(unescape($('#qa_social_login_form').html()), {
+								qa_thanks_for_answer: mw.msg('qa_thanks_for_answer')
+							});
+							$li.find('.qa_li_container').html(widget.escapeHtml(html));
+							$li.find('.qa_li_container').find('.qa_social_login_body').remove();
+							$li.find('.qa_li_container').find('.qa_social_login_button_container').remove();
+							if ( !result.userBlocked ) {
+								WH.whEvent( WH.QAWidget.EVENT_CAT, 'proposed_answer_submission' );
+								$.publish( WH.QAWidget.EVENT_PROPOSED_ANSWER_SUBMISSION );
+							}
+						});
+					},
 					'json'
 				);
 			}
@@ -646,6 +631,7 @@
 		enableEditing: function(aq) {
 			aq.qa_admin = true;
 			aq.qa_edit = mw.msg('qa_edit');
+			aq.show_editor_tools = true;
 			return aq;
 		},
 
@@ -668,6 +654,7 @@
 			}
 
 			aq['qa_editor'] = this.isEditor;
+			aq['qa_anon'] = !mw.config.get('wgUserId');
 
 			aqTemplateId = '#qa_article_question_item';
 			msgs = [
@@ -683,7 +670,8 @@
 				'ta_answers_label',
 				'ta_label',
 				'ta_subcats_intro',
-				'ta_subcats_outro'
+				'ta_subcats_outro',
+				'qa_question_label'
 			];
 
 			aq = $.extend(aq, this.getTemplateVars(msgs));
@@ -805,13 +793,11 @@
 			if (WH.isMobileDomain) {
 				$('#qa').on('click', '#qa_asked_question', function(e) {
 					e.preventDefault();
-					$('#qa_email').show();
-					$('#qa_asked_count').show();
+					$('#qa_email, #qa_email_prompt, #qa_asked_count').show();
 				});
 			} else {
 				$('#qa').on('keydown', '#qa_asked_question', $.proxy($.throttle(250, function(e) {
-					$('#qa_email').show();
-					$('#qa_asked_count').show();
+					$('#qa_email, #qa_email_prompt, #qa_asked_count').show();
 				})));
 			}
 
@@ -854,6 +840,35 @@
 				this.onSubmit();
 			}, this));
 
+			//(desktop only)
+			//*** Flag as... pop-up for answered questions***
+			$('.qa').on('mouseenter', '.qa_ignore_answered',  function() {
+				WH.QAWidget.popAnswerFlagOptions($(this));
+			})
+				.on('mouseleave', '.qa_ignore_answered', function() {
+					WH.QAWidget.hideAnswerFlagOptions();
+				})
+				.on('click', '.qa_ignore_answered', function() {
+					return false;
+				});
+
+			$("#qa_answer_flag_options").hover(function() {
+				$(this)
+					.stop(true)
+					.fadeIn({queue: false, duration: 150})
+					.animate({ bottom: WH.QAWidget.afo_reg_height, opacity: 1 }, 80);
+			}, function() {
+				$(this)
+					.fadeOut({queue: false, duration: 150})
+					.animate({ bottom: WH.QAWidget.fo_trans_height }, 150);
+			});
+
+			$('#qa_answer_flag_options a').click(function(e){
+				e.preventDefault();
+				WH.QAWidget.submitAnswerFlagOption($(this));
+			});
+			//^^^ Flag as... pop-up ^^^
+
 			$(window).scroll($.proxy($.throttle(250, function() {
 				if (!this.sectionViewed && this.isVisible('#qa')) {
 					this.sectionViewed = true;
@@ -875,12 +890,16 @@
 
 		onShowMoreAnswered: function() {
 			var widget = this;
+			var offset = this.getAllQuestions().length;
+
+			if (this.$articleQuestions.hasClass('qa_fresh')) offset += this.initial_question_count;
+
 			$.post(
 				this.endpoint,
 				{
 					a: 'gaqs',
 					aid: $('.qa').data('aid'),
-					offset: this.getAllQuestions().length,
+					offset: offset,
 					limit: this.maxQuestionsVisible
 				},
 				function(aqs) {
@@ -1005,7 +1024,7 @@
 		},
 
 		hideForm: function() {
-			$('#qa_email, #qa_submit_button, #qa_asked_question, #qa_asked_count').hide();
+			$('#qa_email, #qa_email_prompt, #qa_submit_button, #qa_asked_question, #qa_asked_count').hide();
 		},
 
 		isVisible: function(elem) {
@@ -1036,6 +1055,7 @@
 
 		disableEditingUI: function() {
 			$('.qa').removeClass('qa_editing');
+			$('.qa_aq_cancel').click(); //close all forms
 			location.hash = '';
 			location.hash = '#Questions_and_Answers_sub';
 		},
@@ -1072,7 +1092,7 @@
 						sqsHtml += Mustache.render(unescape($('#qa_submitted_question_item').html()), sq);
 					});
 
-					if (sqs && sqs.length) {
+					if (sqs && sqs.length && sqs.length == WH.QAWidget.maxSubmittedQuestionsVisible) {
 						var lastSqid = sqs[sqs.length - 1].id;
 						$('#qa_show_more_submitted').attr('last_sqid', lastSqid);
 						$('#qa_submitted_questions').show();
@@ -1119,8 +1139,11 @@
 
 		popFlagOptions: function (flag) {
 			var box = $('#qa_flag_options');
+			var left_pos = $(flag).position().left;
+
 			$(flag).before(box);
 			$(box)
+				.css('left', left_pos - 30)
 				.fadeIn({queue: false, duration: 150})
 				.animate({ bottom: WH.QAWidget.fo_reg_height, opacity: 1 }, 150);
 
@@ -1170,8 +1193,11 @@
 
 		popAnswerFlagOptions: function (flag) {
 			var box = $('#qa_answer_flag_options');
+			var left_pos = $(flag).position().left;
+
 			$(flag).before(box);
 			$(box)
+				.css('left',left_pos - 30)
 				.fadeIn({queue: false, duration: 150})
 				.animate({ bottom: WH.QAWidget.afo_reg_height, opacity: 1 }, 150);
 
@@ -1190,8 +1216,8 @@
 			var widget = WH.QAWidget;
 			var option = $(obj).html();
 			var $li = $(obj).closest('.qa_aq');
-			var $flagLink = $(obj).closest(".qa_bubble").find(".qa_ignore_answered");
-			var $thanksLink = $flagLink.siblings(".qa_ingore_answered_thanks");
+			var $flagLink = $(obj).closest(".qa_answer_footer").find(".qa_ignore_answered");
+			var $thanksLink = $flagLink.siblings(".qa_ignore_answered_thanks");
 			var qa_id = $li.data('aqid');
 			var question = $li.find('.qa_q_txt').html();
 			var answer = $li.find('.qa_answer').html();
@@ -1217,7 +1243,7 @@
 
 			$flagLink.hide();
 			widget.hideAnswerFlagOptions();
-			$thanksLink.show();
+			$thanksLink.css('display','inline-block');
 
 		},
 
@@ -1225,11 +1251,14 @@
 		 * topAnswererBox()
 		 * - grabs data for top answerer box (if needed) & then fires the show/hide function
 		 *
-		 * @param obj = the hover box
+		 * @param obj = user name area
 		 * @param e = (string) mouseenter/mouseleave/null
 		 */
 		topAnswererBox: function(obj, e) {
-			var tabox = WH.isMobileDomain ? $(obj).find('.qa_ta_mobile_extra') : $(obj).find('.qa_ta_pop');
+			if (WH.isAltDomain)
+				return;
+
+			var tabox = WH.isMobileDomain ? $(obj).find('.qa_ta_mobile_extra') : $(obj).find('.qa_ta_area .hint_box');
 			var show = '';
 
 			if (WH.isMobileDomain)
@@ -1239,7 +1268,7 @@
 
 			if (show && $(tabox).html() == '') {
 				//showing the box AND we haven't already loaded it? load it
-				var $li = $(obj).closest('.qa_aq');
+				var $li = $(obj).closest('.qa_block');
 				var the_url = this.endpoint+'?a=get_ta_data&user_id='+$li.data('submitter_id')+'&aid='+wgArticleId;
 
 				//load up the data
@@ -1253,7 +1282,7 @@
 							var html = Mustache.render(unescape($('#top_answerers_qa_widget').html()), {
 								userLink: 				data.ta_user_link,
 								userName: 				username,
-								answersCount: 		data.ta_answers_count,
+								answersCount: 		data.ta_answers_live_count,
 								topCats: 					data.ta_top_cats,
 								ta_image: 				data.ta_user_image,
 								ta_label: 				mw.msg('ta_label'),
@@ -1280,7 +1309,7 @@
 		 * popTopAnswererBox()
 		 * - shows/hides top answerer dialog box
 		 *
-		 * @param obj = the hover box
+		 * @param tabox = the hover box
 		 * @param show = (boolean)
 		 */
 		popTopAnswererBox: function(tabox, show) {
@@ -1347,7 +1376,7 @@
 				qa_social_login_disclaimer: mw.msg('qa_social_login_disclaimer')
 			});
 			$li.find('.qa_li_container').html(this.escapeHtml(html));
-			this.initSocialLoginForm($li);
+			return this.initSocialLoginForm($li);
 		},
 
 		showSocialLoginFormConfirmation: function($li, user) {
@@ -1379,6 +1408,10 @@
 		initSocialLoginForm: function($li) {
 			var widget = WH.QAWidget;
 
+			$li.find('.x_button').click(function() {
+				$li.hide();
+			});
+
 			var whLoginDone = function(data) {
 				if (data.result == 'signup' && typeof WH.maEvent == 'function') {
 					var properties = {
@@ -1395,73 +1428,17 @@
 					jsonpCallback: 'wh_jsonp_qa',
 					url: 'https://' + window.location.hostname + '/Special:QA',
 					data: { a: 'su', sqids: widget.sqids }
-				})
-				.done(function() { widget.sqids = []; });
+				}).done(function() { widget.sqids = []; });
 			};
 
 			var whLoginFail = function() {
 				widget.showSocialLoginFormError($li);
 			};
 
-			var initFacebookButton = function() {
-				widget.initFacebookButton($li, whLoginDone, whLoginFail);
-			};
-
-			var initGoogleButton = function() {
-				widget.initGoogleButton($li, whLoginDone, whLoginFail);
-			};
-
-			$li.find('.x_button').click(function() {
-				$li.hide();
-			});
-
-			if (WH.isMobileDomain && !widget.isSocialAuthLoaded()) {
-				mw.loader.using('ext.wikihow.socialauth', function() {
-					WH.social.fb.addInitCallback(initFacebookButton);
-					WH.social.fb.init()
-					WH.social.g.addInitCallback(initGoogleButton);
-					WH.social.g.init()
-				});
-			} else {
-				initFacebookButton();
-				initGoogleButton();
-			}
-		},
-
-		initFacebookButton: function($li, done, fail) {
-			var widget = WH.QAWidget;
-
-			if (!widget.isSocialAuthLoaded() || typeof FB == 'undefined') {
-				return;
-			}
-
-			var socialLoginComplete = function(response) {
-				if (response.status === 'connected') {
-					window.WH.social.fb.autoLogin(response.authResponse, done, fail);
-				}
-			};
-
-			var $button = $li.find('.qa_social_login_form .facebook_button');
-			$button.click(function() {
-				FB.login(socialLoginComplete, { scope: window.WH.social.fb.SCOPE });
-			});
-		},
-
-		initGoogleButton: function($li, done, fail) {
-			var widget = WH.QAWidget;
-
-			if (!widget.isSocialAuthLoaded() || typeof window.WH.social.g.authInstance == 'undefined') {
-				return;
-			}
-
-			var socialLoginComplete = function(googleUser) {
-				window.WH.social.g.autoLogin(googleUser, done, fail);
-			};
-
-			var $button = $li.find('.qa_social_login_form .google_button')[0];
-			window.WH.social.g.authInstance.attachClickHandler(
-				$button, { 'scope': window.WH.social.g.SCOPE }, socialLoginComplete
-			);
+			return WH.social.setupAutoLoginButtons( {
+				fb: '.qa_social_login_form .facebook_button',
+				gplus: '.qa_social_login_form .google_button'
+			}, whLoginDone, whLoginFail );
 		},
 
 		logPatrolEvent: function(action, $li, eventProps) {

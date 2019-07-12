@@ -22,7 +22,7 @@ class ApiCategoryListing extends ApiBase {
             }
         }
         $resultProps = CategoryLister::getCategoryContents($this->getContext(), $title);
-    
+
         $result->addValue(null, $module, $resultProps);
 
         if ($error) {
@@ -90,9 +90,9 @@ class CategoryLister {
         $arts = array();
 
         if (!$title) {
-            $cats = Categoryhelper::getTopLevelCategoriesForDropDown();
+            $cats = CategoryHelper::getTopLevelCategoriesForDropDown();
         } else {
-            $tree = Categoryhelper::getCategoryTreeArray();
+            $tree = CategoryHelper::getCategoryTreeArray();
             self::getChildNodesFromTreeNode($tree, str_replace('-', ' ', $title->getBaseText()), $cats);
         }
 
@@ -100,7 +100,9 @@ class CategoryLister {
 
         foreach ($cats as $cat) {
             $catTitle = Title::newFromText($cat, NS_CATEGORY);
-            $catResult[$cat] = $catTitle->getFullURL();
+            if ($catTitle) {
+	            $catResult[$cat] = $catTitle->getFullURL();
+            }
         }
 
         $fArtResult = array();
@@ -110,36 +112,23 @@ class CategoryLister {
             $viewer = new WikihowCategoryViewer($title, $context);
             $viewer->clearState();
             $viewer->doQuery();
-            $viewer->finaliseCategoryState();
 
             // Featured articles:
             if ($viewer->articles_fa) {
-                foreach ($viewer->articles_fa as $fArtHtml) {
-                    // Extract article name from HTML
-                    $matches = array();
-                    preg_match('/<a ?.*>(.*)<\/a>/', $fArtHtml, $matches);
-                    $fArt = $matches[1];
-                    $fArtTitle = Title::newFromText($fArt, NS_MAIN);
-
+                foreach ($viewer->articles_fa as $fArtTitle) {
                     if ($fArtTitle && $fArtTitle->exists()
                             && $fArtTitle->getNamespace() === NS_MAIN) {
-                        $fArtResult[$fArt] = $fArtTitle->getFullURL();
+                        $fArtResult[$fArtTitle->getText()] = $fArtTitle->getFullURL();
                     }
                 }
             }
 
             // General articles:
             if ($viewer->articles) {
-                foreach ($viewer->articles as $artHtml) {
-                    // Extract article name from HTML
-                    $matches = array();
-                    preg_match('/<a ?.*>(.*)<\/a>/', $artHtml, $matches);
-                    $art = $matches[1];
-                    $artTitle = Title::newFromText($art, NS_MAIN);
-
-                    if ($artTitle && $artTitle->exists() 
+                foreach ($viewer->articles as $artTitle) {
+                    if ($artTitle && $artTitle->exists()
                             && $artTitle->getNamespace() === NS_MAIN) {
-                        $artResult[$art] = $artTitle->getFullURL();
+                        $artResult[$artTitle->getText()] = $artTitle->getFullURL();
                     }
                 }
             }

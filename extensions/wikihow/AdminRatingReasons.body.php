@@ -79,14 +79,15 @@ abstract class Helpfulness extends QueryPage {
 		return false;
 	}
 
-	function execute( $par ) {
+	public function execute( $par ) {
         global $wgHooks;
 
         $wgHooks['ShowSideBar'][] = array($this, 'removeSideBarCallback');
 
 		$action = $this->getRequest()->getVal('action');
 		if ($action == 'csv') {
-			return $this->getCSV();
+			$this->getCSV();
+			return;
 		}
 
 		parent::execute($par);
@@ -95,13 +96,13 @@ abstract class Helpfulness extends QueryPage {
     public static function removeSideBarCallback(&$showSideBar) {
         $showSideBar = false;
         return true;
-    }   
+    }
 
-	function getHeaderTitle() {
+	protected function getHeaderTitle() {
 		return "Helpfulness Responses";
 	}
 
-	function getPageJS() {
+	private function getPageJS() {
 		$html = <<<EOHTML
 		<script>
 		$('.mw-spcontent').on("click", '.arr_ratings_show', function(e) {
@@ -118,8 +119,8 @@ EOHTML;
 	function getPageHeader() {
 		$html = HtmlSnips::makeUrlTag('/extensions/wikihow/Rating/adminratingreasons.css');
 		$html .= $this->getPageJS();
-		$csvLink = $this->getCSVLink($item);
 		$item = $this->getRequest()->getVal('item');
+		$csvLink = $this->getCSVLink($item);
 		$headerTitle = $this->getHeaderTitle();
 
 		if ($item) {
@@ -141,9 +142,10 @@ EOHTML;
 		return $html;
 	}
 
-	function getTotalReasonsHTML($item) {
-		$dbr = wfGetDB(DB_SLAVE);
-		$where = array('ratr_type' => $this->mType);
+	private function getTotalReasonsHTML($item) {
+		$dbr = wfGetDB(DB_REPLICA);
+		$type = $this->mType;
+		$where = array( 'ratr_type' => $type );
 
 		$result = array();
 		if ($item) {
@@ -163,16 +165,19 @@ EOHTML;
 	private function getCSV() {
 		global $wgCanonicalServer;
 
-		header('Content-type: application/force-download');
-		header('Content-disposition: attachment; filename="data.csv"');
+		$req = $this->getRequest();
+		$req->response()->header('Content-type: application/force-download');
+		$req->response()->header('Content-disposition: attachment; filename="data.csv"');
 
+		// NOTE: if we used setArticleBodyOnly(true) instead here, Content-Type would
+		// automatically change to text/html. Not what we want.
 		$this->getOutput()->disable();
 
-		$item = $this->getRequest()->getVal('item');
+		$item = $req->getVal('item');
 
 		$lines = array();
 
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$vars = array('ratr_item as title',
 			'ratr_rating as rating',
@@ -180,16 +185,17 @@ EOHTML;
 			'ratr_user_text as user',
 			'ratr_name as name',
 			'ratr_email as email',
+			'ratr_type as type',
 			'ratr_detail as detail',
 			'ratr_timestamp as date');
 
-		$where = array('ratr_type'=>$this->mType);
+		$type = $this->mType;
+		$where = array( 'ratr_type' => $type );
 		if ($item) {
 			$where['ratr_item'] = $item;
 		}
 
 		$options = array("ORDER BY"=>"ratr_timestamp DESC", "LIMIT" => 50000);
-
 		$res = $dbr->select('rating_reason', $vars, $where, __METHOD__, $options);
 
 		foreach ($res as $row) {
@@ -208,17 +214,18 @@ EOHTML;
 			$accVotes = $acc->total;
 
 			$detail = "";
-			if ($row->detail) {
-				$detail = wfMessage($row->detail);
+			if ( $row->detail ) {
+				$detail = wfMessage( $row->detail )->text();
 				$detail = '"' . str_replace('"', '""', $detail) . '"';
 			}
 
-			$line = array($link, $rating, $reason, $row->user, $row->name, $row->email, $row->date, $this->mType, $accPercent, $accVotes, $detail);
+			$line = array($link, $rating, $reason, $row->user, $row->name, $row->email, $row->date, $row->type, $accPercent, $accVotes, $detail);
 			$lines[] = implode(",", $line);
 		}
 
-		print("title,rating,reason,user,name,email,date,type,accuracy,accuracy votes,detail\n");
-		print(implode("\n", $lines));
+		// print must be used if disabling OutputPage
+		print "title,rating,reason,user,name,email,date,type,accuracy,accuracy votes,detail\n";
+		print implode("\n", $lines);
 	}
 
 	private function getCSVLink($item) {
@@ -239,7 +246,8 @@ EOHTML;
 
 	function getQueryInfo() {
 		$cond = array();
-		$cond["ratr_type"] = $this->mType;
+		$type = $this->mType;
+		$cond["ratr_type"] = $type;
 
 		$item = $this->getRequest()->getVal("item");
 		if ($item) {
@@ -267,38 +275,38 @@ EOHTML;
 		return array("ratr_timestamp");
 	}
 
-	function getAccuracyText($ratingsData) {
+	private function getAccuracyText($ratingsData) {
 		if ($this->mShowAccuracyInline) {
 			return "{$ratingsData->percentage}% of {$ratingsData->total} votes";
 		}
 	}
 
-	function getRatingAccuracyKey($titleText) {
+	protected function getRatingAccuracyKey($titleText) {
 		$title = $this->getResultTitle( urldecode( $titleText ) );
 		return $title->getArticleId();
 	}
 
-	function getRatingAccuracy($titleText) {
+	protected function getRatingAccuracy($titleText) {
 		$key = $this->getRatingAccuracyKey($titleText);
 
 		$rd = $this->ratingsCache[$key];
 
 		if (!$rd) {
-			$dbr = wfGetDB(DB_SLAVE);
-			$rd = Pagestats::getRatingData($key, $this->mRatingTableName, $this->mRatingTablePrefix, $dbr);
+			$dbr = wfGetDB(DB_REPLICA);
+			$rd = PageStats::getRatingData($key, $this->mRatingTableName, $this->mRatingTablePrefix, $dbr);
 			$this->ratingsCache[$key] = $rd;
-		} 
+		}
 
 		return $rd;
 	}
 
-	function getRatingHTML($titleText) {
+	protected function getRatingHTML($titleText) {
 		$key = $this->getRatingAccuracyKey($titleText);
 
 		$rd = $this->ratingsCache[$key];
 
 		if (!$rd) {
-			$dbr = wfGetDB(DB_SLAVE);
+			$dbr = wfGetDB(DB_REPLICA);
 			$rd = PageHelpfulness::getRatingHTML($key, $this->getUser());
 			$this->ratingsCache[$key] = $rd;
 		}
@@ -309,7 +317,7 @@ EOHTML;
 		return false;
 	}
 
-	function getResultTitle($titleText) {
+	protected function getResultTitle($titleText) {
 		return Title::newFromText($titleText);
 	}
 
@@ -360,7 +368,7 @@ EOHTML;
 
 class ArticleHelpfulness extends Helpfulness {
 	public function __construct($name = '') {
-		$this->mType = "article";
+		$this->mType = array( "article", "itemrating" );
 		$this->mRatingTableName = "rating";
 		$this->mRatingTablePrefix = "rat";
 		parent::__construct('ArticleHelpfulness');
@@ -376,22 +384,22 @@ class AdminRatingReasons extends Helpfulness {
 		parent::__construct('AdminRatingReasons');
 	}
 
-	function getRatingHTML($titleText) {
+	protected function getRatingHTML($titleText) {
 		$acc = $this->getRatingAccuracy($titleText);
 		$accText .= "{$acc->percentage}% of {$acc->total} votes";
 		$html = "<div class='phr_data'>Accuracy: ".$accText."</div><br>";
 		return $html;
 	}
 
-	function getHeaderTitle() {
+	protected function getHeaderTitle() {
 		return "Sample Rating Reasons";
 	}
 
-	function getResultTitle($titleText) {
+	protected function getResultTitle($titleText) {
 		return Title::newFromText('sample/'.$titleText);
 	}
 
-	function getRatingAccuracyKey($titleText) {
+	protected function getRatingAccuracyKey($titleText) {
 		return $titleText;
 	}
 }

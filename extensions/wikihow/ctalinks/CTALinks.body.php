@@ -12,7 +12,7 @@ class CTALinks {
 		if (!CTALinks::isArticlePageTarget()) return "";
 
 		// ctaLinks structure is array [ctaId, link, ctaId, link, ...]. Whenever a ctaLink is added to the cta_links message, it must be preceded with a unique id number
-		$ctaLinks  = explode(",", trim(wfMsgForContent('cta_links')));
+		$ctaLinks  = explode( ",", trim( wfMessage('cta_links')->inContentLanguage()->text() ) );
 		if (sizeof($ctaLinks) == 0) return "";
 
 				$result = "";
@@ -31,7 +31,7 @@ class CTALinks {
 		}
 		return $result;
 	}
-	
+
 	function getCTAById($ctaId, &$ctaLinks) {
 		$ctaId = intval($ctaId);
 		$ctaIdx = array_search($ctaId, $ctaLinks);
@@ -52,15 +52,15 @@ class CTALinks {
 	function getGoogleConversionScript() {
 		$script = "";
 		if (self::isConversionPageTarget()) {
-			$script = wfMsgForContent('cta_conversion');
+			$script = wfMessage('cta_conversion')->inContentLanguage()->text();
 		}
 		return $script;
 	}
-	
+
 	function getGoogleControlScript() {
 		$script = "";
 		if (self::isArticlePageTarget()) {
-			$script = wfMsgForContent('cta_control');
+			$script = wfMessage('cta_control')->inContentLanguage()->text();
 		}
 		return $script;
 	}
@@ -68,17 +68,17 @@ class CTALinks {
 	function getGoogleControlTrackingScript() {
 		$script = "";
 		if (self::isArticlePageTarget()) {
-			$script = wfMsgForContent('cta_control_tracking');
+			$script = wfMessage('cta_control_tracking')->inContentLanguage()->text();
 		}
 		return $script;
 	}
-	
-	
+
+
 	function isArticlePageTarget() {
 		global $wgTitle, $wgRequest, $wgUser;
 		// Only display for article pages that aren't new articles
 		$createNewArticle = $wgRequest->getVal('create-new-article', '') == 'true';
-		return !($createNewArticle || $wgTitle->getNamespace() != NS_MAIN || $wgTitle->getFullText() == wfMsg('mainpage') || $wgRequest->getVal('action') != '');
+		return !($createNewArticle || !$wgTitle->inNamespace(NS_MAIN) || $wgTitle->getFullText() == wfMessage('mainpage') || $wgRequest->getVal('action') != '');
 	}
 
 	function isLoggedIn() {

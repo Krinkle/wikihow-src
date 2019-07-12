@@ -161,7 +161,13 @@
 			data: postData
 		}).done(function (data) {
 			data = '<div class="article_rating_result">' + data + '</div>';
-			$('#article_rating').html(data);
+
+			if (WH.DiscussTab && $('#article_rating_modal')) {
+				WH.DiscussTab.addFinalResponse(data);
+			}
+			else {
+				$('#article_rating').html(data);
+			}
 		});
 	};
 })(jQuery, mw);

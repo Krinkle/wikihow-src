@@ -36,11 +36,12 @@ class IOSHelper {
 	public static function addIOSAppIndexingLinkTag() {
 		global $wgLanguageCode;
 
-		if ( !self::isSupportedIOSLanguage($wgLanguageCode) ) {
+		$request = RequestContext::getMain();
+		$out = $request->getOutput();
+		if ( !self::isSupportedIOSLanguage($wgLanguageCode) || !WikihowSkinHelper::shouldShowMetaInfo($out) ) {
 			return;
 		}
 
-		$request = RequestContext::getMain();
 		$t = $request->getTitle();
 		if ( !$t || !$t->exists() ) {
 			return;
@@ -49,7 +50,7 @@ class IOSHelper {
 		if ( wfMessage( 'ios_app_indexing', 'off' )->text() == 'on' ) {
 			$link = Html::element( 'link', array( 'rel' => 'alternate',
 				'href' => "ios-app://" . self::getAppId() . "/wikihow/article?id=".$t->getArticleID() ) );
-			$request->getOutput()->addHeadItem('ios_app_indexing', $link);
+			$out->addHeadItem('ios_app_indexing', $link);
 		}
 	}
 
@@ -58,7 +59,7 @@ class IOSHelper {
 
 		// Turning off for now
 		return;
-		
+
 		if ( !self::isSupportedIOSLanguage($wgLanguageCode) ) {
 			return;
 		}
@@ -68,7 +69,7 @@ class IOSHelper {
 		if ( !$t || !$t->exists() ) {
 			return;
 		}
-		
+
 		// Only show on 10% of articles
 		if (mt_rand(1, 10) > 1) {
 			return;
@@ -77,13 +78,13 @@ class IOSHelper {
 		$action = $ctx->getRequest()->getVal('action', 'view');
 
 		$isMainPage = $t
-			&& $t->getNamespace() == NS_MAIN
+			&& $t->inNamespace(NS_MAIN)
 			&& $t->getText() == wfMessage('mainpage')->inContentLanguage()->text()
 			&& $action == 'view';
 
 		$isArticlePage = $t
 			&& !$isMainPage
-			&& $t->getNamespace() == NS_MAIN
+			&& $t->inNamespace(NS_MAIN)
 			&& $action == 'view';
 
 		$content = 'app-id=309209200';
@@ -110,7 +111,7 @@ class IOSHelper {
 
 		if ($t
 			&& Misc::isMobileMode()
-			&& $t->getNamespace() == NS_MAIN
+			&& $t->inNamespace(NS_MAIN)
 			&& $r->getVal('action', 'view') == 'view') {
 			self::addIOSAppBannerTag();
 		}

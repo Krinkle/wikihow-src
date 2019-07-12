@@ -126,7 +126,7 @@ class AddArticlesToWebsolr extends Maintenance {
 		$time = microtime(true);
 
 		// reuse the handle to the db
-		$dbr = wfGetDB(DB_SLAVE);
+		$dbr = wfGetDB(DB_REPLICA);
 
 		$url = "http://ec2-west.websolr.com/solr/d4901f648d5/update";
 
@@ -144,6 +144,7 @@ class AddArticlesToWebsolr extends Maintenance {
 			$since = wfTimestamp( TS_MW, time() - 60 * 60 * 24 * $days );
 		}
 
+		$noImages = false;
 		if ($this->hasOption('noimages')) {
 			echo "will not process images\n";
 			$noImages = true;
@@ -397,7 +398,7 @@ class AddArticlesToWebsolr extends Maintenance {
 			decho("unknown title for id", $page_id, false);
 			return "";
 		}
-		$title_text = "<![CDATA[".wfMsg('howto', $title->getText())."]]>";
+		$title_text = "<![CDATA[".wfMessage('howto', $title->getText())->text()."]]>";
 
 		if (!$noImages) {
 			$image = Wikitext::getTitleImage($title, true)?:AppDataFormatter::getCategoryImageFile($title);
@@ -409,6 +410,9 @@ class AddArticlesToWebsolr extends Maintenance {
 		}
 
 		if ($thumb && !($thumb instanceof MediaTransformError)) {
+			// set is secure site to true to create the proper url
+			global $wgIsSecureSite;
+			$wgIsSecureSite = true;
 			$thumbUrl = ArticleHTMLParser::uriencode( wfGetPad( $thumb->getUrl() ) );
 		}
 

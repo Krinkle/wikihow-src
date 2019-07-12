@@ -39,5 +39,3 @@ $detailsPlaceholderMsg = wfMessage( $detailsPlaceholderMsg )->text();
 		</form>
 	</div>
 </div>
-<?
-

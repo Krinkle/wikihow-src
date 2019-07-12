@@ -4,19 +4,21 @@
 TODO (Added by Alberto on Nov 9, 2016):
 
 There are "index_info.ii_page" values which are missing from the "page" table:
-select * from index_info where ii_page not in (select page_id from page);
+select count(*) from index_info where ii_page not in (select page_id from page);
 
 One reason for this has to do with pages being moved. We could create a hook that removes
 expired entries from the "index_info" table.
  */
 
-$wgHooks['BeforePageDisplay'][] = array('RobotPolicy::setRobotPolicy');
+$wgHooks['BeforePageDisplay'][] = ['RobotPolicy::setRobotPolicy'];
 // need to change to save complete so that new articles get proccessed correctly
-$wgHooks['PageContentSaveComplete'][] = array('RobotPolicy::recalcArticlePolicy');
+$wgHooks['PageContentSaveComplete'][] = ['RobotPolicy::recalcArticlePolicy'];
 // no need to do demote since an edit happens with that
-$wgHooks['NABMarkPatrolled'][] = array('RobotPolicy::recalcArticlePolicyBasedOnId');
-$wgHooks['ArticleDelete'][] = array('RobotPolicy::onArticleDelete');
-$wgHooks['TitleMoveComplete'][] = array('RobotPolicy::onTitleMoveComplete');
+$wgHooks['NABMarkPatrolled'][] = ['RobotPolicy::recalcArticlePolicyBasedOnId'];
+$wgHooks['ArticleDelete'][] = ['RobotPolicy::onArticleDelete'];
+$wgHooks['TitleMoveComplete'][] = ['RobotPolicy::onTitleMoveComplete'];
+// Category pages
+$wgHooks['CategoryAfterPageRemoved'][] = ['RobotPolicy::recalcCategoryPolicy'];
 
 class RobotPolicy {
 
@@ -30,6 +32,21 @@ class RobotPolicy {
 	const POLICY_NOINDEX_NOFOLLOW_STR = 'noindex,nofollow';
 
 	const TABLE_NAME = "index_info";
+
+	/**
+	 * IMPORTANT: use lowercase when adding page names and language codes
+	 * 'lang' can be: '*', 'intl', or 'en|fr|de|ko|...'
+	 */
+	private static $overrides = [
+		NS_MAIN => [],
+		NS_CATEGORY => [
+			'wikihow'           => [ 'lang' => 'en', 'policy' => self::POLICY_NOINDEX_FOLLOW ],
+			'featured articles' => [ 'lang' => 'en', 'policy' => self::POLICY_INDEX_FOLLOW ],
+		],
+		NS_SPECIAL => [
+			'profilebadges'     => [ 'lang' => 'intl', 'policy' => self::POLICY_NOINDEX_NOFOLLOW ],
+		]
+	];
 
 	var $title, $wikiPage, $request;
 
@@ -118,8 +135,12 @@ class RobotPolicy {
 		$policyString = "";
 		$timestamp = "";
 		if ($title) {
-			$dbr = wfGetDB(DB_SLAVE);
-			$row = $dbr->selectRow(RobotPolicy::TABLE_NAME, array('ii_policy', 'ii_timestamp'), array('ii_page' => $title->getArticleID()), __METHOD__);
+			$dbr = wfGetDB(DB_REPLICA);
+			$row = $dbr->selectRow(
+				RobotPolicy::TABLE_NAME,
+				['ii_policy', 'ii_timestamp'],
+				['ii_namespace' => $title->getNamespace(), 'ii_page' => $title->getArticleID()]
+			);
 
 			if ($row) {
 				$policy = $row->ii_policy;
@@ -164,6 +185,9 @@ class RobotPolicy {
 		} elseif ($this->hasOldidParam()) {
 			$policy = self::POLICY_NOINDEX_NOFOLLOW;
 			$policyText = 'hasOldidParam';
+		} elseif ($this->isNotViewAction()) {
+			$policy = self::POLICY_NOINDEX_NOFOLLOW;
+			$policyText = 'notViewAction';
 		} elseif ($this->isNonExistentPage()) {
 			$policy = self::POLICY_NOINDEX_NOFOLLOW;
 			$policyText = 'isNonExistentPage';
@@ -172,6 +196,14 @@ class RobotPolicy {
 			// point. The reason is that isNonExistentPage() has been called.
 			list($policy, $policyText) = $this->getRobotPolicyBasedOnTitle();
 		}
+
+		wfDebugLog(
+			'hypothesis',
+			">> GET_ROBOT_POLICY " . var_export( [
+				'policy' => $policy,
+				'policyText' => $policyText
+			], true ) . "\n"
+		);
 
 		return array($policy, $policyText);
 	}
@@ -187,22 +219,25 @@ class RobotPolicy {
 			return array($policy, $policyText);
 		}
 
-		if ( $this->title->getArticleID() <= 0 || !$this->title->inNamespace(NS_MAIN) ) {
-			//not an article page, so we don't store in the db
+		$pageId = $this->title->getArticleID();
+		if ( $pageId <= 0 || !$this->title->inNamespaces(NS_MAIN, NS_CATEGORY) ) {
+			// Not an article or category page, so index info is not stored in the DB
 			list($policy, $policyText) = $this->generateRobotPolicyBasedOnTitle();
 		} else {
-			//now check the db
-			$dbr = wfGetDB(DB_SLAVE);
-			$row = $dbr->selectRow(RobotPolicy::TABLE_NAME, array('ii_policy', 'ii_reason'), array('ii_page' => $this->title->getArticleID()), __METHOD__);
-
-			if ( $row ) {
+			$dbr = wfGetDB(DB_REPLICA);
+			$row = $dbr->selectRow(
+				RobotPolicy::TABLE_NAME,
+				['ii_policy', 'ii_reason'],
+				['ii_namespace' => $this->title->getNamespace(), 'ii_page' => $pageId]
+			);
+			if ($row) {
 				$policy = $row->ii_policy;
 				$policyText = $row->ii_reason;
 			} else {
-				//we shouldn't ever need this, but just in case
+				// we shouldn't ever need this, but just in case
 				list($policy, $policyText) = $this->generateRobotPolicyBasedOnTitle();
-				//now let's save it
-				self::saveArticlePolicy($this->title, $policy, $policyText);
+				// now let's save it
+				self::savePolicyInDB($this->title, $policy, $policyText);
 			}
 		}
 
@@ -213,9 +248,12 @@ class RobotPolicy {
 	}
 
 	public function generateRobotPolicyBasedOnTitle() {
-		$policy = -1;
 		$policyText = '';
-		if ($this->isNonExistentPage()) {
+		$policy = $this->getPolicyOverride();
+
+		if ($policy >= 0) {
+			$policyText = 'isOverride';
+		} elseif ($this->isNonExistentPage()) {
 			$policy = self::POLICY_NOINDEX_NOFOLLOW;
 			$policyText = 'isNonExistentPage';
 		} elseif ($this->inWhitelist()) {
@@ -233,9 +271,12 @@ class RobotPolicy {
 		} elseif ($this->isBlacklistPage()) {
 			$policy = self::POLICY_NOINDEX_NOFOLLOW;
 			$policyText = 'isBlacklistPage';
-		} elseif ($this->isBadCategory()) {
+		} elseif ($this->isCategoryInTree()) {
 			$policy = self::POLICY_NOINDEX_NOFOLLOW;
-			$policyText = 'isBadCategory';
+			$policyText = 'isNotInTree';
+		} elseif ($this->isEmptyCategory()) {
+			$policy = self::POLICY_NOINDEX_NOFOLLOW;
+			$policyText = 'isEmptyCategory';
 		}
 
 		// Lastly, if indexation status is not already decided, we
@@ -261,7 +302,7 @@ class RobotPolicy {
 	 */
 	private static function getDB() {
 		static $dbr = null;
-		if (!$dbr) $dbr = wfGetDB(DB_SLAVE);
+		if (!$dbr) $dbr = wfGetDB(DB_REPLICA);
 		return $dbr;
 	}
 
@@ -279,12 +320,29 @@ class RobotPolicy {
 			NS_MEDIAWIKI, NS_MEDIAWIKI_TALK, NS_TEMPLATE, NS_TEMPLATE_TALK,
 			NS_CATEGORY_TALK, NS_ARTICLE_REQUEST, NS_ARTICLE_REQUEST_TALK,
 			NS_USER_KUDOS, NS_USER_KUDOS_TALK,
-			NS_VIDEO, NS_VIDEO_TALK, NS_VIDEO_COMMENTS, NS_VIDEO_COMMENTS_TALK
+			NS_VIDEO, NS_VIDEO_TALK, NS_VIDEO_COMMENTS, NS_VIDEO_COMMENTS_TALK,
+			NS_SUMMARY, NS_SUMMARY_TALK, NS_HELP_TALK, NS_HELP
 		);
 		if (defined('NS_MODULE')) {
 			$noindexNamespaces[] = NS_MODULE;
 			$noindexNamespaces[] = NS_MODULE_TALK;
 		}
+
+		// We put this check in place after a disaster struck with a rollout of a
+		// seemingly unrelated project. We found out that Mediawiki returns true
+		// when doing this:
+		//   Title::newFromText('Kiss')->inNamespace('RANDOMSTRING')
+		// which is kind of crazy, but it's a Mediawiki bug that we have to work
+		// around. It's really dangerous in particular since PHP turns undefined
+		// defines (such as any undefined namespaces in the $noindexNamespaces
+		// array above) into strings, which Title::inNamespaces() takes to be
+		// the same as NS_MAIN (0). Crazy bug!
+		foreach ($noindexNamespaces as $ns) {
+			if (!is_int($ns)) {
+				throw new MWException('RobotsPolicy bug detected! See comment in ' . __FILE__ . ' just above line ' . __LINE__);
+			}
+		}
+
 		$inNoindexNamespace = $this->title &&
 			$this->title->inNamespaces( $noindexNamespaces );
 
@@ -351,7 +409,24 @@ class RobotPolicy {
 	 * Check whether the URL has an &oldid=... param
 	 */
 	private function hasOldidParam() {
-		return $this->request && (boolean)$this->request->getVal('oldid');
+		// return $this->request && (boolean)$this->request->getVal('oldid');
+		return (
+			// Has a request object
+			$this->request &&
+			// Oldid was passed
+			$this->request->getCheck( 'oldid' ) &&
+			// Not a Hypothesis response
+			!$this->request->getCheck( 'hyp-opti-project' )
+		);
+	}
+
+	/**
+	 * Check whether this is not the default action ("view")
+	 */
+	private function isNotViewAction() {
+		return $this->title && $this->request
+			&& $this->title->exists()
+			&& $this->request->getVal('action', 'view') != 'view';
 	}
 
 	/**
@@ -369,30 +444,31 @@ class RobotPolicy {
 	}
 
 	/**
-	 * Don't allow indexing of user pages where the contributor has less
-	 * than 500 edits.  Also, ignore pages with a '/' in them, such as
-	 * User:Reuben/Sandbox.
-	 * Also prevent indexing when the user hasn't shown activity for more
-	 * than 90 days.
+	 * Check if this is a user page that should not be indexed
 	 */
 	private function hasUserPageRestrictions() {
 		global $wgLanguageCode;
 
 		if ($this->title->inNamespace(NS_USER)) {
+
+			// The vast majority of user pages are noindex, unless we whitelist them
+
+			$aid = $this->title->getArticleID();
+			$isWhitelisted = ArticleTagList::hasTag('UserPageWhitelist', $aid);
+			if (!$isWhitelisted) {
+				return true;
+			}
+
+			// These rules are older, but we keep them as a backstop
+
 			if (($this->userNumEdits() < 500 && !$this->isGPlusAuthor())
 				|| strpos($this->title->getText(), '/') !== false
 				|| $wgLanguageCode != 'en'
 			) {
 				return true;
 			}
-			$user = User::newFromName($this->title->getDBkey());
-			if ($user !== false
-				&& $user->getId() != 0
-				&& wfTimestamp() - wfTimestamp(TS_UNIX, $user->getTouched()) > 60*60*24*90
-			) {
-				return true;
-			}
 		}
+
 		return false;
 	}
 
@@ -418,11 +494,14 @@ class RobotPolicy {
 	 */
 	private function hasBadTemplate() {
 		$result = 0;
-		$articleID = $this->title->getArticleID();
-		$sql = "SELECT tl_title FROM templatelinks
-				WHERE tl_from = '" . $articleID . "' AND
-				tl_title IN ('Speedy', 'Stub', 'Copyvio','Copyviobot','Copyedit','Cleanup','Notifiedcopyviobot','CopyvioNotified','Notifiedcopyvio','Format','Nfd','Inuse')";
-		$res = self::getDB()->query($sql, __METHOD__);
+		$tables = 'templatelinks';
+		$fields = 'tl_title';
+		$where = [
+			'tl_from' => $this->title->getArticleID(),
+			'tl_title' => ['Speedy', 'Stub', 'Copyvio','Copyviobot','Copyedit','Cleanup','Notifiedcopyviobot','CopyvioNotified','Notifiedcopyvio','Format','Nfd','Inuse']
+		];
+		$res = self::getDB()->select($tables, $fields, $where);
+
 		$templates = array();
 		foreach ($res as $row) {
 			$templates[ $row->tl_title ] = true;
@@ -450,8 +529,8 @@ class RobotPolicy {
 		$ret = false;
 		if ($this->wikiPage
 			&& $this->title->inNamespace(NS_MAIN)
-			&& class_exists('Newarticleboost')
-			&& !Newarticleboost::isNABbed( self::getDB(), $this->title->getArticleID() )
+			&& class_exists('NewArticleBoost')
+			&& !NewArticleBoost::isNABbed( self::getDB(), $this->title->getArticleID() )
 		) {
 			$ret = true;
 		}
@@ -493,72 +572,57 @@ class RobotPolicy {
 	}
 
 	/**
-	 * We want to noindex,nofollow "junk" categories outside the main
-	 * category tree.
+	 * Whether a category is included in the category tree (/wikiHow:Categories)
 	 */
-	private function isBadCategory() {
-		$result = false;
-		if ($this->title->getNamespace() == NS_CATEGORY) {
-			$articleID = $this->title->getArticleID();
-			$categoryText = $this->title->getText();
-			$catTreeArray = Categoryhelper::getCategoryTreeArray();
+	public function isCategoryInTree(): bool
+	{
+		if ( !$this->title->inNamespace(NS_CATEGORY) ) {
+			return false;
+		}
 
-			// Fix for strange behaviour on the French site:
-			// Top-level categories seem to get formatted with <big> tags (WHY?!?),
-			// e.g.:
-			// "<big>'''Foo Bar'''</big>"
-			// It's unknown why this happens, and it seems inconsistent.
-			// If such a case is detected, we replace the key with:
-			// "Foo Bar"
-			// TODO: for perf reasons, we might want to check language code first
-			// if this issue only appears on the French wiki
-			$pattern = "@^<big>'''(.*)'''</big>$@";
-			$matches = array();
-			foreach ($catTreeArray as $key=>$value) {
-				if (preg_match($pattern, $key, $matches)) {
-					$catTreeArray[$matches[1]] = $value;
-					unset($catTreeArray[$key]);
-				}
-			}
+		$txt = $this->title->getText();
+		$categs = CategoryHelper::getIndexableCategoriesFromTree();
 
-			unset($catTreeArray['WikiHow']);
+		return !isset($categs[$txt]);
+	}
 
-			$array_key_exists_recursive = function ($needle, $haystack)
-										  use (&$array_key_exists_recursive) {
-				foreach ($haystack as $key=>$value) {
-					$current_key = $key;
-					if ($needle === $key || is_array($value) &&
-							$array_key_exists_recursive($needle, $value) !== false) {
-						return true;
-					}
-				}
-				return false;
-			};
+	/**
+	 * Returns TRUE if there are no indexable articles in the category
+	 */
+	private function isEmptyCategory(): bool {
+		if (!$this->title || !$this->title->inNamespace(NS_CATEGORY)) {
+			return false;
+		}
+		// Count indexable articles in the category
+		$dbr = wfGetDB(DB_REPLICA);
+		$tables = ['page', 'categorylinks', 'index_info'];
+		$fields = 'count(*)';
+		$where = [
+			'cl_from = page_id',
+			'ii_page = page_id',
+			'cl_to' => $this->title->getDBKey(),
+			'page_namespace != 14',
+			'ii_policy IN (1, 4)'
+		];
+		$count = (int) $dbr->selectField($tables, $fields, $where);
+		return $count === 0;
+	}
 
-			$result = !$array_key_exists_recursive($categoryText, $catTreeArray);
+	private function getPolicyOverride(): int {
+		global $wgLanguageCode;
+		$policy = -1;
 
-			// Some categories on International appear as empty pages
-			// when they are defined in the `page` table but not the
-			// `category` table. Deindex those as well.
-			// TODO: This might be redundant, as those articles are
-			// likely to not be a part of the main category tree.
-			// Further testing required to determine this.
-			if ($result) {
-				$catDBKey = $this->title->getDBKey();
-
-				$dbr = $this->getDB();
-				$res = $dbr->select(
-					'category',
-					array('*'),
-					array('cat_title' => $catDBKey),
-					__METHOD__
-				);
-
-				$result = $res !== false;
+		$ns = $this->title->getNamespace();
+		$txt = strtolower($this->title->getText());
+		$cnf = self::$overrides[$ns][$txt] ?? null;
+		if ($cnf) {
+			$lang = $cnf['lang'];
+			if ( $lang == '*' || $wgLanguageCode == $lang || ($lang == 'intl' && Misc::isIntl()) ) {
+				$policy = $cnf['policy'];
 			}
 		}
 
-		return $result;
+		return $policy;
 	}
 
 	/**
@@ -592,47 +656,71 @@ class RobotPolicy {
 		}
 	}
 
-	public static function recalcArticlePolicyBasedOnId($aid) {
+	public static function recalcArticlePolicyBasedOnId($aid, bool $dry=false): int {
 		$title = Title::newFromID($aid);
 
-		self::recalcArticlePolicyBasedOnTitle($title);
+		return self::recalcArticlePolicyBasedOnTitle($title, $dry);
 	}
 
-	private static function recalcArticlePolicyBasedOnTitle(&$title) {
+	/**
+	 * @param  int  $aid Article ID
+	 * @param  bool $dry Dry run: calculate but don't write to DB nor cache
+	 */
+	public static function recalcArticlePolicyBasedOnTitle(&$title, bool $dry=false): int {
 		$cache = wfGetCache(CACHE_MEMSTATIC);
-		if (!$title || !$title->inNamespace(NS_MAIN) || $title->getArticleID() <= 0) {
-			//if it's not a main namespace article, we don't store it in the db
-			return;
+		if (!$title || !$title->exists() || !$title->inNamespaces(NS_MAIN, NS_CATEGORY)) {
+			// Not an article or category page, so index info is not stored in the DB
+			return 0;
 		}
 
 		$cachekey = self::getCacheKey($title);
 
 		$robotPolicy = RobotPolicy::newFromTitle($title);
-		if (!$robotPolicy) {
-			$cache->delete($cachekey);
-		}
 
 		list($policy, $policyText) = $robotPolicy->generateRobotPolicyBasedOnTitle();
 
-		self::saveArticlePolicy($title, $policy, $policyText);
+		if (!$dry) {
+			self::savePolicyInDB($title, $policy, $policyText);
+			$cache->set($cachekey, ['policy'=>$policy, 'text'=>$policyText]);
+		}
 
-		$res = array('policy' => $policy, 'text' => $policyText);
-		$cache->set($cachekey, $res);
+		// Recalculate the policies of the categories to which the article belongs
+		if ( !$dry && $title->exists() && $title->inNamespace(NS_MAIN) ) {
+			$categories = WikiPage::newFromID($title->getArticleID())->getCategories();
+			foreach ($categories as $category) {
+				self::recalcArticlePolicyBasedOnTitle($category);
+			}
+		}
+
+		return $policy;
 	}
 
 	// Used as hook on page save complete
 	public static function recalcArticlePolicy(&$article) {
 		if ($article) {
 			$title = $article->getTitle();
-
 			self::recalcArticlePolicyBasedOnTitle($title);
 		}
 	}
 
-	private static function saveArticlePolicy($title, $policy, $policyText) {
+	// Used as hook when a page is added/removed to category
+	public static function recalcCategoryPolicy($category, $wikiPage) {
+		if ($category) {
+			self::recalcArticlePolicyBasedOnTitle($category->getTitle());
+		}
+	}
+
+	private static function savePolicyInDB($title, $policy, $policyText) {
 		$dbw = wfGetDB(DB_MASTER);
-		$values = array('ii_page' => $title->getArticleID(), 'ii_policy' => $policy, 'ii_reason' => $policyText, 'ii_timestamp' => wfTimestamp(TS_MW), 'ii_revision' => $title->getLatestRevID());
-		$dbw->upsert(RobotPolicy::TABLE_NAME, $values, array('ii_page'), $values, __METHOD__);
+		$values = [
+			'ii_page' => $title->getArticleID(),
+			'ii_policy' => $policy,
+			'ii_reason' => $policyText,
+			'ii_timestamp' => wfTimestamp(TS_MW),
+			'ii_revision' => $title->getLatestRevID(),
+			'ii_namespace' => $title->getNamespace()
+		];
+		$dbw->upsert(RobotPolicy::TABLE_NAME, $values, [], $values);
 	}
 
 	/**

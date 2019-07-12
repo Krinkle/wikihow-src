@@ -52,6 +52,7 @@ define( 'DBO_COMPRESS', 512 );
  * Valid database indexes
  * Operation-based indexes
  */
+define( 'DB_REPLICA', -1 );     # MWUP: don't merge this line when upgrading to 1.33+!
 define( 'DB_SLAVE', -1 );     # Read from the slave (or only server)
 define( 'DB_MASTER', -2 );    # Write to master (or only server)
 /**@}*/
@@ -95,6 +96,8 @@ define( 'NS_HELP', 12 );
 define( 'NS_HELP_TALK', 13 );
 define( 'NS_CATEGORY', 14 );
 define( 'NS_CATEGORY_TALK', 15 );
+define( 'NS_SUMMARY', 30);
+define( 'NS_SUMMARY_TALK', 31);
 
 /**
  * NS_IMAGE and NS_IMAGE_TALK are the pre-v1.14 names for NS_FILE and

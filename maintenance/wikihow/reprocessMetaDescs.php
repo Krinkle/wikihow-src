@@ -18,7 +18,7 @@ class ReprocessAllAMI {
      * all user-generated descriptions from the table.
      *
      */
-     public static function reprocessAllArticles($style) {
+     public static function reprocessAllArticles() {
         // pull all pages from DB
         $dbw = wfGetDB(DB_MASTER);
         $rows = $dbw->select('page', 'page_title',
@@ -36,7 +36,7 @@ class ReprocessAllAMI {
         //$dbw->update('article_meta_info', 
         //  array('ami_desc_style = ' . $style,
         //      "ami_desc = ''"),
-        //  array('ami_desc_style <> ' . $style),
+        //  array('ami_desc_style != ' . $style),
         //  __METHOD__);
 
         // process all pages, adding then chosen style description to them
@@ -44,7 +44,7 @@ class ReprocessAllAMI {
             $title = Title::newFromDBkey($page);
             if ($title) {
                 $ami = new ArticleMetaInfo($title, true);
-                $ami->refreshMetaData($style);
+                $ami->refreshMetaData();
 				if (@$count++ % 10000 == 0 && $count > 0) print date('r') . " done $count\n";
             } else {
                 print "title not found: $page\n";
@@ -54,5 +54,4 @@ class ReprocessAllAMI {
 
 }
 
-ReprocessAllAMI::reprocessAllArticles(ArticleMetaInfo::DESC_STYLE_DEFAULT);
-
+ReprocessAllAMI::reprocessAllArticles();

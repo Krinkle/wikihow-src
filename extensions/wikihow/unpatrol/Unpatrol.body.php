@@ -85,7 +85,7 @@ class UnpatrolTips extends UnlistedSpecialPage {
 					$this->getOutput()->addHTML("There were no tips patrolled to show for this time frame.<br/>");
 				}
 
-			} else if ($this->getRequest()->getVal("view")) {
+			} elseif ($this->getRequest()->getVal("view")) {
 				if (!$end) {
 					$this->getOutput()->addHTML("showing changes by $user since {$humanCutoff}<br/>");
 				} else {
@@ -138,7 +138,7 @@ class UnpatrolTips extends UnlistedSpecialPage {
 			}
 		}
 
-		wfRunHooks('UnpatrolTips', array(&$tipIds));
+		Hooks::run('UnpatrolTips', array(&$tipIds));
 
 		$count = sizeof($tipIds);
 		if ($print) {
@@ -283,11 +283,11 @@ class Unpatrol extends UnlistedSpecialPage {
 			if (!empty($unpatrol_limit)) $sql .= " LIMIT " . $unpatrol_limit;
 			$res = $dbw->query($sql,__METHOD__);
 
-			wfRunHooks('Unpatrol', array(&$oldids));
+			Hooks::run('Unpatrol', array(&$oldids));
 
 			if ($res) {
 				// set logs to deleted
-				// Reuben 1/22/2014: No more deleting of logs, per community managers and bug #49, 
+				// Reuben 1/22/2014: No more deleting of logs, per community managers and bug #49,
 				// because how this works in MWUP has changed
 				//$res = $dbw->update('logging', array('log_deleted' => 1), $options, __METHOD__, $limit);
 
@@ -297,7 +297,7 @@ class Unpatrol extends UnlistedSpecialPage {
 				// log the change
 				$title = Title::newFromText('Special:Unpatrol');
 				$log = new LogPage( 'unpatrol', false );
-				$msg = wfMsgHtml("unpatrol_log", $count, "[[User:" . $user->getName() . "]]", $wgLang->date($cutoff), $cutoff2==null?$wgLang->date(wfTimestampNow()):$wgLang->date($cutoff2));
+				$msg = wfMessage("unpatrol_log")->rawParams($count, "[[User:" . $user->getName() . "]]", $wgLang->date($cutoff), $cutoff2==null?$wgLang->date(wfTimestampNow()):$wgLang->date($cutoff2))->escaped();
 				$log->addEntry('unpatrol', $title, $msg);
 			}
 		}
